@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { FINANCE_MONEY_POLICY, roundFinanceFxRate } from '@/lib/finance-money'
 
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const currencyPattern = /^[A-Z0-9]{3,6}$/
@@ -27,7 +28,10 @@ export const fxRateFormSchema = z.object({
   fromCurrency: requiredCurrency('สกุลต้นทาง'),
   id: z.preprocess(blankToNull, z.string().trim().max(80, 'รหัสยาวเกินไป').nullable().default(null)),
   note: optionalText('หมายเหตุ', 500),
-  rate: z.coerce.number({ invalid_type_error: 'Rate ต้องเป็นตัวเลข' }).finite('Rate ต้องเป็นตัวเลข').gt(0, 'Rate ต้องมากกว่า 0'),
+  rate: z.coerce.number({ invalid_type_error: 'Rate ต้องเป็นตัวเลข' })
+    .finite('Rate ต้องเป็นตัวเลข')
+    .gt(0, 'Rate ต้องมากกว่า 0')
+    .refine((value) => roundFinanceFxRate(value) === value, `Rate ใช้ทศนิยมได้ไม่เกิน ${FINANCE_MONEY_POLICY.fxRateScale} ตำแหน่ง`),
   rateDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
   rateType: z.string().trim().min(1, 'ประเภท Rate จำเป็น').max(60, 'ประเภท Rate ยาวเกินไป').regex(rateTypePattern, 'ประเภท Rate มีรูปแบบไม่ถูกต้อง').default('BOT Rate'),
   source: optionalText('แหล่งที่มา', 120),

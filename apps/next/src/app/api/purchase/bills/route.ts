@@ -1,12 +1,15 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { XLSX } from '@/lib/server/xlsx'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { calculatePurchaseBillPostAdvanceTotals, calculateSupplierAdvanceAllocation, calculateSupplierAdvancePaidBaseCapacity } from '@/lib/purchase-advance'
 import {
-  PURCHASE_BILL_CANCELLED_STATUSES,
+  PURCHASE_BILL_ACTIVE_STATUSES,
   PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS,
+  PURCHASE_BILL_STATUS,
+  type PurchaseBillStatus,
+  requirePurchaseBillStatus,
   isPurchaseBillCancelledStatus,
 } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -42,6 +45,7 @@ import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION, type WeightTicketUsageAction } from '@/lib/server/weight-ticket-usage-history'
+import { requiresWeightTicketOpenBillPermission, WEIGHT_TICKET_OPEN_BILL_PERMISSION } from '@/lib/server/weight-ticket-open-bill-permissions'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { Prisma } from '../../../../../generated/prisma/client'
 
@@ -101,6 +105,22 @@ type WeightTicketOptionRow = Prisma.weight_ticketsGetPayload<{
   select: typeof weightTicketOptionSelect
 }>
 
+const weightTicketStatusSelect = {
+  id: true,
+  status: true,
+  weight_ticket_lines: {
+    select: { net_weight: true },
+  },
+  weight_ticket_product_summaries: {
+    select: {
+      billed_weight: true,
+      id: true,
+      net_weight: true,
+      remaining_weight: true,
+    },
+  },
+} as const
+
 type BillQuery = {
   branchId?: string
   dateFrom?: string
@@ -128,6 +148,7 @@ const PURCHASE_BILL_ACTIVE_ITEM_STATUS = 'active'
 const PURCHASE_BILL_SUPERSEDED_ITEM_STATUS = 'superseded'
 const PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS = 'active'
 const PURCHASE_BILL_RELEASED_ALLOCATION_STATUS = 'released'
+const PURCHASE_BILL_WRITE_TRANSACTION_TIMEOUT_MS = 10_000
 
 type ProductRefRow = {
   code: string
@@ -197,14 +218,54 @@ async function resolveProductsByCodeOrId(productRefs: string[]) {
   })
 }
 
-async function resolvePoBuysByDocNo(poRefs: string[]) {
+type PoBuyReader = Pick<Prisma.TransactionClient, 'po_buys'>
+type ReceiptAvailabilityReader = Pick<Prisma.TransactionClient, 'purchase_bill_receipt_allocations' | 'weight_tickets'>
+
+function isPostgresLockNotAvailable(caught: unknown) {
+  if (!(caught instanceof Prisma.PrismaClientKnownRequestError) || caught.code !== 'P2010') return false
+  if (!caught.meta || typeof caught.meta !== 'object' || !('code' in caught.meta)) return false
+  return caught.meta.code === '55P03'
+}
+
+async function resolvePoBuysByDocNo(poRefs: string[], reader: PoBuyReader = prisma) {
   const uniqueRefs = [...new Set(poRefs.filter(Boolean))]
   if (uniqueRefs.length === 0) return []
-  return prisma.po_buys.findMany({
+  return reader.po_buys.findMany({
     where: {
       doc_no: { in: uniqueRefs },
     },
   })
+}
+
+async function lockPurchaseBillWriteSources(
+  tx: Prisma.TransactionClient,
+  sources: {
+    purchaseBillIds?: bigint[]
+    poBuyIds?: bigint[]
+    weightTicketIds?: bigint[]
+  },
+) {
+  const purchaseBillIds = [...new Set(sources.purchaseBillIds ?? [])]
+  const poBuyIds = [...new Set(sources.poBuyIds ?? [])]
+  const weightTicketIds = [...new Set(sources.weightTicketIds ?? [])]
+
+  try {
+    // Keep a deterministic lock order so write paths cannot deadlock each other.
+    if (purchaseBillIds.length > 0) {
+      await tx.$queryRaw`select id from public.purchase_bills where id in (${Prisma.join(purchaseBillIds)}) order by id for update nowait`
+    }
+    if (poBuyIds.length > 0) {
+      await tx.$queryRaw`select id from public.po_buys where id in (${Prisma.join(poBuyIds)}) order by id for update nowait`
+    }
+    if (weightTicketIds.length > 0) {
+      await tx.$queryRaw`select id from public.weight_tickets where id in (${Prisma.join(weightTicketIds)}) order by id for update nowait`
+    }
+  } catch (caught) {
+    if (isPostgresLockNotAvailable(caught)) {
+      throw new Error('ใบรับของ, PO Buy หรือบิลนี้กำลังถูกทำรายการอยู่ กรุณาลองใหม่อีกครั้ง')
+    }
+    throw caught
+  }
 }
 
 async function resolvePurchaseBillByDocNoOrId(idOrDocNo: string) {
@@ -326,6 +387,7 @@ function billItemJson(row: PurchaseBillRow['purchase_bill_items'][number]) {
     discount: toNumber(row.discount),
     displayName: row.display_name,
     grossWeight: toNumber(row.gross_weight),
+    lineNo: row.line_no,
     lotNo: row.lot_no,
     note: row.note,
     poBuyId: typeof snapshot.poBuyId === 'string' ? snapshot.poBuyId : '',
@@ -382,7 +444,7 @@ function billJson(row: PurchaseBillRow, paymentDocNos: string[] = []) {
     receiptDocNos,
     refNo: row.ref_no ?? '',
     salesId: stringifyBusinessValue(row.sales_id),
-    status: row.status ?? 'unpaid',
+    status: requirePurchaseBillStatus(row.status, row.doc_no),
     supplierId: row.suppliers?.code ?? '',
     supplierName: row.supplier_name_snapshot ?? '-',
     totalAmount: toNumber(row.total_amount),
@@ -476,10 +538,8 @@ async function createPurchaseBillItems(
   items: ReturnType<typeof buildBillItems>,
   itemVersion = 1,
 ) {
-  const itemRows = []
-  for (const [index, item] of items.entries()) {
-    const created = await tx.purchase_bill_items.create({
-      data: {
+  return tx.purchase_bill_items.createManyAndReturn({
+    data: items.map((item, index) => ({
         amount: item.amount,
         deduct_weight: item.deductWeight,
         discount: item.discount,
@@ -513,11 +573,8 @@ async function createPurchaseBillItems(
           receiptTicketId: item.receiptTicketId ?? null,
         } as Prisma.InputJsonValue,
         unit: item.unit,
-      },
-    })
-    itemRows.push(created)
-  }
-  return itemRows
+    })),
+  })
 }
 
 async function nextPurchaseBillItemVersion(tx: Prisma.TransactionClient, billId: bigint) {
@@ -1220,7 +1277,7 @@ async function buildWeightTicketUsageMap(tickets: WeightTicketOptionRow[]) {
       allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: { in: ticketIds },
       purchase_bills: {
-        status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
       },
     },
   })
@@ -1261,18 +1318,24 @@ async function findActivePurchaseChannelForBill(input: {
   })
 }
 
-async function projectProfitCostPurchaseBill(tx: Prisma.TransactionClient, purchaseBillId: bigint) {
-  await tx.$executeRaw`select public.project_profit_cost_purchase_bill(${purchaseBillId})`
+function schedulePurchaseBillProfitCostProjection(purchaseBillId: bigint) {
+  after(async () => {
+    try {
+      await prisma.$executeRaw`select public.project_profit_cost_purchase_bill(${purchaseBillId})`
+    } catch (caught) {
+      console.error('[purchase_bill] profit-cost projection failed', { purchaseBillId: String(purchaseBillId), caught })
+    }
+  })
 }
 
-async function loadReceiptAvailability(ticketDocNo: string, excludeBillId?: bigint) {
-  const ticket = await prisma.weight_tickets.findUnique({
+async function loadReceiptAvailability(reader: ReceiptAvailabilityReader, ticketDocNo: string, excludeBillId?: bigint) {
+  const ticket = await reader.weight_tickets.findUnique({
     select: weightTicketOptionSelect,
     where: { doc_no: ticketDocNo },
   })
   if (!ticket) return { ticket: null, usedQtyBySummaryId: new Map<string, number>() }
 
-  const bills = await prisma.purchase_bill_receipt_allocations.findMany({
+  const bills = await reader.purchase_bill_receipt_allocations.findMany({
     select: {
       allocated_qty: true,
       purchase_bill_id: true,
@@ -1282,7 +1345,7 @@ async function loadReceiptAvailability(ticketDocNo: string, excludeBillId?: bigi
       allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: ticket.id,
       purchase_bills: {
-        status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
       },
     },
   })
@@ -1372,6 +1435,7 @@ function extractReferencedPoBuyIdsFromBuiltItems(items: ReturnType<typeof buildB
 }
 
 async function validateStockReceiptSelection(
+  reader: ReceiptAvailabilityReader,
   values: PurchaseBillFormValues,
   resolvedBranchId: bigint,
   resolvedSupplierId: bigint,
@@ -1385,7 +1449,7 @@ async function validateStockReceiptSelection(
     return { error: 'เลือกใบรับของ' as const }
   }
 
-  const { ticket, usedQtyBySummaryId } = await loadReceiptAvailability(receiptTicketId, excludeBillId)
+  const { ticket, usedQtyBySummaryId } = await loadReceiptAvailability(reader, receiptTicketId, excludeBillId)
   if (!ticket || ticket.doc_type !== 'WTI' || ticket.cancelled_at) {
     return { error: 'ใบรับของที่เลือกไม่ถูกต้อง' as const }
   }
@@ -1497,10 +1561,12 @@ function weightTicketOptionJson(
     const usedQty = usageMap.get(receiptSummaryUsageKey(row.id, summary.id)) ?? 0
     const netWeight = toNumber(summary.net_weight)
     const remainingWeight = Math.max(0, netWeight - usedQty)
+    const remainingRatio = netWeight > 0 ? remainingWeight / netWeight : 0
     const productCode = summary.product_id != null ? (productCodeById.get(summary.product_id) ?? '') : ''
     return {
+      baseWeight: (toNumber(summary.gross_weight) - toNumber(summary.container_deduction_weight)) * remainingRatio,
       billedWeight: toNumber(summary.billed_weight),
-      deductWeight: toNumber(summary.deduct_weight),
+      deductWeight: toNumber(summary.deduct_weight) * remainingRatio,
       grossWeight: toNumber(summary.gross_weight),
       hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles ?? false,
       id: `${row.doc_no}:${productCode}:${summary.line_count ?? 0}`,
@@ -1548,7 +1614,7 @@ async function refreshWeightTicketStatuses(
   const changedAt = options.createdAt ?? new Date()
 
   const ticketRows = await tx.weight_tickets.findMany({
-    select: weightTicketOptionSelect,
+    select: weightTicketStatusSelect,
     where: {
       doc_type: 'WTI',
       id: { in: uniqueTicketIds },
@@ -1565,7 +1631,7 @@ async function refreshWeightTicketStatuses(
       allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: { in: uniqueTicketIds },
       purchase_bills: {
-        status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
       },
     },
   })
@@ -1578,7 +1644,7 @@ async function refreshWeightTicketStatuses(
     qtyBySummaryKey.set(summaryKey, (qtyBySummaryKey.get(summaryKey) ?? 0) + toNumber(row.allocated_qty))
   })
 
-  await Promise.all(ticketRows.map(async (ticket) => {
+  for (const ticket of ticketRows) {
     const totalQty = ticket.weight_ticket_lines.reduce((sum, line) => sum + toNumber(line.net_weight), 0)
     const billedQty = qtyByTicketId.get(ticket.id) ?? 0
     const nextStatus = billedQty <= 0.0001
@@ -1586,7 +1652,7 @@ async function refreshWeightTicketStatuses(
       : billedQty + 0.0001 < totalQty
         ? 'partially_billed'
         : 'billed'
-    if (ticket.status === nextStatus) return
+    if (ticket.status === nextStatus) continue
     await tx.weight_tickets.update({
       data: {
         status: nextStatus,
@@ -1609,21 +1675,26 @@ async function refreshWeightTicketStatuses(
       toStatus: nextStatus,
       weightTicketId: ticket.id,
     })
-  }))
+  }
 
-  await Promise.all(ticketRows.flatMap((ticket) => ticket.weight_ticket_product_summaries.map(async (summary) => {
-    const billedWeight = qtyBySummaryKey.get(receiptSummaryUsageKey(ticket.id, summary.id)) ?? 0
-    const netWeight = toNumber(summary.net_weight)
-    const remainingWeight = Math.max(0, netWeight - billedWeight)
-    await tx.weight_ticket_product_summaries.update({
-      data: {
-        billed_weight: billedWeight,
-        remaining_weight: remainingWeight,
-        updated_at: new Date(),
-      },
-      where: { id: summary.id },
-    })
-  })))
+  for (const ticket of ticketRows) {
+    for (const summary of ticket.weight_ticket_product_summaries) {
+      const billedWeight = qtyBySummaryKey.get(receiptSummaryUsageKey(ticket.id, summary.id)) ?? 0
+      const netWeight = toNumber(summary.net_weight)
+      const remainingWeight = Math.max(0, netWeight - billedWeight)
+      const currentBilledWeight = toNumber(summary.billed_weight)
+      const currentRemainingWeight = toNumber(summary.remaining_weight)
+      if (Math.abs(currentBilledWeight - billedWeight) <= 0.0001 && Math.abs(currentRemainingWeight - remainingWeight) <= 0.0001) continue
+      await tx.weight_ticket_product_summaries.update({
+        data: {
+          billed_weight: billedWeight,
+          remaining_weight: remainingWeight,
+          updated_at: new Date(),
+        },
+        where: { id: summary.id },
+      })
+    }
+  }
 }
 
 function isDocNoConflict(caught: unknown) {
@@ -1633,13 +1704,10 @@ function isDocNoConflict(caught: unknown) {
   return caught.meta.target.includes('doc_no')
 }
 
-async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
+async function nextPurchaseBillDocNo(date: string, branchCode: string) {
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
   const startsWith = `PB${branchCode}${compactDate}-`
-  await tx.$executeRaw`
-    select pg_advisory_xact_lock(hashtext(${`purchase_bills:PB${compactDate}`}))
-  `
-  const rows = await tx.$queryRaw<Array<{ last_number: number | bigint | null }>>`
+  const rows = await prisma.$queryRaw<Array<{ last_number: number | bigint | null }>>`
     select coalesce(max(substring(doc_no from '-([0-9]+)$')::int), 0) as last_number
     from public.purchase_bills
     where (
@@ -1650,7 +1718,13 @@ async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string,
   `
   const parsedLastNumber = Number(rows[0]?.last_number ?? 0)
   const lastNumber = Number.isFinite(parsedLastNumber) ? parsedLastNumber : 0
-  const nextNumber = lastNumber + 1
+  const reserved = await prisma.$queryRaw<Array<{ next_number: number | bigint }>>`
+    select public.reserve_document_number('purchase_bill', ${compactDate}, ${lastNumber}) as next_number
+  `
+  const nextNumber = Number(reserved[0]?.next_number)
+  if (!Number.isSafeInteger(nextNumber) || nextNumber < 1) {
+    throw new Error('ไม่สามารถจองเลขบิลรับซื้อได้')
+  }
   return `${startsWith}${String(nextNumber).padStart(4, '0')}`
 }
 
@@ -1961,7 +2035,6 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
     statuses: url.searchParams.get('status')
       ?.split(',')
       .map((value) => value.trim().toLowerCase())
-      .map((value) => value === 'open' ? 'unpaid' : value)
       .filter(Boolean) || undefined,
   }
 }
@@ -2008,14 +2081,14 @@ function derivePurchasePaymentWorkflowStatus(params: {
   isCancelled: boolean
   paymentSettledAmount: number
   payableBalance: number
-  status: string | null | undefined
+  status: PurchaseBillStatus
 }): PurchasePaymentWorkflowStatus {
   if (params.isCancelled) {
     return params.status === PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS
       ? PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS
       : 'cancelled'
   }
-  if (params.payableBalance <= 0.01 || String(params.status ?? '').toLowerCase() === 'paid') return 'paid'
+  if (params.payableBalance <= 0.01 || params.status === PURCHASE_BILL_STATUS.PAID) return 'paid'
   if (params.paymentSettledAmount > 0.01) return 'partial_paid'
   if (params.hasActiveApproval) return 'pending_payment'
   return 'pending_approval'
@@ -2183,7 +2256,8 @@ async function rowsPayload(
     const approvalDocNos = activeApprovalDocNosByBillId.get(billId) ?? []
     const hasActiveApproval = activeApprovalBillIds.has(billId)
     const hasActivePayment = activePaymentBillIds.has(row.id)
-    const isCancelled = String(row.status ?? '').toLowerCase().includes('cancel')
+    const purchaseBillStatus = requirePurchaseBillStatus(row.status, row.doc_no)
+    const isCancelled = isPurchaseBillCancelledStatus(purchaseBillStatus, row.doc_no)
     const paymentSettledAmount = paymentSettledAmountByBillId.get(row.id) ?? 0
     const payableBalance = toNumber(row.payable_balance)
     const paymentWorkflowStatus = derivePurchasePaymentWorkflowStatus({
@@ -2191,7 +2265,7 @@ async function rowsPayload(
       isCancelled,
       paymentSettledAmount,
       payableBalance,
-      status: row.status,
+      status: purchaseBillStatus,
     })
     const lockedReason = purchaseBillLockedReason({
       hasActiveApproval,
@@ -2325,6 +2399,9 @@ export async function POST(request: Request) {
     requirePermission(context, 'purchase.bills.create')
 
     const values = purchaseBillFormSchema.parse(await request.json())
+    if (requiresWeightTicketOpenBillPermission({ hasWeightTicketSource: values.transactionMode === 'STOCK', transactionMode: values.transactionMode })) {
+      requirePermission(context, WEIGHT_TICKET_OPEN_BILL_PERMISSION)
+    }
     const actor = currentActor(context)
     const createdAt = new Date()
     const billDate = bangkokDateInput(createdAt)
@@ -2378,7 +2455,7 @@ export async function POST(request: Request) {
     let receiptSummarySourceMap = new Map<string, ReceiptSummarySource>()
     let receiptTicketIdsToRefresh: bigint[] = []
     if (values.transactionMode === 'STOCK') {
-      const receiptValidation = await validateStockReceiptSelection(values, effectiveBranch.id, supplier.id, poBuyById, productByRef)
+      const receiptValidation = await validateStockReceiptSelection(prisma, values, effectiveBranch.id, supplier.id, poBuyById, productByRef)
       if ('error' in receiptValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
       }
@@ -2391,19 +2468,29 @@ export async function POST(request: Request) {
     const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
     if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
     const poBuyIds = extractReferencedPoBuyIdsFromBuiltItems(items)
-    if (poBuyIds.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        await reconcilePoBuys(tx, poBuyIds)
-      }, { timeout: 30000 })
-    }
     const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
 
     let bill: { doc_no: string; id: bigint } | null = null
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
+        const docNo = await nextPurchaseBillDocNo(billDate, effectiveBranchCode)
         bill = await prisma.$transaction(async (tx) => {
-          const docNo = await nextPurchaseBillDocNo(tx, billDate, effectiveBranchCode)
-
+          await lockPurchaseBillWriteSources(tx, {
+            poBuyIds,
+            weightTicketIds: receiptTicketIdsToRefresh,
+          })
+          const lockedPoBuyById = createPoBuyRefMap(await resolvePoBuysByDocNo(poBuyRefs, tx))
+          if (values.transactionMode === 'STOCK') {
+            const receiptValidation = await validateStockReceiptSelection(
+              tx,
+              values,
+              effectiveBranch.id,
+              supplier.id,
+              lockedPoBuyById,
+              productByRef,
+            )
+            if ('error' in receiptValidation) throw new Error(receiptValidation.error)
+          }
           const createdBill = await tx.purchase_bills.create({
             data: {
               branch_id: effectiveBranch.id,
@@ -2423,7 +2510,7 @@ export async function POST(request: Request) {
               purchase_source: purchaseSource,
               ref_no: values.refNo,
               sales_id: supplierSalesId,
-              status: 'unpaid',
+              status: PURCHASE_BILL_STATUS.UNPAID,
               subtotal: totals.subtotal,
               supplier_id: supplier.id,
               ...supplierSnapshotFields(supplier),
@@ -2505,6 +2592,7 @@ export async function POST(request: Request) {
                 movement_type: 'รับซื้อเข้า',
                 note: item.note,
                 notes: values.note ?? values.notes,
+                not_available_for_sale: false,
                 output_category: item.itemStatus,
                 product_id: item.productIdInternal,
                 purchase_channel_id: purchaseChannel.id,
@@ -2534,10 +2622,8 @@ export async function POST(request: Request) {
             })
           }
 
-          await projectProfitCostPurchaseBill(tx, createdBill.id)
-
           return createdBill
-        })
+        }, { timeout: PURCHASE_BILL_WRITE_TRANSACTION_TIMEOUT_MS })
         break
       } catch (caught) {
         if (!isDocNoConflict(caught) || attempt === 2) throw caught
@@ -2545,6 +2631,8 @@ export async function POST(request: Request) {
     }
 
     if (!bill) throw new Error('สร้างเลขที่บิลไม่สำเร็จ')
+
+    schedulePurchaseBillProfitCostProjection(bill.id)
 
     try {
       await enqueueAndExecuteNotification(
@@ -2612,7 +2700,7 @@ export async function PATCH(request: Request) {
       ])
 
       if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
-      if (String(existingBill.status ?? '').toLowerCase().includes('cancel')) {
+      if (isPurchaseBillCancelledStatus(existingBill.status, existingBill.doc_no)) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
       }
       const paidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
@@ -2623,7 +2711,13 @@ export async function PATCH(request: Request) {
       }
 
       const cancelledAt = new Date()
+      const existingReceiptTicketIds = await resolveReferencedReceiptTicketIdsFromBillItemsRead(existingBillItems)
       const cancelledBill = await prisma.$transaction(async (tx) => {
+        await lockPurchaseBillWriteSources(tx, {
+          purchaseBillIds: [existingBillRef.id],
+          poBuyIds: extractReferencedPoBuyIdsFromBillItems(existingBillItems),
+          weightTicketIds: existingReceiptTicketIds,
+        })
         const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
         const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)
         const bill = await tx.purchase_bills.update({
@@ -2632,7 +2726,7 @@ export async function PATCH(request: Request) {
             cancelled_at: cancelledAt,
             cancelled_by: actor,
             payable_balance: 0,
-            status: 'cancelled',
+            status: PURCHASE_BILL_STATUS.CANCELLED,
             updated_at: cancelledAt,
             updated_by: actor,
           },
@@ -2700,13 +2794,14 @@ export async function PATCH(request: Request) {
           note: values.note,
           purchaseBillDocNo: bill.doc_no,
           purchaseBillId: bill.id,
-          toStatus: 'cancelled',
+          toStatus: PURCHASE_BILL_STATUS.CANCELLED,
         })
-        await projectProfitCostPurchaseBill(tx, bill.id)
         return bill
-      })
+      }, { timeout: PURCHASE_BILL_WRITE_TRANSACTION_TIMEOUT_MS })
 
-      return NextResponse.json({ docNo: cancelledBill.doc_no, id: cancelledBill.doc_no, status: 'cancelled' })
+      schedulePurchaseBillProfitCostProjection(cancelledBill.id)
+
+      return NextResponse.json({ docNo: cancelledBill.doc_no, id: cancelledBill.doc_no, status: PURCHASE_BILL_STATUS.CANCELLED })
     }
 
     if (raw?.action === 'supplier_swap') {
@@ -2744,7 +2839,7 @@ export async function PATCH(request: Request) {
       ])
 
       if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
-      if (isPurchaseBillCancelledStatus(existingBill.status)) {
+      if (isPurchaseBillCancelledStatus(existingBill.status, existingBill.doc_no)) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'เปลี่ยน Supplier ไม่ได้ เพราะบิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
       }
       const activePaidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
@@ -2815,6 +2910,7 @@ export async function PATCH(request: Request) {
       let receiptTicketIdsToRefresh: bigint[] = []
       if (values.transactionMode === 'STOCK') {
         const receiptValidation = await validateStockReceiptSelection(
+          prisma,
           values,
           branch.id,
           supplier.id,
@@ -2843,11 +2939,18 @@ export async function PATCH(request: Request) {
       if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
       const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
       const reason = `เปลี่ยน Supplier: void ${existingBill.doc_no} และสร้างบิลใหม่แทน`
+      const originalPoBuyIds = extractReferencedPoBuyIdsFromBillItems(existingBillItems)
 
       let replacementBill: { doc_no: string; id: bigint } | null = null
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
+          const docNo = await nextPurchaseBillDocNo(billDate, effectiveBranchCode)
           replacementBill = await prisma.$transaction(async (tx) => {
+            await lockPurchaseBillWriteSources(tx, {
+              purchaseBillIds: [existingBillRef.id],
+              poBuyIds: originalPoBuyIds,
+              weightTicketIds: originalReceiptTicketIds,
+            })
             const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
             const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)
             await tx.purchase_bills.update({
@@ -2904,7 +3007,6 @@ export async function PATCH(request: Request) {
             })
             await resetPurchaseBillAdvanceAllocation(tx, existingBillRef.id, actor, reason)
 
-            const docNo = await nextPurchaseBillDocNo(tx, billDate, effectiveBranchCode)
             const createdBill = await tx.purchase_bills.create({
               data: {
                 branch_id: branch.id,
@@ -2924,7 +3026,7 @@ export async function PATCH(request: Request) {
                 purchase_source: purchaseSource,
                 ref_no: values.refNo,
                 sales_id: supplierSalesId,
-                status: 'unpaid',
+                status: PURCHASE_BILL_STATUS.UNPAID,
                 subtotal: totals.subtotal,
                 supplier_id: supplier.id,
                 ...supplierSnapshotFields(supplier),
@@ -2986,6 +3088,7 @@ export async function PATCH(request: Request) {
                   movement_type: 'รับซื้อเข้า',
                   note: item.note,
                   notes: values.note ?? values.notes,
+                  not_available_for_sale: false,
                   output_category: item.itemStatus,
                   product_id: item.productIdInternal,
                   purchase_channel_id: purchaseChannel.id,
@@ -3067,10 +3170,8 @@ export async function PATCH(request: Request) {
                 }
               }),
             })
-            await projectProfitCostPurchaseBill(tx, existingBillRef.id)
-            await projectProfitCostPurchaseBill(tx, createdBill.id)
             return createdBill
-          }, { timeout: 30000 })
+          }, { timeout: PURCHASE_BILL_WRITE_TRANSACTION_TIMEOUT_MS })
           break
         } catch (caught) {
           if (!isDocNoConflict(caught) || attempt === 2) throw caught
@@ -3078,6 +3179,8 @@ export async function PATCH(request: Request) {
       }
 
       if (!replacementBill) throw new Error('สร้างบิลใหม่แทนไม่สำเร็จ')
+      schedulePurchaseBillProfitCostProjection(existingBillRef.id)
+      schedulePurchaseBillProfitCostProjection(replacementBill.id)
       return NextResponse.json({
         docNo: replacementBill.doc_no,
         id: replacementBill.doc_no,
@@ -3119,7 +3222,7 @@ export async function PATCH(request: Request) {
     ])
 
     if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
-    if (String(existingBill.status ?? '').toLowerCase().includes('cancel')) {
+    if (isPurchaseBillCancelledStatus(existingBill.status, existingBill.doc_no)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
     }
     const activePaidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
@@ -3166,7 +3269,7 @@ export async function PATCH(request: Request) {
     let receiptSummarySourceMap = new Map<string, ReceiptSummarySource>()
     let receiptTicketIdsToRefresh: bigint[] = []
     if (values.transactionMode === 'STOCK') {
-      const receiptValidation = await validateStockReceiptSelection(values, effectiveBranch.id, supplier.id, poBuyById, productByRef, existingBillRef.id)
+      const receiptValidation = await validateStockReceiptSelection(prisma, values, effectiveBranch.id, supplier.id, poBuyById, productByRef, existingBillRef.id)
       if ('error' in receiptValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
       }
@@ -3179,14 +3282,29 @@ export async function PATCH(request: Request) {
     const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
     if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
     const poBuyIds = extractReferencedPoBuyIdsFromBuiltItems(items)
-    if (poBuyIds.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        await reconcilePoBuys(tx, poBuyIds)
-      }, { timeout: 30000 })
-    }
     const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
+    const existingReceiptTicketIds = await resolveReferencedReceiptTicketIdsFromBillItemsRead(existingBillItems)
+    const existingPoBuyIds = extractReferencedPoBuyIdsFromBillItems(existingBillItems)
 
     const updatedBill = await prisma.$transaction(async (tx) => {
+      await lockPurchaseBillWriteSources(tx, {
+        purchaseBillIds: [existingBillRef.id],
+        poBuyIds: [...poBuyIds, ...existingPoBuyIds],
+        weightTicketIds: [...receiptTicketIdsToRefresh, ...existingReceiptTicketIds],
+      })
+      if (values.transactionMode === 'STOCK') {
+        const lockedPoBuyById = createPoBuyRefMap(await resolvePoBuysByDocNo(poBuyRefs, tx))
+        const receiptValidation = await validateStockReceiptSelection(
+          tx,
+          values,
+          effectiveBranch.id,
+          supplier.id,
+          lockedPoBuyById,
+          productByRef,
+          existingBillRef.id,
+        )
+        if ('error' in receiptValidation) throw new Error(receiptValidation.error)
+      }
       const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
       const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)
       const bill = await tx.purchase_bills.update({
@@ -3311,6 +3429,7 @@ export async function PATCH(request: Request) {
             movement_type: 'รับซื้อเข้า',
             note: item.note,
             notes: values.note ?? values.notes,
+            not_available_for_sale: false,
             output_category: item.itemStatus,
             product_id: item.productIdInternal,
             purchase_channel_id: purchaseChannel.id,
@@ -3358,9 +3477,10 @@ export async function PATCH(request: Request) {
         purchaseBillId: bill.id,
         toStatus: settlement.status,
       })
-      await projectProfitCostPurchaseBill(tx, bill.id)
       return { ...bill, ...settlement }
-    })
+    }, { timeout: PURCHASE_BILL_WRITE_TRANSACTION_TIMEOUT_MS })
+
+    schedulePurchaseBillProfitCostProjection(updatedBill.id)
 
     try {
       await enqueueAndExecuteNotification(

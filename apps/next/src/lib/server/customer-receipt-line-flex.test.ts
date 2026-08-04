@@ -20,10 +20,10 @@ function receipt(overrides: Partial<CustomerReceiptLineFlexData> = {}): Customer
     discount: 50,
     documentNo: 'RCP2607-0001',
     fee: 25,
-    netCashIn: 925,
+    bookAmountThb: 1_000,
+    bookNetCashInThb: 925,
     notes: 'รับชำระตามรอบ',
     paymentMethod: 'เงินโอน',
-    receivedAmount: 1_000,
     status: 'active',
     withholdingTax: 50,
     ...overrides,
@@ -112,9 +112,9 @@ describe('buildCustomerReceiptLineFlexMessage', () => {
       companyAccounts: [{ accountCode: 'AC004', accountName: 'กสิกรไทย', amount: 53_500 }],
       discount: 0,
       fee: 0,
-      netCashIn: 53_500,
+      bookAmountThb: 53_500,
+      bookNetCashInThb: 53_500,
       notes: '',
-      receivedAmount: 53_500,
       withholdingTax: 0,
     }), 'https://erp.example.com/sales/receipts')
     const serialized = JSON.stringify(message)
@@ -145,7 +145,7 @@ describe('buildCustomerReceiptLineFlexMessage', () => {
       expect(tab).toMatchObject({ cornerRadius: 'md', paddingAll: '10px' })
     }
 
-    const keyTotalLabels = ['ยอดรับ', 'ยอดตัดลูกหนี้', 'เงินเข้าสุทธิ']
+    const keyTotalLabels = ['ยอดรับ (THB)', 'ยอดตัดลูกหนี้ (THB)', 'เงินเข้าสุทธิ (THB)']
     const keyTotalRows = message.contents.body.contents.filter((item) => (
       'contents' in item && item.contents.some((content) => (
         'text' in content && keyTotalLabels.includes(content.text)
@@ -202,5 +202,24 @@ describe('buildCustomerReceiptLineFlexMessage', () => {
     expect(serialized).not.toContain('secret-token')
     expect(serialized).not.toContain('987654321')
     expect(serialized).not.toContain('0123456789012')
+  })
+
+  it('keeps foreign native amount and rate as audit details while totals remain THB', () => {
+    const serialized = JSON.stringify(buildCustomerReceiptLineFlexMessage(receipt({
+      bookAmountThb: 3_512.5,
+      bookNetCashInThb: 3_500,
+      foreignAudit: {
+        carryingBookAmountThb: 3_500,
+        currencyCode: 'USD',
+        fxRate: 35.125,
+        nativeAmount: 100,
+        settlementBookAmountThb: 3_512.5,
+      },
+    }), 'https://erp.example.com/sales/receipts'))
+
+    expect(serialized).toContain('ยอดรับ (THB)')
+    expect(serialized).toContain('ยอดที่ลูกค้าโอน (USD)')
+    expect(serialized).toContain('35.125')
+    expect(serialized).not.toContain('1234567890')
   })
 })

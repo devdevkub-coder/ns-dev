@@ -9,12 +9,14 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-referen
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
+import { PURCHASE_BILL_ACTIVE_STATUSES, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
+import { derivePoSellFulfillmentStatus, isInactivePoSellStatus, PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { activeSalesReceiptCount, activeSalesReceiptCountByBillId, isSalesBillActiveForCancel, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
-import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
+import { appendSalesBillStatusLog, isSalesBillActiveStatus, requireSalesBillStatus, salesBillStatusText, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { appendPoSellAllocationLogs, PO_SELL_ALLOCATION_ACTION } from '@/lib/server/po-sell-allocation-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
 import { consumeActiveWtoPendingOut, releaseConsumedWtoPendingOutForSalesBill, reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
@@ -23,6 +25,7 @@ import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-r
 import { appendWtoPendingOutEventsForHoldKeys, appendWtoPendingOutEventsForSalesBill, appendWtoPendingOutEventsFromHoldIds } from '@/lib/server/weight-ticket-pending-out-events'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
+import { requiresWeightTicketOpenBillPermission, WEIGHT_TICKET_OPEN_BILL_PERMISSION } from '@/lib/server/weight-ticket-open-bill-permissions'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
 import { normalizeSalesBillProfitCostSource } from '@/lib/server/sales-bill-profit-cost-source'
@@ -175,9 +178,9 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
 }
 
 function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number) {
-  const cancelState = salesBillCancelState(row.status, activeReceiptCount)
-  const canEdit = isSalesBillActiveForCancel(row.status) && activeReceiptCount === 0
-  const editLockedReason = !isSalesBillActiveForCancel(row.status)
+  const cancelState = salesBillCancelState(row.status, row.doc_no, activeReceiptCount)
+  const canEdit = isSalesBillActiveForCancel(row.status, row.doc_no) && activeReceiptCount === 0
+  const editLockedReason = !isSalesBillActiveForCancel(row.status, row.doc_no)
     ? 'บิลขายนี้ถูกยกเลิกแล้ว'
     : activeReceiptCount > 0
       ? 'แก้ไขบิลขายไม่ได้ เพราะมีรายการรับเงิน Customer แล้ว'
@@ -204,7 +207,7 @@ function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number)
     receivableBalance: toNumber(row.receivable_balance),
     receivedAmount: toNumber(row.received_amount),
     refNo: row.ref_no ?? '',
-    status: row.status ?? 'open',
+    status: requireSalesBillStatus(row.status, row.doc_no),
     subtotal: toNumber(row.subtotal),
     totalAmount: toNumber(row.total_amount),
     transactionMode: row.transaction_mode ?? 'STOCK',
@@ -831,7 +834,11 @@ async function buildDeliveryTicketUsageMap(tickets: DeliveryTicketOptionRow[]) {
       sba.weight_ticket_id
     from public.sales_bill_source_allocations sba
     join public.sales_bills sb on sb.id = sba.sales_bill_id
-    where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
+    where sb.status in (${Prisma.join([
+      SALES_BILL_STATUS.UNRECEIVED,
+      SALES_BILL_STATUS.PARTIAL,
+      SALES_BILL_STATUS.RECEIVED,
+    ])})
       and sba.status = 'active'
       and sba.source_type = 'WTO'
       and sba.weight_ticket_id in (${Prisma.join(ticketIds)})
@@ -1023,7 +1030,7 @@ type PoSellSnapshotItem = {
 type PoSellForAllocation = {
   branch_id?: bigint | null
   customer_id?: bigint | null
-  doc_no?: string | null
+  doc_no: string
   id?: bigint
   items: unknown
   qty: unknown
@@ -1052,11 +1059,6 @@ function poSellSnapshotItems(items: unknown): PoSellSnapshotItem[] {
   return Array.isArray(items)
     ? items.filter((item): item is PoSellSnapshotItem => typeof item === 'object' && item !== null && !Array.isArray(item))
     : []
-}
-
-function isInactivePoSellStatus(status: string | null | undefined) {
-  const normalized = (status ?? '').trim().toLowerCase()
-  return ['cancelled', 'canceled', 'closed', 'completed', 'fully matched', 'received', 'short closed', 'void'].includes(normalized)
 }
 
 function allocatePoSellForSalesBill(poSell: PoSellForAllocation, billItems: SalesItemSnapshot[]) {
@@ -1377,7 +1379,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
       take: 500,
       where: {
         ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
-        status: { notIn: ['cancelled', 'canceled', 'closed', 'completed', 'fully matched', 'received', 'short closed', 'void', 'Cancelled', 'Canceled', 'Closed', 'Completed', 'Short Closed'] },
+        status: { in: [PO_SELL_STATUS.OPEN, PO_SELL_STATUS.PARTIALLY_FULFILLED] },
       },
     }),
     prisma.purchase_bills.findMany({
@@ -1400,7 +1402,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
       take: 500,
       where: {
         ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
-        status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided', 'reversed'] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
         transaction_mode: 'TRADING',
       },
     }),
@@ -1545,7 +1547,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
           product_id: productCode || null,
           remainingAmount: jsonNumber(item.totalRevenue) || jsonNumber(po.remaining_amount),
           remainingQty,
-          status: po.status ?? 'Open',
+          status: requirePoSellStatus(po.status, po.doc_no),
           unit: typeof item.unit === 'string' ? item.unit : null,
           unitPrice,
         }]
@@ -1574,7 +1576,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
         remainingAmount,
         remainingQty,
         sourceLineNo: item.line_no,
-        status: bill.status ?? 'active',
+        status: requirePurchaseBillStatus(bill.status, bill.doc_no),
         supplier_id: null,
         supplier_name: supplierName,
         unitPrice: qty > 0 ? amount / qty : 0,
@@ -1650,17 +1652,6 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
   }
 }
 
-function salesBillStatusLabel(status?: string | null) {
-  if (!status) return '-'
-  const labels: Record<string, string> = {
-    open: 'เปิด',
-    closed: 'ปิด',
-    paid: 'ชำระแล้ว',
-    cancelled: 'ยกเลิก',
-  }
-  return labels[status.toLowerCase()] ?? status
-}
-
 async function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[]) {
   const summaryData = summaryRows.map((row) => ({
     'เลขที่': row.docNo,
@@ -1668,7 +1659,7 @@ async function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[
     'วันที่': row.date,
     'ลูกค้า': row.customerName,
     'ประเภท': row.transactionMode,
-    'สถานะ': salesBillStatusLabel(row.status),
+    'สถานะ': salesBillStatusText(row.status),
     'จำนวนรายการ': row.itemCount,
     'ยอดรวม': row.totalAmount,
     'รับชำระแล้ว': row.receivedAmount,
@@ -1783,6 +1774,12 @@ export async function POST(request: Request) {
 
     const rawPayload = await request.json()
     const values = salesBillFormSchema.parse(rawPayload)
+    if (requiresWeightTicketOpenBillPermission({
+      hasWeightTicketSource: Boolean(values.deliveryTicketId) || values.items.some((item) => Boolean(item.deliveryTicketId)),
+      transactionMode: values.transactionMode,
+    })) {
+      requirePermission(context, WEIGHT_TICKET_OPEN_BILL_PERMISSION)
+    }
     const actor = currentActor(context)
     const createdAt = new Date()
     const billDate = createdAt.toISOString().slice(0, 10)
@@ -1872,7 +1869,7 @@ export async function POST(request: Request) {
     const missingPoSell = requestedPoSellDocNos.find((docNo) => !poSellByDocNo.has(docNo))
     if (missingPoSell) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบ PO Sell ${missingPoSell}` }, { status: 400 })
     for (const poSell of poSells) {
-      if (isInactivePoSellStatus(poSell.status)) return NextResponse.json({ code: 'BAD_REQUEST', error: `PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว` }, { status: 400 })
+      if (isInactivePoSellStatus(poSell.status, poSell.doc_no)) return NextResponse.json({ code: 'BAD_REQUEST', error: `PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว` }, { status: 400 })
       if (poSell.customer_id && poSell.customer_id !== customer.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `Customer ของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
       if (poSell.branch_id && branch?.id && poSell.branch_id !== branch.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `สาขาของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
     }
@@ -1893,7 +1890,7 @@ export async function POST(request: Request) {
     const settledTotals = customerAdvanceAllocation
       ? applyCustomerAdvanceToSalesTotals(values, vatRatePercent, customerAdvanceAllocation.allocatedSubtotalAmount)
       : totals
-    const salesBillStatus = settledTotals.totalAmount <= 0.01 ? 'received' : 'unreceived'
+    const salesBillStatus = settledTotals.totalAmount <= 0.01 ? SALES_BILL_STATUS.RECEIVED : SALES_BILL_STATUS.UNRECEIVED
 
     const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
     const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
@@ -1971,7 +1968,7 @@ export async function POST(request: Request) {
         where: {
           branch_id: branch.id,
           doc_no: { in: sourceDocNos },
-          status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided', 'reversed'] },
+          status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
           transaction_mode: 'TRADING',
         },
       })
@@ -2086,7 +2083,7 @@ export async function POST(request: Request) {
         }
         const sourceLine = sourceBill.purchase_bill_items.find((line) => line.line_no === source.lineNo)
         if (!sourceLine) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบรายการต้นทุน ${source.docNo}:${source.lineNo}` }, { status: 400 })
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบรายการ ${source.docNo}:${source.lineNo}` }, { status: 400 })
         }
         const productId = parsedProductIds[index]
         if (sourceLine.product_id != null && productId != null && sourceLine.product_id !== productId) {
@@ -2346,7 +2343,12 @@ export async function POST(request: Request) {
             cut_amount: { increment: allocation.usedAmount },
             remaining_amount: allocation.remainingAmount,
             remaining_qty: allocation.remainingQty,
-            status: allocation.remainingQty <= 0.001 ? 'Completed' : poSell.status ?? 'Open',
+            status: derivePoSellFulfillmentStatus({
+              currentStatus: poSell.status,
+              docNo: poSell.doc_no,
+              remainingQty: allocation.remainingQty,
+              totalQty: jsonNumber(poSell.qty),
+            }),
             updated_at: createdAt,
             updated_by: actor,
           },
@@ -2685,7 +2687,7 @@ function poSellRowsByDocNoAfterRelease(
   poSells: PoSellForAllocation[],
   activeAllocations: ActiveSalesBillPoAllocation[],
 ) {
-  const poSellByDocNo = new Map(poSells.map((poSell) => [String(poSell.doc_no ?? ''), poSell] as const))
+  const poSellByDocNo = new Map(poSells.map((poSell) => [poSell.doc_no, poSell] as const))
   const allocationsByDocNo = new Map<string, ActiveSalesBillPoAllocation[]>()
   activeAllocations.forEach((allocation) => {
     if (!allocation.po_sell_doc_no || allocation.allocation_type !== 'PO_SELL' || allocation.po_sell_id == null) return
@@ -2703,7 +2705,12 @@ function poSellRowsByDocNoAfterRelease(
       items: released.items ?? poSell.items,
       remaining_amount: released.remainingAmount,
       remaining_qty: released.remainingQty,
-      status: released.remainingQty <= 0.001 ? poSell.status : 'Open',
+      status: derivePoSellFulfillmentStatus({
+        currentStatus: poSell.status,
+        docNo: poSell.doc_no,
+        remainingQty: released.remainingQty,
+        totalQty: jsonNumber(poSell.qty),
+      }),
     })
   })
 
@@ -2770,7 +2777,7 @@ export async function PATCH(request: Request) {
         where: { doc_no: values.id, ...scopedBranchWhere(branchScope.ids) },
       })
       if (!bill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลขาย' }, { status: 404 })
-      if (String(bill.status ?? '').toLowerCase().includes('cancel')) {
+      if (!isSalesBillActiveStatus(bill.status, bill.doc_no)) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ถูกยกเลิกแล้ว' }, { status: 400 })
       }
       const activeReceiptsCount = (await activeSalesReceiptCountByBillId(prisma, [bill.id])).get(bill.id) ?? 0
@@ -2958,7 +2965,7 @@ export async function PATCH(request: Request) {
       const missingPoSell = requestedPoSellDocNos.find((docNo) => !poSellByDocNoRaw.has(docNo))
       if (missingPoSell) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบ PO Sell ${missingPoSell}` }, { status: 400 })
       for (const poSell of poSells) {
-        if (isInactivePoSellStatus(poSell.status) && !bill.sales_bill_po_sell_allocations.some((allocation) => allocation.po_sell_id === poSell.id)) {
+        if (isInactivePoSellStatus(poSell.status, poSell.doc_no) && !bill.sales_bill_po_sell_allocations.some((allocation) => allocation.po_sell_id === poSell.id)) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: `PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว` }, { status: 400 })
         }
         if (poSell.customer_id && poSell.customer_id !== customer.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `Customer ของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
@@ -3097,7 +3104,7 @@ export async function PATCH(request: Request) {
         ? applyCustomerAdvanceToSalesTotals(values, vatRatePercent, customerAdvanceAllocation.allocatedSubtotalAmount)
         : totals
       const customerAdvanceApplied = customerAdvanceAllocation?.allocatedTotalAmount ?? 0
-      const salesBillStatus = settledTotals.totalAmount <= 0.01 ? 'received' : 'unreceived'
+      const salesBillStatus = settledTotals.totalAmount <= 0.01 ? SALES_BILL_STATUS.RECEIVED : SALES_BILL_STATUS.UNRECEIVED
       await prisma.$transaction(async (tx) => {
         let stockCostDelta = 0
         let activeSalesBillLines = bill.sales_bill_lines
@@ -3422,7 +3429,12 @@ export async function PATCH(request: Request) {
               cut_amount: { decrement: released.restoredAmount },
               remaining_amount: released.remainingAmount,
               remaining_qty: released.remainingQty,
-              status: 'Open',
+              status: derivePoSellFulfillmentStatus({
+                currentStatus: poSell.status,
+                docNo: poSell.doc_no,
+                remainingQty: released.remainingQty,
+                totalQty: jsonNumber(poSell.qty),
+              }),
               updated_at: createdAt,
               updated_by: actor,
             },
@@ -3501,9 +3513,14 @@ export async function PATCH(request: Request) {
           if (!activeLine) continue
           await tx.sales_bill_lines.update({
             data: {
+              // Recalculate the normalized line fact below after all commercial/stock deltas are applied.
+              // Keep the row temporarily uncoupled from the old amount so the equation check cannot
+              // reject a valid price/discount edit before normalizeSalesBillProfitCostSource runs.
+              cogs_amount: null,
               deduct_weight: item.deductWeight,
               discount_amount: item.discount,
               gross_weight: item.grossWeight,
+              gross_profit: null,
               line_amount: item.amount,
               meta: {
                 deliveryLineId: item.deliveryLineId ?? null,
@@ -3603,7 +3620,12 @@ export async function PATCH(request: Request) {
               cut_amount: { increment: allocation.usedAmount },
               remaining_amount: allocation.remainingAmount,
               remaining_qty: allocation.remainingQty,
-              status: allocation.remainingQty <= 0.001 ? 'Completed' : 'Open',
+              status: derivePoSellFulfillmentStatus({
+                currentStatus: poSell.status,
+                docNo: poSell.doc_no,
+                remainingQty: allocation.remainingQty,
+                totalQty: jsonNumber(poSell.qty),
+              }),
               updated_at: createdAt,
               updated_by: actor,
             },
@@ -3691,7 +3713,7 @@ export async function PATCH(request: Request) {
       // 1. Mark status to cancelled and clear balances
       await tx.sales_bills.update({
         data: {
-          status: 'cancelled',
+          status: SALES_BILL_STATUS.CANCELLED,
           receivable_balance: 0,
           received_amount: 0,
           paid_amount: 0,
@@ -3745,7 +3767,12 @@ export async function PATCH(request: Request) {
             cut_amount: { decrement: revertResult.restoredAmount },
             remaining_amount: revertResult.remainingAmount,
             remaining_qty: revertResult.remainingQty,
-            status: 'Open',
+            status: derivePoSellFulfillmentStatus({
+              currentStatus: poSell.status,
+              docNo: poSell.doc_no,
+              remainingQty: revertResult.remainingQty,
+              totalQty: jsonNumber(poSell.qty),
+            }),
             updated_at: createdAt,
             updated_by: actor,
           },
@@ -3845,7 +3872,7 @@ export async function PATCH(request: Request) {
         },
         note: reason,
         salesBillId: bill.id,
-        toStatus: 'cancelled',
+        toStatus: SALES_BILL_STATUS.CANCELLED,
       })
 
       if (isStockBill) {

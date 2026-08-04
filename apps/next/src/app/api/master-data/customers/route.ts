@@ -226,9 +226,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.customers.create')
-
     const body = await request.json()
+    requirePermission(context, body.id ? 'master.customers.update' : 'master.customers.create')
+
     const hasBranchMappingPayload = Object.prototype.hasOwnProperty.call(body, 'branchIds')
       || Object.prototype.hasOwnProperty.call(body, 'primaryBranchId')
     const values = customerFormSchema.parse(body)

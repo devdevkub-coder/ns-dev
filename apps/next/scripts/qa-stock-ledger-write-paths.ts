@@ -4,7 +4,7 @@ import {
   createProductionOutput,
   productionOrderOptions,
   returnProductionInput,
-  reverseProductionOutput,
+  voidProductionOutput,
 } from '../src/lib/server/production-orders'
 import { toNumber } from '../src/lib/server/daily'
 import { prisma } from '../src/lib/server/prisma'
@@ -132,9 +132,9 @@ async function qaProductionInputOutputReverse(): Promise<QaResult> {
     lossQty: 0,
     notes: 'QA PO2',
   }, actor)
-  const outputRev = await reverseProductionOutput(order.docNo, output.outputDocNo, {
+  const outputVoid = await voidProductionOutput(order.docNo, output.outputDocNo, {
     date: qaDate,
-    reason: 'QA reverse PO2',
+    reason: 'QA void PO2',
   }, actor)
   const inputRows = await prisma.production_inputs.findMany({ where: { doc_no: input.inputDocNo, order_id: BigInt(order.id), status: 'active' }, select: { id: true, qty: true } })
   await returnProductionInput(order.docNo, {
@@ -142,7 +142,7 @@ async function qaProductionInputOutputReverse(): Promise<QaResult> {
     reason: 'QA return PI',
   }, actor)
 
-  const refs = [input.inputDocNo, output.outputDocNo, outputRev.reversalDocNo]
+  const refs = [input.inputDocNo, output.outputDocNo, outputVoid.reversalDocNo]
   const ledgerRows = await prisma.stock_ledger.groupBy({
     _sum: { qty_in: true, qty_out: true },
     by: ['ref_type'],

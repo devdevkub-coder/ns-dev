@@ -4,9 +4,24 @@ import { z } from 'zod'
 import { requireBusinessCode } from '@/lib/business-code'
 import { normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { formatProductionInputEvent, formatProductionOutputRound } from '@/lib/server/production-event'
 import { listActiveBranches, listActiveBranchesByCodes, listActiveProductReferences, listActiveProductionLines, listActiveProductionMachines, listActiveWarehouses, listActiveWarehousesByBranch } from '@/lib/server/reference-master-cache'
 
 type DbClient = Prisma.TransactionClient | typeof prisma
+
+export function productionStockLedgerWhere(input: { branchId: bigint; productId: bigint; warehouseIds: bigint[] }): Prisma.stock_ledgerWhereInput {
+  return {
+    branch_id: input.branchId,
+    OR: [{ not_available_for_sale: false }, { not_available_for_sale: null }],
+    product_id: input.productId,
+    warehouse_id: { in: input.warehouseIds },
+    output_category: { in: ['RM', 'FG'] },
+  }
+}
+
+export function productionStockStatus(outputCategory: string | null) {
+  return outputCategory?.trim().toUpperCase() || ''
+}
 
 export class ProductionOrderError extends Error {
   status: number
@@ -52,11 +67,6 @@ export const createProductionInputSchema = z.object({
     sourceWarehouseCode: codeSchema,
     stockStatus: z.enum(['RM', 'FG']),
   })).min(1, 'ต้องมีวัตถุดิบอย่างน้อย 1 รายการ'),
-})
-
-export const reverseProductionInputSchema = z.object({
-  date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
-  reason: z.string().trim().min(1, 'ระบุเหตุผลการ reverse').max(1000),
 })
 
 export const returnProductionInputSchema = z.object({
@@ -172,12 +182,15 @@ export async function deleteProductionOutputDraft(orderDocNo: string) {
   return { deleted: true }
 }
 
-export const reverseProductionOutputSchema = reverseProductionInputSchema
+export const voidProductionOutputSchema = z.object({
+  date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
+  reason: z.string().trim().min(1, 'ระบุเหตุผลการยกเลิกผลผลิต').max(1000),
+})
 
 export type CreateProductionOrderValues = z.infer<typeof createProductionOrderSchema>
 export type CreateProductionInputValues = z.infer<typeof createProductionInputSchema>
 export type CreateProductionOutputValues = z.infer<typeof createProductionOutputSchema>
-export type ReverseProductionMovementValues = z.infer<typeof reverseProductionInputSchema>
+export type VoidProductionOutputValues = z.infer<typeof voidProductionOutputSchema>
 export type ReturnProductionInputValues = z.infer<typeof returnProductionInputSchema>
 
 function compactPeriod(date: string) {
@@ -207,6 +220,15 @@ async function nextDocNo(
     return Number.isFinite(running) && running > max ? running : max
   }, 0)
   return `${startsWith}${String(lastNumber + 1).padStart(4, '0')}`
+}
+
+async function nextProductionOutputRound(tx: Prisma.TransactionClient, orderId: bigint) {
+  const latest = await tx.production_outputs.findFirst({
+    where: { order_id: orderId, output_round: { not: null } },
+    orderBy: { output_round: 'desc' },
+    select: { output_round: true },
+  })
+  return (latest?.output_round ?? 0) + 1
 }
 
 async function findActiveBranchByCode(tx: DbClient, code: string) {
@@ -501,6 +523,13 @@ async function stockSnapshot(tx: DbClient, input: {
   return { qty, unitCost: qty > 0 ? value / qty : 0, value }
 }
 
+export function productionStockReceiptCost(input: { outputQty: number; productionCost: number }) {
+  return {
+    totalCost: input.productionCost,
+    unitCost: input.outputQty > 0 ? input.productionCost / input.outputQty : 0,
+  }
+}
+
 async function lockProductionOrder(tx: Prisma.TransactionClient, orderId: bigint) {
   await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`production.order.${orderId.toString()}`}))`
 }
@@ -527,8 +556,8 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
     if (!order.branch_id || !order.warehouse_wip_id || !order.product_id) throw new ProductionOrderError('ใบสั่งผลิตไม่มีสาขา สินค้า หรือคลัง WIP ที่ครบถ้วน')
     const recordedAt = new Date()
     const postingDate = toBangkokDateOnly(recordedAt)
-    const branch = await tx.branches.findUnique({ select: { code: true }, where: { id: order.branch_id } })
-    const inputDocNo = await nextDocNo(tx, 'production_inputs', 'PI', postingDate, branch?.code)
+    const inputEventKey = formatProductionInputEvent(order.doc_no, randomUUID())
+    const inputDocNo = inputEventKey
     const createdInputs = []
     const ledgerRows: Prisma.stock_ledgerCreateManyInput[] = []
     const sourceWarehouseNames = new Set<string>()
@@ -578,7 +607,8 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
         data: {
           created_at: recordedAt,
           date: normalizeDate(postingDate),
-          doc_no: inputDocNo,
+          doc_no: inputEventKey,
+          event_key: inputEventKey,
           lot_no: line.lotNo ?? null,
           production_orders: { connect: { id: order.id } },
           products: { connect: { id: product.id } },
@@ -603,11 +633,12 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
           date: normalizeDate(postingDate),
           lot_no: line.lotNo ?? null,
           movement_type: 'PRODUCTION_INPUT_OUT',
+          not_available_for_sale: false,
           output_category: line.stockStatus,
           product_id: product.id,
           qty_out: line.netQty,
           ref_id: created.id.toString(),
-          ref_no: inputDocNo,
+          ref_no: order.doc_no,
           ref_type: 'PI',
           unit_cost: stock.unitCost,
           value_out: totalLineCost,
@@ -620,6 +651,7 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
           date: normalizeDate(postingDate),
           lot_no: line.lotNo ?? null,
           movement_type: 'WIP_IN',
+          not_available_for_sale: false,
           output_category: 'WIP',
           // WIP is a stock bucket for the exact input line that was issued.
           // The production order target is not a substitute for the source product.
@@ -763,12 +795,13 @@ async function returnProductionInputInTransaction(tx: Prisma.TransactionClient, 
           date: normalizeDate(toBangkokDateOnly(new Date())),
           lot_no: input.lot_no,
           movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
+          not_available_for_sale: false,
           notes: values.reason,
           output_category: 'WIP',
           product_id: input.product_id,
           qty_out: qty,
           ref_id: returned.id.toString(),
-          ref_no: input.doc_no,
+          ref_no: order.doc_no,
           ref_type: 'PI-RETURN',
           unit_cost: unitCost,
           value_out: totalCost,
@@ -780,12 +813,13 @@ async function returnProductionInputInTransaction(tx: Prisma.TransactionClient, 
           date: normalizeDate(toBangkokDateOnly(new Date())),
           lot_no: input.lot_no,
           movement_type: 'PRODUCTION_INPUT_RETURN_STOCK_IN',
+          not_available_for_sale: false,
           notes: values.reason,
           output_category: stockCategory,
           product_id: input.product_id,
           qty_in: qty,
           ref_id: returned.id.toString(),
-          ref_no: input.doc_no,
+          ref_no: order.doc_no,
           ref_type: 'PI-RETURN',
           unit_cost: stockReceiptUnitCost,
           value_in: stockReceiptTotalCost,
@@ -828,13 +862,6 @@ async function returnProductionInputInTransaction(tx: Prisma.TransactionClient, 
 
 export async function returnProductionInput(orderDocNo: string, values: ReturnProductionInputValues, actor: string) {
   return prisma.$transaction((tx: Prisma.TransactionClient) => returnProductionInputInTransaction(tx, orderDocNo, values, actor))
-}
-
-// Keep the old route callable during rollout; it now executes the return flow and does not create a reversal document.
-export async function reverseProductionInput(orderDocNo: string, inputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
-  const order = await findOrderByDocNo(prisma, orderDocNo)
-  const inputs = await prisma.production_inputs.findMany({ where: { doc_no: inputDocNo, order_id: order.id, status: 'active' }, select: { id: true, qty: true } })
-  return returnProductionInput(orderDocNo, { lines: inputs.map((input) => ({ inputId: input.id, qty: toNumber(input.qty) })), reason: values.reason }, actor)
 }
 
 export async function createProductionOutput(orderDocNo: string, values: CreateProductionOutputValues, actor: string) {
@@ -893,7 +920,9 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
     const outputAllocations = allocate(outputSourceQty)
     const lossAllocations = allocate(lossQty)
     const singleSource = sourceRows.length === 1 ? sourceRows[0] : null
-    const outputDocNo = await nextDocNo(tx, 'production_outputs', 'PO2', values.date)
+    const outputRound = await nextProductionOutputRound(tx, order.id)
+    const outputDocNo = formatProductionOutputRound(order.doc_no, outputRound)
+    const outputEventKey = outputDocNo
     const ledgerRows: Prisma.stock_ledgerCreateManyInput[] = []
     const outputLineDetails: Array<{ productCode: string; productName: string; stockCategory: string; qty: number; unitCost: number; totalCost: number; warehouseName: string }> = []
     let outputQty = 0
@@ -911,6 +940,9 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
         findActiveProductByCode(tx, line.productCode),
         findActiveWarehouseByCode(tx, line.destinationWarehouseCode, order.branch_id),
       ])
+      if (destinationWarehouse.type?.toUpperCase() === 'WIP') {
+        throw new ProductionOrderError(`คลัง ${line.destinationWarehouseCode} ต้องเป็นคลังรับผลผลิต ไม่ใช่คลัง WIP`)
+      }
       const sourceWipQty = outputSourceQtyByLine[lineIndex] ?? 0
       const lineOutputAllocations = allocate(sourceWipQty)
       const lineCost = lineOutputAllocations.reduce((sum, allocation) => sum + allocation.totalCost, 0)
@@ -920,14 +952,9 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
         status: line.categoryCode,
         warehouseId: destinationWarehouse.id,
       })
-      const destinationStock = await stockSnapshot(tx, {
-        branchId: order.branch_id,
-        productId: product.id,
-        status: line.categoryCode,
-        warehouseId: destinationWarehouse.id,
-      })
-      const stockReceiptUnitCost = destinationStock.unitCost
-      const stockReceiptTotalCost = line.netQty * stockReceiptUnitCost
+      const stockReceiptCost = productionStockReceiptCost({ outputQty: line.netQty, productionCost: lineCost })
+      const stockReceiptUnitCost = stockReceiptCost.unitCost
+      const stockReceiptTotalCost = stockReceiptCost.totalCost
       outputQty += line.netQty
       outputValue += lineCost
       stockReceiptValue += stockReceiptTotalCost
@@ -946,6 +973,8 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
           date: normalizeDate(values.date),
           destination_warehouse_id: destinationWarehouse.id,
           doc_no: outputDocNo,
+          event_key: outputEventKey,
+          output_round: outputRound,
           lot_no: line.lotNo ?? null,
           notes: values.notes ?? null,
           order_id: order.id,
@@ -973,7 +1002,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
             source_type: 'Production',
             source_ref_type: 'PO2',
             source_ref_id: created.id.toString(),
-            source_ref_no: outputDocNo,
+            source_ref_no: order.doc_no,
             date: normalizeDate(values.date),
             branch_id: order.branch_id,
             warehouse_id: destinationWarehouse.id,
@@ -996,12 +1025,13 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
             date: normalizeDate(values.date),
             lot_no: line.lotNo ?? null,
             movement_type: 'PRODUCTION_OUTPUT_WIP_OUT',
+            not_available_for_sale: false,
             notes: values.notes ?? null,
             output_category: 'WIP',
             product_id: BigInt(allocation.productId),
             qty_out: allocation.qty,
             ref_id: created.id.toString(),
-            ref_no: outputDocNo,
+            ref_no: order.doc_no,
             ref_type: 'PO2',
             unit_cost: allocation.unitCost,
             value_out: allocation.totalCost,
@@ -1015,12 +1045,13 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
           date: normalizeDate(values.date),
           lot_no: line.lotNo ?? null,
           movement_type: line.categoryCode === 'FG' ? 'PRODUCTION_OUTPUT_IN' : 'PRODUCTION_OUTPUT_RM_IN',
+          not_available_for_sale: false,
           notes: values.notes ?? null,
           output_category: line.categoryCode,
           product_id: product.id,
           qty_in: line.netQty,
           ref_id: created.id.toString(),
-          ref_no: outputDocNo,
+          ref_no: order.doc_no,
           ref_type: 'PO2',
           unit_cost: stockReceiptUnitCost,
           value_in: stockReceiptTotalCost,
@@ -1036,6 +1067,8 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
           category_code: 'LOSS',
           date: normalizeDate(values.date),
           doc_no: outputDocNo,
+          event_key: outputEventKey,
+          output_round: outputRound,
           notes: values.notes ?? null,
           order_id: order.id,
           output_status: 'LOSS',
@@ -1059,12 +1092,13 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
           created_by: actor,
           date: normalizeDate(values.date),
           movement_type: 'PRODUCTION_LOSS',
+          not_available_for_sale: false,
           notes: values.notes ?? null,
           output_category: 'LOSS',
           product_id: BigInt(allocation.productId),
           qty_out: allocation.qty,
           ref_id: created.id.toString(),
-          ref_no: outputDocNo,
+          ref_no: order.doc_no,
           ref_type: 'PO2',
           unit_cost: allocation.unitCost,
           value_out: allocation.totalCost,
@@ -1125,27 +1159,27 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
   })
 }
 
-async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient, orderDocNo: string, outputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
+async function voidProductionOutputInTransaction(tx: Prisma.TransactionClient, orderDocNo: string, outputDocNo: string, values: VoidProductionOutputValues, actor: string) {
     const order = await findOrderByDocNo(tx, orderDocNo)
     await lockProductionOrder(tx, order.id)
     const isGrace = isGracePeriodActive(order)
     if (['Completed', 'Cancelled'].includes(order.status ?? '') && (!isGrace || order.status === 'Cancelled')) {
-      throw new ProductionOrderError('ใบสั่งผลิตปิดงานหรือยกเลิกแล้ว ไม่สามารถ reverse ได้')
+      throw new ProductionOrderError('ใบสั่งผลิตปิดงานหรือยกเลิกแล้ว ไม่สามารถยกเลิกผลผลิตได้')
     }
     if (!order.branch_id || !order.warehouse_wip_id || !order.product_id) throw new ProductionOrderError('ใบสั่งผลิตไม่มีสาขา สินค้า หรือคลัง WIP ที่ครบถ้วน')
 
     const outputs = await tx.production_outputs.findMany({
       where: { doc_no: outputDocNo, order_id: order.id, status: 'active' },
     })
-    if (outputs.length === 0) throw new ProductionOrderError(`ไม่พบรายการรับผลผลิตที่ reverse ได้ ${outputDocNo}`, 404)
+    if (outputs.length === 0) throw new ProductionOrderError(`ไม่พบรายการรับผลผลิตที่ยกเลิกได้ ${outputDocNo}`, 404)
 
-    const reversalDocNo = await nextDocNo(tx, 'production_outputs', 'PO2-REV', values.date)
+    const reversalDocNo = outputDocNo
     const ledgerRows: Prisma.stock_ledgerCreateManyInput[] = []
     let reverseCost = 0
     let reverseQty = 0
 
     for (const output of outputs) {
-      if (!output.product_id) throw new ProductionOrderError(`รายการ ${outputDocNo} ไม่มีข้อมูลสินค้า ไม่สามารถ reverse ได้`)
+      if (!output.product_id) throw new ProductionOrderError(`รายการ ${outputDocNo} ไม่มีข้อมูลสินค้า ไม่สามารถยกเลิกได้`)
       const poolEntry = await tx.stock_cost_pool_entries.findFirst({
         where: {
           source_ref_id: output.id.toString(),
@@ -1154,7 +1188,7 @@ async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient
       })
       if (poolEntry) {
         if (toNumber(poolEntry.allocated_qty) > 0) {
-          throw new ProductionOrderError(`ไม่สามารถ reverse ได้เนื่องจากผลผลิตทองแดง/ทองเหลืองบางส่วนถูกขายหรือจัดสรรต้นทุนแล้ว (${outputDocNo})`)
+          throw new ProductionOrderError(`ไม่สามารถยกเลิกได้เนื่องจากผลผลิตบางส่วนถูกขายหรือจัดสรรต้นทุนแล้ว (${outputDocNo})`)
         }
         await tx.stock_cost_pool_entries.update({
           data: {
@@ -1174,7 +1208,7 @@ async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient
       reverseQty += qty
 
       if (output.category_code !== 'LOSS') {
-        if (!output.destination_warehouse_id) throw new ProductionOrderError(`รายการ ${outputDocNo} ไม่มีคลังปลายทาง ไม่สามารถ reverse ได้`)
+        if (!output.destination_warehouse_id) throw new ProductionOrderError(`รายการ ${outputDocNo} ไม่มีคลังปลายทาง ไม่สามารถยกเลิกได้`)
         const stockStatus = output.category_code === 'RM' ? 'RM' : 'FG'
         await lockStockScope(tx, {
           branchId: order.branch_id,
@@ -1199,7 +1233,7 @@ async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient
           },
         })
         if (toNumber(laterOutgoing._sum.qty_out) > 0.000001) {
-          throw new ProductionOrderError(`ไม่สามารถ void ${outputDocNo} ได้ เนื่องจากสินค้าถูกนำไปใช้หรือจ่ายออกจากคลังปลายทางแล้ว`)
+            throw new ProductionOrderError(`ไม่สามารถยกเลิก ${outputDocNo} ได้ เนื่องจากสินค้าถูกนำไปใช้หรือจ่ายออกจากคลังปลายทางแล้ว`)
         }
         const available = await stockSnapshot(tx, {
           branchId: order.branch_id,
@@ -1208,19 +1242,20 @@ async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient
           status: stockStatus,
           warehouseId: output.destination_warehouse_id,
         })
-        if (available.qty < qty) throw new ProductionOrderError(`สินค้าในคลังปลายทางของ ${outputDocNo} ไม่พอสำหรับ reverse`)
+        if (available.qty < qty) throw new ProductionOrderError(`สินค้าในคลังปลายทางของ ${outputDocNo} ไม่พอสำหรับยกเลิก`)
         ledgerRows.push({
           branch_id: order.branch_id,
           created_by: actor,
           date: normalizeDate(values.date),
           lot_no: output.lot_no,
           movement_type: 'PRODUCTION_OUTPUT_REVERSE_STOCK_OUT',
+          not_available_for_sale: false,
           notes: values.reason,
           output_category: stockStatus,
           product_id: output.product_id,
           qty_out: qty,
           ref_id: output.id.toString(),
-          ref_no: reversalDocNo,
+          ref_no: order.doc_no,
           ref_type: 'PO2-REV',
           unit_cost: stockReceiptUnitCost,
           value_out: stockReceiptTotalCost,
@@ -1232,7 +1267,7 @@ async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient
         ? (output.source_wip_allocations as unknown[]).map((allocation) => {
             const item = allocation as { productId?: string; qty?: number; unitCost?: number; totalCost?: number }
             const allocationQty = toNumber(item.qty)
-            if (!item.productId || allocationQty <= 0) throw new ProductionOrderError(`รายการ ${outputDocNo} มีข้อมูลวัตถุดิบ WIP ไม่ครบ ไม่สามารถ reverse ได้`)
+            if (!item.productId || allocationQty <= 0) throw new ProductionOrderError(`รายการ ${outputDocNo} มีข้อมูลวัตถุดิบ WIP ไม่ครบ ไม่สามารถยกเลิกได้`)
             return {
               productId: BigInt(item.productId),
               qty: allocationQty,
@@ -1252,12 +1287,13 @@ async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient
         date: normalizeDate(values.date),
         lot_no: output.lot_no,
         movement_type: 'PRODUCTION_OUTPUT_REVERSE_WIP_IN',
+        not_available_for_sale: false,
         notes: values.reason,
         output_category: 'WIP',
         product_id: allocation.productId,
         qty_in: allocation.qty,
         ref_id: output.id.toString(),
-        ref_no: reversalDocNo,
+        ref_no: order.doc_no,
         ref_type: 'PO2-REV',
         unit_cost: allocation.unitCost,
         value_in: allocation.totalCost,
@@ -1294,8 +1330,8 @@ async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient
     return { orderStatus: nextStatus, outputDocNo, reversalDocNo, reversedQty: reverseQty, wipQty: nextWip.wipQty }
 }
 
-export async function reverseProductionOutput(orderDocNo: string, outputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
-  return prisma.$transaction((tx: Prisma.TransactionClient) => reverseProductionOutputInTransaction(tx, orderDocNo, outputDocNo, values, actor))
+export async function voidProductionOutput(orderDocNo: string, outputDocNo: string, values: VoidProductionOutputValues, actor: string) {
+  return prisma.$transaction((tx: Prisma.TransactionClient) => voidProductionOutputInTransaction(tx, orderDocNo, outputDocNo, values, actor))
 }
 
 export async function completeProductionOrder(orderDocNo: string, note: string | undefined, actor: string, confirmCloseWithWip = false) {
@@ -1368,12 +1404,13 @@ export async function completeProductionOrder(orderDocNo: string, note: string |
             date: postingDate,
             lot_no: input.lot_no,
             movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
+            not_available_for_sale: false,
             notes: note?.trim() || 'คืน WIP คงเหลือก่อนปิดงาน',
             output_category: 'WIP',
             product_id: input.product_id,
             qty_out: qty,
             ref_id: returned.id.toString(),
-            ref_no: input.doc_no,
+            ref_no: order.doc_no,
             ref_type: 'PI-RETURN',
             unit_cost: unitCost,
             value_out: totalCost,
@@ -1386,12 +1423,13 @@ export async function completeProductionOrder(orderDocNo: string, note: string |
             date: postingDate,
             lot_no: input.lot_no,
             movement_type: 'PRODUCTION_INPUT_RETURN_STOCK_IN',
+            not_available_for_sale: false,
             notes: note?.trim() || 'คืน WIP คงเหลือก่อนปิดงาน',
             output_category: input.stock_category,
             product_id: input.product_id,
             qty_in: qty,
             ref_id: returned.id.toString(),
-            ref_no: input.doc_no,
+            ref_no: order.doc_no,
             ref_type: 'PI-RETURN',
             unit_cost: unitCost,
             value_in: totalCost,
@@ -1458,12 +1496,12 @@ export async function cancelProductionOrder(orderDocNo: string, reason: string, 
       select: { doc_no: true },
       where: { order_id: order.id, status: 'active' },
     })
-    const reversalValues: ReverseProductionMovementValues = {
+    const reversalValues: VoidProductionOutputValues = {
       date: toBangkokDateOnly(new Date()),
       reason,
     }
     for (const output of activeOutputRows) {
-      await reverseProductionOutputInTransaction(tx, order.doc_no, output.doc_no, reversalValues, actor)
+      await voidProductionOutputInTransaction(tx, order.doc_no, output.doc_no, reversalValues, actor)
     }
 
     const activeInputs = await tx.production_inputs.findMany({
@@ -1555,21 +1593,15 @@ export async function productionProductStock(input: { branchCode: string; produc
 
   const snapshots = await prisma.stock_ledger.groupBy({
     by: ['warehouse_id', 'output_category'],
-    where: {
-      branch_id: branch.id,
-      lot_no: null,
-      OR: [{ not_available_for_sale: false }, { not_available_for_sale: null }],
-      output_category: { in: ['RM', 'FG'] },
-      product_id: product.id,
-      warehouse_id: { in: warehouses.map((warehouse) => warehouse.id) },
-    },
+    where: productionStockLedgerWhere({ branchId: branch.id, productId: product.id, warehouseIds: warehouses.map((warehouse) => warehouse.id) }),
     _sum: { qty_in: true, qty_out: true, value_in: true, value_out: true },
   })
   const warehouseById = new Map(warehouses.map((warehouse) => [warehouse.id.toString(), warehouse]))
   for (const snapshot of snapshots) {
     const warehouse = snapshot.warehouse_id == null ? null : warehouseById.get(snapshot.warehouse_id.toString())
-    const status = snapshot.output_category
-    if (!warehouse || (status !== 'RM' && status !== 'FG')) continue
+    if (!warehouse) continue
+    const status = productionStockStatus(snapshot.output_category)
+    if (status !== 'RM' && status !== 'FG') continue
     const qty = toNumber(snapshot._sum.qty_in) - toNumber(snapshot._sum.qty_out)
     const value = toNumber(snapshot._sum.value_in) - toNumber(snapshot._sum.value_out)
     if (Math.abs(qty) <= 0.000001) continue

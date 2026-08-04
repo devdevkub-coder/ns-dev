@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { ChevronDown, LogOut, UserRound } from 'lucide-react'
-import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
+import { GuardedLink } from '@/components/ui/GuardedLink'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
+import { useActionConfirmation } from '@/components/ui/FormSafetyProvider'
 
 type AuthStatusProfile = {
   roles: Array<{
@@ -37,6 +38,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const supabase = getSupabaseClient()
+  const { requestNavigation } = useActionConfirmation()
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 1023px)')
@@ -100,13 +102,15 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
 
   async function logout() {
     if (!supabase) return
-    try {
-      await supabase.auth.signOut()
-    } finally {
-      setSession(null)
-      setProfile({ roles: [], userEmail: '' })
-      window.location.replace('/login')
-    }
+    requestNavigation(async () => {
+      try {
+        await supabase.auth.signOut()
+      } finally {
+        setSession(null)
+        setProfile({ roles: [], userEmail: '' })
+        window.location.replace('/login')
+      }
+    })
   }
 
   const userEmail = profile.userEmail || session?.user.email || ''
@@ -130,7 +134,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
 
   if (!session) {
     return (
-      <Link
+      <GuardedLink
         className={isSidebar
           ? `flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white ${compact ? 'lg:justify-center lg:px-2' : ''}`
           : 'rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100'}
@@ -138,7 +142,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
       >
         <UserRound className="size-4 shrink-0" />
         <span className={compact && isSidebar ? 'lg:hidden' : ''}>Login</span>
-      </Link>
+      </GuardedLink>
     )
   }
 
@@ -147,7 +151,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
       <div className="w-full">
         {isMobileMenuOpen ? (
           <div className="mb-2 overflow-hidden rounded-md border border-slate-700 bg-slate-800 shadow-sm">
-            <Link
+            <GuardedLink
               className="flex h-11 items-center gap-2 px-3 text-sm text-slate-100 hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
               href="/profile"
               onClick={() => {
@@ -157,7 +161,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
             >
               <UserRound className="size-4 text-slate-300" />
               <span>ตั้งค่าโปรไฟล์ & บัญชี</span>
-            </Link>
+            </GuardedLink>
             <div className="h-px bg-slate-700" />
             <button
               className="flex h-11 w-full items-center gap-2 px-3 text-left text-sm text-slate-100 hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
@@ -221,10 +225,10 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
         sideOffset={10}
       >
         <DropdownMenuItem asChild className="h-9 cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white">
-          <Link className="flex items-center gap-2" href="/profile">
+          <GuardedLink className="flex items-center gap-2" href="/profile">
             <UserRound className="size-4 text-slate-300" />
             <span>ตั้งค่าโปรไฟล์ & บัญชี</span>
-          </Link>
+          </GuardedLink>
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-1 bg-slate-700" />
         <DropdownMenuItem className="h-9 cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white" onClick={logout}>

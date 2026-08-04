@@ -10,6 +10,7 @@ import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-ref
 import { normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { prisma } from '@/lib/server/prisma'
+import { requireSalesBillStatus } from '@/lib/server/sales-bill-history'
 import {
   listActiveBranches,
   listActiveBranchesByCodes,
@@ -192,7 +193,7 @@ export async function GET(request: Request) {
           refNo: bill.ref_no ?? '',
           salesBillId: bill.id.toString(),
           sourceOfTruth: 'sales_bills',
-          status: bill.status ?? 'open',
+          status: requireSalesBillStatus(bill.status, bill.doc_no),
           totalAmount,
           transactionMode: bill.transaction_mode ?? 'STOCK',
           vatInvoiceNo: bill.vat_invoice_no ?? '',
@@ -281,7 +282,17 @@ export async function GET(request: Request) {
           prisma.customer_receipt_allocations.findMany({
             include: {
               customer_receipts: {
-                select: { date: true, doc_no: true, net_cash_in: true, status: true },
+                select: {
+                  date: true,
+                  doc_no: true,
+                  customer_transferred_native_amount: true,
+                  fx_rate: true,
+                  net_cash_in: true,
+                  receipt_currency_code: true,
+                  settlement_book_amount: true,
+                  settlement_fx_difference: true,
+                  status: true,
+                },
               },
             },
             orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -328,6 +339,15 @@ export async function GET(request: Request) {
             netCashIn: toNumber(allocation.customer_receipts.net_cash_in),
             outstandingAfter: toNumber(allocation.outstanding_after),
             outstandingBefore: toNumber(allocation.outstanding_before),
+            foreignAudit: allocation.customer_receipts.receipt_currency_code
+              ? {
+                  currencyCode: allocation.customer_receipts.receipt_currency_code,
+                  fxRate: toNumber(allocation.customer_receipts.fx_rate),
+                  nativeAmount: toNumber(allocation.customer_receipts.customer_transferred_native_amount),
+                  settlementBookAmount: toNumber(allocation.customer_receipts.settlement_book_amount),
+                  settlementFxDifference: toNumber(allocation.customer_receipts.settlement_fx_difference),
+                }
+              : null,
             status: allocation.customer_receipts.status,
           })),
           salesBill: {
@@ -338,7 +358,7 @@ export async function GET(request: Request) {
         },
       }
     })
-    const statuses = Array.from(new Set(bills.map((bill) => bill.status ?? 'open'))).sort()
+    const statuses = Array.from(new Set(bills.map((bill) => requireSalesBillStatus(bill.status, bill.doc_no)))).sort()
 
     return NextResponse.json({
       byBucket,

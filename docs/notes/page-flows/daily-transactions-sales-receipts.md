@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-14
+updated: 2026-07-30
 route: /sales/receipts
 ---
 
@@ -65,7 +65,7 @@ RCP รับเงินจาก SB/customer advance และเขียน 
 - ไม่แก้ยอดบิลขายเดิมนอกจาก payment status/paid amount
 - ไม่ใช้ payment supplier PMT แทน receipt
 
-## Customer Advance Integration (Target)
+## Customer Advance Integration
 
 CADV เป็น source request ก่อนเงินเข้า ไม่ใช่ RCP. เมื่อผู้ใช้เลือก CADV ใน Receipt modal ระบบต้องดึง customer, Invoice/Contract, รายการสินค้า และยอดที่ยังต้องรับมาแสดงเป็น reference read-only. ผู้ใช้กรอกวันที่รับเงินจริง, วิธีรับเงิน, บัญชีรับเงิน และยอดรับใน RCP ตามปกติ.
 
@@ -74,6 +74,25 @@ CADV เป็น source request ก่อนเงินเข้า ไม่�
 - cancel/reissue RCP ต้อง reverse allocation และ bank statement ก่อนคำนวณ CADV ใหม่
 - CADV ที่ยังไม่ `received` ห้ามเลือกไปหัก Sales Bill
 - `customer_receipt_allocations` ของ SB และ `customer_receipt_advance_allocations` ของ CADV เป็นคนละ relationship; ห้ามใช้ foreign key/null semantics ปนกัน
+
+## Foreign Currency Extension (Approved Contract)
+
+Foreign Customer Receipt รองรับ write path สำหรับทั้ง `SB` และ `CADV`: header/allocation/split เก็บ receipt currency, native transfer/credit, exact-date rate snapshot และ book THB; Bank Statement และ FCD ledger ถูกเขียนใน transaction เดียวกัน. ห้ามตีความยอด native เป็น THB หรือใช้ rate/account default ใน runtime.
+
+ลำดับฟอร์ม target ต้องเป็น `เลือก SB/CADV -> เลือกเอกสารต้นทาง -> เลือกสกุลเงิน -> เลือกบัญชีรับเงิน -> กรอกยอด native/rate/fee -> ตรวจ summary -> บันทึก`.
+
+- หนึ่ง RCP มีหนึ่ง receipt currency
+- foreign currency รับเข้าได้เฉพาะ FCD account ที่รองรับสกุลนั้น
+- suggested rate อิงวันที่รับเงินและแก้ไขได้; manual/override ต้องเก็บ source และเหตุผล
+- `Bank Fee` เป็น THB และแยกจาก settlement FX
+- SB allocation และ AR balance คงเป็น THB
+- CADV allocation คงเป็น THB และไม่สร้าง AR settlement FX
+- หลังบันทึก list/KPI/report ใช้ book amount THB เป็นยอดหลัก; native amount และ rate อยู่ใน detail/audit ของ foreign RCP
+- history/detail/print/batch print/daily report/LINE ต้องใช้ snapshot ของเอกสาร ไม่ดึง current rate มาคำนวณย้อนหลัง
+- cancel-and-reissue ต้อง reverse receipt, allocation, bank statement, FCD ledger และ FX facts ครบ
+- `SB` คำนวณและเก็บ `AR settlement FX` จาก settlement THB เทียบยอดตัด AR โดยแยก Bank Fee ออก
+- `CADV` ต้องให้ settlement THB เท่ากับยอดตัด CADV, ไม่มี AR settlement FX และไม่สร้าง overpayment อัตโนมัติ
+- Form/detail แสดงยอดหลักเป็น THB และแสดง native/rate เป็น foreign audit. History/print/batch print/LINE ใช้ persisted named book-THB snapshot; ห้ามอ่าน current rate หรือแปลง native amount ซ้ำเมื่อ render เอกสารย้อนหลัง
 
 ## Lifecycle / Operation Flow
 
@@ -275,7 +294,7 @@ Desktop queue table ใช้ความกว้างทุกคอลัม
 3. บันทึกรายการบิลใน `customer_receipt_allocations`
 4. สร้าง `bank_statement` เงินเข้า ตามบัญชีรับเงินแต่ละแถว
 5. ปรับยอด `received_amount` และ `receivable_balance` ของ `sales_bills`
-6. ปรับสถานะบิลขายเป็น partial/paid ตามยอดค้างที่เหลือ
+6. ปรับสถานะบิลขายจาก source-of-truth เดียว: `unreceived` เมื่อยังไม่ตัด AR, `partial` เมื่อตัดบางส่วน, และ `received` เมื่อตัดครบ
 7. เพิ่ม log ใน `customer_receipt_status_logs`
 8. เพิ่ม timeline/log ของ Sales Bill ตาม document policy
 
@@ -465,7 +484,7 @@ Cancel contract:
 }
 ```
 
-Cancel does not delete the original receipt, allocation, or bank facts. It marks `customer_receipts`, allocation rows, and compatibility `receipts` rows as `cancelled`, appends a reversing `bank_statement` money-out row with `ref_type = RCP-CANCEL`, restores `sales_bills.received_amount` / `receivable_balance`, recalculates SB status, and appends receipt/SB status logs.
+Cancel does not delete the original receipt, allocation, or bank facts. It marks `customer_receipts`, allocation rows, and compatibility `receipts` rows as `cancelled`, appends a reversing `bank_statement` money-out row with `ref_type = RCP-CANCEL`, restores `sales_bills.received_amount` / `receivable_balance`, recalculates SB status, and appends receipt/SB status logs. When a cancellation restores the full AR balance, the SB status is persisted as `unreceived`.
 
 Edit contract uses cancel-and-reissue, not silent in-place mutation. The UI can submit an existing `id` through `POST /api/sales/receipts`, or API callers can use:
 
@@ -573,7 +592,7 @@ The optimization remains no-fallback/no-hardcode: master data still comes from a
 
 ## Current Gap
 
-Multi-bill receipt allocation DB/API create path, UI picker, cancel/reversal path, and edit via cancel-and-reissue are implemented in the active Next app. Printed RCP detail and customer advance allocation remain future work.
+Multi-bill receipt allocation, CADV receipt allocation, bank-statement posting, cancel/reversal, edit via cancel-and-reissue, print และ LINE notification มีใน active Next app แล้ว. Foreign receipt ใช้ rate provenance, native/carrying FCD facts และ FX event contract ที่ persist แล้ว; งานที่เหลือคือ reconciliation/integration coverage และ GL posting engine ซึ่งไม่ใช่ RCP write-path.
 
 ## Implementation Checklist
 

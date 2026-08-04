@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { readBlobResponse, readJsonResponse } from '@/lib/api-client'
+import { masterDataRecordListSchema, type MasterDataRecord } from '@/lib/master-data'
 
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const codePattern = /^[A-Za-z0-9_-]+$/
@@ -47,6 +48,20 @@ export const productImportResultSchema = z.object({
 export type Product = z.infer<typeof productSchema>
 export type ProductImportResult = z.infer<typeof productImportResultSchema>
 export type ProductListResult = z.infer<typeof productListResultSchema>
+
+const productOptionsSchema = z.object({
+  productTypes: masterDataRecordListSchema,
+  productUnits: masterDataRecordListSchema,
+})
+
+export async function loadProductOptions(): Promise<{ productTypes: MasterDataRecord[]; productUnits: MasterDataRecord[] }> {
+  const response = await fetch('/api/master-data/products/options', { cache: 'no-store' })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    throw new Error(payload?.error ?? 'โหลดข้อมูลอ้างอิงสินค้าไม่ได้')
+  }
+  return productOptionsSchema.parse(await response.json())
+}
 
 export type ProductListOptions = {
   active?: string

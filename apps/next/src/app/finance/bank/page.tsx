@@ -15,6 +15,7 @@ export default async function BankStatementPage({ searchParams }: PageProps) {
   const params = await searchParams
   return <BankStatementPageClient initialFilters={{
     from: first(params.from),
+    q: first(params.q),
     to: first(params.to),
   }} />
 }

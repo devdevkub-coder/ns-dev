@@ -5,6 +5,7 @@ import type React from 'react'
 import type { ButtonHTMLAttributes, Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -215,6 +216,7 @@ export function AdvancePaymentsPageClient() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [form, setForm] = useState<FormState>(() => emptyForm())
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -293,8 +295,16 @@ export function AdvancePaymentsPageClient() {
     vatRatePercent: 7,
     vatType: form.vatType === 'INCLUDE' ? 'INCLUDE' : 'NONE',
   }), [form.amount, form.vatType])
+  const formSnapshot = useMemo(() => JSON.stringify({
+    form,
+    vehiclePhotoFiles: vehiclePhotoFiles.map((file) => ({ fileName: file.fileName, id: file.id })),
+  }), [form, vehiclePhotoFiles])
+  const isFormDirty = isFormOpen && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const { requestDiscard: requestCancelDiscard } = useUnsavedChangesGuard(isCancelDialogOpen && cancelNote.length > 0)
+  const { requestConfirmation } = useActionConfirmation()
 
-  const closeForm = useCallback(() => {
+  const discardForm = useCallback(() => {
     setEditingAdvanceId(null)
     setEditingAdvanceNo(null)
     setIsFormOpen(false)
@@ -306,13 +316,14 @@ export function AdvancePaymentsPageClient() {
     })
   }, [])
 
+  const closeForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(discardForm)
+  }, [discardForm, isSaving, requestDiscard])
+
   const openForm = useCallback(() => {
     const defaultDateTime = currentDateTimeLocalValue()
-    setEditingAdvanceId(null)
-    setEditingAdvanceNo(null)
-    setFieldErrors({})
-    setError(null)
-    setForm(() => ({
+    const nextForm = {
       ...emptyForm(),
       advanceType: 'WAITING_SORT',
       branchId: '',
@@ -321,7 +332,13 @@ export function AdvancePaymentsPageClient() {
       outDate: defaultDateTime,
       paymentMethod: '',
       vatType: 'NONE',
-    }))
+    }
+    setEditingAdvanceId(null)
+    setEditingAdvanceNo(null)
+    setFieldErrors({})
+    setError(null)
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify({ form: nextForm, vehiclePhotoFiles: [] }))
     setIsFormOpen(true)
   }, [])
 
@@ -364,7 +381,7 @@ export function AdvancePaymentsPageClient() {
     setEditingAdvanceNo(row.docNo)
     setFieldErrors({})
     setError(null)
-    setForm({
+    const nextForm = {
       amount: row.vatType === 'INCLUDE'
         ? (row.subtotalAmount ? String(row.subtotalAmount) : '')
         : (row.amount ? String(row.amount) : ''),
@@ -391,14 +408,18 @@ export function AdvancePaymentsPageClient() {
       vatType: row.vatType ?? 'NONE',
       weightIn: String(row.weightIn ?? ''),
       weightOut: String(row.weightOut ?? ''),
-    })
-    setVehiclePhotoFiles(
-      ('vehiclePhotoNames' in row ? row.vehiclePhotoNames : []).map((fileName) => ({
+    }
+    const nextVehiclePhotoFiles = ('vehiclePhotoNames' in row ? row.vehiclePhotoNames : []).map((fileName) => ({
         fileName,
         id: `existing-${fileName}`,
         url: null,
-      })),
-    )
+      }))
+    setForm(nextForm)
+    setVehiclePhotoFiles(nextVehiclePhotoFiles)
+    setFormBaseline(JSON.stringify({
+      form: nextForm,
+      vehiclePhotoFiles: nextVehiclePhotoFiles.map(({ fileName, id }) => ({ fileName, id })),
+    }))
     setIsDetailOpen(false)
     setDetail(null)
     setIsFormOpen(true)
@@ -417,6 +438,10 @@ export function AdvancePaymentsPageClient() {
     setCancelNoteError('')
     setIsCancelDialogOpen(false)
   }, [])
+
+  const requestCloseCancelDialog = useCallback(() => {
+    if (!isSaving) requestCancelDiscard(closeCancelDialog)
+  }, [closeCancelDialog, isSaving, requestCancelDiscard])
 
   const loadDetail = useCallback(async (rowId: string) => {
     setError(null)
@@ -503,6 +528,17 @@ export function AdvancePaymentsPageClient() {
     })
   }, [])
 
+  const requestRemoveVehiclePhoto = useCallback((fileId: string) => {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรูปภาพ',
+      description: 'รูปภาพรถนี้จะถูกนำออกจากรายการที่กำลังกรอก',
+      destructive: true,
+      onConfirm: () => removeVehiclePhoto(fileId),
+      title: 'ลบรูปภาพรถนี้หรือไม่?',
+    })
+  }, [removeVehiclePhoto, requestConfirmation])
+
   const appendVehiclePhotos = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return
     const additions = Array.from(files).slice(0, 10).map((file) => ({
@@ -547,7 +583,7 @@ export function AdvancePaymentsPageClient() {
         method: editingAdvanceId ? 'PUT' : 'POST',
       })
       setForm(emptyForm())
-      closeForm()
+      discardForm()
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกรายการจ่ายเงินล่วงหน้าไม่ได้')
@@ -556,7 +592,7 @@ export function AdvancePaymentsPageClient() {
     }
   }
 
-  const submitCancel = async () => {
+  const submitCancel = () => {
     const row = detail
     if (!row) return
     const note = cancelNote.trim()
@@ -566,6 +602,7 @@ export function AdvancePaymentsPageClient() {
     }
     setError(null)
     setCancelNoteError('')
+    requestConfirmation({ title: 'ยืนยันการยกเลิกรายการ ADV', description: `ต้องการยกเลิกรายการ ADV ${row.docNo} หรือไม่?`, confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
     setIsSaving(true)
     try {
       await dailyFetchJson(`/api/purchase/advance-payments/${row.id}`, {
@@ -578,9 +615,11 @@ export function AdvancePaymentsPageClient() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ยกเลิกรายการ ADV ไม่ได้')
+      throw caught instanceof Error ? caught : new Error('ยกเลิกรายการ ADV ไม่ได้')
     } finally {
       setIsSaving(false)
     }
+    } })
   }
 
   const clearFilters = () => {
@@ -771,7 +810,7 @@ export function AdvancePaymentsPageClient() {
                               ) : (
                                 <span className="min-w-0 flex-1 truncate font-medium text-slate-500" title={file.fileName}>{file.fileName}</span>
                               )}
-                              <button className="shrink-0 text-xs font-semibold text-slate-500 hover:text-red-600" type="button" onClick={() => removeVehiclePhoto(file.id)}>
+                              <button className="shrink-0 text-xs font-semibold text-slate-500 hover:text-red-600" type="button" onClick={() => requestRemoveVehiclePhoto(file.id)}>
                                 ลบ
                               </button>
                             </div>
@@ -823,7 +862,7 @@ export function AdvancePaymentsPageClient() {
 
           <div className="space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm" data-ns-field-scope="filter">
             <div className="flex flex-wrap items-center gap-2">
-              <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหา ADV / ใบชั่งใหญ่ / ผู้ขาย / ทะเบียน..." type="search" value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} />
+              <Input className="h-9 min-w-[260px] flex-1 rounded-md" placeholder="ค้นหา ADV / ใบชั่งใหญ่ / ผู้ขาย / ทะเบียน..." type="search" value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} />
 
               {/* Mobile Filter Button */}
               <button
@@ -836,9 +875,9 @@ export function AdvancePaymentsPageClient() {
 
               <div className="hidden md:flex flex-wrap items-center gap-2">
                 <label className="text-xs text-slate-500">วันที่:</label>
-                <DatePickerInput ariaLabel="จากวันที่" id="advance-payments-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                <DatePickerInput ariaLabel="จากวันที่" className="h-9" id="advance-payments-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
                 <span className="text-slate-400">→</span>
-                <DatePickerInput ariaLabel="ถึงวันที่" id="advance-payments-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                <DatePickerInput ariaLabel="ถึงวันที่" className="h-9" id="advance-payments-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
               </div>
 
               {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
@@ -868,7 +907,7 @@ export function AdvancePaymentsPageClient() {
               ))}
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <ExportButton href={exportHref} />
-                <Button className="h-9" size="sm" type="button" onClick={openForm}><Plus className="mr-1 h-4 w-4" />สร้าง</Button>
+                <Button className="h-10" type="button" onClick={openForm}><Plus className="size-4" />สร้าง</Button>
               </div>
             </div>
           </div>
@@ -916,9 +955,9 @@ export function AdvancePaymentsPageClient() {
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" ariaLabel="จากวันที่มือถือ" id="advance-payments-mobile-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                      <DatePickerInput className="h-9 flex-1" ariaLabel="จากวันที่มือถือ" id="advance-payments-mobile-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" ariaLabel="ถึงวันที่มือถือ" id="advance-payments-mobile-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                      <DatePickerInput className="h-9 flex-1" ariaLabel="ถึงวันที่มือถือ" id="advance-payments-mobile-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
                     </div>
                   </div>
 
@@ -979,18 +1018,18 @@ export function AdvancePaymentsPageClient() {
                 onClick={() => void loadDetail(row.id)}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                  <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
                   <StatusDot status={row.status} label={row.statusLabel} />
                 </div>
                 <div className="flex justify-between items-center text-xs text-slate-500 mb-3">
                   <span className="font-semibold text-slate-700">{row.supplierName}</span>
-                  <span>วันที่: {row.advanceDate}</span>
+                  <span className="text-center whitespace-nowrap">วันที่: {row.advanceDate}</span>
                 </div>
                 <div className="text-xs text-slate-500 space-y-1 mb-3">
                   {row.productName ? <div>สินค้า: <span className="font-semibold text-slate-700">{row.productName}</span></div> : null}
                   <div>ประเภท: <span className="font-semibold text-slate-700">{row.advanceTypeLabel}</span></div>
-                  {row.invoiceNo ? <div>Invoice: <span className="font-semibold text-slate-700">{row.invoiceNo}</span></div> : null}
-                  {row.largeScaleDocNo ? <div>ใบชั่งใหญ่: <span className="font-semibold text-slate-700">{row.largeScaleDocNo}</span></div> : null}
+                  {row.invoiceNo ? <div>Invoice: <span className="text-center font-mono font-semibold text-slate-700 whitespace-nowrap">{row.invoiceNo}</span></div> : null}
+                  {row.largeScaleDocNo ? <div>ใบชั่งใหญ่: <span className="text-center font-mono font-semibold text-slate-700 whitespace-nowrap">{row.largeScaleDocNo}</span></div> : null}
                   {row.plateNo ? <div>ทะเบียนรถ: <span className="font-semibold text-slate-700">{row.plateNo}</span></div> : null}
                 </div>
                 <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
@@ -1034,18 +1073,18 @@ export function AdvancePaymentsPageClient() {
               </colgroup>
               <thead className="border-b border-slate-200 bg-slate-100 text-slate-700">
                 <tr>
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('advanceDate', 'วันที่')} sortKey="advanceDate" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('advanceDate', 'วันที่')} sortKey="advanceDate" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} className="ns-table-textual-column" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('largeScaleDocNo', 'อ้างอิง')} sortKey="largeScaleDocNo" onSort={changeSort} />
-                  <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('plateNo', 'ทะเบียนรถ')} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('largeScaleDocNo', 'อ้างอิง')} sortKey="largeScaleDocNo" onSort={changeSort} />
+                  <ResizableTableHead align="center" label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('plateNo', 'ทะเบียนรถ')} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} className="ns-table-textual-column" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} sortKey="netWeight" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดรวมมัดจำ" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดรวมมัดจำ')} sortKey="amount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ฐานที่ใช้หักบิล" resizeProps={columnResize.getResizeHandleProps('subtotalAmount', 'ฐานที่ใช้หักบิล')} sortKey="subtotalAmount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ฐานคงเหลือใช้หักบิล" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'ฐานคงเหลือใช้หักบิล')} sortKey="remainingAmount" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                  <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                  <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1053,12 +1092,12 @@ export function AdvancePaymentsPageClient() {
                 {!isLoading && (data?.rows ?? []).length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มีรายการจ่ายเงินล่วงหน้า</td></tr> : null}
                 {!isLoading && (data?.rows ?? []).map((row) => (
                   <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => void loadDetail(row.id)}>
-                    <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.docNo}</td>
-                    <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.advanceDate}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-mono font-medium text-slate-700">{row.docNo}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-medium text-slate-700">{row.advanceDate}</td>
                     <td className="ns-table-textual-column p-3 font-medium text-slate-700">{row.supplierName}</td>
-                    <td className="p-3 font-medium text-slate-700">{row.invoiceNo || row.largeScaleDocNo || '-'}</td>
-                    <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.plateNo || '-'}</td>
-                    <td className="p-3 font-medium text-slate-700">{row.productName || '-'}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-mono font-medium text-slate-700">{row.invoiceNo || row.largeScaleDocNo || '-'}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-medium text-slate-700">{row.plateNo || '-'}</td>
+                    <td className="ns-table-textual-column p-3 text-left font-medium text-slate-700">{row.productName || '-'}</td>
                     <TableNumberCell value={formatMoney(row.netWeight)} />
                     <td className="p-3 text-right tabular-nums">
                       <p>{formatMoney(row.totalAmount)}</p>
@@ -1066,8 +1105,8 @@ export function AdvancePaymentsPageClient() {
                     </td>
                     <TableNumberCell value={formatMoney(row.subtotalAmount)} />
                     <TableNumberCell tone="amber" value={formatMoney(row.remainingAmount)} />
-                    <td className="p-3"><StatusDot status={row.status} label={row.statusLabel} /></td>
-                    <td className="p-3 text-right">
+                    <td className="whitespace-nowrap p-3 text-center"><StatusDot status={row.status} label={row.statusLabel} /></td>
+                    <td className="p-3 text-center">
                       <TableActionButton menu={(
                         <>
                           <TableActionMenuItem onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
@@ -1244,8 +1283,7 @@ export function AdvancePaymentsPageClient() {
       </Dialog>
 
       <Dialog open={isCancelDialogOpen} onOpenChange={(open) => {
-        setIsCancelDialogOpen(open)
-        if (!open) closeCancelDialog()
+        if (!open) requestCloseCancelDialog()
       }}>
         <DialogContent hideClose mobileAppShell={false} className="max-w-lg rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 outline-none focus:outline-none" fallbackTitle="ยกเลิกรายการ ADV">
           <DialogHeader>
@@ -1271,7 +1309,7 @@ export function AdvancePaymentsPageClient() {
             {cancelNoteError ? <div className="mt-1 text-xs text-red-600">{cancelNoteError}</div> : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={closeCancelDialog}>ปิด</Button>
+            <Button disabled={isSaving} type="button" variant="secondary" onClick={requestCloseCancelDialog}>ปิด</Button>
             <Button className="bg-red-600 hover:bg-red-700" disabled={isSaving} type="button" onClick={submitCancel}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</Button>
           </DialogFooter>
         </DialogContent>
@@ -1341,7 +1379,7 @@ function AdvancePaymentSortHeader({
   sortKey,
 }: {
   activeKey: AdvancePaymentSortKey
-  align?: 'left' | 'right'
+  align?: 'center' | 'left' | 'right'
   className?: string
   direction: AdvancePaymentSortDirection
   label: string

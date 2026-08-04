@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Printer } from 'lucide-react'
+import { Download, Plus, Printer } from 'lucide-react'
 import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from '@/lib/po-sell-print'
 import { Button as UiButton } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -23,6 +23,7 @@ import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { CollapsedList } from '@/components/ui/CollapsedList'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type Option = {
   active?: boolean | null
@@ -143,6 +144,16 @@ const blankPoSellItem = (): PoSellFormValues['items'][number] => ({
   tradingCostSourceId: null,
 })
 
+export function isBlankPoSellItem(
+  item: Pick<PoSellFormValues['items'][number], 'discount' | 'note' | 'price' | 'productId' | 'qty'>,
+) {
+  return !item.productId.trim()
+    && item.qty === 0
+    && item.price === 0
+    && item.discount === 0
+    && !item.note?.trim()
+}
+
 const initialPoSellForm = (): PoSellFormValues => ({
   branchId: '',
   channelId: null,
@@ -189,6 +200,7 @@ export function PoSellPageClient() {
   const [editingDocNo, setEditingDocNo] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<PoSellFormValues>(initialPoSellForm())
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [fromDate, setFromDate] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -386,6 +398,10 @@ export function PoSellPageClient() {
   }, [branchFilter, documentStatus, fromDate, matchStatus, search, toDate])
 
   const hasFilters = Boolean(branchFilter || search.trim() || fromDate || toDate || matchStatus !== 'all' || documentStatus !== 'all')
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const isFormDirty = showForm && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const { requestConfirmation } = useActionConfirmation()
   const resetFilters = () => {
     setBranchFilter('')
     setSearch('')
@@ -397,8 +413,10 @@ export function PoSellPageClient() {
 
   function openCreateForm() {
     if (!data?.capabilities.create) return
+    const nextForm = initialPoSellForm()
     setEditingDocNo(null)
-    setForm(initialPoSellForm())
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -409,8 +427,7 @@ export function PoSellPageClient() {
       setError(row.editDisabledReason || 'รายการนี้ยังไม่สามารถแก้ไขได้')
       return
     }
-    setEditingDocNo(row.docNo)
-    setForm({
+    const nextForm = {
       branchId: row.branchId ?? '',
       channelId: row.channelId ?? null,
       customerId: row.customerId ?? '',
@@ -426,7 +443,14 @@ export function PoSellPageClient() {
       })) : [blankPoSellItem()],
       note: row.note ?? null,
       salesPlanId: null,
-    })
+    }
+    const nextBaseline = {
+      ...nextForm,
+      channelId: defaultSalesChannelForCustomer(row.customerId ?? '') ?? null,
+    }
+    setEditingDocNo(row.docNo)
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextBaseline))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -461,7 +485,7 @@ export function PoSellPageClient() {
         if (cancelled) return
         handledSalesPlanQueryRef.current = salesPlanIdFromQuery
         setEditingDocNo(null)
-        setForm({
+        const nextForm = {
           branchId: salesPlanDefaultBranchId ?? '',
           channelId: String(planRow.channelId ?? planRow.channel ?? '') || null,
           customerId: String(planRow.customerId ?? ''),
@@ -475,7 +499,9 @@ export function PoSellPageClient() {
           }],
           note: `สร้างจาก Sales Plan ${String(planRow.planNo ?? salesPlanIdFromQuery)}`,
           salesPlanId: salesPlanIdFromQuery,
-        })
+        }
+        setForm(nextForm)
+        setFormBaseline(JSON.stringify(nextForm))
         setFieldErrors({})
         setShowForm(true)
       })
@@ -547,7 +573,37 @@ export function PoSellPageClient() {
   }
 
   function removeItem(index: number) {
-    setForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+    const target = form.items[index]
+    if (!target) return
+    const remove = () => {
+      setForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+    }
+    if (isBlankPoSellItem(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการสินค้าใน PO Sell นี้หรือไม่? สินค้า จำนวน ราคา ส่วนลด และหมายเหตุในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการ PO Sell',
+    })
+  }
+
+  function discardForm() {
+    if (!editingDocNo && salesPlanIdFromQuery) {
+      handledSalesPlanQueryRef.current = salesPlanIdFromQuery
+      router.replace(pathname, { scroll: false })
+    }
+    setEditingDocNo(null)
+    setShowForm(false)
+  }
+
+  function closeForm() {
+    if (isSaving) return
+    requestDiscard(discardForm)
   }
 
   async function savePoSell() {
@@ -586,7 +642,7 @@ export function PoSellPageClient() {
     }
   }
 
-  async function submitCancel() {
+  function submitCancel() {
     if (!cancelingRow) return
     const note = cancelNote.trim()
     if (!note) {
@@ -594,9 +650,10 @@ export function PoSellPageClient() {
       return
     }
 
-    setIsSaving(true)
     setError(null)
     setCancelNoteError('')
+    requestConfirmation({ title: 'ยืนยันการยกเลิก PO Sell', description: `ต้องการยกเลิก PO Sell ${cancelingRow.docNo} หรือไม่?`, confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
+    setIsSaving(true)
     try {
       await dailyFetchJson<{ docNo: string }>('/api/sales/po-sell', {
         body: JSON.stringify({ action: 'cancel', docNo: cancelingRow.docNo, note }),
@@ -608,12 +665,14 @@ export function PoSellPageClient() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ยกเลิก PO Sell ไม่ได้')
+      throw caught instanceof Error ? caught : new Error('ยกเลิก PO Sell ไม่ได้')
     } finally {
       setIsSaving(false)
     }
+    } })
   }
 
-  async function submitShortClose() {
+  function submitShortClose() {
     if (!shortClosingRow) return
     const note = shortCloseNote.trim()
     if (!note) {
@@ -621,9 +680,10 @@ export function PoSellPageClient() {
       return
     }
 
-    setIsSaving(true)
     setError(null)
     setShortCloseNoteError('')
+    requestConfirmation({ title: 'ยืนยันการปิดส่งไม่ครบ', description: `ต้องการปิดส่ง PO Sell ${shortClosingRow.docNo} ไม่ครบหรือไม่?`, confirmLabel: 'ยืนยันปิดส่งไม่ครบ', destructive: true, onConfirm: async () => {
+    setIsSaving(true)
     try {
       await dailyFetchJson<{ docNo: string }>('/api/sales/po-sell', {
         body: JSON.stringify({ action: 'shortClose', docNo: shortClosingRow.docNo, note }),
@@ -635,9 +695,11 @@ export function PoSellPageClient() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ปิดส่งไม่ครบไม่สำเร็จ')
+      throw caught instanceof Error ? caught : new Error('ปิดส่งไม่ครบไม่สำเร็จ')
     } finally {
       setIsSaving(false)
     }
+    } })
   }
 
   const listControls = (
@@ -686,21 +748,21 @@ export function PoSellPageClient() {
       {/* Desktop Toolbar (Hidden on Mobile) */}
       <div className="mb-4 hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
-          <input autoComplete="off" className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <BranchSelectCombobox
             branches={activeBranches}
             className="w-full sm:w-auto"
             controlSize="filter"
             inputId="po-sell-list-branch-filter"
-            label="สาขา"
+            label=""
             placeholder="ทุกสาขา"
             value={branchFilter}
             onChange={(value) => setBranchFilter(value ?? '')}
           />
           <label className="text-sm text-slate-500">วันที่สร้างรายการ:</label>
-          <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
+          <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
           {hasFilters ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={resetFilters}>✕ ล้าง</button> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -710,8 +772,8 @@ export function PoSellPageClient() {
             <MatchButton key={item.value} active={documentStatus === item.value} label={item.label} tone={documentStatusTone(item.value)} onClick={() => setDocumentStatus(item.value)} />
           ))}
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <a className="inline-flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700" href={exportHref}>ส่งออก Excel</a>
-            {data?.capabilities.create ? <button className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button> : null}
+            <a className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
+            {data?.capabilities.create ? <button className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}><Plus aria-hidden="true" className="size-4" />PO Sell ใหม่</button> : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -767,6 +829,7 @@ export function PoSellPageClient() {
               <div>
                 <BranchSelectCombobox
                   branches={activeBranches}
+                  controlSize="filter"
                   inputId="po-sell-list-mobile-branch-filter"
                   label="สาขา"
                   placeholder="ทุกสาขา"
@@ -778,9 +841,9 @@ export function PoSellPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="h-9 flex-1" value={fromDate} onChange={setFromDate} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="h-9 flex-1" value={toDate} onChange={setToDate} />
                 </div>
               </div>
 
@@ -823,8 +886,8 @@ export function PoSellPageClient() {
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.createdAt)}</span>
+              <span className="whitespace-nowrap text-sm font-bold text-slate-800">{row.docNo}</span>
+              <span className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.createdAt)}</span>
             </div>
 
             <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -838,7 +901,7 @@ export function PoSellPageClient() {
               </div>
               <div>
                 <span className="font-semibold text-slate-500">วันที่ส่งมอบ: </span>
-                <span className="text-slate-800">{formatDateDisplay(row.expectedDelivery)}</span>
+                <span className="whitespace-nowrap text-slate-800">{formatDateDisplay(row.expectedDelivery)}</span>
               </div>
             </div>
 
@@ -887,9 +950,9 @@ export function PoSellPageClient() {
         </colgroup>
         <TableHeader>
           <tr>
-            <ResizableTableHead label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
-            <ResizableTableHead label="วันที่สร้าง" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} />
-            <ResizableTableHead label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
+            <ResizableTableHead align="center" label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
+            <ResizableTableHead align="center" label="วันที่สร้าง" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} />
+            <ResizableTableHead align="center" label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
             <ResizableTableHead className="ns-table-textual-column" label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
             <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
             <ResizableTableHead align="right" label="จำนวนรวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} />
@@ -900,8 +963,8 @@ export function PoSellPageClient() {
             <ResizableTableHead align="right" label="% Margin" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPct', '% Margin')} />
             <ResizableTableHead align="center" label="สถานะเอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="documentStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('documentStatus', 'สถานะเอกสาร')} />
             <ResizableTableHead align="center" label="สถานะจับคู่ต้นทุน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="matchStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchStatus', 'สถานะจับคู่ต้นทุน')} />
-            <ResizableTableHead label="อัปเดตล่าสุด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="updatedAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
-            <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+            <ResizableTableHead align="center" label="อัปเดตล่าสุด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="updatedAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
+            <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
           </tr>
         </TableHeader>
         <TableBody>
@@ -909,9 +972,9 @@ export function PoSellPageClient() {
           {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={poSellColumns.length}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
           {!isLoading && pageRows.map((row) => (
             <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
-              <TableCell className="whitespace-nowrap font-mono">{row.docNo}</TableCell>
-              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.createdAt)}</TableCell>
-              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
+              <TableCell className="whitespace-nowrap text-center font-mono">{row.docNo}</TableCell>
+              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.createdAt)}</TableCell>
+              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.expectedDelivery)}</TableCell>
               <TableCell className="ns-table-textual-column truncate">{row.customerName}</TableCell>
               <TableCell className="text-xs font-semibold text-slate-700">
                 <CollapsedList
@@ -926,13 +989,13 @@ export function PoSellPageClient() {
               <TableNumberCell tone="amber" value={formatMoney(row.remainingQty)} />
               <TableCell className={`text-right pr-4 font-bold tabular-nums ${row.margin < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(row.margin)}</TableCell>
               <TableCell className={`text-right pr-4 tabular-nums ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</TableCell>
-              <TableCell className="text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></TableCell>
-              <TableCell className="text-center"><StatusPill label={row.matchStatusLabel} tone="match" /></TableCell>
-              <TableCell className="overflow-hidden whitespace-nowrap text-xs text-slate-600">
+              <TableCell className="whitespace-nowrap text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></TableCell>
+              <TableCell className="whitespace-nowrap text-center"><StatusPill label={row.matchStatusLabel} tone="match" /></TableCell>
+              <TableCell className="overflow-hidden whitespace-nowrap text-center text-xs text-slate-600">
                 <div className="truncate font-semibold text-slate-700" title={row.updatedBy || '-'}>{row.updatedBy || '-'}</div>
                 <div className="truncate font-mono text-xs text-slate-400" title={formatTimestampDisplay(row.updatedAt)}>{formatTimestampDisplay(row.updatedAt)}</div>
               </TableCell>
-              <TableCell className="whitespace-nowrap text-right">
+              <TableCell className="whitespace-nowrap text-center">
                 <TableActionButton menu={(
                   <>
                     {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
@@ -989,14 +1052,7 @@ export function PoSellPageClient() {
           vatRatePercent={vatRatePercent}
           totalCost={formTotalCost}
           onAddItem={() => setForm((current) => ({ ...current, items: [...current.items, blankPoSellItem()] }))}
-          onClose={() => {
-            if (!editingDocNo && salesPlanIdFromQuery) {
-              handledSalesPlanQueryRef.current = salesPlanIdFromQuery
-              router.replace(pathname, { scroll: false })
-            }
-            setEditingDocNo(null)
-            setShowForm(false)
-          }}
+          onClose={closeForm}
           onRemoveItem={removeItem}
           onSubmit={savePoSell}
           onUpdate={updateForm}
@@ -1155,7 +1211,7 @@ function CustomerSearchCombobox({
       disabled={disabled}
       error={error}
       inputId="po-sell-customer-search"
-      inputClassName="!h-9 px-2 py-1.5"
+      inputClassName="!h-10 px-2 py-1.5"
       label="Customer *"
       options={options.map((customer) => ({
         id: customer.id,
@@ -1188,7 +1244,7 @@ function ProductSearchCombobox({
       error={error}
       hideLabel
       inputId={inputId}
-      inputClassName="!h-9 px-2 py-1.5"
+      inputClassName="!h-10 px-2 py-1.5"
       label="สินค้า *"
       options={options}
       optionsPanelClassName="max-h-[280px]"
@@ -1222,7 +1278,7 @@ function DecimalPatternInput({
   return (
     <UiInput
       aria-invalid={error}
-      className="!h-9 w-full px-2 py-1.5 text-right"
+      className="!h-10 w-full px-2 py-1.5 text-right"
       inputMode="decimal"
       required={required}
       type="text"
@@ -1314,7 +1370,7 @@ function PoSellFormModal({
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
               <div className="col-span-1" data-field-invalid={errors.branchId ? 'true' : undefined}>
                 <label className="mb-1 block text-xs font-medium text-slate-600">สาขา/คลัง <span className="text-red-600">*</span></label>
-                <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+                <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-10 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                   <option disabled value="">เลือกสาขา/คลัง</option>
                   {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </UiSelect>
@@ -1333,7 +1389,7 @@ function PoSellFormModal({
               </div>
               <div className="col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-600">วันส่งมอบ <span className="text-red-600">*</span></label>
-                <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-9 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+                <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-10 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
                 {fieldError('expectedDelivery')}
               </div>
               <div className="col-span-2">
@@ -1385,13 +1441,13 @@ function PoSellFormModal({
                          <DecimalPatternInput error={Boolean(errors[`items.${index}.price`])} formatOnBlur required value={item.price} onChange={(value) => onUpdateItem(index, 'price', value)} />
                          {fieldError(`items.${index}.price`)}
                        </TableCell>
-                       <TableCell className="bg-blue-50/50 p-1.5 px-2 text-right font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
+                       <TableCell className="whitespace-nowrap bg-blue-50/50 p-1.5 px-2 text-right font-bold tabular-nums text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
                        <TableCell className="p-1.5 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors outline-none focus:ring-0" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
                      </TableRow>
                    ))}
                  </TableBody>
                  <tfoot className="bg-slate-50 font-bold border-t border-slate-100 text-slate-800">
-                   <tr><td className="p-3 text-right">รวม {form.items.length} รายการ</td><td className="p-3 text-right">{formatMoney(totalQty)}</td><td /><td className="p-3 text-right text-base text-blue-700">{formatMoney(subtotal)}</td><td /></tr>
+                   <tr><td className="p-3 text-right">รวม {form.items.length} รายการ</td><td className="whitespace-nowrap p-3 text-right tabular-nums">{formatMoney(totalQty)}</td><td /><td className="whitespace-nowrap p-3 text-right text-base tabular-nums text-blue-700">{formatMoney(subtotal)}</td><td /></tr>
                  </tfoot>
                </Table>
              </div>
@@ -1446,9 +1502,14 @@ function PoSellCancelModal({
   onSubmit: () => void
   row: PoSellRow
 }) {
+  const { requestDiscard } = useUnsavedChangesGuard(note.length > 0)
+  const requestClose = () => {
+    if (!isSaving) requestDiscard(onClose)
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
-      if (!open && !isSaving) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent aria-labelledby="po-sell-cancel-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 bg-slate-900 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none" hideClose>
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center shrink-0">
@@ -1472,7 +1533,7 @@ function PoSellCancelModal({
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2 shrink-0 md:rounded-b-md">
-          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
       </DialogContent>
@@ -1497,9 +1558,14 @@ function PoSellShortCloseModal({
   onSubmit: () => void
   row: PoSellRow
 }) {
+  const { requestDiscard } = useUnsavedChangesGuard(note.length > 0)
+  const requestClose = () => {
+    if (!isSaving) requestDiscard(onClose)
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
-      if (!open && !isSaving) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent aria-labelledby="po-sell-short-close-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 bg-slate-900 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none" hideClose>
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center shrink-0">
@@ -1523,7 +1589,7 @@ function PoSellShortCloseModal({
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2 shrink-0 md:rounded-b-md">
-          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="rounded-md bg-amber-600 hover:bg-amber-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยันปิดส่งไม่ครบ'}</UiButton>
         </DialogFooter>
       </DialogContent>

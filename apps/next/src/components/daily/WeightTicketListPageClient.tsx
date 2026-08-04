@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ButtonHTMLAttributes } from 'react'
+import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Download, Plus, Printer, RotateCcw, Search, Share2, SquarePen, XCircle } from 'lucide-react'
@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/Card'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -21,6 +22,7 @@ import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
 import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
+import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import { WeightTicketDetailModal } from './WeightTicketDetailModal'
 import { WeightTicketStockReturnDialog } from './WeightTicketStockReturnDialog'
 import { WeightTicketsPageClient } from './WeightTicketsPageClient'
@@ -187,6 +189,8 @@ function canReturnWtoStock(ticket: WeightTicketRecord) {
 
 export function WeightTicketListPageClient() {
   const router = useRouter()
+  const { requestConfirmation } = useActionConfirmation()
+  const guardedFormCloseRef = useRef<() => void>(() => {})
   const [tickets, setTickets] = useState<WeightTicketRecord[]>([])
   const [canOpenPurchaseBill, setCanOpenPurchaseBill] = useState(false)
   const [canOpenSalesBill, setCanOpenSalesBill] = useState(false)
@@ -221,6 +225,7 @@ export function WeightTicketListPageClient() {
   const [stockReturnTicket, setStockReturnTicket] = useState<WeightTicketRecord | null>(null)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [successModalMessage, setSuccessModalMessage] = useState('')
+  const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(cancelTicket && cancelNote.trim()))
 
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -337,17 +342,46 @@ export function WeightTicketListPageClient() {
     setSortDir('desc')
   }
 
-  async function handleCancelTicket() {
+  function handleCancelTicket() {
     if (!cancelTicket) return
+    const note = cancelNote.trim()
+    if (!note) {
+      setCancelError('กรุณากรอกเหตุผลการยกเลิก')
+      return
+    }
+
+    setCancelError('')
+    requestConfirmation({
+      confirmLabel: 'ยืนยันยกเลิก',
+      description: `เอกสาร ${cancelTicket.documentNo} จะเปลี่ยนสถานะเป็นยกเลิก และเก็บประวัติการทำรายการไว้`,
+      destructive: true,
+      onConfirm: () => cancelTicketConfirmed(cancelTicket, note),
+      title: 'ยืนยันการยกเลิกเอกสารหรือไม่?',
+    })
+  }
+
+  function closeCancelTicket() {
+    if (isCanceling) return
+    requestDiscardCancelNote(() => {
+      setCancelTicket(null)
+      setCancelNote('')
+      setCancelError('')
+    })
+  }
+
+  async function cancelTicketConfirmed(ticket: WeightTicketRecord, note: string) {
     setIsCanceling(true)
     setCancelError('')
     try {
-      const updated = await cancelWeightTicket(cancelTicket.id, cancelNote)
+      const updated = await cancelWeightTicket(ticket.id, note)
+      invalidatePurchaseBillOptionsCache()
       setTickets((current) => current.map((ticket) => ticket.id === updated.id ? updated : ticket))
       setCancelTicket(null)
       setCancelNote('')
     } catch (caught) {
-      setCancelError(getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้'))
+      const error = caught instanceof Error ? caught : new Error(getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้'))
+      setCancelError(error.message)
+      throw error
     } finally {
       setIsCanceling(false)
     }
@@ -358,6 +392,7 @@ export function WeightTicketListPageClient() {
     setLoadError('')
     try {
       const updated = await confirmWeightTicket(ticket.id)
+      invalidatePurchaseBillOptionsCache()
       setTickets((current) => current.map((row) => row.id === updated.id ? updated : row))
     } catch (caught) {
       setLoadError(getErrorMessage(caught, 'ยืนยันใบรับ-ส่งของไม่ได้'))
@@ -460,7 +495,7 @@ export function WeightTicketListPageClient() {
             <label className="relative block min-w-[260px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <Input
-                className="pl-9"
+                className="h-9 pl-9"
                 placeholder="ค้นหาเลขที่, ผู้ขาย/ลูกค้า, ทะเบียนรถ, สินค้า, สิ่งเจือปน"
                 value={query}
                 onChange={(event) => {
@@ -470,9 +505,9 @@ export function WeightTicketListPageClient() {
               />
             </label>
             <label className="text-xs text-slate-500">วันที่:</label>
-            <DatePickerInput value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+            <DatePickerInput className="h-9" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+            <DatePickerInput className="h-9" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
             <BranchSelectCombobox
               allOptionLabel="ทุกสาขา"
               branches={branches.map((branch) => ({ id: branch.id, name: branch.label }))}
@@ -545,7 +580,7 @@ export function WeightTicketListPageClient() {
             ตัวกรอง {activeFilters ? '(มี)' : ''}
           </button>
         </div>
-        <Button asChild className="w-full gap-2" size="sm" variant="export">
+        <Button asChild className="h-10 w-full gap-2" variant="export">
           <a href={exportHref}>
             <Download className="size-4" />
             <span>ส่งออก Excel</span>
@@ -599,9 +634,9 @@ export function WeightTicketListPageClient() {
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
             <div className="flex items-center gap-2">
-              <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+              <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+              <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
             </div>
           </div>
 
@@ -664,8 +699,8 @@ export function WeightTicketListPageClient() {
               onClick={() => setActiveDetailId(ticket.id)}
             >
               <div className="flex justify-between items-start">
-                <span className="font-bold text-slate-900 text-base">{ticket.documentNo}</span>
-                <span className="text-sm text-slate-500">{formatDateTime(ticket.createdAt)}</span>
+                <span className="whitespace-nowrap font-bold text-slate-900 text-base">{ticket.documentNo}</span>
+                <span className="whitespace-nowrap text-sm text-slate-500">{formatDateTime(ticket.createdAt)}</span>
               </div>
 
               <div className={cn(
@@ -756,16 +791,16 @@ export function WeightTicketListPageClient() {
             </colgroup>
             <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
               <tr>
-                <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('documentNo', 'เลขที่')} onSort={toggleSort} sortKey="documentNo" />
-                <SortHeader activeKey={sortBy} align="left" className={typeFilter === 'WTI' ? 'ns-table-textual-column' : undefined} direction={sortDir} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} onSort={toggleSort} sortKey="createdAt" />
-                <SortHeader activeKey={sortBy} align="left" className={typeFilter === 'WTI' ? 'ns-table-textual-column' : undefined} direction={sortDir} label={typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า')} onSort={toggleSort} sortKey="partyName" />
+                <SortHeader activeKey={sortBy} align="center" direction={sortDir} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('documentNo', 'เลขที่')} onSort={toggleSort} sortKey="documentNo" />
+                <SortHeader activeKey={sortBy} align="center" direction={sortDir} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} onSort={toggleSort} sortKey="createdAt" />
+                <SortHeader activeKey={sortBy} align="left" className="ns-table-textual-column" direction={sortDir} label={typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า')} onSort={toggleSort} sortKey="partyName" />
                 <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
-                <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('vehicleNo', 'ทะเบียนรถ')} />
+                <ResizableTableHead align="center" label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('vehicleNo', 'ทะเบียนรถ')} />
                 <SortHeader activeKey={sortBy} align="right" direction={sortDir} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} onSort={toggleSort} sortKey="netWeight" />
                 <ResizableTableHead align="right" label="น้ำหนักหักภาชนะ" resizeProps={columnResize.getResizeHandleProps('containerDeductionWeight', 'น้ำหนักหักภาชนะ')} />
-                <ResizableTableHead label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
-                <ResizableTableHead label="อัปเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
-                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+                <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+                <ResizableTableHead align="center" label="อัปเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
+                <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
               </tr>
             </thead>
             <tbody>
@@ -794,23 +829,23 @@ export function WeightTicketListPageClient() {
                     onClick={() => setActiveDetailId(ticket.id)}
                   >
                     <td className={cn(
-                      'relative whitespace-nowrap px-3 py-3 text-slate-900',
+                      'relative whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900',
                       isCancelled ? 'font-semibold text-red-900' : '',
                     )}>
                       {isCancelled ? <span aria-hidden className="absolute inset-y-0 left-0 w-2 bg-red-600" /> : null}
                       <span className={isCancelled ? 'pl-2' : undefined}>{ticket.documentNo}</span>
                     </td>
-                    <td className={cn('whitespace-nowrap px-3 py-3 text-slate-600', typeFilter === 'WTI' ? 'ns-table-textual-column' : undefined)}>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">
                       <div>{ticketDate}</div>
                       {ticketTime ? <div className="text-xs text-slate-400 mt-0.5">{ticketTime}</div> : null}
                     </td>
-                    <td className={cn('px-3 py-3 text-slate-900', typeFilter === 'WTI' ? 'ns-table-textual-column' : undefined)}>{ticket.partyName}</td>
+                    <td className="ns-table-textual-column px-3 py-3 text-left text-slate-900">{ticket.partyName}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.vehicleNo}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{ticket.vehicleNo}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.netWeight)} กก.</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.containerDeductionWeight)} กก.</td>
-                    <td className="box-border h-[39px] w-[140px] px-3 py-2">
-                      <div className="flex min-h-[23px] flex-col items-start justify-center">
+                    <td className="box-border h-[39px] w-[140px] whitespace-nowrap px-3 py-2 text-center">
+                      <div className="flex min-h-[23px] flex-col items-center justify-center">
                         <span className={cn(
                           'inline-flex items-center gap-1.5 text-xs font-medium',
                           isCancelled
@@ -823,11 +858,11 @@ export function WeightTicketListPageClient() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-slate-600">
+                    <td className="px-3 py-3 text-center text-slate-600">
                       <div className="truncate">{ticket.updatedBy}</div>
-                      <div className="text-xs text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
+                      <div className="whitespace-nowrap text-xs text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right">
+                    <td className="whitespace-nowrap px-3 py-3 text-center">
                       <TableActionButton
                         aria-label={`จัดการ ${ticket.documentNo}`}
                         busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id}
@@ -911,9 +946,7 @@ export function WeightTicketListPageClient() {
 
       <Dialog open={Boolean(cancelTicket)} onOpenChange={(open) => {
         if (!open) {
-          setCancelTicket(null)
-          setCancelNote('')
-          setCancelError('')
+          closeCancelTicket()
         }
       }}
       >
@@ -954,7 +987,7 @@ export function WeightTicketListPageClient() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="secondary" onClick={() => setCancelTicket(null)}>ปิด</Button>
+            <Button disabled={isCanceling} type="button" variant="secondary" onClick={closeCancelTicket}>ปิด</Button>
             <Button disabled={isCanceling} type="button" variant="outline" onClick={handleCancelTicket}>
               <XCircle className="mr-2 size-4" />
               {isCanceling ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}
@@ -991,7 +1024,7 @@ export function WeightTicketListPageClient() {
 
       {activeForm && (
         <Dialog open onOpenChange={(open) => {
-          if (!open) setActiveForm(null)
+          if (!open) guardedFormCloseRef.current()
         }}>
           <DialogContent hideClose aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" data-combobox-portal-root="true">
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-50 p-0">
@@ -1000,6 +1033,7 @@ export function WeightTicketListPageClient() {
                 initialType={activeForm.type}
                 lockType
                 ticketId={activeForm.id}
+                onRequestClose={(requestClose) => { guardedFormCloseRef.current = requestClose }}
                 onClose={() => setActiveForm(null)}
                 onSaveSuccess={() => {
                   setActiveForm(null)

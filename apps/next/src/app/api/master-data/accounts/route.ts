@@ -5,62 +5,57 @@ import { accountMasterDataFormSchema } from '@/lib/master-data'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, toIso, toNumber } from '@/lib/server/master-data'
 import { findActiveBranchReferenceByCodeOrId, outwardBranchReference } from '@/lib/server/branch-reference'
-import { findActiveBankNameReferenceByName, findActivePaymentMethodReferenceByName, invalidateAccountReferenceCache, listActivePaymentMethods } from '@/lib/server/reference-master-cache'
+import { findActiveBankNameReferenceByName, invalidateAccountReferenceCache } from '@/lib/server/reference-master-cache'
+import { buildCompanyAccountCurrencyBalances } from '@/lib/company-account-currency'
 
 export const runtime = 'nodejs'
 
 type AccountRow = Awaited<ReturnType<typeof prisma.accounts.findMany>>[number] & {
   branches?: { code: string; name: string } | null
+  account_categories?: { name: string } | null
+  account_currency_balances?: Array<{ currency_code: string; active: boolean }>
 }
 
-const accountTypeSchema = z.string().trim().min(1, 'เลือกประเภท')
-const accountSubtypeSchema = z.enum(['cash', 'savings', 'current', 'fcd', 'od'])
+const accountGroupSchema = z.string().trim().min(1, 'เลือกประเภทบัญชี')
+const bankAccountTypeSchema = z.enum(['savings', 'current'])
 
 function accountTypeLabel(type: string | null | undefined) {
+  if (type === 'cash') return 'เงินสด'
+  if (type === 'bank') return 'บัญชีธนาคาร'
+  if (type === 'virtual') return 'บัญชีเจ้าหนี้เงินทดรองจ่าย'
   return type ? String(type) : null
 }
 
-function paymentMethodGroupForName(
-  paymentMethodTypes: Map<string, 'cash' | 'bank'>,
-  paymentMethodName: string | null | undefined,
-) {
-  if (!paymentMethodName) return null
-  return paymentMethodTypes.get(String(paymentMethodName).trim()) ?? null
-}
-
 function normalizeAccountSubtype(
-  row: { currency?: string | null; od_limit?: unknown; subtype?: string | null; type?: string | null },
-  paymentMethodTypes: Map<string, 'cash' | 'bank'>,
+  row: { account_group: string; bank_account_type?: string | null },
 ) {
-  if (row.subtype === 'savings' || row.subtype === 'current' || row.subtype === 'cash' || row.subtype === 'fcd' || row.subtype === 'od') return row.subtype
-  if (row.subtype === 'bank' || row.subtype === 'other') return 'savings'
-  if (paymentMethodGroupForName(paymentMethodTypes, row.type) === 'cash') return 'cash'
-  if (Number(row.od_limit ?? 0) > 0) return 'od'
-  if (String(row.currency ?? 'THB').toUpperCase() !== 'THB') return 'fcd'
-  if (paymentMethodGroupForName(paymentMethodTypes, row.type) === 'bank') return 'savings'
-  return 'savings'
+  if (row.account_group === 'cash') return 'cash'
+  if (row.account_group === 'virtual') return 'virtual'
+  if (row.bank_account_type === 'savings' || row.bank_account_type === 'current') return row.bank_account_type
+  throw new Error(`บัญชีธนาคาร ${row.account_group} ไม่มีประเภทบัญชีธนาคารที่ถูกต้อง`)
 }
 
 function accountSubtypeLabel(
-  row: { currency?: string | null; od_limit?: unknown; subtype?: string | null; type?: string | null },
-  paymentMethodTypes: Map<string, 'cash' | 'bank'>,
+  row: { account_group: string; bank_account_type?: string | null },
 ) {
-  const subtype = normalizeAccountSubtype(row, paymentMethodTypes)
+  const subtype = normalizeAccountSubtype(row)
   if (subtype === 'cash') return 'เงินสด'
+  if (subtype === 'virtual') return 'เจ้าหนี้เงินทดรองจ่าย'
   if (subtype === 'savings') return 'ออมทรัพย์'
   if (subtype === 'current') return 'กระแสรายวัน'
-  if (subtype === 'fcd') return 'FCD'
-  if (subtype === 'od') return 'OD'
   return subtype
 }
 
 function validateAccountBusinessRules(values: {
+  accountGroup: z.infer<typeof accountGroupSchema>
   accountNo: string | null
   bankName: string | null
+  bankAccountType: z.infer<typeof bankAccountTypeSchema> | null
   branchId: string | null
   currency: string | null
+  isFcd: boolean
+  hasOd: boolean
   odLimit: number | null
-  subtype: z.infer<typeof accountSubtypeSchema>
 }) {
   const currency = String(values.currency ?? '').trim().toUpperCase()
 
@@ -68,49 +63,69 @@ function validateAccountBusinessRules(values: {
     throw new Error('เลือกสาขา')
   }
 
-  if (!values.currency) {
-    throw new Error('กรอกสกุลเงิน')
-  }
+  if (values.accountGroup !== 'bank' && !values.currency) throw new Error('กรอกสกุลเงิน')
 
-  if (values.subtype !== 'cash') {
+  if (values.accountGroup === 'bank') {
     if (!values.bankName) throw new Error('เลือกธนาคาร')
     if (!values.accountNo) throw new Error('กรอกเลขที่บัญชี')
+    if (!values.bankAccountType) throw new Error('เลือกประเภทบัญชีธนาคาร')
+  } else if (values.accountGroup === 'virtual') {
+    if (values.isFcd || (values.odLimit ?? 0) > 0) throw new Error('บัญชีเจ้าหนี้เงินทดรองจ่ายไม่รองรับ FCD หรือ OD')
+  } else if (values.isFcd || values.hasOd || (values.odLimit ?? 0) > 0) {
+    throw new Error('บัญชีเงินสดไม่รองรับ FCD หรือ OD')
   }
 
-  if (values.subtype === 'fcd' && currency === 'THB') {
-    throw new Error('บัญชี FCD ต้องใช้สกุลเงินที่ไม่ใช่ THB')
-  }
-
-  if ((values.subtype === 'savings' || values.subtype === 'current' || values.subtype === 'od') && currency && currency !== 'THB') {
-    throw new Error('บัญชีประเภทนี้ต้องใช้สกุลเงิน THB')
-  }
-
-  if (values.subtype !== 'current' && values.odLimit && values.odLimit > 0) {
+  if (values.bankAccountType !== 'current' && values.odLimit && values.odLimit > 0) {
     throw new Error('เฉพาะบัญชีกระแสรายวันเท่านั้นที่สามารถมีวงเงิน OD ได้')
   }
+
+  if (values.hasOd && values.bankAccountType !== 'current') {
+    throw new Error('วงเงิน OD ใช้ได้เฉพาะบัญชีกระแสรายวัน')
+  }
+  if (values.hasOd && (!values.odLimit || values.odLimit <= 0)) {
+    throw new Error('กรอกวงเงิน OD มากกว่า 0')
+  }
+
 }
 
-function mapAccount(
-  row: AccountRow,
-  paymentMethodTypes: Map<string, 'cash' | 'bank'>,
-  statementTotalByAccountId: Map<string, number>
-) {
+async function resolveAccountCurrencyBalances(values: z.infer<typeof accountMasterDataFormSchema>, accountGroup: string) {
+  const unique = buildCompanyAccountCurrencyBalances({
+    accountGroup,
+    additionalBalances: values.accountCurrencyBalances ?? [],
+    isFcd: values.isFcd,
+    primaryCurrency: values.currency,
+  })
+  const currencyRows = await prisma.currencies.findMany({ select: { code: true }, where: { code: { in: unique.map((entry) => entry.currency) } } })
+  if (currencyRows.length !== unique.length) throw new Error('มีสกุลเงินที่ไม่ถูกต้องหรือถูกปิดใช้งาน')
+  return unique
+}
+
+function mapAccount(row: AccountRow) {
   const outwardId = requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`)
-  const realBalance = (toNumber(row.opening_balance) ?? 0) + (statementTotalByAccountId.get(row.id.toString()) ?? 0)
   const odLimit = toNumber(row.od_limit) ?? 0
-  const odUsed = Math.max(0, -realBalance)
-  const odRemaining = Math.max(0, odLimit - odUsed)
-  const availableToPay = realBalance + odLimit
+  const currencyDisplay = Array.from(new Set([
+    ...(row.account_currency_balances ?? []).filter((balance) => balance.active).map((balance) => balance.currency_code),
+    row.currency,
+  ].filter((currency): currency is string => Boolean(currency))))
+    .sort((left, right) => {
+      if (left === row.currency) return -1
+      if (right === row.currency) return 1
+      return left.localeCompare(right)
+    })
+    .join(', ')
 
   return {
     id: outwardId,
     code: outwardId,
     name: row.name,
     active: row.active ?? true,
-    type: row.type,
-    typeLabel: accountTypeLabel(row.type),
-    subtype: normalizeAccountSubtype(row, paymentMethodTypes),
-    subtypeLabel: accountSubtypeLabel(row, paymentMethodTypes),
+    type: row.account_group,
+  typeLabel: row.account_categories?.name ?? accountTypeLabel(row.account_group),
+    subtype: normalizeAccountSubtype(row),
+    subtypeLabel: accountSubtypeLabel(row),
+    accountGroup: row.account_group,
+    bankAccountType: row.bank_account_type,
+    isFcd: row.is_fcd,
     phone: null,
     email: null,
     note: null,
@@ -122,12 +137,12 @@ function mapAccount(
     bankBranch: row.bank_branch,
     accountNo: row.account_no,
     currency: row.currency,
-    openingBalance: toNumber(row.opening_balance),
+    currencyDisplay: currencyDisplay || null,
+    hasOd: odLimit > 0,
+    accountCurrencyBalances: (row.account_currency_balances ?? []).filter((balance) => balance.active).map((balance) => ({
+      currency: balance.currency_code,
+    })),
     odLimit,
-    realBalance,
-    odUsed,
-    odRemaining,
-    availableToPay,
     ...outwardBranchReference(row.branches, row.branch_id),
     address: null,
     commissionPct: null,
@@ -135,11 +150,6 @@ function mapAccount(
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   }
-}
-
-async function getPaymentMethodTypes() {
-  const rows = await listActivePaymentMethods()
-  return new Map(rows.map((row) => [row.name, row.type === 'cash' ? 'cash' : 'bank'] as const))
 }
 
 function accountCodePrefix(branchCode: string) {
@@ -188,44 +198,13 @@ async function assertActiveBankName(bankName: string | null) {
   }
 }
 
-async function assertActivePaymentMethod(paymentMethodName: string | null) {
-  const paymentMethod = String(paymentMethodName ?? '').trim()
-
-  if (!paymentMethod) {
-    throw new Error('เลือกประเภท')
-  }
-
-  const row = await findActivePaymentMethodReferenceByName(paymentMethod)
-
-  if (!row) {
-    throw new Error('ประเภทที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
-  }
-
-  return row.type === 'cash' ? 'cash' : 'bank'
-}
-
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const paymentMethodTypes = await getPaymentMethodTypes()
-    const [rows, statementTotals] = await Promise.all([
-      prisma.accounts.findMany({ include: { branches: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }, { account_no: 'asc' }] }),
-      prisma.bank_statement.groupBy({
-        by: ['account_id'],
-        _sum: {
-          amount_in: true,
-          amount_out: true,
-        },
-        where: { account_id: { not: null } },
-      }),
-    ])
-    const statementTotalByAccountId = new Map<string, number>(statementTotals.map((total) => [
-      total.account_id?.toString() ?? '',
-      ((toNumber(total._sum?.amount_in) ?? 0) - (toNumber(total._sum?.amount_out) ?? 0)),
-    ] as const))
-    return masterDataListJson(rows.map((row: Awaited<ReturnType<typeof prisma.accounts.findMany>>[number]) => mapAccount(row, paymentMethodTypes, statementTotalByAccountId)))
+    const rows = await prisma.accounts.findMany({ include: { account_categories: true, branches: true, account_currency_balances: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }, { account_no: 'asc' }] })
+    return masterDataListJson(rows.map((row: Awaited<ReturnType<typeof prisma.accounts.findMany>>[number]) => mapAccount(row)))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'โหลดข้อมูลบัญชีเงินไม่ได้', 500)
@@ -240,22 +219,31 @@ export async function POST(request: Request) {
     const values = accountMasterDataFormSchema.parse(await request.json())
     const existing = values.id
       ? await prisma.accounts.findFirst({
-        select: { code: true, id: true },
+        include: { account_currency_balances: true },
         where: { code: values.id.toUpperCase() },
       })
       : null
-    const accountType = accountTypeSchema.parse(values.type)
-    const paymentMethodGroup = await assertActivePaymentMethod(accountType)
-    const accountSubtype = paymentMethodGroup === 'cash'
-      ? 'cash'
-      : accountSubtypeSchema.parse(values.subtype || 'savings')
+    const accountGroup = accountGroupSchema.parse(values.accountGroup)
+    const accountCategory = await prisma.account_categories.findFirst({
+      select: { account_group: true, code: true },
+      where: { active: true, code: accountGroup },
+    })
+    if (!accountCategory) throw new Error('ประเภทบัญชีไม่ถูกต้องหรือถูกปิดใช้งาน')
+    if (accountCategory.account_group !== accountGroup) throw new Error('ประเภทบัญชีมีการตั้งค่าไม่ถูกต้อง')
+    const bankAccountType = accountGroup === 'bank'
+      ? bankAccountTypeSchema.parse(values.bankAccountType)
+      : null
+    const currencyBalances = await resolveAccountCurrencyBalances(values, accountGroup)
     validateAccountBusinessRules({
+      accountGroup,
       accountNo: values.accountNo,
       bankName: values.bankName,
+      bankAccountType,
       branchId: values.branchId,
       currency: values.currency,
+    isFcd: values.isFcd,
+      hasOd: values.hasOd,
       odLimit: values.odLimit,
-      subtype: accountSubtype,
     })
     await assertActiveBankName(values.bankName)
     const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
@@ -263,47 +251,75 @@ export async function POST(request: Request) {
       throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
     }
     const code = await resolveAccountCode(branch.code, existing?.code)
+    const primaryCurrency = String(values.currency).trim().toUpperCase()
     const data = {
       code,
       name: values.name,
-      type: accountType,
-      subtype: accountSubtype,
-      bank_name: values.bankName || null,
-      bank_branch: values.bankBranch || null,
-      bank: values.bankName || null,
-      account_no: values.accountNo || null,
-      currency: values.currency || 'THB',
-      opening_balance: values.openingBalance,
-      od_limit: values.odLimit,
+      type: accountGroup,
+      account_group: accountGroup,
+      bank_account_type: bankAccountType,
+      is_fcd: accountGroup === 'bank' ? values.isFcd : false,
+      subtype: accountGroup === 'cash' ? 'cash' : accountGroup === 'virtual' ? 'reimbursement_payable' : bankAccountType,
+      bank_name: accountGroup === 'bank' ? values.bankName || null : null,
+      bank_branch: accountGroup === 'bank' ? values.bankBranch || null : null,
+      bank: accountGroup === 'bank' ? values.bankName || null : null,
+      account_no: accountGroup === 'bank' ? values.accountNo || null : null,
+      currency: primaryCurrency,
+      od_limit: values.hasOd && bankAccountType === 'current' ? values.odLimit ?? 0 : 0,
       branch_id: branch.id,
       active: values.active,
     }
     const row = existing
-      ? await prisma.accounts.update({
-        where: { id: existing.id },
-        data,
-        include: { branches: true },
+      ? await prisma.$transaction(async (transaction) => {
+        const requestedCurrencies = new Set(currencyBalances.map((entry) => entry.currency))
+        const obsoleteBalances = existing.account_currency_balances.filter((entry) => !requestedCurrencies.has(entry.currency_code))
+        if (obsoleteBalances.length > 0) {
+          const postedLedgerCount = await transaction.fcd_ledger_entries.count({
+            where: {
+              account_id: existing.id,
+              currency_code: { in: obsoleteBalances.map((entry) => entry.currency_code) },
+            },
+          })
+          if (postedLedgerCount > 0) {
+            throw new Error('ไม่สามารถนำสกุลเงินที่มีรายการ FCD ledger ออกจากบัญชีได้ ให้ reverse หรือปิดยอดรายการก่อน')
+          }
+        }
+
+        if (obsoleteBalances.length > 0) {
+          await transaction.account_currency_balances.updateMany({
+            where: { account_id: existing.id, currency_code: { in: obsoleteBalances.map((entry) => entry.currency_code) } },
+            data: { active: false },
+          })
+        }
+
+        for (const entry of currencyBalances) {
+          const current = existing.account_currency_balances.find((balance) => balance.currency_code === entry.currency)
+          if (current) {
+            if (!current.active) {
+              await transaction.account_currency_balances.update({
+                where: { account_id_currency_code: { account_id: existing.id, currency_code: entry.currency } },
+                data: { active: true },
+              })
+            }
+          } else {
+            await transaction.account_currency_balances.create({
+              data: { account_id: existing.id, currency_code: entry.currency },
+            })
+          }
+        }
+
+        return transaction.accounts.update({
+          where: { id: existing.id },
+          data,
+          include: { branches: true, account_currency_balances: true },
+        })
       })
       : await prisma.accounts.create({
-        data,
-        include: { branches: true },
+        data: { ...data, account_currency_balances: { create: currencyBalances.map((entry) => ({ currency_code: entry.currency })) } },
+        include: { branches: true, account_currency_balances: true },
       })
-    const [paymentMethodTypes, statementSum] = await Promise.all([
-      getPaymentMethodTypes(),
-      prisma.bank_statement.aggregate({
-        _sum: {
-          amount_in: true,
-          amount_out: true,
-        },
-        where: { account_id: row.id },
-      }),
-    ])
-    const statementTotalByAccountId = new Map<string, number>([[
-      row.id.toString(),
-      ((toNumber(statementSum._sum?.amount_in) ?? 0) - (toNumber(statementSum._sum?.amount_out) ?? 0)),
-    ]])
     await invalidateAccountReferenceCache()
-    return masterDataJson(mapAccount(row, paymentMethodTypes, statementTotalByAccountId))
+    return masterDataJson(mapAccount(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'บันทึกข้อมูลบัญชีเงินไม่ได้')

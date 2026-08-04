@@ -1,6 +1,6 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { isSalesBillActiveStatus } from '@/lib/server/sales-bill-history'
 
-const CANCELLED_SALES_BILL_STATUSES = ['cancelled', 'canceled', 'void', 'voided', 'reversed']
 const ACTIVE_CUSTOMER_RECEIPT_EXCLUDED_STATUSES = ['cancelled', 'canceled']
 
 export type SalesBillCancelState = {
@@ -8,15 +8,16 @@ export type SalesBillCancelState = {
   lockedReason: string | null
 }
 
-export function isSalesBillActiveForCancel(status: string | null | undefined) {
-  return !CANCELLED_SALES_BILL_STATUSES.includes((status ?? '').trim().toLowerCase())
+export function isSalesBillActiveForCancel(status: string | null | undefined, docNo: string) {
+  return isSalesBillActiveStatus(status, docNo)
 }
 
 export function salesBillCancelState(
   status: string | null | undefined,
+  docNo: string,
   activeReceiptCount: number,
 ): SalesBillCancelState {
-  if (!isSalesBillActiveForCancel(status)) {
+  if (!isSalesBillActiveForCancel(status, docNo)) {
     return { canCancel: false, lockedReason: 'บิลนี้ถูกยกเลิกแล้ว' }
   }
   if (activeReceiptCount > 0) {

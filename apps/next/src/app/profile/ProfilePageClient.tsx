@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { changePasswordSchema, userProfileSchema } from '@/lib/auth'
 import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSupabaseClient } from '@/lib/supabase'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type CurrentUser = {
   branchNames: string[]
@@ -54,7 +55,7 @@ export function ProfilePageClient() {
   const [isSavingPassword, setIsSavingPassword] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  async function handleLogout() {
+  async function completeLogout() {
     if (!supabase) return
     setIsLoggingOut(true)
     try {
@@ -69,6 +70,12 @@ export function ProfilePageClient() {
   const [user, setUser] = useState<CurrentUser | null>(null)
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
+  const isFormDirty = displayName !== (user?.displayName ?? '') || Boolean(currentPassword || password || confirmPassword)
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+
+  function handleLogout() {
+    requestDiscard(completeLogout)
+  }
 
   useEffect(() => {
     let mounted = true
@@ -249,7 +256,7 @@ export function ProfilePageClient() {
                   ชื่อแสดงในระบบ (Display Name) <span className="text-red-500">*</span>
                   <Input
                     aria-invalid={Boolean(profileErrors.displayName)}
-                    className={`mt-1.5 h-9 focus:ring-slate-400 focus:border-slate-400 outline-none ${profileErrors.displayName ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+                    className={`mt-1.5 h-10 focus:ring-slate-400 focus:border-slate-400 outline-none ${profileErrors.displayName ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
                     disabled={isFetchingUser || isSavingProfile}
                     placeholder="กรอกชื่อ-นามสกุล หรือชื่อแสดงผลในระบบ"
                     required
@@ -399,7 +406,7 @@ function PasswordField(props: {
       <Input
         autoComplete={props.autoComplete}
         aria-invalid={Boolean(props.error)}
-        className={`mt-1.5 h-9 focus:ring-slate-400 focus:border-slate-400 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+        className={`mt-1.5 h-10 focus:ring-slate-400 focus:border-slate-400 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
         disabled={props.disabled}
         required
         type={props.showPassword ? 'text' : 'password'}

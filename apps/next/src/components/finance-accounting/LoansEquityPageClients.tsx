@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -62,7 +63,19 @@ type OpeningPayload = {
   accounts: { branchCode: string; branchName: string; code: string; currency: string; name: string; odLimit: number; openingBalance: number; type: string }[]
   row: { updatedAt: string; updatedBy: string }
   summary: { apCost: number; apExpense: number; ar: number; netOther: number; stock: number }
+  stock: { cutoffDate: string; goLiveDate: string; items: OpeningStockItem[]; locked: boolean; references: { branches: { code: string; id: string; name: string }[]; products: { code: string; id: string; name: string; status: string | null }[]; suppliers: { code: string; id: string; name: string }[]; warehouses: { branchId: string | null; code: string; id: string; name: string }[] }; summary: { paidValue: number; qty: number; unpaidValue: number; value: number } }
 }
+
+type OpeningStockItem = { applied: boolean; appliedApRefId?: string | null; appliedAt?: string | null; appliedRefId?: string | null; branchId: string; id: string; itemStatus: 'RM' | 'WIP' | 'FG'; linkedBillNo?: string | null; lotNo: string; note?: string | null; paid: boolean; productId: string; qty: number; supplierId?: string | null; unitCost: number; warehouseId: string }
+type OpeningImportPreview = { cutoffDate: string; errors: string[]; items: OpeningStockItem[]; summary: { errorRows: number; itemRows: number; totalQty: number; totalValue: number; warnings: string[] } }
+
+type OpeningBillImportRow = { contractNo?: string; date: string; docNo: string; error?: string; lineAmount: number; partyName: string; productCode: string; productName: string; productType?: string; quantity: number; status: 'error' | 'ready'; totalAmount: number; vatAmount: number; unitPrice: number; warning?: string }
+type OpeningBillImportPreview = { branchCode: string; importType: 'purchase' | 'sales'; rows: OpeningBillImportRow[]; summary: { billCount: number; errorRows: number; inputRows: number; readyRows: number; totalValue: number } }
+type OpeningPartyBalanceImportRow = { date: string; docNo: string; partyName: string; totalAmount: number; outstandingAmount: number; vatAmount: number; error?: string; status: 'error' | 'ready' }
+type OpeningPartyBalanceImportPreview = { branchCode: string; importType: 'receivable' | 'payable'; rows: OpeningPartyBalanceImportRow[]; summary: { errorRows: number; inputRows: number; readyRows: number; totalValue: number } }
+type OpeningCostPoolImportType = 'purchase_bill' | 'opening_po' | 'regrade'
+type OpeningCostPoolImportRow = { availableQty: number; availableValue: number; category: string; date: string; docNo: string; error?: string; importType: OpeningCostPoolImportType; lineKey: string; partyName: string; productName: string; quantity: number; status: 'error' | 'ready'; unitCost: number }
+type OpeningCostPoolImportPreview = { branchCode: string; importType: OpeningCostPoolImportType; rows: OpeningCostPoolImportRow[]; summary: { errorRows: number; inputRows: number; readyRows: number; totalValue: number; warehouseCode: string }; warehouseCode: string }
 
 type HistoricalPayload = {
   months: { label: string; month: number; year: number }[]
@@ -372,34 +385,34 @@ export function LoanContractsPageClient() {
               </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-100">
                 <tr>
-                  <ResizableTableHead label="เลขสัญญา" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="contractNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('contractNo', 'เลขสัญญา')} />
-                  <ResizableTableHead align="right" label="ผู้ให้กู้" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="lenderName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('lenderName', 'ผู้ให้กู้')} />
-                  <ResizableTableHead align="right" label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="loanType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('loanType', 'ประเภท')} />
-                  <ResizableTableHead align="right" label="หลักทรัพย์/ทรัพย์สิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="asset" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('asset', 'หลักทรัพย์/ทรัพย์สิน')} />
+                  <ResizableTableHead align="center" label="เลขสัญญา" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="contractNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('contractNo', 'เลขสัญญา')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="ผู้ให้กู้" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="lenderName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('lenderName', 'ผู้ให้กู้')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="loanType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('loanType', 'ประเภท')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="หลักทรัพย์/ทรัพย์สิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="asset" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('asset', 'หลักทรัพย์/ทรัพย์สิน')} />
                   <ResizableTableHead align="right" label="วงเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="principalAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('principalAmount', 'วงเงิน')} />
                   <ResizableTableHead align="right" label="หนี้คงเหลือ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="outstanding" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('outstanding', 'หนี้คงเหลือ')} />
                   <ResizableTableHead align="right" label="งวดผ่อน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="installment" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('installment', 'งวดผ่อน')} />
                   <ResizableTableHead align="right" label="จ่ายแล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="duePaid" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('duePaid', 'จ่ายแล้ว')} />
-                  <ResizableTableHead align="right" label="งวดถัดไป" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="nextDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('nextDue', 'งวดถัดไป')} />
+                  <ResizableTableHead align="center" label="งวดถัดไป" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="nextDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('nextDue', 'งวดถัดไป')} />
                   <ResizableTableHead align="right" label="เกินกำหนด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="overdue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('overdue', 'เกินกำหนด')} />
-                  <ResizableTableHead align="right" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+                  <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 <LoadingOrEmpty colSpan={loanContractColumns.length} isLoading={isLoading} rows={rows.length} />
                 {pagedRows.map((row) => (
                   <tr key={row.contractNo} className="transition-colors hover:bg-slate-50/50">
-                    <td className="whitespace-nowrap px-3 py-3 font-mono font-semibold text-blue-700">{row.contractNo}</td>
-                    <td className="px-3 py-3 text-right font-medium text-slate-900">{row.lenderName}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{row.loanType}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-slate-400">-</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center font-mono font-semibold text-blue-700">{row.contractNo}</td>
+                    <td className="ns-table-textual-column px-3 py-3 text-left font-medium text-slate-900">{row.lenderName}</td>
+                    <td className="ns-table-textual-column break-words px-3 py-3 text-left text-slate-600">{row.loanType}</td>
+                    <td className="ns-table-textual-column whitespace-nowrap px-3 py-3 text-left text-slate-400">-</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.principalAmount)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatMoney(row.outstanding)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.installmentAmount)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{row.duePaid}/{row.dueTotal}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">{row.nextDue || '-'}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">{row.nextDue || '-'}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-red-700">{formatMoney(row.overdue)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right"><StatusPill status={row.status} /></td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center"><StatusPill status={row.status} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -417,7 +430,7 @@ export function LoanContractsPageClient() {
           <div key={row.contractNo} className="p-4 space-y-2 text-xs">
             <div className="flex justify-between items-start">
               <div>
-                <span className="font-mono text-blue-700 font-semibold text-sm block">{row.contractNo}</span>
+                <span className="block whitespace-nowrap font-mono text-sm font-semibold text-blue-700">{row.contractNo}</span>
                 <span className="text-slate-400 block mt-0.5">{row.lenderName} · {row.loanType}</span>
               </div>
               <StatusPill status={row.status} />
@@ -494,21 +507,279 @@ export function EquityMaintenancePageClient() {
 }
 
 export function OpeningBalancePageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const { data, error } = useApi<OpeningPayload>('/api/finance-accounting/opening-balance')
   const columnResize = useResizableColumns('finance-accounting.opening-balance.accounts.v1', openingAccountColumns)
   const accounts = useMemo(() => data?.accounts ?? [], [data?.accounts])
   const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<OpeningPayload['accounts'][number], OpeningAccountColumnKey>(accounts, getOpeningAccountSortValue)
-  const tabs = ['ตั้งค่า', 'เงินสด/ธนาคาร/FCD/OD', 'AR ลูกหนี้', 'AP ต้นทุน', 'AP ค่าใช้จ่าย', 'สต็อก', 'ทรัพย์สินถาวร', 'เงินกู้', 'VAT/WHT', 'อื่นๆ', 'ส่วนทุน/YTD', 'ตรวจงบดุล + ล็อก']
+  const tabs = ['ตั้งค่า', 'เงินสด/ธนาคาร/FCD/OD', 'AR ลูกหนี้', 'AP ต้นทุน', 'AP ค่าใช้จ่าย', 'สต็อก', 'Cost Pool', 'ทรัพย์สินถาวร', 'เงินกู้', 'VAT/WHT', 'อื่นๆ', 'ส่วนทุน/YTD', 'ตรวจงบดุล + ล็อก']
+  const [activeTab, setActiveTab] = useState(tabs[0])
+  const [stockItems, setStockItems] = useState<OpeningStockItem[]>([])
+  const [stockItemsBaseline, setStockItemsBaseline] = useState<OpeningStockItem[]>([])
+  const [stockMessage, setStockMessage] = useState<string | null>(null)
+  const [stockError, setStockError] = useState<string | null>(null)
+  const [stockBusy, setStockBusy] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importDate, setImportDate] = useState('2026-04-30')
+  const [importBranch, setImportBranch] = useState('')
+  const [importPreview, setImportPreview] = useState<OpeningImportPreview | null>(null)
+  const [importBusy, setImportBusy] = useState(false)
+  const [billImportBranch, setBillImportBranch] = useState('')
+  const [billImportType, setBillImportType] = useState<'purchase' | 'sales'>('purchase')
+  const [billImportFile, setBillImportFile] = useState<File | null>(null)
+  const [billImportPreview, setBillImportPreview] = useState<OpeningBillImportPreview | null>(null)
+  const [billImportError, setBillImportError] = useState<string | null>(null)
+  const [billImportMessage, setBillImportMessage] = useState<string | null>(null)
+  const [billImportBusy, setBillImportBusy] = useState(false)
+  const [balanceImportFile, setBalanceImportFile] = useState<File | null>(null)
+  const [balanceImportPreview, setBalanceImportPreview] = useState<OpeningPartyBalanceImportPreview | null>(null)
+  const [balanceImportError, setBalanceImportError] = useState<string | null>(null)
+  const [balanceImportMessage, setBalanceImportMessage] = useState<string | null>(null)
+  const [balanceImportBusy, setBalanceImportBusy] = useState(false)
+  const stockItemsHydratedRef = useRef(false)
+  const stockItemsSnapshot = useMemo(() => JSON.stringify(stockItems), [stockItems])
+  const stockItemsBaselineSnapshot = useMemo(() => JSON.stringify(stockItemsBaseline), [stockItemsBaseline])
+  const stockItemsAreDirty = stockItemsSnapshot !== stockItemsBaselineSnapshot
+  useUnsavedChangesGuard(stockItemsAreDirty)
+  useEffect(() => {
+    if (!data?.stock.items || stockItemsHydratedRef.current) return
+    stockItemsHydratedRef.current = true
+    if (stockItemsSnapshot !== stockItemsBaselineSnapshot) {
+      const serverItemIds = new Set(data.stock.items.map((item) => item.id))
+      setStockItems([...data.stock.items, ...stockItems.filter((item) => !serverItemIds.has(item.id))])
+      setStockItemsBaseline(data.stock.items)
+      return
+    }
+    setStockItems(data.stock.items)
+    setStockItemsBaseline(data.stock.items)
+  }, [data?.stock.items, stockItems, stockItemsBaselineSnapshot, stockItemsSnapshot])
+  const [costPoolImportBranch, setCostPoolImportBranch] = useState('')
+  const [costPoolImportWarehouse, setCostPoolImportWarehouse] = useState('')
+  const [costPoolImportType, setCostPoolImportType] = useState<OpeningCostPoolImportType>('purchase_bill')
+  const [costPoolImportFile, setCostPoolImportFile] = useState<File | null>(null)
+  const [costPoolImportPreview, setCostPoolImportPreview] = useState<OpeningCostPoolImportPreview | null>(null)
+  const [costPoolImportError, setCostPoolImportError] = useState<string | null>(null)
+  const [costPoolImportMessage, setCostPoolImportMessage] = useState<string | null>(null)
+  const [costPoolImportBusy, setCostPoolImportBusy] = useState(false)
+  useEffect(() => { if (data?.stock.cutoffDate) setImportDate(data.stock.cutoffDate); if (!importBranch && data?.stock.references.branches[0]) setImportBranch(data.stock.references.branches[0].code) }, [data?.stock.cutoffDate, data?.stock.references.branches, importBranch])
+  function updateStockItem(id: string, patch: Partial<OpeningStockItem>) { setStockItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item)); setStockMessage(null); setStockError(null) }
+  async function saveStockItems(
+    items: OpeningStockItem[],
+    successMessage: string,
+    { cutoffDate, rethrow = false }: { cutoffDate?: string; rethrow?: boolean } = {},
+  ) {
+    stockItemsHydratedRef.current = true
+    setStockBusy(true); setStockMessage(null); setStockError(null)
+    try { const payload = await dailyFetchJson<{ stock: OpeningStockItem[] }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'save', ...(cutoffDate ? { cutoffDate } : {}), stockItems: items }), method: 'POST' }); setStockItems(payload.stock); setStockItemsBaseline(payload.stock); setStockMessage(successMessage) }
+    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'บันทึกรายการยกยอดไม่ได้'); if (rethrow) throw caught } finally { setStockBusy(false) }
+  }
+  async function previewStockImport() {
+    if (!importFile) { setStockError('เลือกไฟล์ Excel ก่อนตรวจสอบ'); return }
+    if (!importBranch) { setStockError('เลือกสาขาก่อนตรวจสอบไฟล์'); return }
+    setImportBusy(true); setStockMessage(null); setStockError(null); setImportPreview(null)
+    try {
+      const form = new FormData()
+      form.append('branchCode', importBranch); form.append('cutoffDate', importDate); form.append('file', importFile)
+      const response = await fetch('/api/finance-accounting/opening-balance', { body: form, method: 'POST' })
+      const payload = await response.json() as OpeningImportPreview & { error?: string }
+      if (!response.ok) throw new Error(payload.error || 'ตรวจสอบไฟล์นำเข้าไม่ได้')
+      setImportPreview(payload); setStockMessage(payload.errors.length ? 'ตรวจสอบไฟล์แล้ว พบรายการที่ต้องแก้ไข' : 'ตรวจสอบไฟล์ผ่าน สามารถนำเข้ารายการ Pending ได้')
+    } catch (caught) { setStockError(caught instanceof Error ? caught.message : 'ตรวจสอบไฟล์นำเข้าไม่ได้') } finally { setImportBusy(false) }
+  }
+  async function saveImportedStock() {
+    if (!importPreview || importPreview.errors.length) { setStockError('ต้องแก้ไขข้อผิดพลาดในไฟล์ก่อนนำเข้า'); return }
+    const existingIds = new Set(stockItems.map((item) => item.id))
+    const merged = [...stockItems, ...importPreview.items.filter((item) => !existingIds.has(item.id))]
+    try {
+      await saveStockItems(merged, `นำเข้า Stock Opening ${importPreview.items.length} รายการแล้ว`, { cutoffDate: importPreview.cutoffDate, rethrow: true })
+    } catch {
+      return
+    }
+    setImportPreview(null); setImportFile(null)
+  }
+  async function applyStockItem(item: OpeningStockItem) {
+    if (!item.productId || !item.branchId || !item.warehouseId || item.qty <= 0 || item.unitCost <= 0) { setStockError('กรอกสินค้า สาขา คลัง จำนวน และต้นทุนให้ครบก่อน Apply'); return }
+    if (!item.paid && !item.supplierId) { setStockError('ถ้ายังไม่จ่าย ต้องเลือก Supplier เพื่อสร้าง AP ก่อน Apply'); return }
+    stockItemsHydratedRef.current = true
+    setStockBusy(true); setStockMessage(null); setStockError(null)
+    try { const payload = await dailyFetchJson<{ item: OpeningStockItem }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'apply', item }), method: 'POST' }); const updateItem = (items: OpeningStockItem[]) => items.some((candidate) => candidate.id === payload.item.id) ? items.map((candidate) => candidate.id === payload.item.id ? payload.item : candidate) : [...items, payload.item]; setStockItems(updateItem); setStockItemsBaseline(updateItem); setStockMessage(`Apply รายการ ${item.lotNo || 'OPENING'} แล้ว — สร้าง OPENING_STOCK_IN ใน Stock Ledger เรียบร้อย`) }
+    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'Apply ยอดสต็อกไม่ได้') } finally { setStockBusy(false) }
+  }
+  async function unapplyStockItem(item: OpeningStockItem) {
+    stockItemsHydratedRef.current = true
+    setStockBusy(true); setStockMessage(null); setStockError(null)
+    try { await dailyFetchJson('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'unapply', itemId: item.id }), method: 'POST' }); const updateItem = (items: OpeningStockItem[]) => items.map((candidate) => candidate.id === item.id ? { ...candidate, applied: false, appliedAt: null, appliedRefId: null, appliedApRefId: null } : candidate); setStockItems(updateItem); setStockItemsBaseline(updateItem); setStockMessage('ยกเลิก Apply แล้ว สามารถแก้ไขรายการได้') }
+    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'ยกเลิก Apply ไม่ได้'); throw caught } finally { setStockBusy(false) }
+  }
+  function requestUnapplyStockItem(item: OpeningStockItem) {
+    requestConfirmation({
+      confirmLabel: 'ยืนยัน Unapply',
+      description: `ต้องการ Unapply รายการ ${item.lotNo || 'OPENING'} หรือไม่? ระบบจะนำรายการนี้ออกจาก Stock Ledger และ AP ที่ระบบสร้างไว้`,
+      destructive: true,
+      onConfirm: () => unapplyStockItem(item),
+      title: 'ยืนยันการ Unapply ยอดสต็อก',
+    })
+  }
+  function addStockItem() { const firstBranch = data?.stock.references.branches[0]; const firstWarehouse = data?.stock.references.warehouses.find((warehouse) => warehouse.branchId === firstBranch?.id); setStockItems((current) => [...current, { applied: false, branchId: firstBranch?.id ?? '', id: `OB-ST-${Date.now()}`, itemStatus: 'RM', lotNo: 'OPENING', paid: true, productId: '', qty: 0, unitCost: 0, warehouseId: firstWarehouse?.id ?? '' }]); setStockMessage(null); setStockError(null) }
+  function requestRemoveStockItem(item: OpeningStockItem) {
+    if (item.applied) {
+      setStockError('รายการนี้ Apply แล้ว ให้กด Unapply ก่อนลบ')
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบ',
+      description: `ต้องการลบรายการยกยอด ${item.lotNo || 'OPENING'} หรือไม่?`,
+      destructive: true,
+      onConfirm: () => saveStockItems(stockItems.filter((candidate) => candidate.id !== item.id), 'ลบรายการยกยอดแล้ว', { rethrow: true }),
+      title: 'ยืนยันการลบรายการยกยอด',
+    })
+  }
+  const stockValue = stockItems.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
+  const stockPaidValue = stockItems.filter((item) => item.paid).reduce((sum, item) => sum + item.qty * item.unitCost, 0)
+  const stockRefs = data?.stock.references
+  async function previewOpeningBillImport() {
+    setBillImportError(null); setBillImportMessage(null); setBillImportPreview(null)
+    if (!billImportBranch || !billImportFile) { setBillImportError('เลือกสาขาและไฟล์ Excel บิลก่อนตรวจสอบ'); return }
+    setBillImportBusy(true)
+    try {
+      const form = new FormData(); form.set('branchCode', billImportBranch); form.set('importType', billImportType); form.set('file', billImportFile)
+      const response = await fetch('/api/finance-accounting/opening-balance/bills', { body: form, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'อ่านไฟล์บิลไม่สำเร็จ')
+      setBillImportPreview(payload as OpeningBillImportPreview)
+    } catch (caught) { setBillImportError(caught instanceof Error ? caught.message : 'อ่านไฟล์บิลไม่สำเร็จ') } finally { setBillImportBusy(false) }
+  }
+  async function commitOpeningBillImport() {
+    if (!billImportPreview || billImportPreview.summary.errorRows > 0) return
+    setBillImportError(null); setBillImportMessage(null); setBillImportBusy(true)
+    try {
+      const response = await fetch('/api/finance-accounting/opening-balance/bills', { body: JSON.stringify({ action: 'commit', branchCode: billImportPreview.branchCode, importType: billImportPreview.importType, rows: billImportPreview.rows }), headers: { 'Content-Type': 'application/json' }, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'ยืนยันนำเข้าบิลไม่สำเร็จ')
+      setBillImportMessage(`นำเข้าสำเร็จ ${payload.billCount} บิล ${formatMoney(payload.inputRows)} รายการ`); setBillImportPreview(null); setBillImportFile(null)
+    } catch (caught) { setBillImportError(caught instanceof Error ? caught.message : 'ยืนยันนำเข้าบิลไม่สำเร็จ') } finally { setBillImportBusy(false) }
+  }
+  async function previewOpeningPartyBalanceImport() {
+    setBalanceImportError(null); setBalanceImportMessage(null); setBalanceImportPreview(null)
+    if (!billImportBranch || !balanceImportFile) { setBalanceImportError('เลือกสาขาและไฟล์ Excel ลูกหนี้/เจ้าหนี้ก่อนตรวจสอบ'); return }
+    setBalanceImportBusy(true)
+    try {
+      const form = new FormData(); form.set('branchCode', billImportBranch); form.set('importType', billImportType === 'purchase' ? 'payable' : 'receivable'); form.set('file', balanceImportFile)
+      const response = await fetch('/api/finance-accounting/opening-balance/balances', { body: form, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'อ่านไฟล์ยอดคงค้างไม่สำเร็จ')
+      setBalanceImportPreview(payload as OpeningPartyBalanceImportPreview)
+    } catch (caught) { setBalanceImportError(caught instanceof Error ? caught.message : 'อ่านไฟล์ยอดคงค้างไม่สำเร็จ') } finally { setBalanceImportBusy(false) }
+  }
+  async function commitOpeningPartyBalanceImport() {
+    if (!balanceImportPreview || balanceImportPreview.summary.errorRows > 0) return
+    setBalanceImportError(null); setBalanceImportMessage(null); setBalanceImportBusy(true)
+    try {
+      const response = await fetch('/api/finance-accounting/opening-balance/balances', { body: JSON.stringify({ action: 'commit', branchCode: balanceImportPreview.branchCode, importType: balanceImportPreview.importType, rows: balanceImportPreview.rows }), headers: { 'Content-Type': 'application/json' }, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'ยืนยันนำเข้ายอดคงค้างไม่สำเร็จ')
+      setBalanceImportMessage(`นำเข้าสำเร็จ ${payload.inputRows} รายการ`); setBalanceImportPreview(null); setBalanceImportFile(null)
+    } catch (caught) { setBalanceImportError(caught instanceof Error ? caught.message : 'ยืนยันนำเข้ายอดคงค้างไม่สำเร็จ') } finally { setBalanceImportBusy(false) }
+  }
+  const costPoolWarehouses = (data?.stock.references.warehouses ?? []).filter((warehouse) => warehouse.branchId === (data?.stock.references.branches ?? []).find((branch) => branch.code === costPoolImportBranch)?.id)
+  async function previewOpeningCostPoolImport() {
+    setCostPoolImportError(null); setCostPoolImportMessage(null); setCostPoolImportPreview(null)
+    if (!costPoolImportBranch || !costPoolImportWarehouse || !costPoolImportFile) { setCostPoolImportError('เลือกสาขา คลัง ประเภท และไฟล์ Excel Cost Pool ก่อนตรวจสอบ'); return }
+    setCostPoolImportBusy(true)
+    try {
+      const form = new FormData(); form.set('branchCode', costPoolImportBranch); form.set('warehouseCode', costPoolImportWarehouse); form.set('importType', costPoolImportType); form.set('file', costPoolImportFile)
+      const response = await fetch('/api/finance-accounting/opening-balance/cost-pool', { body: form, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'อ่านไฟล์ Cost Pool ไม่สำเร็จ')
+      setCostPoolImportPreview(payload as OpeningCostPoolImportPreview)
+    } catch (caught) { setCostPoolImportError(caught instanceof Error ? caught.message : 'อ่านไฟล์ Cost Pool ไม่สำเร็จ') } finally { setCostPoolImportBusy(false) }
+  }
+  async function commitOpeningCostPoolImport() {
+    if (!costPoolImportPreview || costPoolImportPreview.summary.errorRows > 0) return
+    setCostPoolImportError(null); setCostPoolImportMessage(null); setCostPoolImportBusy(true)
+    try {
+      const response = await fetch('/api/finance-accounting/opening-balance/cost-pool', { body: JSON.stringify({ action: 'commit', branchCode: costPoolImportPreview.branchCode, importType: costPoolImportPreview.importType, rows: costPoolImportPreview.rows, warehouseCode: costPoolImportPreview.warehouseCode }), headers: { 'Content-Type': 'application/json' }, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'ยืนยันนำเข้า Cost Pool ไม่สำเร็จ')
+      setCostPoolImportMessage(`นำเข้าสำเร็จ ${payload.inputRows} รายการ เปิดดูได้ที่หน้า Cost Pool`); setCostPoolImportPreview(null); setCostPoolImportFile(null)
+    } catch (caught) { setCostPoolImportError(caught instanceof Error ? caught.message : 'ยืนยันนำเข้า Cost Pool ไม่สำเร็จ') } finally { setCostPoolImportBusy(false) }
+  }
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
-      <Tabs value={tabs[0]} className="gap-0">
+      <Tabs value={activeTab} onValueChange={(value) => { setActiveTab(value); if (value === 'AP ต้นทุน') setBillImportType('purchase'); if (value === 'AR ลูกหนี้') setBillImportType('sales') }} className="gap-0">
         <TabsList variant="line" className="w-full flex-wrap overflow-x-auto">
           {tabs.map((tab) => <TabsTrigger key={tab} value={tab} variant="line">{tab}</TabsTrigger>)}
         </TabsList>
       </Tabs>
+      {activeTab === 'สต็อก' ? <section className="space-y-4">
+        {stockError ? <ErrorBox message={stockError} /> : null}
+        {stockMessage ? <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{stockMessage}</div> : null}
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+          <div className="mb-2 text-sm font-bold text-blue-900">นำเข้า Stock Opening จาก Excel</div>
+          <div className="mb-3 text-xs text-blue-800">ระบบจะตรวจสอบสินค้า/ประเภท/คลังกับ Master ก่อนสร้างรายการ Pending ในตารางด้านล่าง จากนั้นกด Apply ตาม flow เดิมเพื่อบันทึกเข้า Stock Ledger</div>
+          <div className="grid gap-3 md:grid-cols-[180px_180px_1fr_auto] md:items-end">
+            <label className="text-xs font-semibold text-slate-700">สาขา<Select className="mt-1 h-10 w-full" value={importBranch} onChange={(event) => setImportBranch(event.target.value)}><option value="">เลือกสาขา</option>{(stockRefs?.branches ?? []).map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}</Select></label>
+            <label className="text-xs font-semibold text-slate-700">วันที่ยกยอด<input className="mt-1 h-10 w-full rounded-md border border-slate-300 px-2" type="date" value={importDate} onChange={(event) => setImportDate(event.target.value)} /></label>
+            <label className="text-xs font-semibold text-slate-700">ไฟล์ Excel (.xlsx)<input className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs" accept=".xlsx" type="file" onChange={(event) => { setImportFile(event.target.files?.[0] ?? null); setImportPreview(null) }} /></label>
+            <button className="h-9 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={importBusy || stockBusy || data?.stock.locked} onClick={previewStockImport} type="button">{importBusy ? 'กำลังตรวจสอบ...' : 'ตรวจสอบไฟล์'}</button>
+          </div>
+          {importPreview ? <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-xs">
+            <div className="flex flex-wrap gap-x-5 gap-y-1 font-semibold text-slate-700"><span>แถวที่นำเข้าได้: {importPreview.summary.itemRows}</span><span>จำนวนรวม: {importPreview.summary.totalQty.toLocaleString('th-TH')}</span><span>มูลค่า: {formatMoney(importPreview.summary.totalValue)}</span><span className={importPreview.errors.length ? 'text-red-700' : 'text-emerald-700'}>ข้อผิดพลาด: {importPreview.summary.errorRows}</span></div>
+            {importPreview.errors.length ? <div className="mt-2 space-y-1 text-red-700">{importPreview.errors.slice(0, 20).map((message) => <div key={message}>• {message}</div>)}{importPreview.errors.length > 20 ? <div>และอีก {importPreview.errors.length - 20} รายการ</div> : null}</div> : null}
+            {importPreview.summary.warnings.length ? <div className="mt-2 space-y-1 text-amber-700">{importPreview.summary.warnings.slice(0, 10).map((message) => <div key={message}>• {message}</div>)}</div> : null}
+            <button className="mt-3 h-9 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={importBusy || stockBusy || importPreview.errors.length > 0 || data?.stock.locked} onClick={saveImportedStock} type="button">นำเข้ารายการเข้าตาราง</button>
+          </div> : null}
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4"><StatCard label="จำนวนรวม" value={`${formatMoney(stockItems.reduce((sum, item) => sum + item.qty, 0))} กก.`} tone="blue" /><StatCard label="มูลค่ารวม" value={formatMoney(stockValue)} tone="amber" /><StatCard label="จ่ายแล้ว" value={formatMoney(stockPaidValue)} tone="cyan" /><StatCard label="ยังไม่จ่าย" value={formatMoney(stockValue - stockPaidValue)} tone="red" /></div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ยกยอด ณ วันที่ <b>{data?.stock.cutoffDate || '-'}</b> และเริ่มใช้งานวันที่ <b>{data?.stock.goLiveDate || '-'}</b> · กด Apply ทีละรายการเพื่อสร้าง <b>OPENING_STOCK_IN</b> ใน Stock Ledger · ถ้าไม่ติ๊ก “จ่ายแล้ว” และเลือก Supplier ระบบจะสร้าง AP เจ้าหนี้ยกมาให้อัตโนมัติ</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold text-slate-800">📦 Stock Opening — Inventory ยกมา</h2><div className="flex gap-2"><button className="h-9 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={stockBusy || data?.stock.locked} onClick={addStockItem} type="button">+ เพิ่มรายการ</button><button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50" disabled={stockBusy || data?.stock.locked} onClick={() => saveStockItems(stockItems, 'บันทึกรายการยกยอดแล้ว')} type="button">{stockBusy ? 'กำลังบันทึก...' : 'บันทึก'}</button></div></div>
+          <div className="overflow-x-auto"><table className="ns-table min-w-[1250px] w-full text-xs"><thead className="bg-slate-100 text-slate-600"><tr><th className="ns-table-textual-column p-2 text-left">สินค้า</th><th className="whitespace-nowrap p-2 text-center">Status</th><th className="ns-table-textual-column p-2 text-left">สาขา</th><th className="ns-table-textual-column p-2 text-left">คลัง</th><th className="whitespace-nowrap p-2 text-center">Lot</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">WAC/หน่วย</th><th className="p-2 text-right">มูลค่า</th><th className="whitespace-nowrap p-2 text-center">จ่ายแล้ว</th><th className="ns-table-textual-column p-2 text-left">Supplier</th><th className="whitespace-nowrap p-2 text-center">เลขบิลซื้อ</th><th className="whitespace-nowrap p-2 text-center">สถานะ</th><th className="whitespace-nowrap p-2 text-center"><span className="sr-only">จัดการ</span></th></tr></thead><tbody className="divide-y divide-slate-100">
+            {stockItems.map((item) => { const warehouses = (stockRefs?.warehouses ?? []).filter((warehouse) => warehouse.branchId === item.branchId); return <tr className={item.applied ? 'bg-emerald-50/50' : undefined} key={item.id}>
+              <td className="ns-table-textual-column p-2 text-left"><Select className="h-9 min-w-[220px]" disabled={item.applied || stockBusy} value={item.productId} onChange={(event) => updateStockItem(item.id, { productId: event.target.value })}><option value="">เลือกสินค้า</option>{(stockRefs?.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.code} - {product.name}</option>)}</Select></td><td className="whitespace-nowrap p-2 text-center"><Select className="h-9" disabled={item.applied || stockBusy} value={item.itemStatus} onChange={(event) => updateStockItem(item.id, { itemStatus: event.target.value as OpeningStockItem['itemStatus'] })}><option value="RM">RM</option><option value="WIP">WIP</option><option value="FG">FG</option></Select></td><td className="ns-table-textual-column p-2 text-left"><Select className="h-9" disabled={item.applied || stockBusy} value={item.branchId} onChange={(event) => updateStockItem(item.id, { branchId: event.target.value, warehouseId: '' })}><option value="">เลือกสาขา</option>{(stockRefs?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.code}</option>)}</Select></td><td className="ns-table-textual-column p-2 text-left"><Select className="h-9" disabled={item.applied || stockBusy} value={item.warehouseId} onChange={(event) => updateStockItem(item.id, { warehouseId: event.target.value })}><option value="">เลือกคลัง</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} - {warehouse.name}</option>)}</Select></td><td className="whitespace-nowrap p-2 text-center"><input className="h-9 w-28 rounded-md border border-slate-300 px-2 text-center font-mono" disabled={item.applied || stockBusy} value={item.lotNo} onChange={(event) => updateStockItem(item.id, { lotNo: event.target.value })} /></td><td className="p-2 text-right"><input className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right tabular-nums" disabled={item.applied || stockBusy} min="0" step="0.001" type="number" value={item.qty || ''} onChange={(event) => updateStockItem(item.id, { qty: Number(event.target.value) || 0 })} /></td><td className="p-2 text-right"><input className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right tabular-nums" disabled={item.applied || stockBusy} min="0.01" step="0.01" type="number" value={item.unitCost || ''} onChange={(event) => updateStockItem(item.id, { unitCost: Number(event.target.value) || 0 })} /></td><td className="p-2 text-right font-semibold tabular-nums">{formatMoney(item.qty * item.unitCost)}</td><td className="whitespace-nowrap p-2 text-center"><input checked={item.paid} disabled={item.applied || stockBusy} type="checkbox" onChange={(event) => updateStockItem(item.id, { paid: event.target.checked })} /></td><td className="ns-table-textual-column p-2 text-left"><Select className="h-9 min-w-[170px]" disabled={item.applied || item.paid || stockBusy} value={item.supplierId ?? ''} onChange={(event) => updateStockItem(item.id, { supplierId: event.target.value || null })}><option value="">เลือก Supplier</option>{(stockRefs?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code} - {supplier.name}</option>)}</Select></td><td className="whitespace-nowrap p-2 text-center"><input className="h-9 w-32 rounded-md border border-slate-300 px-2 text-center font-mono" disabled={item.applied || item.paid || stockBusy} value={item.linkedBillNo ?? ''} onChange={(event) => updateStockItem(item.id, { linkedBillNo: event.target.value || null })} /></td><td className="whitespace-nowrap p-2 text-center">{item.applied ? <span className="rounded bg-emerald-100 px-2 py-1 font-bold text-emerald-700">✓ Applied</span> : <span className="rounded bg-amber-100 px-2 py-1 text-amber-700">Pending</span>}</td><td className="whitespace-nowrap p-2 text-center"><div className="flex justify-center gap-1">{item.applied ? <button className="rounded bg-slate-100 px-2 py-1 text-slate-700" disabled={stockBusy || data?.stock.locked} onClick={() => requestUnapplyStockItem(item)} type="button">Unapply</button> : <button className="rounded bg-emerald-600 px-2 py-1 font-bold text-white" disabled={stockBusy || data?.stock.locked} onClick={() => applyStockItem(item)} type="button">Apply</button>}<button className="px-1 py-1 text-red-600" disabled={stockBusy || data?.stock.locked || item.applied} onClick={() => requestRemoveStockItem(item)} type="button">✕</button></div></td>
+            </tr> })}
+            {!stockItems.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={13}>ยังไม่มีรายการยกยอด กด “+ เพิ่มรายการ” เพื่อเริ่มต้น</td></tr> : null}
+          </tbody></table></div>
+        </div>
+      </section> : null}
+      {activeTab === 'Cost Pool' ? <section className="space-y-4">
+        <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4 lg:grid-cols-3">
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5"><div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xl sm:size-12">💰</div><div><div className="text-xs text-purple-700">Opening Cost Pool</div><div className="font-bold text-slate-900">นำเข้าต้นทุนตั้งต้น</div></div></div>
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5"><div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl sm:size-12">🔎</div><div><div className="text-xs text-slate-600">ขั้นตอน</div><div className="font-bold text-slate-900">ตรวจสอบก่อนยืนยัน</div></div></div>
+          <div className="col-span-2 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:col-span-1 sm:gap-4 sm:p-5"><div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xl sm:size-12">✅</div><div><div className="text-xs text-emerald-700">ผลกระทบ</div><div className="font-bold text-slate-900">ไม่สร้างบิลหรือ Stock Ledger</div></div></div>
+        </div>
+        <Panel title="นำเข้า Cost Pool Opening จาก Excel">
+          <div className="rounded-md border border-purple-200 bg-purple-50 p-3 text-xs leading-5 text-purple-900">รองรับชีต <b>COST POOL 13.07</b> แยกเป็น บิลซื้อ, เปิด PO และ ปรับเกรด ระบบจะใช้ยอด <b>รอขาย</b> เป็นจำนวน Cost Pool และเก็บเป็น Opening Cost Pool เพื่อไม่สร้างบิลหรือสต็อกซ้ำ</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <label className="text-xs font-semibold text-slate-600">ประเภท<select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-normal" value={costPoolImportType} onChange={(event) => { setCostPoolImportType(event.target.value as OpeningCostPoolImportType); setCostPoolImportPreview(null) }}><option value="purchase_bill">บิลซื้อ</option><option value="opening_po">เปิด PO</option><option value="regrade">ปรับเกรด</option></select></label>
+            <label className="text-xs font-semibold text-slate-600">สาขา<select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-normal" value={costPoolImportBranch} onChange={(event) => { setCostPoolImportBranch(event.target.value); setCostPoolImportWarehouse(''); setCostPoolImportPreview(null) }}><option value="">เลือกสาขา</option>{(data?.stock.references.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.code} - {branch.name}</option>)}</select></label>
+            <label className="text-xs font-semibold text-slate-600">คลัง<select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-normal" value={costPoolImportWarehouse} onChange={(event) => { setCostPoolImportWarehouse(event.target.value); setCostPoolImportPreview(null) }}><option value="">เลือกคลัง</option>{costPoolWarehouses.map((warehouse) => <option key={warehouse.code} value={warehouse.code}>{warehouse.code} - {warehouse.name}</option>)}</select></label>
+            <label className="text-xs font-semibold text-slate-600">ไฟล์ Excel (.xlsx)<input className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" type="file" onChange={(event) => { setCostPoolImportFile(event.target.files?.[0] ?? null); setCostPoolImportPreview(null) }} /></label>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2"><button className="h-9 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={costPoolImportBusy || !costPoolImportBranch || !costPoolImportWarehouse || !costPoolImportFile} onClick={() => void previewOpeningCostPoolImport()} type="button">{costPoolImportBusy ? 'กำลังตรวจสอบ...' : 'ตรวจสอบไฟล์ Cost Pool'}</button>{costPoolImportPreview ? <button className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={costPoolImportBusy || costPoolImportPreview.summary.errorRows > 0} onClick={() => void commitOpeningCostPoolImport()} type="button">ยืนยันนำเข้า Cost Pool</button> : null}{costPoolImportError ? <span className="text-sm font-semibold text-red-700">{costPoolImportError}</span> : null}{costPoolImportMessage ? <span className="text-sm font-semibold text-emerald-700">{costPoolImportMessage}</span> : null}</div>
+          {costPoolImportPreview ? <div className="mt-4 overflow-x-auto rounded-md border border-slate-200"><div className="grid min-w-[720px] grid-cols-4 gap-2 border-b border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span>รายการ <b>{costPoolImportPreview.summary.inputRows}</b></span><span>พร้อมนำเข้า <b>{costPoolImportPreview.summary.readyRows}</b></span><span>ผิดพลาด <b className={costPoolImportPreview.summary.errorRows ? 'text-red-700' : ''}>{costPoolImportPreview.summary.errorRows}</b></span><span>มูลค่าต้นทุน <b>{formatMoney(costPoolImportPreview.summary.totalValue)}</b></span></div><table className="ns-table min-w-[720px] w-full text-xs"><thead className="bg-slate-100"><tr><th className="whitespace-nowrap p-2 text-center">เลขที่</th><th className="whitespace-nowrap p-2 text-center">วันที่</th><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">รอขาย</th><th className="p-2 text-right">ต้นทุน/หน่วย</th><th className="whitespace-nowrap p-2 text-center">ผลตรวจ</th></tr></thead><tbody>{costPoolImportPreview.rows.slice(0, 100).map((row) => <tr key={`${row.lineKey}-${row.docNo}`} className="border-t border-slate-100"><td className="whitespace-nowrap p-2 text-center font-mono">{row.docNo || '-'}</td><td className="whitespace-nowrap p-2 text-center">{row.date}</td><td className="p-2 text-left">{row.productName}</td><td className="whitespace-nowrap p-2 text-right tabular-nums">{formatMoney(row.availableQty)}</td><td className="whitespace-nowrap p-2 text-right tabular-nums">{formatMoney(row.unitCost)}</td><td className={`whitespace-nowrap p-2 text-center ${row.status === 'error' ? 'font-semibold text-red-700' : 'text-emerald-700'}`}>{row.error ?? 'พร้อมนำเข้า'}</td></tr>)}</tbody></table></div> : null}
+        </Panel>
+      </section> : null}
+      {activeTab !== 'สต็อก' ? <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="AR" value={formatMoney(data?.summary.ar)} tone="blue" /><StatCard label="AP ต้นทุน" value={formatMoney(data?.summary.apCost)} tone="red" /><StatCard label="AP ค่าใช้จ่าย" value={formatMoney(data?.summary.apExpense)} tone="red" /><StatCard label="สต็อก" value={formatMoney(data?.summary.stock)} tone="amber" /><StatCard label="สุทธิอื่นๆ" value={formatMoney(data?.summary.netOther)} /></div>
       <Panel title="ข้อมูลพื้นฐาน"><div className="grid grid-cols-2 gap-3 text-sm"><ReadField label="วันที่ตัดยอด" value="2026-04-30" /><ReadField label="วันเริ่มใช้งาน" value="2026-05-01" /></div><div className="mt-3 text-xs text-slate-400">อัปเดตล่าสุด: {data?.row.updatedAt || '-'}</div></Panel>
+      {activeTab === 'AP ต้นทุน' || activeTab === 'AR ลูกหนี้' ? <>
+        <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4 lg:grid-cols-3">
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5"><div className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xl sm:size-12 ${billImportType === 'purchase' ? 'bg-red-100' : 'bg-blue-100'}`}>{billImportType === 'purchase' ? '📤' : '📥'}</div><div><div className={`text-xs ${billImportType === 'purchase' ? 'text-red-600' : 'text-blue-600'}`}>{billImportType === 'purchase' ? 'AP ต้นทุนคงเหลือ' : 'AR ลูกหนี้คงเหลือ'}</div><div className="font-bold tabular-nums text-slate-900">{formatMoney(billImportType === 'purchase' ? data?.summary.apCost : data?.summary.ar)}</div></div></div>
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5"><div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl sm:size-12">🔎</div><div><div className="text-xs text-slate-600">ขั้นตอน</div><div className="font-bold text-slate-900">ตรวจสอบก่อนยืนยัน</div></div></div>
+          <div className="col-span-2 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5 lg:col-span-1"><div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xl sm:size-12">🧾</div><div><div className="text-xs text-emerald-600">เอกสารที่รองรับ</div><div className="font-bold text-slate-900">{billImportType === 'purchase' ? 'บิลซื้อ / เจ้าหนี้' : 'บิลขาย / ลูกหนี้'}</div></div></div>
+        </div>
+      <Panel title={`นำเข้า Opening ${billImportType === 'purchase' ? 'บิลซื้อ (AP)' : 'บิลขาย (AR)'} จาก Excel`}>
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-900">แท็บนี้ใช้สำหรับนำเข้า {billImportType === 'purchase' ? 'บิลซื้อ' : 'บิลขาย'} โดยเฉพาะ บิลที่ยืนยันจะถูกบันทึกเป็นเอกสารย้อนหลังสถานะ Opening และไม่สร้าง Stock Ledger หรือรายการรับเงิน/จ่ายเงินซ้ำอัตโนมัติ</div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="text-xs font-semibold text-slate-600">สาขา<select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-normal" value={billImportBranch} onChange={(event) => setBillImportBranch(event.target.value)}><option value="">เลือกสาขา</option>{(data?.stock.references.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.code} - {branch.name}</option>)}</select></label>
+          <label className="text-xs font-semibold text-slate-600 md:col-span-2">ไฟล์ Excel (.xlsx)<input className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" type="file" onChange={(event) => { setBillImportFile(event.target.files?.[0] ?? null); setBillImportPreview(null) }} /></label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><button className="h-9 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={billImportBusy || !billImportBranch || !billImportFile} onClick={() => void previewOpeningBillImport()} type="button">{billImportBusy ? 'กำลังตรวจสอบ...' : 'ตรวจสอบไฟล์บิล'}</button>{billImportPreview ? <button className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={billImportBusy || billImportPreview.summary.errorRows > 0} onClick={() => void commitOpeningBillImport()} type="button">ยืนยันนำเข้าบิล</button> : null}{billImportError ? <span className="text-sm font-semibold text-red-700">{billImportError}</span> : null}{billImportMessage ? <span className="text-sm font-semibold text-emerald-700">{billImportMessage}</span> : null}</div>
+        {billImportPreview ? <div className="mt-4 overflow-x-auto rounded-md border border-slate-200"><div className="grid min-w-[720px] grid-cols-4 gap-2 border-b border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span>จำนวนบิล <b>{billImportPreview.summary.billCount}</b></span><span>พร้อมนำเข้า <b>{billImportPreview.summary.readyRows}</b></span><span>ผิดพลาด <b className={billImportPreview.summary.errorRows ? 'text-red-700' : ''}>{billImportPreview.summary.errorRows}</b></span><span>มูลค่ารวม <b>{formatMoney(billImportPreview.summary.totalValue)} บาท</b></span></div><table className="ns-table min-w-[720px] w-full text-xs"><thead className="bg-slate-100"><tr><th className="whitespace-nowrap p-2 text-center">เลขที่</th><th className="whitespace-nowrap p-2 text-center">วันที่</th><th className="p-2 text-left">คู่ค้า</th><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">จำนวน</th><th className="p-2 text-right">รวม</th><th className="whitespace-nowrap p-2 text-center">ผลตรวจ</th></tr></thead><tbody>{billImportPreview.rows.slice(0, 100).map((row, index) => <tr key={`${row.docNo}-${row.productName}-${index}`} className="border-t border-slate-100"><td className="whitespace-nowrap p-2 text-center font-mono">{row.docNo}</td><td className="whitespace-nowrap p-2 text-center">{row.date}</td><td className="p-2 text-left">{row.partyName}</td><td className="p-2 text-left">{row.productName}<div className="text-[10px] text-slate-500">{row.productCode || 'ไม่พบรหัส'}</div></td><td className="whitespace-nowrap p-2 text-right tabular-nums">{formatMoney(row.quantity)}</td><td className="whitespace-nowrap p-2 text-right tabular-nums">{formatMoney(row.totalAmount)}</td><td className={`whitespace-nowrap p-2 text-center ${row.status === 'error' ? 'font-semibold text-red-700' : 'text-emerald-700'}`}>{row.error ?? row.warning ?? 'พร้อมนำเข้า'}</td></tr>)}</tbody></table></div> : null}
+      </Panel>
+      <Panel title={`นำเข้า Opening ${billImportType === 'purchase' ? 'เจ้าหนี้คงค้าง' : 'ลูกหนี้คงค้าง'} จาก Excel`}>
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">ใช้กับชีต <b>{billImportType === 'purchase' ? 'เจ้าหนี้ 13.07' : 'ลูกหนี้ 13.07'}</b> สำหรับยอดคงค้างที่ไม่มีรายละเอียดบิล ห้ามนำเข้าเลขที่เอกสารซ้ำกับบิลซื้อ/บิลขาย</div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3"><div className="text-xs font-semibold text-slate-600"><span className="block">สาขา</span><div className="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal">{billImportBranch || 'เลือกสาขาจากส่วน Import บิลด้านบน'}</div></div><label className="text-xs font-semibold text-slate-600 md:col-span-2">ไฟล์ Excel (.xlsx)<input className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" type="file" onChange={(event) => { setBalanceImportFile(event.target.files?.[0] ?? null); setBalanceImportPreview(null) }} /></label></div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><button className="h-9 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={balanceImportBusy || !billImportBranch || !balanceImportFile} onClick={() => void previewOpeningPartyBalanceImport()} type="button">{balanceImportBusy ? 'กำลังตรวจสอบ...' : 'ตรวจสอบยอดคงค้าง'}</button>{balanceImportPreview ? <button className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={balanceImportBusy || balanceImportPreview.summary.errorRows > 0} onClick={() => void commitOpeningPartyBalanceImport()} type="button">ยืนยันนำเข้ายอดคงค้าง</button> : null}{balanceImportError ? <span className="text-sm font-semibold text-red-700">{balanceImportError}</span> : null}{balanceImportMessage ? <span className="text-sm font-semibold text-emerald-700">{balanceImportMessage}</span> : null}</div>
+        {balanceImportPreview ? <div className="mt-4 overflow-x-auto rounded-md border border-slate-200"><div className="grid min-w-[620px] grid-cols-4 gap-2 border-b border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span>รายการ <b>{balanceImportPreview.summary.inputRows}</b></span><span>พร้อมนำเข้า <b>{balanceImportPreview.summary.readyRows}</b></span><span>ผิดพลาด <b className={balanceImportPreview.summary.errorRows ? 'text-red-700' : ''}>{balanceImportPreview.summary.errorRows}</b></span><span>ยอดค้างรวม <b>{formatMoney(balanceImportPreview.summary.totalValue)}</b></span></div><table className="ns-table min-w-[620px] w-full text-xs"><thead className="bg-slate-100"><tr><th className="whitespace-nowrap p-2 text-center">เลขที่</th><th className="whitespace-nowrap p-2 text-center">วันที่</th><th className="p-2 text-left">คู่ค้า</th><th className="p-2 text-right">ยอดรวม</th><th className="p-2 text-right">ยอดค้าง</th><th className="whitespace-nowrap p-2 text-center">ผลตรวจ</th></tr></thead><tbody>{balanceImportPreview.rows.slice(0, 100).map((row, index) => <tr key={`${row.docNo}-${index}`} className="border-t border-slate-100"><td className="whitespace-nowrap p-2 text-center font-mono">{row.docNo}</td><td className="whitespace-nowrap p-2 text-center">{row.date}</td><td className="p-2 text-left">{row.partyName}</td><td className="whitespace-nowrap p-2 text-right tabular-nums">{formatMoney(row.totalAmount)}</td><td className="whitespace-nowrap p-2 text-right tabular-nums">{formatMoney(row.outstandingAmount)}</td><td className={`whitespace-nowrap p-2 text-center ${row.status === 'error' ? 'font-semibold text-red-700' : 'text-emerald-700'}`}>{row.error ?? 'พร้อมนำเข้า'}</td></tr>)}</tbody></table></div> : null}
+      </Panel>
+      </> : null}
+      {activeTab !== 'AR ลูกหนี้' && activeTab !== 'AP ต้นทุน' && activeTab !== 'Cost Pool' ? <>
       {/* Desktop Table View */}
       <div className="hidden lg:block">
         <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
@@ -532,11 +803,11 @@ export function OpeningBalancePageClient() {
               </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-100">
                 <tr>
-                  <ResizableTableHead label="เลขที่บัญชี" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="code" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'เลขที่บัญชี')} />
-                  <ResizableTableHead align="right" label="ชื่อบัญชี" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบัญชี')} />
-                  <ResizableTableHead align="right" label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-                  <ResizableTableHead align="right" label="สาขา/คลัง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="branch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('branch', 'สาขาหรือคลัง')} />
-                  <ResizableTableHead align="right" label="สกุลเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุลเงิน')} />
+                  <ResizableTableHead align="center" label="เลขที่บัญชี" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="code" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'เลขที่บัญชี')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="ชื่อบัญชี" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบัญชี')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="สาขา/คลัง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="branch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('branch', 'สาขาหรือคลัง')} />
+                  <ResizableTableHead align="center" label="สกุลเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุลเงิน')} />
                   <ResizableTableHead align="right" label="ยอดเปิดบัญชี" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="openingBalance" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('openingBalance', 'ยอดเปิดบัญชี')} />
                   <ResizableTableHead align="right" label="วงเงิน OD" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="odLimit" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('odLimit', 'วงเงิน OD')} />
                 </tr>
@@ -545,11 +816,11 @@ export function OpeningBalancePageClient() {
                 <LoadingOrEmpty colSpan={openingAccountColumns.length} isLoading={false} rows={accounts.length} />
                 {sortedRows.map((account) => (
                   <tr key={`${account.code || account.name}-${account.name}`} className="transition-colors hover:bg-slate-50/50">
-                    <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-700">{account.code || '-'}</td>
-                    <td className="px-3 py-3 text-right font-medium text-slate-900">{account.name}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{account.type}</td>
-                    <td className="px-3 py-3 text-right text-slate-600">{account.branchName || account.branchCode || '-'}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{account.currency}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-700">{account.code || '-'}</td>
+                    <td className="ns-table-textual-column px-3 py-3 text-left font-medium text-slate-900">{account.name}</td>
+                    <td className="ns-table-textual-column break-words px-3 py-3 text-left text-slate-600">{account.type}</td>
+                    <td className="ns-table-textual-column px-3 py-3 text-left text-slate-600">{account.branchName || account.branchCode || '-'}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{account.currency}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-900">{formatMoney(account.openingBalance)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(account.odLimit)}</td>
                   </tr>
@@ -584,6 +855,8 @@ export function OpeningBalancePageClient() {
           </div>
         ))}
       </div>
+      </> : null}
+      </> : null}
     </section>
   )
 }
@@ -746,9 +1019,9 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
           </colgroup>
           <thead className="sticky top-0 z-10 bg-slate-100">
             <tr>
-              <ResizableTableHead label="วันครบกำหนด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="dueDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('dueDate', 'วันครบกำหนด')} />
-              <ResizableTableHead align="right" label="เลขสัญญา" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="contractNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('contractNo', 'เลขสัญญา')} />
-              <ResizableTableHead align="right" label="ผู้ให้กู้" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="lenderName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('lenderName', 'ผู้ให้กู้')} />
+              <ResizableTableHead align="center" label="วันครบกำหนด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="dueDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('dueDate', 'วันครบกำหนด')} />
+              <ResizableTableHead align="center" label="เลขสัญญา" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="contractNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('contractNo', 'เลขสัญญา')} />
+              <ResizableTableHead align="left" className="ns-table-textual-column" label="ผู้ให้กู้" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="lenderName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('lenderName', 'ผู้ให้กู้')} />
               <ResizableTableHead align="right" label="ยอดต้องจ่าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดต้องจ่าย')} />
             </tr>
           </thead>
@@ -756,9 +1029,9 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
             <LoadingOrEmpty colSpan={dueColumns.length} isLoading={isLoading} rows={rows.length} emptyText="ไม่มี" />
             {sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50/50">
-                <td className="whitespace-nowrap px-3 py-3 text-slate-700">{row.dueDate}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold text-blue-700">{row.contractNo}</td>
-                <td className="px-3 py-3 text-right font-medium text-slate-900">{row.lenderName}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">{row.dueDate}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center font-mono font-semibold text-blue-700">{row.contractNo}</td>
+                <td className="ns-table-textual-column px-3 py-3 text-left font-medium text-slate-900">{row.lenderName}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatMoney(row.totalDueAmount - row.paidAmount)}</td>
               </tr>
             ))}
@@ -773,8 +1046,8 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
         {!isLoading && sortedRows.map((row) => (
           <div key={row.id} className="p-3 space-y-1.5 text-xs hover:bg-slate-50/50 transition">
             <div className="flex justify-between items-center">
-              <span className="font-semibold text-slate-900">{row.dueDate}</span>
-              <span className="font-mono text-blue-700 font-semibold">{row.contractNo}</span>
+              <span className="whitespace-nowrap font-semibold text-slate-900">{row.dueDate}</span>
+              <span className="whitespace-nowrap font-mono font-semibold text-blue-700">{row.contractNo}</span>
             </div>
             <div className="flex justify-between items-center text-xs text-slate-500">
               <span>ผู้ให้กู้: {row.lenderName}</span>

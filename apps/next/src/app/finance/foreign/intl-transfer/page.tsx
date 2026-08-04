@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
-import { IntlTransferPageClient } from '@/components/finance/foreign/IntlTransferPageClient'
+import { redirect } from 'next/navigation'
 
 export const metadata: Metadata = {
   title: 'International Transfer | NS Scrap ERP',
 }
 
 export default function IntlTransferPage() {
-  return <IntlTransferPageClient />
+  redirect('/finance/foreign/fcd-conversions')
 }

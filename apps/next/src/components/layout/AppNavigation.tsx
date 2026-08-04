@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { GuardedLink } from '@/components/ui/GuardedLink'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { canAccessPath, navigationItems, navigationSections, sidebarNavigationPath, type NavigationSectionKey } from '@/lib/navigation'
 
@@ -185,7 +185,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                         <span className={compact ? 'truncate lg:hidden' : 'truncate'}>{item.label}</span>
                       </button>
                     ) : (
-                      <Link
+                      <GuardedLink
                         aria-current={active ? 'page' : undefined}
                         className={itemControlClass}
                         data-active-nav={active ? 'true' : undefined}
@@ -198,7 +198,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                       >
                         <span className="w-5 text-center leading-none">{item.icon}</span>
                         <span className={compact ? 'truncate lg:hidden' : 'truncate'}>{item.label}</span>
-                      </Link>
+                      </GuardedLink>
                     )}
                     {item.children?.length ? (
                       <button
@@ -219,7 +219,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                         const childIsActive = isNavigationPathActive(activePathname, child.href)
 
                         return (
-                          <Link
+                          <GuardedLink
                             key={child.href}
                             aria-current={childIsActive ? 'page' : undefined}
                             className={`flex items-center gap-3 py-2 pl-11 pr-4 text-left transition hover:bg-slate-800/60 ${
@@ -235,7 +235,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                           >
                             <span className="w-5 text-center leading-none">{child.icon}</span>
                             <span className={compact ? 'truncate lg:hidden' : 'truncate'}>{child.label}</span>
-                          </Link>
+                          </GuardedLink>
                         )
                       })}
                     </div>

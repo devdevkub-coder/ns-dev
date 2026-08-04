@@ -1,4 +1,5 @@
 import { toNumber } from '@/lib/server/daily'
+import { derivePoSellFulfillmentStatus } from '@/lib/po-sell-status'
 import type { Prisma } from '../../../generated/prisma/client'
 
 function itemNumber(record: Record<string, unknown>, key: string) {
@@ -25,13 +26,6 @@ function salesItemUnitPrice(record: Record<string, unknown>) {
   const explicitPrice = itemNumber(record, 'price')
   if (explicitPrice > 0) return explicitPrice
   return itemNumber(record, 'unitPrice')
-}
-
-function poSellStatusAfterReverse(status: string | null | undefined, nextRemainingQty: number) {
-  if (nextRemainingQty <= 0.001) return status ?? 'Completed'
-  const normalized = (status ?? '').trim().toLowerCase()
-  if (['completed', 'closed', 'fully matched', 'received'].includes(normalized)) return 'Open'
-  return status ?? 'Open'
 }
 
 type PoSellReverseLine = {
@@ -91,7 +85,7 @@ export async function reversePoSellUsage(tx: Prisma.TransactionClient, billItems
   if (!usageByPoSellDocNo.size) return
 
   const poSells = await tx.po_sells.findMany({
-    select: { cut_amount: true, doc_no: true, id: true, items: true, remaining_amount: true, remaining_qty: true, status: true },
+    select: { cut_amount: true, doc_no: true, id: true, items: true, qty: true, remaining_amount: true, remaining_qty: true, status: true },
     where: { doc_no: { in: [...usageByPoSellDocNo.keys()] } },
   })
   await Promise.all(poSells.map((poSell) => {
@@ -106,7 +100,12 @@ export async function reversePoSellUsage(tx: Prisma.TransactionClient, billItems
         ...(nextItems ? { items: nextItems } : {}),
         remaining_amount: nextRemainingAmount,
         remaining_qty: nextRemainingQty,
-        status: poSellStatusAfterReverse(poSell.status, nextRemainingQty),
+        status: derivePoSellFulfillmentStatus({
+          currentStatus: poSell.status,
+          docNo: poSell.doc_no,
+          remainingQty: nextRemainingQty,
+          totalQty: toNumber(poSell.qty),
+        }),
         updated_at: cancelledAt,
         updated_by: actor,
       },

@@ -143,10 +143,15 @@ describe('shared combobox behavior', () => {
 })
 
 describe('shared dropdown height contract', () => {
-  it('allows h-9 filter controls while keeping branch form fields at h-10', () => {
+  it('defaults dropdown controls to h-10 while allowing explicit h-9 filters', () => {
+    const defaultMarkup = renderToStaticMarkup(
+      <Combobox inputId="branch-default-height" items={branchNames} value={branchNames[0]}>
+        <ComboboxInput aria-label="เลือกสาขา" readOnly withDropdownButton />
+      </Combobox>,
+    )
     const filterMarkup = renderToStaticMarkup(
       <Combobox inputId="branch-filter-height" items={branchNames} value={branchNames[0]}>
-        <ComboboxInput aria-label="เลือกสาขา" className="h-9" readOnly withDropdownButton />
+        <ComboboxInput aria-label="เลือกสาขา" className="h-9" inputGroupClassName="h-9" readOnly withDropdownButton />
       </Combobox>,
     )
     const formMarkup = renderToStaticMarkup(
@@ -160,7 +165,9 @@ describe('shared dropdown height contract', () => {
       />,
     )
 
+    expect(defaultMarkup).toMatch(/class="[^"]*\bh-10\b[^"]*"[^>]*data-slot="input-group"/)
     expect(filterMarkup).toMatch(/<input[^>]*class="[^"]*\bh-9\b[^"]*"/)
+    expect(filterMarkup).toMatch(/class="[^"]*\bh-9\b[^"]*"[^>]*data-slot="input-group"/)
     expect(filterMarkup).not.toMatch(/<input[^>]*class="[^"]*\bh-10\b[^"]*"/)
     expect(formMarkup).toMatch(/<input[^>]*class="[^"]*\bh-10\b[^"]*"/)
     expect(formMarkup).not.toMatch(/<input[^>]*class="[^"]*\bh-9\b[^"]*"/)

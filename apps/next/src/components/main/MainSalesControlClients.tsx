@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Calculator, ChevronDown, Download, ExternalLink, LockKeyhole, Plus, RefreshCw, Save, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -15,6 +16,7 @@ import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { focusFieldError } from '@/lib/form-errors'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
 type SortDirection = 'asc' | 'desc'
@@ -50,7 +52,7 @@ type LmeConfig = {
 }
 type SalesPlanPayload = {
   customers: Array<{ active: boolean; code: string; id: string; marketScope: 'ต่างประเทศ' | 'ในประเทศ'; name: string }>
-  filters: { channels: { id: string; name: string }[]; metalGroups: string[]; month: string }
+  filters: { branches: { code: string; id: string; name: string }[]; channels: { id: string; name: string }[]; metalGroups: string[]; month: string }
   lmeConfig: LmeConfig
   pendingSaleTable: AnyRow[]
   pendingSaleTotals: Record<string, number>
@@ -61,6 +63,7 @@ type SalesPlanPayload = {
   summary: Record<string, number>
 }
 type SalesPlanDraftForm = {
+  branchCode: string
   channel: string
   containers: string
   customerCode: string
@@ -141,7 +144,7 @@ type CommissionPayload = {
 const salesPlanColumns: Array<TableColumn<SalesPlanColumnKey>> = [
   { key: 'select', label: 'เลือก', defaultWidth: 72, minWidth: 64, align: 'center' },
   { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 160 },
-  { key: 'channel', label: 'ช่องทาง', defaultWidth: 125, minWidth: 105, align: 'center' },
+  { key: 'channel', label: 'ช่องทาง', defaultWidth: 125, minWidth: 105 },
   { key: 'customerName', label: 'ลูกค้า', defaultWidth: 190, minWidth: 145 },
   { key: 'containers', label: 'ตู้', defaultWidth: 85, minWidth: 75, align: 'right' },
   { key: 'kgPerContainer', label: 'กก./ตู้', defaultWidth: 105, minWidth: 90, align: 'right' },
@@ -155,7 +158,7 @@ const salesPlanColumns: Array<TableColumn<SalesPlanColumnKey>> = [
 ]
 const salesPlanPendingColumns: Array<TableColumn<SalesPlanPendingColumnKey>> = [
   { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 170 },
-  { key: 'metalGroup', label: 'หมวด', defaultWidth: 120, minWidth: 100, align: 'right' },
+  { key: 'metalGroup', label: 'หมวด', defaultWidth: 120, minWidth: 100, align: 'left' },
   { key: 'pendingSaleQty', label: 'รอขาย (กก.)', defaultWidth: 135, minWidth: 115, align: 'right' },
   { key: 'avgPrice', label: 'ต้นทุน Pool (บาท/กก.)', defaultWidth: 175, minWidth: 155, align: 'right' },
   { key: 'bestPlanPrice', label: 'ราคาเสนอดีสุด (บาท/กก.)', defaultWidth: 190, minWidth: 170, align: 'right' },
@@ -178,7 +181,7 @@ const salesPlanAnalysisColumns: Array<TableColumn<SalesPlanAnalysisColumnKey>> =
   { key: 'bestPlanPct', label: '% LME', defaultWidth: 100, minWidth: 85, align: 'right' },
   { key: 'projectedProfit', label: 'กำไรคาดการณ์', defaultWidth: 150, minWidth: 125, align: 'right' },
   { key: 'projectedMarginPct', label: 'Margin %', defaultWidth: 120, minWidth: 100, align: 'right' },
-  { key: 'recommendation', label: 'คำแนะนำ', defaultWidth: 180, minWidth: 140, align: 'center' },
+  { key: 'recommendation', label: 'คำแนะนำ', defaultWidth: 180, minWidth: 140, align: 'left' },
 ]
 const salesPlanRemainingColumns: Array<TableColumn<SalesPlanRemainingColumnKey>> = [
   { key: 'name', label: 'สินค้า', defaultWidth: 250, minWidth: 190 },
@@ -204,10 +207,10 @@ const commissionSupplierColumns: Array<TableColumn<CommissionSupplierColumnKey>>
   { key: 'pct', label: '% ของทั้งหมด', defaultWidth: 130, minWidth: 110, align: 'right' },
 ]
 const commissionBillColumns: Array<TableColumn<CommissionBillColumnKey>> = [
-  { key: 'date', label: 'วันที่', defaultWidth: 115, minWidth: 100 },
-  { key: 'docNo', label: 'เลขที่บิล', defaultWidth: 140, minWidth: 115 },
-  { key: 'supplierName', label: 'ผู้ขาย', defaultWidth: 200, minWidth: 150 },
-  { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 160 },
+  { key: 'date', label: 'วันที่', defaultWidth: 115, minWidth: 100, align: 'center' },
+  { key: 'docNo', label: 'เลขที่บิล', defaultWidth: 140, minWidth: 115, align: 'center' },
+  { key: 'supplierName', label: 'ผู้ขาย', defaultWidth: 200, minWidth: 150, align: 'left' },
+  { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 160, align: 'left' },
   { key: 'qty', label: 'น้ำหนัก (กก.)', defaultWidth: 130, minWidth: 110, align: 'right' },
   { key: 'price', label: 'ราคาซื้อ', defaultWidth: 120, minWidth: 100, align: 'right' },
   { key: 'salesPrice', label: 'ราคาหน้าใบ', defaultWidth: 125, minWidth: 105, align: 'right' },
@@ -232,8 +235,8 @@ const commissionSalesCardFilterOptions: Array<{ label: string; value: Commission
   { label: 'ได้คอม', value: 'eligible' },
 ]
 
-const salesPlanNumberInputClass = 'w-full rounded-md border border-slate-300 bg-white px-3 text-right font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/25 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-const salesPlanReadonlyNumberInputClass = 'w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-right font-medium text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+const salesPlanNumberInputClass = 'w-full whitespace-nowrap rounded-md border border-slate-300 bg-white px-3 text-right font-medium tabular-nums text-slate-700 outline-none transition focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/25 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+const salesPlanReadonlyNumberInputClass = 'w-full whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-3 text-right font-medium tabular-nums text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
 function money(value: unknown) {
   return formatMoney(typeof value === 'number' ? value : Number(value ?? 0))
@@ -459,6 +462,8 @@ function TablePaginationToolbar({
 }
 
 export function SalesPlanPageClient() {
+  const [planDraftBaseline, setPlanDraftBaseline] = useState<string | null>(null)
+  const [lmeFormBaseline, setLmeFormBaseline] = useState<string | null>(null)
   const [data, setData] = useState<SalesPlanPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -472,6 +477,7 @@ export function SalesPlanPageClient() {
   const [clearPendingPlansDialog, setClearPendingPlansDialog] = useState<ClearPendingPlansDialogState | null>(null)
   const [selectedPendingPlanIds, setSelectedPendingPlanIds] = useState<string[]>([])
   const [month, setMonth] = useState('')
+  const [planBranchCode, setPlanBranchCode] = useState('')
   const [planFilterGroup, setPlanFilterGroup] = useState('')
   const [planFilterChannel, setPlanFilterChannel] = useState('')
   const [planFilterProductCode, setPlanFilterProductCode] = useState('')
@@ -487,6 +493,7 @@ export function SalesPlanPageClient() {
   const [draftKgPerContainerAutoFilled, setDraftKgPerContainerAutoFilled] = useState(true)
   const [draftLmeCfAutoFilled, setDraftLmeCfAutoFilled] = useState(false)
   const [planDraftForm, setPlanDraftForm] = useState<SalesPlanDraftForm>({
+    branchCode: '',
     channel: '',
     containers: '1',
     customerCode: '',
@@ -496,6 +503,13 @@ export function SalesPlanPageClient() {
     productCode: '',
     sellPctLme: '',
   })
+  const planDraftIsDirty = isPlanFormOpen && planDraftBaseline !== null && JSON.stringify(planDraftForm) !== planDraftBaseline
+  const { requestDiscard: requestPlanDraftDiscard } = useUnsavedChangesGuard(planDraftIsDirty)
+  const lmeFormSnapshot = useMemo(() => JSON.stringify(lmeForm), [lmeForm])
+  const lmeFormIsDirty = lmeForm !== null && lmeFormBaseline !== null && lmeFormSnapshot !== lmeFormBaseline
+  useUnsavedChangesGuard(lmeFormIsDirty)
+  const lmeFormBaselineRef = useRef<string | null>(null)
+  const lmeFormIsDirtyRef = useRef(false)
   const [planSortKey, setPlanSortKey] = useState<SalesPlanColumnKey | null>(null)
   const [planSortDirection, setPlanSortDirection] = useState<SortDirection>('asc')
   const [analysisSortKey, setAnalysisSortKey] = useState<SalesPlanAnalysisColumnKey | null>(null)
@@ -516,29 +530,46 @@ export function SalesPlanPageClient() {
   const analysisResize = useResizableColumns('main.sales-plan.analysis.v1', salesPlanAnalysisColumns)
   const remainingResize = useResizableColumns('main.sales-plan.remaining.v2', salesPlanRemainingColumns)
 
-  const loadSalesPlan = async (targetMonth?: string) => {
+  const setLmeBaseline = useCallback((nextLmeForm: LmeConfig) => {
+    const nextBaseline = JSON.stringify(nextLmeForm)
+    lmeFormBaselineRef.current = nextBaseline
+    lmeFormIsDirtyRef.current = false
+    setLmeForm(nextLmeForm)
+    setLmeFormBaseline(nextBaseline)
+  }, [])
+
+  function setLmeDraft(nextLmeForm: LmeConfig) {
+    lmeFormIsDirtyRef.current = lmeFormBaselineRef.current !== null && JSON.stringify(nextLmeForm) !== lmeFormBaselineRef.current
+    setLmeForm(nextLmeForm)
+  }
+
+  const loadSalesPlan = useCallback(async (targetMonth?: string, targetBranchCode?: string, resetLmeBaseline = false) => {
     setError(null)
     setIsLoading(true)
     try {
       const activeMonth = targetMonth?.trim() || month || data?.filters.month || new Date().toISOString().slice(0, 7)
       const params = new URLSearchParams()
       if (activeMonth) params.set('month', activeMonth)
+      const activeBranchCode = targetBranchCode ?? planBranchCode
+      if (activeBranchCode) params.set('branchCode', activeBranchCode)
       const payload = await dailyFetchJson<SalesPlanPayload>(`/api/sales-plan${params.toString() ? `?${params.toString()}` : ''}`)
       setData(payload)
-      setLmeForm(payload.lmeConfig)
-      setLmeFxAutoFilled(true)
-      setLmeFieldErrors({})
+      if (resetLmeBaseline || !lmeFormIsDirtyRef.current) {
+        setLmeBaseline(payload.lmeConfig)
+        setLmeFxAutoFilled(true)
+        setLmeFieldErrors({})
+      }
       setMonth(payload.filters.month)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [data, month, planBranchCode, setLmeBaseline])
 
   useEffect(() => {
     void loadSalesPlan()
-  }, [])
+  }, [loadSalesPlan])
 
   useEffect(() => {
     const desktopQuery = window.matchMedia('(min-width: 1024px)')
@@ -552,7 +583,7 @@ export function SalesPlanPageClient() {
     if (!month) return
     if (month === data?.filters.month) return
     void loadSalesPlan(month)
-  }, [data?.filters.month, month])
+  }, [data?.filters.month, loadSalesPlan, month])
 
   const productOptions = useMemo(() => (data?.planProductOptions ?? [])
     .map((row) => ({
@@ -803,13 +834,15 @@ export function SalesPlanPageClient() {
   }
 
   const currentMonth = new Date().toISOString().slice(0, 7)
-  const hasActivePlanFilters = Boolean(planFilterProductCode || planFilterGroup || planFilterChannel || (month && month !== currentMonth))
+  const hasActivePlanFilters = Boolean(planFilterProductCode || planFilterGroup || planFilterChannel || planBranchCode || (month && month !== currentMonth))
 
   const clearPlanFilters = () => {
     setMonth(currentMonth)
     setPlanFilterGroup('')
     setPlanFilterChannel('')
     setPlanFilterProductCode('')
+    setPlanBranchCode('')
+    void loadSalesPlan(currentMonth, '')
   }
 
   const openMobilePlanFilters = () => {
@@ -879,7 +912,7 @@ export function SalesPlanPageClient() {
         return next
       })
     }
-    setLmeForm({
+    setLmeDraft({
       ...lmeForm,
       [key]: numericKeys.has(key) ? Number(value || 0) : value,
       source: lmeForm.source === 'live' ? 'mixed' : 'manual',
@@ -894,7 +927,7 @@ export function SalesPlanPageClient() {
         body: JSON.stringify({ action: 'fetch-live' }),
         method: 'POST',
       })
-      setLmeForm(response.lmeConfig)
+      setLmeDraft(response.lmeConfig)
       setLmeFxAutoFilled(true)
       setLmeFieldErrors({})
     } catch (caught) {
@@ -936,9 +969,9 @@ export function SalesPlanPageClient() {
         }),
         method: 'POST',
       })
-      setLmeForm(response.lmeConfig)
+      setLmeBaseline(response.lmeConfig)
       setLmeFxAutoFilled(true)
-      await loadSalesPlan()
+      await loadSalesPlan(undefined, undefined, true)
     } catch (caught) {
       setFormError(caught instanceof Error ? caught.message : 'บันทึกค่า LME ไม่ได้')
     } finally {
@@ -946,8 +979,9 @@ export function SalesPlanPageClient() {
     }
   }
 
-  function resetPlanDraftForm() {
-    setPlanDraftForm({
+  function initializePlanDraftForm() {
+    const nextForm = {
+      branchCode: planBranchCode,
       channel: '',
       containers: '1',
       customerCode: '',
@@ -956,11 +990,17 @@ export function SalesPlanPageClient() {
       lmeCf: '',
       productCode: '',
       sellPctLme: '',
-    })
+    }
+    setPlanDraftBaseline(JSON.stringify(nextForm))
+    setPlanDraftForm(nextForm)
     setDraftKgPerContainerAutoFilled(true)
     setDraftLmeCfAutoFilled(false)
     setPlanDraftFieldErrors({})
     setPlanDraftError(null)
+  }
+
+  function resetPlanDraftForm() {
+    requestPlanDraftDiscard(initializePlanDraftForm)
   }
 
   function clearPlanDraftFieldError(key: SalesPlanDraftFieldKey) {
@@ -979,8 +1019,13 @@ export function SalesPlanPageClient() {
     window.location.assign(`/sales/po-sell?${params.toString()}`)
   }
   function openPlanForm() {
-    resetPlanDraftForm()
+    initializePlanDraftForm()
     setIsPlanFormOpen(true)
+  }
+
+  function closePlanForm() {
+    if (isSavingPlan) return
+    requestPlanDraftDiscard(() => setIsPlanFormOpen(false))
   }
 
   function handleDraftProductChange(productCode: string) {
@@ -1092,6 +1137,7 @@ export function SalesPlanPageClient() {
   async function addDraftPlan() {
     setPlanDraftError(null)
     const nextFieldErrors: SalesPlanDraftFieldErrors = {}
+    if (!planDraftForm.branchCode) nextFieldErrors.branchCode = 'กรุณาเลือกสาขา'
     if (!selectedDraftProduct) {
       nextFieldErrors.productCode = 'กรุณาเลือกสินค้า'
     }
@@ -1105,7 +1151,7 @@ export function SalesPlanPageClient() {
     if (selectedDraftProduct && draftLmeCf <= 0) nextFieldErrors.lmeCf = 'LME cf ต้องมากกว่า 0'
     if (draftSellPct <= 0) nextFieldErrors.sellPctLme = '% LME ต้องมากกว่า 0'
 
-    const firstErrorKey = (['productCode', 'customerCode', 'containers', 'kgPerContainer', 'lmeCf', 'sellPctLme'] as const)
+    const firstErrorKey = (['branchCode', 'productCode', 'customerCode', 'containers', 'kgPerContainer', 'lmeCf', 'sellPctLme'] as const)
       .find((key) => nextFieldErrors[key])
     if (firstErrorKey) {
       setPlanDraftFieldErrors(nextFieldErrors)
@@ -1120,6 +1166,7 @@ export function SalesPlanPageClient() {
         body: JSON.stringify({
           action: 'create-plan',
           plan: {
+            branchCode: planDraftForm.branchCode,
             containers: draftContainers,
             customerCode: planDraftForm.customerCode,
             kgPerContainer: draftKgPerContainer,
@@ -1131,7 +1178,7 @@ export function SalesPlanPageClient() {
         }),
         method: 'POST',
       })
-      resetPlanDraftForm()
+      initializePlanDraftForm()
       setIsPlanFormOpen(false)
       await loadSalesPlan()
     } catch (caught) {
@@ -1249,6 +1296,10 @@ export function SalesPlanPageClient() {
                 {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
               </Select>
             </label>
+            <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-branch">
+              <span>สาขา:</span>
+              <BranchSelectCombobox branches={(data?.filters.branches ?? []).map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="w-[12rem]" controlSize="filter" inputId="sales-plan-filter-branch" label="" placeholder="ทุกสาขา" value={planBranchCode || null} onChange={(value) => { const nextValue = value ?? ''; setPlanBranchCode(nextValue); setPlanPage(1); void loadSalesPlan(undefined, nextValue) }} />
+            </label>
           </div>
           <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center lg:justify-end">
             {pendingPlanCount > 0 ? (
@@ -1265,8 +1316,8 @@ export function SalesPlanPageClient() {
                     : `ยกเลิกแผนรอล็อก (${pendingPlanCount})`}
               </button>
             ) : null}
-            <button className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700" onClick={openPlanForm} type="button"><Plus className="size-4" />สร้างแผนขาย</button>
-            <button className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700" onClick={exportPlan} type="button"><Download className="size-4" />ส่งออก Excel</button>
+            <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700" onClick={openPlanForm} type="button"><Plus className="size-4" />สร้างแผนขาย</button>
+            <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700" onClick={exportPlan} type="button"><Download className="size-4" />ส่งออก Excel</button>
           </div>
         </div>
       </div>
@@ -1295,8 +1346,8 @@ export function SalesPlanPageClient() {
           </button>
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-          <button className="inline-flex h-9 min-w-0 items-center justify-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700" onClick={openPlanForm} type="button"><Plus className="size-4" />สร้างแผนขาย</button>
-          <button className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700" onClick={exportPlan} type="button"><Download className="size-4" />ส่งออก Excel</button>
+          <button className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700" onClick={openPlanForm} type="button"><Plus className="size-4" />สร้างแผนขาย</button>
+          <button className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700" onClick={exportPlan} type="button"><Download className="size-4" />ส่งออก Excel</button>
         </div>
         {pendingPlanCount > 0 ? (
           <div className="flex justify-end border-t border-slate-100 pt-2 dark:border-slate-800">
@@ -1372,7 +1423,7 @@ export function SalesPlanPageClient() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        <Dialog open={isPlanFormOpen} onOpenChange={setIsPlanFormOpen}>
+        <Dialog open={isPlanFormOpen} onOpenChange={(open) => { if (!open) closePlanForm() }}>
           <DialogContent className="max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 max-h-[90vh] animate-fade-in" fallbackTitle="สร้างแผนขาย" hideClose>
             <DialogHeader className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
               <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">สร้างแผนขาย</DialogTitle>
@@ -1382,6 +1433,14 @@ export function SalesPlanPageClient() {
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800 dark:border-slate-700 dark:text-slate-100">ข้อมูลแผนขาย</h4>
                 <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    <span className="mb-1 block">สาขา <span className="text-red-600">*</span></span>
+                    <Select aria-invalid={Boolean(planDraftFieldErrors.branchCode)} className="h-10 w-full text-sm" value={planDraftForm.branchCode} onChange={(event) => { setPlanDraftForm((current) => ({ ...current, branchCode: event.target.value })); clearPlanDraftFieldError('branchCode') }}>
+                      <option value="">เลือกสาขา</option>
+                      {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
+                    </Select>
+                    {planDraftFieldErrors.branchCode ? <p className="mt-1 text-xs font-medium text-red-600" role="alert">{planDraftFieldErrors.branchCode}</p> : null}
+                  </label>
                   <div>
                     <SearchCombobox
                       error={planDraftFieldErrors.productCode}
@@ -1474,7 +1533,7 @@ export function SalesPlanPageClient() {
             </div>
             <DialogFooter className="shrink-0">
               <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={resetPlanDraftForm} type="button">ล้างฟอร์ม</button>
-              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setIsPlanFormOpen(false)} type="button">ยกเลิก</button>
+              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={closePlanForm} type="button">ยกเลิก</button>
               <button className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={addDraftPlan} type="button">{isSavingPlan ? 'กำลังบันทึก...' : 'เพิ่มเข้าตาราง'}</button>
             </DialogFooter>
           </DialogContent>
@@ -1541,11 +1600,11 @@ export function SalesPlanPageClient() {
                   <td className="p-1.5"><div className="flex h-10 w-full items-center truncate rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700" title={text(row.customerName)}>{text(row.customerName) || '-เลือก-'}</div></td>
                   <td className="p-1.5"><input className={`py-1 text-xs ${salesPlanReadonlyNumberInputClass}`} min="0" readOnly step="1" type="number" value={num(row.containers)} /></td>
                   <td className="p-1.5"><input className={`py-1 text-xs ${salesPlanReadonlyNumberInputClass}`} min="0" readOnly step="any" type="number" value={num(row.kgPerContainer)} /></td>
-                  <td className="p-1.5 text-right font-semibold text-slate-800">{money(row.totalKg)}</td>
+                  <td className="p-1.5 text-right font-semibold tabular-nums text-slate-800">{money(row.totalKg)}</td>
                   <td className="p-1.5"><input className={`border-amber-200 py-1 text-xs font-bold text-amber-700 ${salesPlanReadonlyNumberInputClass}`} min="0" readOnly step="any" type="number" value={num(row.sellPctLme)} /></td>
-                  <td className="p-1.5 text-right text-xs text-slate-400 font-medium">{money(row.lme)}</td>
-                  <td className="p-1.5 text-right text-xs text-slate-400 font-medium">{money(row.fx)}</td>
-                  <td className="bg-emerald-50/20 p-1.5 text-right font-bold text-emerald-600">{money(row.sellPrice)}</td>
+                  <td className="p-1.5 text-right text-xs font-medium tabular-nums text-slate-400">{money(row.lme)}</td>
+                  <td className="p-1.5 text-right text-xs font-medium tabular-nums text-slate-400">{money(row.fx)}</td>
+                  <td className="bg-emerald-50/20 p-1.5 text-right font-bold tabular-nums text-emerald-600">{money(row.sellPrice)}</td>
                   <td className="p-1.5 text-center">
                     {canOpenPoSell(row.status) ? (
                       <button className="inline-flex h-8 items-center justify-center rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700" onClick={() => openPoSellForRow(text(row.id))} type="button">เปิด PO ขาย</button>
@@ -1677,17 +1736,17 @@ export function SalesPlanPageClient() {
                       <div className="font-semibold text-slate-800">{text(row.productName)}</div>
                       <div className="font-mono text-xs font-semibold text-slate-400">{text(row.productCode)}</div>
                     </td>
-                    <td className="p-3 text-right text-xs font-medium text-slate-500">{text(row.metalGroup)}</td>
-                    <td className="p-3 text-right font-semibold text-emerald-700">{money(row.pendingSaleQty)}</td>
-                    <td className="p-3 text-right text-slate-600">{num(row.avgPrice) > 0 ? money(row.avgPrice) : '-'}</td>
-                    <td className="bg-amber-50/40 p-3 text-right font-semibold text-amber-700">{num(row.bestPlanPrice) > 0 ? money(row.bestPlanPrice) : '-'}</td>
-                    <td className="bg-amber-50/40 p-3 text-right font-medium text-slate-700">{num(row.bestPlanPct) > 0 ? `${money(row.bestPlanPct)}%` : '-'}</td>
-                    <td className={`bg-emerald-50/40 p-3 text-right font-bold ${num(row.projectedProfit) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{num(row.bestPlanPrice) > 0 ? money(row.projectedProfit) : '-'}</td>
-                    <td className={`bg-emerald-50/40 p-3 text-right font-semibold ${num(row.projectedMarginPct) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{num(row.bestPlanPrice) > 0 ? `${money(row.projectedMarginPct)}%` : '-'}</td>
-                    <td className={`p-3 text-right font-bold ${shortage ? 'text-red-600' : 'text-emerald-700'}`}>{money(row.realPendingSale)}</td>
-                    <td className="p-3 text-right font-semibold text-rose-700">{money(row.lockedSell)}</td>
-                    <td className="p-3 text-right font-semibold text-violet-700">{money(row.lockedBuy)}</td>
-                    <td className="p-3 text-right font-semibold text-blue-700">{money(row.stock)}</td>
+                    <td className="p-3 text-left text-xs font-medium text-slate-500">{text(row.metalGroup)}</td>
+                    <td className="p-3 text-right font-semibold tabular-nums text-emerald-700">{money(row.pendingSaleQty)}</td>
+                    <td className="p-3 text-right tabular-nums text-slate-600">{num(row.avgPrice) > 0 ? money(row.avgPrice) : '-'}</td>
+                    <td className="bg-amber-50/40 p-3 text-right font-semibold tabular-nums text-amber-700">{num(row.bestPlanPrice) > 0 ? money(row.bestPlanPrice) : '-'}</td>
+                    <td className="bg-amber-50/40 p-3 text-right font-medium tabular-nums text-slate-700">{num(row.bestPlanPct) > 0 ? `${money(row.bestPlanPct)}%` : '-'}</td>
+                    <td className={`bg-emerald-50/40 p-3 text-right font-bold tabular-nums ${num(row.projectedProfit) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{num(row.bestPlanPrice) > 0 ? money(row.projectedProfit) : '-'}</td>
+                    <td className={`bg-emerald-50/40 p-3 text-right font-semibold tabular-nums ${num(row.projectedMarginPct) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{num(row.bestPlanPrice) > 0 ? `${money(row.projectedMarginPct)}%` : '-'}</td>
+                    <td className={`p-3 text-right font-bold tabular-nums ${shortage ? 'text-red-600' : 'text-emerald-700'}`}>{money(row.realPendingSale)}</td>
+                    <td className="p-3 text-right font-semibold tabular-nums text-rose-700">{money(row.lockedSell)}</td>
+                    <td className="p-3 text-right font-semibold tabular-nums text-violet-700">{money(row.lockedBuy)}</td>
+                    <td className="p-3 text-right font-semibold tabular-nums text-blue-700">{money(row.stock)}</td>
                   </tr>
                 )
               })}
@@ -1701,12 +1760,12 @@ export function SalesPlanPageClient() {
               <tfoot className="border-t border-slate-200 bg-slate-50/50 font-bold text-slate-700">
                 <tr>
                   <td className="p-3 text-xs" colSpan={2}>รวม</td>
-                  <td className="p-3 text-right text-xs text-emerald-700">{money(pendingSaleTotals.totalPendingSaleQty)}</td>
+                  <td className="p-3 text-right text-xs tabular-nums text-emerald-700">{money(pendingSaleTotals.totalPendingSaleQty)}</td>
                   <td colSpan={5} />
-                  <td className={`p-3 text-right text-xs ${num(pendingSaleTotals.totalRealPending) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{money(pendingSaleTotals.totalRealPending)}</td>
-                  <td className="p-3 text-right text-xs text-rose-700">{money(pendingSaleTotals.totalLockedSell)}</td>
-                  <td className="p-3 text-right text-xs text-violet-700">{money(pendingSaleTotals.totalLockedBuy)}</td>
-                  <td className="p-3 text-right text-xs text-blue-700">{money(pendingSaleTotals.totalStock)}</td>
+                  <td className={`p-3 text-right text-xs tabular-nums ${num(pendingSaleTotals.totalRealPending) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{money(pendingSaleTotals.totalRealPending)}</td>
+                  <td className="p-3 text-right text-xs tabular-nums text-rose-700">{money(pendingSaleTotals.totalLockedSell)}</td>
+                  <td className="p-3 text-right text-xs tabular-nums text-violet-700">{money(pendingSaleTotals.totalLockedBuy)}</td>
+                  <td className="p-3 text-right text-xs tabular-nums text-blue-700">{money(pendingSaleTotals.totalStock)}</td>
                 </tr>
               </tfoot>
             ) : null}
@@ -2070,9 +2129,10 @@ export function SalesCommissionPageClient() {
           <div className="flex gap-2">
             <button
               onClick={handleDownloadExcel}
-              className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white hover:bg-emerald-700"
+              className="flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700"
               type="button"
             >
+              <Download aria-hidden="true" className="size-4" />
               ส่งออก Excel
             </button>
           </div>
@@ -2375,10 +2435,10 @@ export function SalesCommissionPageClient() {
                   const profitDiff = sales.commissionEligible ? num(row.salesPrice) - num(row.price) : 0
                   return (
                     <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-3 text-slate-500 whitespace-nowrap">{formatDateDisplay(text(row.date))}</td>
-                      <td className="p-3 font-semibold text-slate-800">{text(row.docNo)}</td>
-                      <td className="p-3 text-slate-700">{text(row.supplierName)}</td>
-                      <td className="p-3 text-slate-700 font-semibold">{text(row.productName)}</td>
+                      <td className="whitespace-nowrap p-3 text-center text-slate-500">{formatDateDisplay(text(row.date))}</td>
+                      <td className="whitespace-nowrap p-3 text-center font-mono font-semibold text-slate-800">{text(row.docNo)}</td>
+                      <td className="ns-table-textual-column p-3 text-left text-slate-700">{text(row.supplierName)}</td>
+                      <td className="ns-table-textual-column p-3 text-left font-semibold text-slate-700">{text(row.productName)}</td>
                       <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.qty)}</td>
                       <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.price)}</td>
                       <td className="p-3 text-right font-mono tabular-nums text-slate-700">
@@ -2410,14 +2470,14 @@ export function SalesCommissionPageClient() {
               const profitDiff = sales.commissionEligible ? num(row.salesPrice) - num(row.price) : 0
               return {
                 key: row.id,
-                title: text(row.docNo),
+                title: <span className="whitespace-nowrap">{text(row.docNo)}</span>,
                 badge: row.isCommissionable ? (
                   <span className="inline-flex rounded-md border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">ได้คอมมิชชั่น</span>
                 ) : (
                   <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">ไม่ได้คอม</span>
                 ),
                 details: [
-                  { label: 'วันที่', value: formatDateDisplay(text(row.date)) },
+                  { label: 'วันที่', value: <span className="whitespace-nowrap">{formatDateDisplay(text(row.date))}</span> },
                   { label: 'ผู้ขาย', value: text(row.supplierName) },
                   { label: 'สินค้า', value: text(row.productName) },
                 ],
@@ -2466,16 +2526,13 @@ export function SalesCommissionPageClient() {
       <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
         <div className="grid items-end gap-3 md:grid-cols-3">
           <Field label="จากวันที่">
-            <DatePickerInput className="w-full mt-1" value={from} onChange={setFrom} />
+            <DatePickerInput className="mt-1 h-9 w-full" value={from} onChange={setFrom} />
           </Field>
           <Field label="ถึงวันที่">
-            <DatePickerInput className="w-full mt-1" value={to} onChange={setTo} />
+            <DatePickerInput className="mt-1 h-9 w-full" value={to} onChange={setTo} />
           </Field>
           <Field label="สาขา">
-            <Select className="mt-1 h-9 text-xs font-semibold" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-              <option value="">ทั้งหมด</option>
-              {(data?.filters.branches ?? []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-            </Select>
+            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="mt-1 w-full" controlSize="filter" inputId="commission-overview-branch-filter" label="" placeholder="ทั้งหมด" value={branchId || null} onChange={(value) => setBranchId(value ?? '')} />
           </Field>
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">
@@ -2827,7 +2884,7 @@ function LmeEditableCard({ autoFilled = false, error, errorKey, label, manualOnl
       <input
         aria-invalid={Boolean(error)}
         aria-required={manualRequired ? 'true' : undefined}
-        className={`h-14 px-4 text-2xl font-extrabold ${readOnly ? salesPlanReadonlyNumberInputClass : salesPlanNumberInputClass} ${error ? 'border-red-400 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/20 dark:text-red-200' : ''}`}
+        className={`h-10 px-4 text-2xl font-extrabold ${readOnly ? salesPlanReadonlyNumberInputClass : salesPlanNumberInputClass} ${error ? 'border-red-400 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/20 dark:text-red-200' : ''}`}
         data-auto-filled={autoFilled ? 'true' : undefined}
         data-error-key={errorKey}
         disabled={readOnly}

@@ -211,8 +211,8 @@ function WaitingAllocationsView() {
   const pageSize = 20
 
   const poColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
-    { key: 'docNo', label: 'PO ขาย', defaultWidth: 140, className: 'ns-table-textual-column' },
-    { key: 'date', label: 'วันที่', defaultWidth: 100, className: 'ns-table-textual-column' },
+    { key: 'docNo', label: 'PO ขาย', defaultWidth: 140, align: 'center' },
+    { key: 'date', label: 'วันที่', defaultWidth: 100, align: 'center' },
     { key: 'customerName', label: 'ลูกค้า', defaultWidth: 180, className: 'ns-table-textual-column' },
     { key: 'productName', label: 'สินค้า', defaultWidth: 220, className: 'ns-table-textual-column' },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, className: 'ns-table-textual-column' },
@@ -221,13 +221,13 @@ function WaitingAllocationsView() {
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
-    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
 
   const billColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
-    { key: 'docNo', label: 'บิลขาย', defaultWidth: 140, className: 'ns-table-textual-column' },
-    { key: 'date', label: 'วันที่', defaultWidth: 100, className: 'ns-table-textual-column' },
+    { key: 'docNo', label: 'บิลขาย', defaultWidth: 140, align: 'center' },
+    { key: 'date', label: 'วันที่', defaultWidth: 100, align: 'center' },
     { key: 'customerName', label: 'ลูกค้า', defaultWidth: 180, className: 'ns-table-textual-column' },
     { key: 'productName', label: 'สินค้า', defaultWidth: 220, className: 'ns-table-textual-column' },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, className: 'ns-table-textual-column' },
@@ -236,13 +236,13 @@ function WaitingAllocationsView() {
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
-    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
 
   const productionColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
-    { key: 'docNo', label: 'ใบสั่งผลิต', defaultWidth: 140, className: 'ns-table-textual-column' },
-    { key: 'date', label: 'วันที่เบิกวัตถุดิบ', defaultWidth: 120, className: 'ns-table-textual-column' },
+    { key: 'docNo', label: 'ใบสั่งผลิต', defaultWidth: 140, align: 'center' },
+    { key: 'date', label: 'วันที่เบิกวัตถุดิบ', defaultWidth: 120, align: 'center' },
     { key: 'customerName', label: 'ผู้ผลิต', defaultWidth: 180, className: 'ns-table-textual-column' },
     { key: 'productName', label: 'สินค้า', defaultWidth: 220, className: 'ns-table-textual-column' },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, className: 'ns-table-textual-column' },
@@ -251,8 +251,8 @@ function WaitingAllocationsView() {
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ต้นทุน/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
-    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
 
   const poResize = useResizableColumns('dual-costing.waiting.po.v2', poColumns)
@@ -460,7 +460,7 @@ function WaitingAllocationsView() {
         {/* Desktop View */}
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <Input className="min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-blue-500/30" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-blue-500/30" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <Select className="h-9 w-auto min-w-[160px] border-slate-300" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <div aria-label="กรองสถานะรายการรอจัดสรร" className="flex flex-wrap items-center gap-2" role="group">
               <span className="text-xs text-slate-500">สถานะ:</span>
@@ -485,7 +485,7 @@ function WaitingAllocationsView() {
         {/* Mobile View */}
         <div className="block lg:hidden space-y-2">
           <div className="flex gap-2">
-            <Input className="flex-1 h-10 rounded-md border-slate-300 focus-visible:ring-blue-500/30 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 flex-1 rounded-md border-slate-300 focus-visible:ring-blue-500/30 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
@@ -601,8 +601,8 @@ function WaitingAllocationsView() {
 
               return (
                 <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="ns-table-textual-column p-3 pl-4 font-mono text-slate-700 whitespace-nowrap">{row.docNo}</td>
-                  <td className="ns-table-textual-column p-3 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</td>
+                  <td className="p-3 pl-4 text-center font-mono text-slate-700 whitespace-nowrap">{row.docNo}</td>
+                  <td className="p-3 whitespace-nowrap text-center text-slate-600">{formatDateDisplay(row.date)}</td>
                   <td className="ns-table-textual-column p-3 text-slate-800 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}>{row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}</div></td>
                   <td className="ns-table-textual-column p-3 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.productName || ''}>{row.productName}</div></td>
                   <td className="ns-table-textual-column p-3 text-left whitespace-nowrap">
@@ -615,10 +615,10 @@ function WaitingAllocationsView() {
                   <td className="p-3 text-right font-mono font-bold text-amber-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.remainingQty)}</td>
                   <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.unitPrice)}</td>
                   <td className="p-3 text-right font-mono text-emerald-700 font-medium whitespace-nowrap tabular-nums pl-4">{formatMoney(row.revenuePending)}</td>
-                  <td className="ns-table-textual-column p-3 text-left">
+                  <td className="whitespace-nowrap p-3 text-center">
                     <StatusPill status={row.allocationStatus} />
                   </td>
-                  <td className="p-3 pr-4 text-right">
+                  <td className="whitespace-nowrap p-3 pr-4 text-center">
                     <Button asChild size="xs" type="button" className="rounded-md font-semibold focus-visible:ring-blue-500">
                       <Link href={allocatorHref}>
                         {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
@@ -654,8 +654,8 @@ function WaitingAllocationsView() {
             <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
               <div className="flex justify-between items-start">
                 <div>
-                  <div className="font-mono text-xs font-semibold text-slate-500">{row.docNo}</div>
-                  <div className="text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
+                  <div className="whitespace-nowrap font-mono text-xs font-semibold text-slate-500">{row.docNo}</div>
+                  <div className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
                 </div>
                 <StatusPill status={row.allocationStatus} />
               </div>
@@ -726,7 +726,7 @@ function AllocationLedgerView() {
     { key: 'matchId', label: 'เลขที่การจับคู่', defaultWidth: 155, minWidth: 145, align: 'center' },
     { key: 'allocatedAt', label: 'วันที่บันทึก', defaultWidth: 115, minWidth: 100, align: 'center' },
     { key: 'saleDocNo', label: 'เอกสารขาย', defaultWidth: 135, minWidth: 120, align: 'center' },
-    { key: 'productName', label: 'สินค้า', defaultWidth: 190, minWidth: 160, align: 'center' },
+    { key: 'productName', label: 'สินค้า', defaultWidth: 190, minWidth: 160, align: 'left', className: 'ns-table-textual-column' },
     { key: 'allocatedQty', label: 'จำนวนจัดสรร', defaultWidth: 120, minWidth: 110, align: 'right' },
     { key: 'costPoolNo', label: 'กลุ่มต้นทุน', defaultWidth: 135, minWidth: 120, align: 'center' },
     { key: 'costPerKg', label: 'ต้นทุน/กก.', defaultWidth: 110, minWidth: 105, align: 'right' },
@@ -876,9 +876,9 @@ function AllocationLedgerView() {
           <div className="flex flex-wrap items-center gap-2">
             <Input className="h-9 min-w-[260px] flex-1 rounded-md border-slate-300" placeholder="ค้นหาเลขที่การจับคู่ / เอกสารขาย / เอกสารต้นทุน / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <span className="text-xs font-semibold text-slate-500">วันที่:</span>
-            <DatePickerInput id="allocation-ledger-from" value={fromDate} onChange={setFromDate} />
+            <DatePickerInput className="h-9" id="allocation-ledger-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput id="allocation-ledger-to" value={toDate} onChange={setToDate} />
+            <DatePickerInput className="h-9" id="allocation-ledger-to" value={toDate} onChange={setToDate} />
             <Select className="h-9 w-auto min-w-[130px] border-slate-300" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุกประเภทเป้าหมาย</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}</Select>
             <Select className="h-9 w-auto min-w-[130px] border-slate-300" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             {hasActiveFilters ? (
@@ -964,8 +964,8 @@ function AllocationLedgerView() {
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่จัดสรร</span>
             <div className="grid grid-cols-2 gap-2">
-              <DatePickerInput ariaLabel="จากวันที่" className="min-w-0" value={mobileFilters.fromDate} onChange={(fromDate) => setMobileFilters((current) => ({ ...current, fromDate }))} />
-              <DatePickerInput ariaLabel="ถึงวันที่" className="min-w-0" value={mobileFilters.toDate} onChange={(toDate) => setMobileFilters((current) => ({ ...current, toDate }))} />
+              <DatePickerInput ariaLabel="จากวันที่" className="h-9 min-w-0" value={mobileFilters.fromDate} onChange={(fromDate) => setMobileFilters((current) => ({ ...current, fromDate }))} />
+              <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 min-w-0" value={mobileFilters.toDate} onChange={(toDate) => setMobileFilters((current) => ({ ...current, toDate }))} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -1051,26 +1051,26 @@ function AllocationLedgerView() {
                   <TableCell className="p-3 text-center font-mono text-xs text-slate-700">
                     <span className="block truncate" title={row.matchId}>{row.matchId}</span>
                   </TableCell>
-                  <TableCell className="p-3 text-center text-xs text-slate-600">{row.allocatedAt ? formatDateDisplay(row.allocatedAt) : '-'}</TableCell>
-                  <TableCell className="p-3 text-center">
+                  <TableCell className="whitespace-nowrap p-3 text-center text-xs text-slate-600">{row.allocatedAt ? formatDateDisplay(row.allocatedAt) : '-'}</TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-center">
                     <span className="block truncate font-mono text-xs text-slate-700" title={row.saleDocNo}>{row.saleDocNo}</span>
                     <span className="mt-1 flex justify-center"><TargetPill type={row.targetType} /></span>
                   </TableCell>
-                  <TableCell className="p-3 text-center text-sm text-slate-800">
+                  <TableCell className="ns-table-textual-column p-3 text-left text-sm text-slate-800">
                     <span className="block truncate" title={row.productName}>{row.productName}</span>
                     <span className="mt-0.5 block truncate text-xs text-slate-500">{row.productCategory}</span>
                   </TableCell>
-                  <TableCell className="p-3 text-right font-mono font-medium">
+                  <TableCell className="whitespace-nowrap p-3 text-right font-mono font-medium tabular-nums">
                     <button className="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900" type="button" onClick={(event) => { event.stopPropagation(); setSelectedDetailMatchId(row.matchId) }}>
                       {formatMoney(row.allocatedQty)}
                     </button>
                     <span className="mt-0.5 block text-[11px] font-normal text-slate-500">จาก {formatMoney(row.saleQty)} กก.</span>
                   </TableCell>
                   <TableCell className="p-3 text-center font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
-                  <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
-                  <TableCell className="p-3 text-right font-mono text-red-700">{formatMoney(row.totalCost)}</TableCell>
-                  <TableCell className="p-3 text-right font-mono text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
-                  <TableCell className={`p-3 text-right font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-red-700">{formatMoney(row.totalCost)}</TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
+                  <TableCell className={`whitespace-nowrap p-3 text-right font-mono font-bold tabular-nums ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                     {formatMoney(row.grossProfit)}
                     <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{row.gpPct.toFixed(2)}%</span>
                   </TableCell>
@@ -1078,7 +1078,7 @@ function AllocationLedgerView() {
                     <span className="flex justify-center"><LedgerStatusText status={row.status} /></span>
                     <span className="mt-0.5 block truncate text-xs text-slate-500" title={row.allocatedBy}>{row.allocatedBy}</span>
                   </TableCell>
-                  <TableCell className="p-3 text-center" onClick={(event) => event.stopPropagation()}>
+                  <TableCell className="whitespace-nowrap p-3 text-center" onClick={(event) => event.stopPropagation()}>
                     <div className="flex justify-center">
                       <LedgerActionMenu
                         busy={actionTargetId === row.matchId}
@@ -1117,14 +1117,14 @@ function AllocationLedgerView() {
               <div className="min-w-0">
                 <div className="truncate font-mono text-xs font-bold text-slate-800" title={row.matchId}>{row.matchId}</div>
               </div>
-              <div className="shrink-0 text-right text-xs text-slate-500">
+              <div className="shrink-0 whitespace-nowrap text-right text-xs text-slate-500">
                 {row.allocatedAt ? formatDateDisplay(row.allocatedAt) : '-'}
               </div>
             </div>
             <div className="min-w-0 space-y-2">
               <div className="flex min-w-0 items-center gap-1 text-xs text-slate-500">
                 <span className="shrink-0">เอกสารขาย:</span>
-                <span className="min-w-0 truncate font-mono text-slate-700" title={row.saleDocNo}>{row.saleDocNo}</span>
+                <span className="whitespace-nowrap font-mono text-slate-700" title={row.saleDocNo}>{row.saleDocNo}</span>
               </div>
               <div className="break-words text-sm font-medium text-slate-700">{row.productName}</div>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -1337,12 +1337,12 @@ function DualCostingReportView() {
                     <Table className="min-w-[980px] text-sm">
                       <TableHeader className="bg-slate-100">
                         <tr>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">วันที่</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">Match ID</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">ประเภท</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">เอกสารขาย</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">ชุดต้นทุน</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">สินค้า</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">วันที่</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">Match ID</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">ประเภท</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">เอกสารขาย</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">ชุดต้นทุน</TableCell>
+                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">สินค้า</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">น้ำหนัก</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">รายได้</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ต้นทุน</TableCell>
@@ -1356,20 +1356,20 @@ function DualCostingReportView() {
                         ) : null}
                         {selectedCategory.detail.allocatedRows.map((row) => (
                           <TableRow key={`${row.matchId}-${row.saleDocNo}-${row.sourceNo}`}>
-                            <TableCell className="px-3 py-2 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                            <TableCell className="px-3 py-2 font-mono text-xs text-slate-700">{row.matchId}</TableCell>
-                            <TableCell className="px-3 py-2 text-slate-700">{row.targetType}</TableCell>
-                            <TableCell className="px-3 py-2 font-mono text-xs text-slate-700">{row.saleDocNo}</TableCell>
-                            <TableCell className="px-3 py-2">
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-600">{formatDateDisplay(row.date)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.matchId}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-700">{row.targetType}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.saleDocNo}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center">
                               <div className="font-mono text-xs text-slate-700">{row.costPoolNo}</div>
                               <div className="text-xs text-slate-500">{row.sourceNo}</div>
                             </TableCell>
-                            <TableCell className="px-3 py-2 text-slate-700">{row.productName}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-emerald-700">{formatMoney(row.revenue)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-red-600">{formatMoney(row.cost)}</TableCell>
-                            <TableCell className={`px-3 py-2 text-right font-mono font-bold ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
+                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.productName}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.revenue)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-red-600">{formatMoney(row.cost)}</TableCell>
+                            <TableCell className={`whitespace-nowrap px-3 py-2 text-right font-mono font-bold tabular-nums ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1382,10 +1382,10 @@ function DualCostingReportView() {
                     <Table className="min-w-[760px] text-sm">
                       <TableHeader className="bg-slate-100">
                         <tr>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">วันที่</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">เอกสาร</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">ลูกค้า</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">สินค้า</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">วันที่</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">เอกสาร</TableCell>
+                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">ลูกค้า</TableCell>
+                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">สินค้า</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ค้างจัดสรร</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ราคา/กก.</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">มูลค่าค้าง</TableCell>
@@ -1397,13 +1397,13 @@ function DualCostingReportView() {
                         ) : null}
                         {selectedCategory.detail.pendingRows.map((row) => (
                           <TableRow key={`${row.docNo}-${row.productName}-${row.date}`}>
-                            <TableCell className="px-3 py-2 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                            <TableCell className="px-3 py-2 font-mono text-xs text-slate-700">{row.docNo}</TableCell>
-                            <TableCell className="px-3 py-2 text-slate-700">{row.customerName}</TableCell>
-                            <TableCell className="px-3 py-2 text-slate-700">{row.productName}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-slate-700">{formatMoney(row.unitPrice)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono font-semibold text-amber-700">{formatMoney(row.pendingRevenue)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-600">{formatDateDisplay(row.date)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.docNo}</TableCell>
+                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.customerName}</TableCell>
+                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.productName}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitPrice)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono font-semibold tabular-nums text-amber-700">{formatMoney(row.pendingRevenue)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1442,7 +1442,7 @@ function DualCostingReportView() {
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold text-slate-500">ช่วงวันที่</div>
-                  <div className="truncate text-sm font-semibold text-slate-900">{fromDate || '-'} → {toDate || '-'}</div>
+                  <div className="text-sm font-semibold text-slate-900"><span className="whitespace-nowrap">{fromDate || '-'}</span> → <span className="whitespace-nowrap">{toDate || '-'}</span></div>
                 </div>
                 <button
                   className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
@@ -1460,11 +1460,11 @@ function DualCostingReportView() {
                   <div className="grid grid-cols-2 gap-2">
                     <label className="text-xs font-semibold text-slate-500">
                       จากวันที่
-                      <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                      <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                     </label>
                     <label className="text-xs font-semibold text-slate-500">
                       ถึงวันที่
-                      <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                      <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                     </label>
                   </div>
                   <div className="flex justify-end pt-1">

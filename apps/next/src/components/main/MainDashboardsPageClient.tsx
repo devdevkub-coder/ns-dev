@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard, type KpiCardDelta, type KpiCardTone } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -513,7 +514,7 @@ function DashboardView(props: {
           </div>
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-            <Select className="h-9 w-full px-2 text-sm font-medium text-slate-900" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select>
+            <BranchSelectCombobox branches={data?.filterOptions.branches ?? []} className="w-full" controlSize="filter" inputId="main-dashboard-branch-filter" label="" placeholder="ทุกสาขา" value={dashboardBranchId || null} onChange={(value) => setDashboardBranchId(value ?? '')} />
           </div>
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</span>
@@ -546,7 +547,7 @@ function DashboardView(props: {
             </div>
             <div className="space-y-1">
               <span className="block text-[11px] font-semibold text-slate-500">สาขา</span>
-              <Select className="h-9 w-full px-2 text-sm font-medium text-slate-900" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select>
+              <BranchSelectCombobox branches={data?.filterOptions.branches ?? []} className="w-full" controlSize="filter" inputId="main-dashboard-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={dashboardBranchId || null} onChange={(value) => setDashboardBranchId(value ?? '')} />
             </div>
             <div className="space-y-1">
               <span className="block text-[11px] font-semibold text-slate-500">หมวดสินค้า</span>
@@ -943,7 +944,7 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <span className="text-xs font-semibold text-slate-600">ข้อมูลวันที่:</span>
         <button className={dateButtonClass} type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
-        <DatePickerInput className="w-[140px]" value={date} onChange={setDate} />
+        <DatePickerInput className="h-9 w-[140px]" value={date} onChange={setDate} />
         <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
         <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
       </div>
@@ -1034,7 +1035,7 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <button className={dateButtonClass} type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
-        <DatePickerInput className="w-[140px]" value={date} onChange={setDate} />
+        <DatePickerInput className="h-9 w-[140px]" value={date} onChange={setDate} />
         <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
         <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
       </div>
@@ -1210,8 +1211,8 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
             <tr>
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อ" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} sortKey="docNo" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('due', 'ครบกำหนด')} sortKey="due" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} sortKey="docNo" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('due', 'ครบกำหนด')} sortKey="due" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ค้าง" resizeProps={columnResize.getResizeHandleProps('amount', 'ค้าง')} sortKey="amount" onSort={handleSort} />
               {type === 'ar' ? <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เกินวัน" resizeProps={columnResize.getResizeHandleProps('daysOverdue', 'เกินวัน')} sortKey="daysOverdue" onSort={handleSort} /> : null}
             </tr>
@@ -1220,8 +1221,8 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
             {sortedRows.map((row) => (
               <tr key={row.docNo} className="border-t border-slate-100 hover:bg-slate-50/50">
                 <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
-                <td className="p-2 text-right font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
-                <td className="p-2 text-right text-xs text-slate-600 whitespace-nowrap">{row.due}</td>
+                <td className="p-2 text-center font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
+                <td className="p-2 text-center text-xs text-slate-600 whitespace-nowrap">{row.due}</td>
                 <td className="p-2 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums pl-4">{money(row.amount)}</td>
                 {type === 'ar' ? (
                   <td className={row.daysOverdue ? 'p-2 text-right font-bold text-red-600 whitespace-nowrap tabular-nums pl-4' : 'p-2 text-right text-slate-400 whitespace-nowrap tabular-nums pl-4'}>
@@ -1250,8 +1251,8 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
               <span className="font-bold text-slate-900">{money(row.amount)}</span>
             </div>
             <div className="flex justify-between items-center text-slate-500 text-xs">
-              <span>บิล: <span className="font-mono">{row.docNo}</span></span>
-              <span>ครบกำหนด: {row.due}</span>
+              <span className="whitespace-nowrap">บิล: <span className="font-mono">{row.docNo}</span></span>
+              <span className="whitespace-nowrap">ครบกำหนด: {row.due}</span>
             </div>
             {type === 'ar' && row.daysOverdue ? (
               <div className="text-right text-xs font-semibold text-red-600">
@@ -1309,7 +1310,7 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
           </colgroup>
           <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เอกสาร" resizeProps={columnResize.getResizeHandleProps('ref', 'เอกสาร')} sortKey="ref" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เอกสาร" resizeProps={columnResize.getResizeHandleProps('ref', 'เอกสาร')} sortKey="ref" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('detail', 'รายละเอียด')} sortKey="detail" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอด" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอด')} sortKey="amount" onSort={handleSort} />
             </tr>
@@ -1317,7 +1318,7 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
           <tbody className="divide-y divide-slate-100">
             {sortedRows.map((row, index) => (
               <tr key={`${row.docNo ?? row.contractNo ?? index}`} className="border-t border-slate-100 hover:bg-slate-50/50">
-                <td className="p-2 font-mono text-slate-600 whitespace-nowrap">{row.docNo ?? row.contractNo}</td>
+                <td className="p-2 text-center font-mono text-slate-600 whitespace-nowrap">{row.docNo ?? row.contractNo}</td>
                 <td className="p-2 text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={String(row.name ?? row.installmentNo ?? '-')}>{row.name ?? row.installmentNo ?? '-'}</div></td>
                 <td className="p-2 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums pl-4">{money(row.amount)}</td>
               </tr>
@@ -1336,7 +1337,7 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
         {sortedRows.map((row, index) => (
           <div key={`${row.docNo ?? row.contractNo ?? index}`} className="p-2.5 bg-white rounded-xl border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-center">
-              <span className="font-mono text-slate-600">{row.docNo ?? row.contractNo}</span>
+              <span className="whitespace-nowrap font-mono text-slate-600">{row.docNo ?? row.contractNo}</span>
               <span className="font-bold text-slate-900">{money(row.amount)}</span>
             </div>
             <div className="text-slate-500 text-xs">
@@ -1479,8 +1480,8 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
             </colgroup>
             <thead className="bg-slate-100 text-slate-600">
               <tr>
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('productCode', 'รหัส')} sortKey="productCode" onSort={handleSort} />
-                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('productCode', 'รหัส')} sortKey="productCode" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ซื้อ กก." resizeProps={columnResize.getResizeHandleProps('buyQty', 'ซื้อ กก.')} sortKey="buyQty" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ซื้อ" resizeProps={columnResize.getResizeHandleProps('buyAmt', 'ซื้อ')} sortKey="buyAmt" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ขาย กก." resizeProps={columnResize.getResizeHandleProps('sellQty', 'ขาย กก.')} sortKey="sellQty" onSort={handleSort} />
@@ -1491,8 +1492,8 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
             <tbody className="divide-y divide-slate-100">
               {sortedRows.map((row, idx) => (
                 <tr key={`${row.productId}_${idx}`} className="border-t border-slate-100">
-                  <td className="p-2 font-mono text-slate-600 whitespace-nowrap">{row.productCode}</td>
-                  <td className="p-2 text-right text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-right" title={row.productName}>{row.productName}</div></td>
+                  <td className="p-2 text-center font-mono text-slate-600 whitespace-nowrap">{row.productCode}</td>
+                  <td className="p-2 text-left text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-left" title={row.productName}>{row.productName}</div></td>
                   <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{money(row.buyQty)}</td>
                   <td className="p-2 text-right text-blue-700 font-bold whitespace-nowrap tabular-nums pl-4">{money(row.buyAmt)}</td>
                   <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{money(row.sellQty)}</td>
@@ -1576,8 +1577,8 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
           </colgroup>
           <thead className="sticky top-0 bg-slate-100 border-b border-slate-100 text-xs text-slate-600">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label={tone === 'blue' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('name', tone === 'blue' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label={tone === 'blue' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('name', tone === 'blue' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="กก." resizeProps={columnResize.getResizeHandleProps('qty', 'กก.')} sortKey="qty" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอด" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอด')} sortKey="amount" onSort={handleSort} />
             </tr>
@@ -1585,8 +1586,8 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
           <tbody className="divide-y divide-slate-100">
             {sortedRows.map((row) => (
               <tr key={row.docNo} className={`border-t border-slate-100 ${hover}`}>
-                <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
-                <td className="p-2 text-right text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-right" title={row.name}>{row.name}</div></td>
+                <td className="p-2 text-center font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
+                <td className="p-2 text-left text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-left" title={row.name}>{row.name}</div></td>
                 <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)}</td>
                 <td className={`p-2 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${amountColor}`}>{money(row.amount)}</td>
               </tr>
@@ -1611,7 +1612,7 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
               <span className={`font-bold ${amountColor}`}>{money(row.amount)}</span>
             </div>
             <div className="flex justify-between items-center text-slate-500 text-xs">
-              <span>บิล: <span className="font-mono">{row.docNo}</span></span>
+              <span className="whitespace-nowrap">บิล: <span className="font-mono">{row.docNo}</span></span>
               <span>น้ำหนัก: {money(row.qty)} กก.</span>
             </div>
           </div>
@@ -1718,9 +1719,9 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
                 <td className="p-2 text-slate-700">
                   <b>{row.name}</b> <span className="text-xs text-slate-400">({row.type})</span>
                 </td>
-                <td className="p-2 text-right font-mono text-emerald-600">{row.cashIn > 0 ? money(row.cashIn) : '-'}</td>
-                <td className="p-2 text-right font-mono text-red-600">{row.cashOut > 0 ? money(row.cashOut) : '-'}</td>
-                <td className={(row.cashIn - row.cashOut) >= 0 ? 'p-2 text-right font-mono font-bold text-blue-600' : 'p-2 text-right font-mono font-bold text-rose-600'}>
+                <td className="p-2 text-right font-mono tabular-nums text-emerald-600">{row.cashIn > 0 ? money(row.cashIn) : '-'}</td>
+                <td className="p-2 text-right font-mono tabular-nums text-red-600">{row.cashOut > 0 ? money(row.cashOut) : '-'}</td>
+                <td className={(row.cashIn - row.cashOut) >= 0 ? 'p-2 text-right font-mono font-bold tabular-nums text-blue-600' : 'p-2 text-right font-mono font-bold tabular-nums text-rose-600'}>
                   {money(row.cashIn - row.cashOut)}
                 </td>
               </tr>
@@ -2112,9 +2113,9 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
             <tr>
               <ResizableTableHead label="#" resizeProps={columnResize.getResizeHandleProps('rank', '#')} />
-              <ResizableTableHead label="รหัส" sortKey="code" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
-              <ResizableTableHead align="right" label="สินค้า" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'สินค้า')} />
-              <ResizableTableHead align="right" label="หมวด" sortKey="group" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} />
+              <ResizableTableHead align="center" label="รหัส" sortKey="code" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
+              <ResizableTableHead align="left" label="สินค้า" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'สินค้า')} />
+              <ResizableTableHead align="left" label="หมวด" sortKey="group" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} />
               <ResizableTableHead align="right" label="น้ำหนัก (กก.)" sortKey="qty" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} />
               <ResizableTableHead align="right" label="มูลค่า" sortKey="amount" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'มูลค่า')} />
             </tr>
@@ -2123,9 +2124,9 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
             {sortedRows.map((row, index) => (
               <tr key={`${row.id || 'prod'}-${index}`} className={`border-t border-slate-100 ${hover}`}>
                 <td className={`p-2 font-bold ${text} text-xs whitespace-nowrap`}>{index + 1}</td>
-                <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.code}</td>
-                <td className="p-2 text-right text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-right" title={row.name}>{row.name}</div></td>
-                <td className="p-2 text-right text-xs text-slate-500 min-w-0 overflow-hidden"><div className="truncate text-right" title={row.group}>{row.group}</div></td>
+                <td className="p-2 text-center font-mono text-xs text-slate-600 whitespace-nowrap">{row.code}</td>
+                <td className="p-2 text-left text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-left" title={row.name}>{row.name}</div></td>
+                <td className="p-2 text-left text-xs text-slate-500 min-w-0 overflow-hidden"><div className="truncate text-left" title={row.group}>{row.group}</div></td>
                 <td className="p-2 text-right text-xs text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)}</td>
                 <td className={`p-2 text-right font-bold ${text} text-xs whitespace-nowrap tabular-nums pl-4`}>{money(row.amount)}</td>
               </tr>

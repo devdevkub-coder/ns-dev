@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-code'
+import { isPurchaseBillActiveStatus } from '@/lib/purchase-bill-status'
 import { toNumber } from '@/lib/server/daily'
 import { syncPoBuyCostPoolEntries } from '@/lib/server/po-buy-cost-pool'
 
@@ -51,13 +52,21 @@ function calculateVatAmount(subtotal: number, hasVat: boolean, vatRatePercent: n
   return roundMoney(subtotal * vatRatePercent / 100)
 }
 
-function jsonNumber(value: unknown) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+function jsonNumber(value: unknown, field = 'ตัวเลข') {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error(`ข้อมูล ${field} ไม่ใช่ตัวเลขที่ถูกต้อง`)
+    return value
+  }
   if (typeof value === 'string') {
     const parsed = Number(value.replace(/,/g, ''))
-    return Number.isFinite(parsed) ? parsed : 0
+    if (!Number.isFinite(parsed)) throw new Error(`ข้อมูล ${field} ไม่ใช่ตัวเลขที่ถูกต้อง`)
+    return parsed
   }
-  return toNumber(value as { toNumber: () => number } | null | undefined)
+  if (value && typeof value === 'object' && 'toNumber' in value && typeof value.toNumber === 'function') {
+    const parsed = value.toNumber()
+    if (Number.isFinite(parsed)) return parsed
+  }
+  throw new Error(`ข้อมูล ${field} ขาดหายหรือไม่ใช่ตัวเลขที่ถูกต้อง`)
 }
 
 function canonicalItemProductIdKey(item: Record<string, unknown>, row: PoBuyRow) {
@@ -96,18 +105,20 @@ function normalizePoItems(row: PoBuyRow) {
       }))
   }
 
+  const productId = stringifyBusinessValue(row.product_id)
+  if (!productId) throw new Error(`PO Buy ${row.doc_no} ไม่มีสินค้าในข้อมูลเดิมสำหรับ reconcile`)
   return [{
     productId: '',
-    productIdKey: stringifyBusinessValue(row.product_id),
-    productName: '-',
-    qty: jsonNumber(row.qty),
+    productIdKey: productId,
+    productName: productId,
+    qty: jsonNumber(row.qty, `จำนวนของ PO Buy ${row.doc_no}`),
     raw: {
       productId: '',
-      productName: '-',
-      qty: jsonNumber(row.qty),
-      unitPrice: jsonNumber(row.unit_price),
+      productName: productId,
+      qty: jsonNumber(row.qty, `จำนวนของ PO Buy ${row.doc_no}`),
+      unitPrice: jsonNumber(row.unit_price, `ราคาของ PO Buy ${row.doc_no}`),
     },
-    unitPrice: jsonNumber(row.unit_price),
+    unitPrice: jsonNumber(row.unit_price, `ราคาของ PO Buy ${row.doc_no}`),
   }]
 }
 
@@ -160,25 +171,13 @@ async function insertStatusLogs(
   }>,
 ) {
   if (entries.length === 0) return
-  const poBuyIds = [...new Set(entries.map((entry) => entry.poBuyId))]
-  const existingCounts = await Promise.all(
-    poBuyIds.map(async (poBuyId) => [
-      poBuyId,
-      await tx.po_buy_status_logs.count({ where: { po_buy_id: poBuyId } }),
-    ] as const),
-  )
-  const nextSequenceByPoId = new Map(existingCounts)
-
   for (const entry of entries) {
-    const nextSequence = (nextSequenceByPoId.get(entry.poBuyId) ?? 0) + 1
-    nextSequenceByPoId.set(entry.poBuyId, nextSequence)
-
     await tx.po_buy_status_logs.create({
       data: {
         action: entry.action,
         created_at: entry.createdAt ?? new Date(),
         created_by: entry.createdBy ?? null,
-        event_key: `POBLOG-${entry.poBuyDocNo}-${String(nextSequence).padStart(4, '0')}`,
+        event_key: `POBLOG-${entry.poBuyDocNo}-${randomUUID()}`,
         from_status: entry.fromStatus ?? null,
         ...(entry.meta !== undefined ? { meta: entry.meta } : {}),
         note: entry.note ?? null,
@@ -314,21 +313,23 @@ export async function appendPoBuyAllocationLogs(
 export async function reconcilePoBuys(
   tx: DbClient,
   poBuyIds: bigint[],
-  options?: {
-    actor?: string | null
+  options: {
+    actor: string
     statusMetaByPoId?: Map<bigint, Prisma.InputJsonValue>
     statusNoteByPoId?: Map<bigint, string>
   },
 ) {
   const uniquePoIds = [...new Set(poBuyIds)]
   if (uniquePoIds.length === 0) return
+  const actor = options.actor.trim()
+  if (!actor) throw new Error('ไม่พบผู้ใช้งานสำหรับกระทบยอด PO Buy')
 
   const [poRows, allocations] = await Promise.all([
     tx.po_buys.findMany({ where: { id: { in: uniquePoIds } } }),
     tx.purchase_bill_po_allocations.findMany({
       include: {
         purchase_bill_items: { select: { product_id: true } },
-        purchase_bills: { select: { status: true } },
+        purchase_bills: { select: { doc_no: true, status: true } },
       },
       where: {
         allocation_status: 'active',
@@ -338,7 +339,7 @@ export async function reconcilePoBuys(
     }),
   ])
 
-  const activeAllocations = allocations.filter((allocation) => !String(allocation.purchase_bills.status ?? '').toLowerCase().includes('cancel'))
+  const activeAllocations = allocations.filter((allocation) => isPurchaseBillActiveStatus(allocation.purchase_bills.status, allocation.purchase_bills.doc_no))
   const allocationsByPo = new Map<bigint, { amount: number; qtyByProduct: Map<string, number> }>()
   activeAllocations.forEach((allocation) => {
     const current = allocationsByPo.get(allocation.po_buy_id) ?? { amount: 0, qtyByProduct: new Map<string, number>() }
@@ -366,7 +367,8 @@ export async function reconcilePoBuys(
     const totalQty = normalizedItems.reduce((sum, item) => sum + item.qty, 0)
     const subtotal = roundMoney(normalizedItems.reduce((sum, item) => sum + item.qty * item.unitPrice, 0))
     const hasVat = Boolean(row.has_vat)
-    const vatRatePercent = toNumber(row.vat_rate_percent) || 7
+    const vatRatePercent = hasVat ? jsonNumber(row.vat_rate_percent, `อัตรา VAT ของ PO Buy ${row.doc_no}`) : 0
+    if (vatRatePercent < 0 || vatRatePercent > 100) throw new Error(`อัตรา VAT ของ PO Buy ${row.doc_no} ไม่อยู่ในช่วงที่ถูกต้อง`)
     const vatAmount = calculateVatAmount(subtotal, hasVat, vatRatePercent)
     const totalAmount = roundMoney(subtotal + vatAmount)
     const allocated = allocationsByPo.get(row.id) ?? { amount: 0, qtyByProduct: new Map<string, number>() }
@@ -395,7 +397,7 @@ export async function reconcilePoBuys(
         subtotal,
         total_amount: totalAmount,
         updated_at: new Date(),
-        updated_by: options?.actor ?? row.updated_by ?? row.created_by ?? null,
+        updated_by: actor,
         vat_amount: vatAmount,
         vat_rate_percent: vatRatePercent,
         vat_type: hasVat ? 'EXCLUDE' : 'NONE',
@@ -404,7 +406,7 @@ export async function reconcilePoBuys(
       where: { id: row.id },
     })
     await syncPoBuyCostPoolEntries(tx, {
-      actor: options?.actor ?? row.updated_by ?? row.created_by ?? 'system',
+      actor,
       poBuyId: row.id,
     })
 
@@ -416,7 +418,7 @@ export async function reconcilePoBuys(
           reason: typeof meta === 'object' && meta !== null && 'reason' in meta ? String((meta as Record<string, unknown>).reason ?? '') : null,
           toStatus: nextStatus,
         }),
-        createdBy: options?.actor ?? row.updated_by ?? row.created_by ?? null,
+        createdBy: actor,
         fromStatus: currentStatus,
         meta: meta ?? {
           allocatedAmount: allocated.amount,

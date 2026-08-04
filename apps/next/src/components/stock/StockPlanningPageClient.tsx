@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
+import { nextSortState, sortRows, type SortState } from './stock-planning-sort'
 type Row = {
   date: string
   docNo: string
@@ -77,6 +78,8 @@ type MobileFilterDraft = {
 }
 
 type PlanningView = 'overview' | 'purchase' | 'calendar'
+type OverviewSortKey = 'buyComing' | 'finalBalance' | 'group' | 'poCount' | 'product' | 'sellPending' | 'shortage' | 'stockNow' | 'urgency'
+type PurchaseSortKey = 'buyBudget' | 'firstShortage' | 'potentialMargin' | 'product' | 'shortage' | 'stockNow'
 
 type PlanningColumnResize = ReturnType<typeof useResizableColumns<string>>
 
@@ -125,6 +128,23 @@ const urgencyRank: Record<PlanRow['urgency'], number> = {
   warning: 2,
   planning: 3,
   ok: 4,
+}
+
+function overviewSortValue(plan: ProductPlan, key: OverviewSortKey) {
+  if (key === 'product') return `${plan.productCode} ${plan.productName}`
+  if (key === 'group') return plan.group
+  if (key === 'poCount') return plan.rows.length
+  if (key === 'urgency') return urgencyRank[plan.urgency]
+  return plan[key]
+}
+
+function purchaseSortValue(plan: ProductPlan, key: PurchaseSortKey) {
+  if (key === 'product') return `${plan.productCode} ${plan.productName}`
+  if (key === 'firstShortage') {
+    const firstShortage = plan.rows.find((row) => !row.enough)
+    return `${firstShortage?.date ?? '9999-12-31'} ${firstShortage?.docNo ?? ''}`
+  }
+  return plan[key]
 }
 
 const numberValue = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0
@@ -190,6 +210,8 @@ export function StockPlanningPageClient() {
   const [mobileFilterDraft, setMobileFilterDraft] = useState<MobileFilterDraft | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(10)
+  const [overviewSort, setOverviewSort] = useState<SortState<OverviewSortKey>>({ direction: 'asc', key: null })
+  const [purchaseSort, setPurchaseSort] = useState<SortState<PurchaseSortKey>>({ direction: 'asc', key: null })
   const [exporting, setExporting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -401,12 +423,17 @@ export function StockPlanningPageClient() {
   const shortagePlans = useMemo(() => plans.filter((plan) => plan.shortage > 0.01), [plans])
   const shortageTotal = shortagePlans.reduce((sum, plan) => sum + plan.shortage, 0)
   const calendarRows = allRows.filter((row) => row.date.startsWith(month))
-  const activePlans = view === 'purchase' ? shortagePlans : plans
+  const sortedActivePlans = useMemo(
+    () => view === 'purchase'
+      ? sortRows(shortagePlans, purchaseSort, purchaseSortValue)
+      : sortRows(plans, overviewSort, overviewSortValue),
+    [overviewSort, plans, purchaseSort, shortagePlans, view],
+  )
   const activeColumnResize = view === 'purchase' ? purchaseColumnResize : overviewColumnResize
   const hasFilters = Boolean(group || product || (view === 'overview' && includeEmpty))
-  const pageCount = Math.max(1, Math.ceil(activePlans.length / pageSize))
+  const pageCount = Math.max(1, Math.ceil(sortedActivePlans.length / pageSize))
   const currentPage = Math.min(page, pageCount)
-  const pagedPlans = activePlans.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const pagedPlans = sortedActivePlans.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const initialLoading = loading && !data
   const canRenderPlanningData = initialLoading || Boolean(data)
 
@@ -430,6 +457,15 @@ export function StockPlanningPageClient() {
     setMobileFilterDraft(null)
   }
 
+  function changeOverviewSort(key: OverviewSortKey) {
+    setOverviewSort((current) => nextSortState(current, key))
+    setPage(1)
+  }
+
+  function changePurchaseSort(key: PurchaseSortKey) {
+    setPurchaseSort((current) => nextSortState(current, key))
+    setPage(1)
+  }
   async function exportExcel() {
     setExporting(true)
     setError('')
@@ -586,7 +622,7 @@ export function StockPlanningPageClient() {
             </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               <Button
-                className="gap-1.5 font-normal"
+                className="h-10 gap-2 font-normal"
                 disabled={exporting || initialLoading || !plans.length}
                 onClick={() => void exportExcel()}
                 size="sm"
@@ -636,7 +672,7 @@ export function StockPlanningPageClient() {
         {view === 'overview' ? (
           <div className="flex items-center justify-end border-t border-slate-100 pt-2">
             <Button
-              className="shrink-0 gap-1.5 font-normal"
+              className="h-10 shrink-0 gap-2 font-normal"
               disabled={exporting || initialLoading || !plans.length}
               onClick={() => void exportExcel()}
               size="sm"
@@ -734,7 +770,7 @@ export function StockPlanningPageClient() {
           pageCount={pageCount}
           pageSize={pageSize}
           showResetTable={activeColumnResize.hasCustomWidths || (view === 'overview' && detailColumnResize.hasCustomWidths)}
-          total={activePlans.length}
+          total={sortedActivePlans.length}
         />
       ) : null}
 
@@ -744,13 +780,21 @@ export function StockPlanningPageClient() {
           detailColumnResize={detailColumnResize}
           expanded={expanded}
           loading={initialLoading}
+          onSort={changeOverviewSort}
           plans={pagedPlans}
           setExpanded={setExpanded}
+          sortState={overviewSort}
         />
       ) : null}
 
       {canRenderPlanningData && view === 'purchase' ? (
-        <UrgentPurchasePanel columnResize={purchaseColumnResize} loading={initialLoading} plans={pagedPlans} />
+        <UrgentPurchasePanel
+          columnResize={purchaseColumnResize}
+          loading={initialLoading}
+          onSort={changePurchaseSort}
+          plans={pagedPlans}
+          sortState={purchaseSort}
+        />
       ) : null}
 
       {canRenderPlanningData && view === 'calendar' ? (
@@ -771,11 +815,15 @@ export function StockPlanningPageClient() {
 function UrgentPurchasePanel({
   columnResize,
   loading,
+  onSort,
   plans,
+  sortState,
 }: {
   columnResize: PlanningColumnResize
   loading: boolean
+  onSort: (key: PurchaseSortKey) => void
   plans: ProductPlan[]
+  sortState: SortState<PurchaseSortKey>
 }) {
   return (
     <section>
@@ -793,12 +841,12 @@ function UrgentPurchasePanel({
               </colgroup>
               <thead className="bg-slate-100">
                 <tr>
-                  <ResizableTableHead align="center" label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
-                  <ResizableTableHead align="right" label="Stock พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('stockNow', 'Stock พร้อมส่ง (กก.)')} />
-                  <ResizableTableHead align="right" label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} />
-                  <ResizableTableHead align="right" label="งบประมาณซื้อ (บาท)" resizeProps={columnResize.getResizeHandleProps('buyBudget', 'งบประมาณซื้อ (บาท)')} />
-                  <ResizableTableHead align="right" label="กำไรที่คาด (บาท)" resizeProps={columnResize.getResizeHandleProps('potentialMargin', 'กำไรที่คาด (บาท)')} />
-                  <ResizableTableHead align="center" label="PO Sell แรกที่ขาด" resizeProps={columnResize.getResizeHandleProps('firstShortage', 'PO Sell แรกที่ขาด')} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="left" direction={sortState.direction} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} sortKey="product" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="Stock พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('stockNow', 'Stock พร้อมส่ง (กก.)')} sortKey="stockNow" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} sortKey="shortage" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="งบประมาณซื้อ (บาท)" resizeProps={columnResize.getResizeHandleProps('buyBudget', 'งบประมาณซื้อ (บาท)')} sortKey="buyBudget" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="กำไรที่คาด (บาท)" resizeProps={columnResize.getResizeHandleProps('potentialMargin', 'กำไรที่คาด (บาท)')} sortKey="potentialMargin" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="center" direction={sortState.direction} label="PO Sell แรกที่ขาด" resizeProps={columnResize.getResizeHandleProps('firstShortage', 'PO Sell แรกที่ขาด')} sortKey="firstShortage" onSort={onSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -810,7 +858,7 @@ function UrgentPurchasePanel({
                   const firstShortage = plan.rows.find((row) => !row.enough)
                   return (
                     <tr key={plan.key}>
-                      <td className="overflow-hidden p-3 text-center align-top">
+                      <td className="overflow-hidden p-3 text-left align-top">
                         <div className="truncate whitespace-nowrap font-semibold text-slate-800" title={`${plan.productCode} - ${plan.productName}`}>{plan.productCode} - {plan.productName}</div>
                         <div className="mt-0.5 text-xs text-slate-500">{plan.group}</div>
                       </td>
@@ -830,7 +878,7 @@ function UrgentPurchasePanel({
                           ราคาขาย PO {plan.poSellPrice > 0 ? `${formatMoney(plan.poSellPrice)} บาท/กก.` : '-'}
                         </div>
                       </td>
-                      <td className="p-3 text-center align-top">
+                      <td className="whitespace-nowrap p-3 text-center align-top">
                         <div className="font-mono font-semibold text-slate-700">{firstShortage?.docNo ?? '-'}</div>
                         <div className="mt-0.5 font-mono text-xs text-slate-500">{firstShortage?.date ?? '-'}</div>
                         <div className="mt-0.5 max-w-[220px] truncate text-xs text-slate-600" title={firstShortage?.partnerName}>
@@ -894,8 +942,8 @@ function UrgentPurchasePanel({
                 </div>
               </div>
               <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-600">
-                <div className="font-mono font-semibold text-slate-800">{firstShortage?.docNo ?? '-'}</div>
-                <div className="mt-0.5">{firstShortage?.date ?? '-'} · {firstShortage?.partnerName ?? '-'}</div>
+                <div className="whitespace-nowrap font-mono font-semibold text-slate-800">{firstShortage?.docNo ?? '-'}</div>
+                <div className="mt-0.5"><span className="whitespace-nowrap">{firstShortage?.date ?? '-'}</span> · {firstShortage?.partnerName ?? '-'}</div>
               </div>
             </article>
           )
@@ -982,15 +1030,19 @@ function PlanDataSurface({
   detailColumnResize,
   expanded,
   loading,
+  onSort,
   plans,
   setExpanded,
+  sortState,
 }: {
   columnResize: PlanningColumnResize
   detailColumnResize: PlanningColumnResize
   expanded: string
   loading: boolean
+  onSort: (key: OverviewSortKey) => void
   plans: ProductPlan[]
   setExpanded: (key: string) => void
+  sortState: SortState<OverviewSortKey>
 }) {
   return (
     <section className="space-y-3">
@@ -1008,15 +1060,15 @@ function PlanDataSurface({
               </colgroup>
               <thead className="bg-slate-100">
                 <tr>
-                  <ResizableTableHead align="center" label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
-                  <ResizableTableHead align="center" label="หมวด" resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} />
-                  <ResizableTableHead align="right" label="Stock พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('stockNow', 'Stock พร้อมส่ง (กก.)')} />
-                  <ResizableTableHead align="right" label="PO Buy กำลังเข้า (กก.)" resizeProps={columnResize.getResizeHandleProps('buyComing', 'PO Buy กำลังเข้า (กก.)')} />
-                  <ResizableTableHead align="right" label="PO Sell ค้างส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('sellPending', 'PO Sell ค้างส่ง (กก.)')} />
-                  <ResizableTableHead align="right" label="สมดุลสุดท้าย (กก.)" resizeProps={columnResize.getResizeHandleProps('finalBalance', 'สมดุลสุดท้าย (กก.)')} />
-                  <ResizableTableHead align="right" label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} />
-                  <ResizableTableHead align="right" label="จำนวน PO" resizeProps={columnResize.getResizeHandleProps('poCount', 'จำนวน PO')} />
-                  <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('urgency', 'สถานะ')} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="left" direction={sortState.direction} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} sortKey="product" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="left" direction={sortState.direction} label="หมวด" resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} sortKey="group" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="Stock พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('stockNow', 'Stock พร้อมส่ง (กก.)')} sortKey="stockNow" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="PO Buy กำลังเข้า (กก.)" resizeProps={columnResize.getResizeHandleProps('buyComing', 'PO Buy กำลังเข้า (กก.)')} sortKey="buyComing" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="PO Sell ค้างส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('sellPending', 'PO Sell ค้างส่ง (กก.)')} sortKey="sellPending" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="สมดุลสุดท้าย (กก.)" resizeProps={columnResize.getResizeHandleProps('finalBalance', 'สมดุลสุดท้าย (กก.)')} sortKey="finalBalance" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} sortKey="shortage" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="right" direction={sortState.direction} label="จำนวน PO" resizeProps={columnResize.getResizeHandleProps('poCount', 'จำนวน PO')} sortKey="poCount" onSort={onSort} />
+                  <ResizableTableHead activeSortKey={sortState.key ?? undefined} align="center" direction={sortState.direction} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('urgency', 'สถานะ')} sortKey="urgency" onSort={onSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -1030,11 +1082,11 @@ function PlanDataSurface({
                   return (
                     <Fragment key={plan.key}>
                       <tr className={plan.shortage > 0 ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-slate-50'}>
-                        <td className="overflow-hidden p-3 text-center">
+                        <td className="overflow-hidden p-3 text-left">
                           <button
                             aria-controls={detailId}
                             aria-expanded={isExpanded}
-                            className="inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-sm font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            className="inline-flex w-full min-w-0 items-center justify-start gap-2 rounded-sm font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                             onClick={() => setExpanded(isExpanded ? '' : plan.key)}
                             type="button"
                           >
@@ -1044,7 +1096,7 @@ function PlanDataSurface({
                             <span className="truncate" title={`${plan.productCode} - ${plan.productName}`}>{plan.productCode} - {plan.productName}</span>
                           </button>
                         </td>
-                        <td className="p-3 text-center">
+                        <td className="p-3 text-left">
                           <span className="rounded-md bg-slate-100 px-2 py-0.5 text-sm text-slate-700">{plan.group}</span>
                         </td>
                         <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-slate-700">{formatMoney(plan.stockNow)}</td>
@@ -1168,7 +1220,7 @@ function PlanDetailDesktopTable({
           <thead className="bg-slate-100">
             <tr>
               <ResizableTableHead align="center" label="PO Sell" resizeProps={columnResize.getResizeHandleProps('poSell', 'PO Sell')} />
-              <ResizableTableHead align="center" label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+              <ResizableTableHead align="left" label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
               <ResizableTableHead align="center" label="วันที่กำหนดส่ง" resizeProps={columnResize.getResizeHandleProps('deliveryDate', 'วันที่กำหนดส่ง')} />
               <ResizableTableHead align="center" label="ระยะเวลา" resizeProps={columnResize.getResizeHandleProps('duration', 'ระยะเวลา')} />
               <ResizableTableHead align="right" label="ต้องส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'ต้องส่ง (กก.)')} />
@@ -1180,8 +1232,8 @@ function PlanDetailDesktopTable({
           <tbody className="divide-y divide-slate-200">
             {rows.length ? rows.map((row) => (
               <tr className={row.shortage ? 'bg-red-50/60' : ''} key={`${row.docNo}-${row.date}`}>
-                <td className="p-3 text-center font-mono font-bold">{row.docNo}</td>
-                <td className="overflow-hidden p-3 text-center"><div className="truncate" title={row.partnerName}>{row.partnerName}</div></td>
+                <td className="whitespace-nowrap p-3 text-center font-mono font-bold">{row.docNo}</td>
+                <td className="overflow-hidden p-3 text-left"><div className="truncate" title={row.partnerName}>{row.partnerName}</div></td>
                 <td className="whitespace-nowrap p-3 text-center font-mono">{row.date || '-'}</td>
                 <td className="whitespace-nowrap p-3 text-center">
                   {row.daysUntil < 0 ? `เลย ${Math.abs(row.daysUntil)} วัน` : row.daysUntil === 0 ? 'วันนี้' : `อีก ${row.daysUntil} วัน`}
@@ -1407,8 +1459,8 @@ function CalendarView({
                 <thead className="bg-slate-100">
                   <tr>
                     <ResizableTableHead align="center" label="PO Sell" resizeProps={columnResize.getResizeHandleProps('poSell', 'PO Sell')} />
-                    <ResizableTableHead align="center" label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
-                    <ResizableTableHead align="center" label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+                    <ResizableTableHead align="left" label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
+                    <ResizableTableHead align="left" label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
                     <ResizableTableHead align="right" label="ต้องส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'ต้องส่ง (กก.)')} />
                     <ResizableTableHead align="right" label="มี ณ วันส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('availableQty', 'มี ณ วันส่ง (กก.)')} />
                     <ResizableTableHead align="right" label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} />
@@ -1418,9 +1470,9 @@ function CalendarView({
                 <tbody className="divide-y divide-slate-200">
                   {selectedRows.length ? selectedRows.map((row) => (
                     <tr key={`${row.docNo}-${row.productId}`}>
-                      <td className="p-3 text-center font-mono font-semibold">{row.docNo}</td>
-                      <td className="overflow-hidden p-3 text-center"><div className="truncate" title={`${row.productCode} - ${row.productName}`}>{row.productCode} - {row.productName}</div></td>
-                      <td className="overflow-hidden p-3 text-center"><div className="truncate" title={row.partnerName}>{row.partnerName}</div></td>
+                      <td className="whitespace-nowrap p-3 text-center font-mono font-semibold">{row.docNo}</td>
+                      <td className="overflow-hidden p-3 text-left"><div className="truncate" title={`${row.productCode} - ${row.productName}`}>{row.productCode} - {row.productName}</div></td>
+                      <td className="overflow-hidden p-3 text-left"><div className="truncate" title={row.partnerName}>{row.partnerName}</div></td>
                       <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-700">{formatMoney(row.remainingQty)}</td>
                       <td className="whitespace-nowrap p-3 text-right tabular-nums">{formatMoney(row.before)}</td>
                       <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${row.shortage ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.shortage)}</td>
@@ -1444,7 +1496,7 @@ function CalendarView({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-mono font-bold text-slate-800">{row.docNo}</div>
+                    <div className="whitespace-nowrap font-mono font-bold text-slate-800">{row.docNo}</div>
                     <div className="mt-0.5 break-words text-xs text-slate-500">{row.productCode} - {row.productName}</div>
                   </div>
                   <StatusIndicator value={row.urgency} />

@@ -50,16 +50,16 @@ const issueLabels: Record<string, { label: string; note: string }> = {
     note: 'ใบสั่งผลิตที่จบงานแล้วต้องไม่มี WIP คงเหลือ',
   },
   input_ledger_mismatch: {
-    label: 'PI ไม่สมดุล',
-    note: 'PI ต้องมี source-out และ WIP-in เท่ากันทั้งจำนวนและมูลค่า',
+    label: 'เบิกวัตถุดิบไม่สมดุล',
+    note: 'event เบิกวัตถุดิบต้องมี source-out และ WIP-in เท่ากันทั้งจำนวนและมูลค่า',
   },
   missing_reversal_ledger: {
     label: 'Reversal ขาด ledger',
-    note: 'รายการ reverse ต้องมี ledger ฝั่งกลับครบ',
+    note: 'รายการชดเชยต้องมี ledger ฝั่งกลับครบ',
   },
   output_ledger_mismatch: {
-    label: 'PO2 ไม่สมดุล',
-    note: 'PO2 ต้องตัด WIP เท่ากับ FG/RM ที่รับรวมกับ loss',
+    label: 'รับผลผลิตไม่สมดุล',
+    note: 'event รับผลผลิตต้องตัด WIP เท่ากับ FG/RM ที่รับรวมกับ loss',
   },
   open_order_movement_mismatch: {
     label: 'Open order movement ไม่ตรง',
@@ -68,6 +68,18 @@ const issueLabels: Record<string, { label: string; note: string }> = {
 }
 
 const refTypeOrder = ['PI', 'PI-REV', 'PO2', 'PO2-REV']
+
+const refTypeLabels: Record<string, string> = {
+  PI: 'เบิกวัตถุดิบ',
+  'PI-REV': 'ย้อนรายการเบิก',
+  'PI-RETURN': 'คืนวัตถุดิบ',
+  PO2: 'รับผลผลิต',
+  'PO2-REV': 'ยกเลิกรับผลผลิต',
+}
+
+function refTypeLabel(refType: string) {
+  return refTypeLabels[refType] ?? refType
+}
 
 function issueLabel(issue: string) {
   return issueLabels[issue]?.label ?? issue
@@ -220,7 +232,7 @@ export function ProductionReconciliationPageClient() {
               key={refType}
               emoji={count > 0 ? '⚠️' : '📄'}
               iconBg={count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}
-              label={refType}
+              label={refTypeLabel(refType)}
               tone={count > 0 ? 'amber' : 'slate'}
               value={String(count)}
             />
@@ -351,9 +363,9 @@ export function ProductionReconciliationPageClient() {
             <thead className="bg-slate-100 border-b border-slate-100 text-left text-slate-500">
               <tr>
                 <ResizableTableHead label="ประเภท issue" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="issue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('issue', 'ประเภท issue')} />
-                <ResizableTableHead label="Ref Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refType', 'Ref Type')} />
-                <ResizableTableHead label="Order No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="orderDocNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('orderDocNo', 'Order No')} />
-                <ResizableTableHead label="Doc No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'Doc No')} />
+                <ResizableTableHead align="center" label="Ref Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refType', 'Ref Type')} />
+                <ResizableTableHead align="center" label="Order No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="orderDocNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('orderDocNo', 'Order No')} />
+                <ResizableTableHead align="center" label="Doc No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'Doc No')} />
                 <ResizableTableHead align="right" label="Expected Qty" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="expectedQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedQty', 'Expected Qty')} />
                 <ResizableTableHead align="right" label="Actual Qty" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="actualQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('actualQty', 'Actual Qty')} />
                 <ResizableTableHead align="right" label="Expected Value" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="expectedValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedValue', 'Expected Value')} />
@@ -369,9 +381,9 @@ export function ProductionReconciliationPageClient() {
                     <div className="font-semibold text-slate-900">{issueLabel(issue.issue)}</div>
                     <div className="mt-0.5 text-xs leading-4 text-slate-500">{issueNote(issue.issue)}</div>
                   </td>
-                  <td className="px-3 py-2 align-top font-semibold text-slate-700 overflow-hidden truncate">{issue.refType || '-'}</td>
-                  <td className="px-3 py-2 align-top font-semibold text-slate-900 overflow-hidden truncate">{issue.orderDocNo || '-'}</td>
-                  <td className="px-3 py-2 align-top font-mono text-slate-700 overflow-hidden truncate">{issue.docNo || '-'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-center align-top font-semibold text-slate-700 overflow-hidden truncate">{issue.refType ? refTypeLabel(issue.refType) : '-'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono font-semibold text-slate-900 overflow-hidden truncate">{issue.orderDocNo || '-'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono text-slate-700 overflow-hidden truncate">{issue.docNo || '-'}</td>
                   <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(issue.expectedQty)}</td>
                   <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(issue.actualQty)}</td>
                   <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(issue.expectedValue)}</td>
@@ -392,16 +404,16 @@ export function ProductionReconciliationPageClient() {
             <div key={`${issue.issue}-${issue.refType}-${issue.docNo}-${index}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 animate-fade-in">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">{issue.refType || '-'}</span>
+                  <span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">{issue.refType ? refTypeLabel(issue.refType) : '-'}</span>
                   <div className="mt-1 font-bold text-slate-900 text-base leading-snug">{issueLabel(issue.issue)}</div>
                 </div>
                 {issue.orderDocNo ? (
-                  <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 shrink-0">{issue.orderDocNo}</span>
+                  <span className="shrink-0 whitespace-nowrap rounded border border-slate-100 bg-slate-50 px-2 py-0.5 font-mono text-xs font-semibold text-slate-600">{issue.orderDocNo}</span>
                 ) : null}
               </div>
               <div className="text-sm text-slate-500 leading-normal">{issueNote(issue.issue)}</div>
               {issue.docNo ? (
-                <div className="text-sm font-mono text-slate-500">
+                <div className="whitespace-nowrap font-mono text-sm text-slate-500">
                   <span className="text-slate-400">Doc No: </span>{issue.docNo}
                 </div>
               ) : null}

@@ -4,6 +4,43 @@ import { toNumber } from '@/lib/server/daily'
 
 type DbClient = Prisma.TransactionClient
 
+export const SALES_BILL_STATUS = {
+  CANCELLED: 'cancelled',
+  PARTIAL: 'partial',
+  RECEIVED: 'received',
+  UNRECEIVED: 'unreceived',
+} as const
+
+export type SalesBillStatus = typeof SALES_BILL_STATUS[keyof typeof SALES_BILL_STATUS]
+
+const SALES_BILL_STATUS_VALUES = new Set<string>(Object.values(SALES_BILL_STATUS))
+
+export function requireSalesBillStatus(status: string | null | undefined, docNo: string): SalesBillStatus {
+  if (!status || !SALES_BILL_STATUS_VALUES.has(status)) {
+    throw new Error(`Sales Bill ${docNo} มีสถานะไม่ถูกต้อง`)
+  }
+  return status as SalesBillStatus
+}
+
+export function isSalesBillCancelledStatus(status: string | null | undefined, docNo: string) {
+  return requireSalesBillStatus(status, docNo) === SALES_BILL_STATUS.CANCELLED
+}
+
+export function isSalesBillActiveStatus(status: string | null | undefined, docNo: string) {
+  return !isSalesBillCancelledStatus(status, docNo)
+}
+
+export function salesBillStatusText(status: string | null | undefined) {
+  const canonical = requireSalesBillStatus(status, 'status')
+  const labels: Record<SalesBillStatus, string> = {
+    [SALES_BILL_STATUS.UNRECEIVED]: 'ยังไม่รับเงิน',
+    [SALES_BILL_STATUS.PARTIAL]: 'รับเงินบางส่วน',
+    [SALES_BILL_STATUS.RECEIVED]: 'รับเงินครบแล้ว',
+    [SALES_BILL_STATUS.CANCELLED]: 'ยกเลิก',
+  }
+  return labels[canonical]
+}
+
 export const SALES_BILL_STATUS_ACTION = {
   ALLOCATION_CORRECTED: 'allocation_corrected',
   CANCELLED: 'cancelled',

@@ -1,9 +1,11 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { requireBusinessCode } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { isInternalBankStatementTransfer } from '@/lib/server/bank-statement-cash-flow'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveAccounts, listActiveBranches, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const PL_EXCLUDED_STATUSES = ['cancelled', 'canceled', 'void', 'voided', 'reversed', 'ยกเลิก']
@@ -179,23 +181,21 @@ function branchRow(branch: { code?: string | null; id: string | bigint; name: st
   return { code, id: code, name: branch.name }
 }
 
-function cachedMoney(value: string | null) {
-  return value == null ? 0 : Number(value)
-}
-
 function bankRef(row: BankRow) {
   return row.ref_no || row.ref_type || `${row.accounts?.account_no ?? row.accounts?.name ?? 'BANK'}-${dateOnly(row.date)}`
 }
 
 function isInternalTransfer(row: BankRow) {
-  const text = [row.ref_type, row.cash_flow_category, row.description, row.desc, row.note].filter(Boolean).join(' ').toLowerCase()
-  return text.includes('transfer') || text.includes('internal') || text.includes('โอนระหว่าง')
+  return isInternalBankStatementTransfer(row)
 }
 
 function normalizeCashFlowCategory(row: BankRow): CashFlowCategoryKey {
+  if (isInternalTransfer(row)) return 'EXCLUDE_INTERNAL'
   const explicit = row.cash_flow_category?.trim().toUpperCase()
   if (explicit && explicit in CASHFLOW_CATEGORIES) return explicit as CashFlowCategoryKey
 
+  // Retain the established classifier for existing THB rows. New FCD services
+  // persist their category/source event explicitly and never enter this branch.
   const refType = row.ref_type?.trim().toUpperCase() ?? ''
   if (refType === 'PMT') return 'OP_OUT_SUPPLIER'
   if (refType === 'RCP') return 'OP_IN_CUST_RECEIPT'
@@ -204,12 +204,8 @@ function normalizeCashFlowCategory(row: BankRow): CashFlowCategoryKey {
   if (refType === 'LOAN-PAY') return 'FIN_OUT_LOAN_PRIN'
   if (refType === 'LOAN-IN') return 'FIN_IN_LOAN'
 
-  const inflow = toNumber(row.amount_in)
-  const outflow = toNumber(row.amount_out)
-  const signedAmount = inflow - outflow
+  const signedAmount = toNumber(row.amount_in) - toNumber(row.amount_out)
   const text = [row.cash_flow_category, row.ref_type, row.description, row.desc, row.note].filter(Boolean).join(' ').toLowerCase()
-
-  if (isInternalTransfer(row)) return 'EXCLUDE_INTERNAL'
   if (text.includes('interest') || text.includes('ดอกเบี้ย')) return 'OP_OUT_INTEREST'
   if (text.includes('salary') || text.includes('wage') || text.includes('เงินเดือน') || text.includes('ค่าแรง')) return 'OP_OUT_SALARY'
   if (text.includes('tax') || text.includes('vat') || text.includes('wht') || text.includes('ภาษี')) return 'OP_OUT_TAX'
@@ -259,20 +255,6 @@ function sumHistoricalCashFlow(rows: Prisma.historical_monthlyGetPayload<Record<
   return rows
     .filter((row) => row.metric_type === 'cashflow' && row.category_id === categoryId && historicalMonthOverlaps(row, from, to))
     .reduce((sum, row) => sum + toNumber(row.amount), 0)
-}
-
-function computeCashBalance(accounts: Array<{ id: bigint; opening_balance: Prisma.Decimal | number | null }>, rows: BankRow[]) {
-  const balances = new Map<bigint, number>()
-  accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
-  rows.forEach((row) => {
-    if (!row.account_id) return
-    const previous = balances.get(row.account_id) ?? 0
-    const next = row.balance === null || row.balance === undefined
-      ? previous + toNumber(row.amount_in) - toNumber(row.amount_out)
-      : toNumber(row.balance)
-    balances.set(row.account_id, next)
-  })
-  return Array.from(balances.values()).reduce((sum, value) => sum + value, 0)
 }
 
 async function loadActiveBranchRefs(allowedBranchCodes: string[] | null = null) {
@@ -368,12 +350,10 @@ async function loadPlInputs(filter: PeriodFilter) {
         ...relatedBranchWhere('accounts', scope.branchIds),
       },
     }),
-    scope.constrained
-      ? Promise.resolve([])
-      : prisma.fx_gain_loss.findMany({
-          orderBy: [{ date: 'asc' }],
-          where: { date: dateWhere },
-        }),
+    prisma.fx_gain_loss.findMany({
+      orderBy: [{ date: 'asc' }],
+      where: { ...branchWhere, date: dateWhere },
+    }),
     prisma.asset_disposals.findMany({
       include: { assets: { select: { branch_id: true, code: true, name: true } } },
       orderBy: [{ disposal_date: 'asc' }, { disposal_no: 'asc' }],
@@ -591,9 +571,9 @@ export async function buildPlStatement(filter: PeriodFilter) {
   const fxNet = sumDetails(fxDetails)
   const assetDisposalNet = sumDetails(assetDisposalDetails)
   const grossProfit = revenue - cogs
-  const operatingExpenses = expensesTotal + depreciation
+  const operatingExpenses = expensesTotal + depreciation - fxNet
   const operatingProfit = grossProfit - operatingExpenses
-  const netProfitBeforeTax = operatingProfit - interest + fxNet + assetDisposalNet
+  const netProfitBeforeTax = operatingProfit - interest + assetDisposalNet
   const stockBills = salesBills.filter((bill) => bill.transaction_mode !== 'TRADING')
   const tradingBills = salesBills.filter((bill) => bill.transaction_mode === 'TRADING')
   const stockRevenue = stockBills.reduce((sum, bill) => sum + billRevenueAmount(bill), 0)
@@ -604,8 +584,8 @@ export async function buildPlStatement(filter: PeriodFilter) {
   const tradingCogsDeal = tradingBills.reduce((sum, bill) => sum + (billCostMap.get(String(bill.id))?.deal ?? billWacCostAmount(bill)), 0)
   const grossProfitWac = revenue - cogsWac
   const grossProfitDeal = revenue - cogsDeal
-  const netProfitBeforeTaxWac = grossProfitWac - operatingExpenses - interest + fxNet + assetDisposalNet
-  const netProfitBeforeTaxDeal = grossProfitDeal - operatingExpenses - interest + fxNet + assetDisposalNet
+  const netProfitBeforeTaxWac = grossProfitWac - operatingExpenses - interest + assetDisposalNet
+  const netProfitBeforeTaxDeal = grossProfitDeal - operatingExpenses - interest + assetDisposalNet
   const dualReplacedCount = Array.from(billCostMap.values()).filter((row) => row.replaced).length
   const historicalBaseline = groupHistoricalBaseline(historicalMonthly)
 
@@ -624,10 +604,10 @@ export async function buildPlStatement(filter: PeriodFilter) {
       moneyLine('กำไรขั้นต้น', 'กำไรขั้นต้น (Gross Profit)', grossProfit, undefined, 'total'),
       moneyLine('ค่าใช้จ่ายดำเนินงาน', 'ค่าใช้จ่ายดำเนินงาน (Operating Expenses)', -expensesTotal, expenseDetails, 'bad'),
       moneyLine('ค่าใช้จ่ายดำเนินงาน', 'ค่าเสื่อมราคา (Depreciation Expense)', -depreciation, depreciationDetails, 'bad', 1),
+      moneyLine('ค่าใช้จ่ายดำเนินงาน', 'กำไร/(ขาดทุน) อัตราแลกเปลี่ยนที่รับรู้แล้ว', fxNet, fxDetails, fxNet >= 0 ? 'good' : 'bad', 1),
       moneyLine('ค่าใช้จ่ายดำเนินงาน', 'รวมค่าใช้จ่ายดำเนินงาน', -operatingExpenses, undefined, 'total'),
       moneyLine('กำไรจากการดำเนินงาน', 'กำไรจากการดำเนินงาน (Operating Profit)', operatingProfit, undefined, 'total'),
       moneyLine('ต้นทุนทางการเงิน', 'ดอกเบี้ยจ่าย (Interest Expense)', -interest, interestDetails, 'bad'),
-      moneyLine('ต้นทุนทางการเงิน', 'กำไร/(ขาดทุน) อัตราแลกเปลี่ยนที่รับรู้แล้ว', fxNet, fxDetails, fxNet >= 0 ? 'good' : 'bad'),
       moneyLine('รายได้และค่าใช้จ่ายอื่น', 'กำไร/(ขาดทุน) จากการจำหน่ายทรัพย์สิน', assetDisposalNet, assetDisposalDetails, assetDisposalNet >= 0 ? 'good' : 'bad'),
       moneyLine('กำไรก่อนภาษี', 'กำไรก่อนภาษี (Profit Before Tax)', netProfitBeforeTax, undefined, 'total'),
     ],
@@ -641,7 +621,6 @@ export async function buildPlStatement(filter: PeriodFilter) {
       'ค่าเสื่อมราคานับเฉพาะรายการ posted ที่ยังไม่ถูก reverse',
       'กำไร/ขาดทุนจากจำหน่ายทรัพย์สินนับเฉพาะรายการ approved ที่ยังไม่ถูก reverse ตาม disposal_date',
       'Stock/Trading split เป็นข้อมูลประกอบเฉพาะรายได้และต้นทุนขายจากชุดข้อมูลเต็ม ไม่ใช่ตัวกรองกำไรก่อนภาษี',
-      ...(scope.constrained ? ['ไม่รวมกำไร/ขาดทุนอัตราแลกเปลี่ยนเมื่อจำกัดขอบเขตสาขา เพราะ fx_gain_loss ยังไม่มีมิติสาขา'] : []),
       ...(scope.constrained ? ['ไม่แสดง Historical Baseline เมื่อจำกัดขอบเขตสาขา เพราะ historical_monthly ยังไม่มีมิติสาขา'] : []),
     ]),
     split: {
@@ -678,15 +657,8 @@ async function loadBalanceSheetInputs(filter: AsOfFilter) {
   const asOf = endOfDay(filter.asOf)
   const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
   const branchWhere = branch?.id != null ? { branch_id: branch.id } : {}
-  const accounts = (await listActiveAccounts()).filter((account: AccountReferenceRecord) => branch?.id == null || account.branchId === branch.id)
   return Promise.all([
-    Promise.resolve(accounts),
-    prisma.bank_statement.findMany({
-      include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
-      orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-      take: 30000,
-      where: { date: { lte: asOf }, ...(branch?.id != null ? { accounts: { branch_id: branch.id } } : {}) },
-    }),
+    buildFinanceCashPosition({ asOf, branchIds: branch?.id == null ? null : [branch.id] }),
     prisma.sales_bills.findMany({
       include: { branches: { select: { code: true, name: true } }, customers: { select: { name: true } } },
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
@@ -721,27 +693,17 @@ async function loadBalanceSheetInputs(filter: AsOfFilter) {
 }
 
 export async function buildBalanceSheet(filter: AsOfFilter) {
-  const [accountsRaw, bankRowsRaw, salesBillsRaw, purchaseBillsRaw, stockRows, assetsRaw, loans, equity, branches] = await loadBalanceSheetInputs(filter)
-  const accounts = accountsRaw as AccountReferenceRecord[]
-  const bankRows = bankRowsRaw as BankRow[]
+  const [cashPosition, salesBillsRaw, purchaseBillsRaw, stockRows, assetsRaw, loans, equity, branches] = await loadBalanceSheetInputs(filter)
   const salesBills = salesBillsRaw as SalesBillRow[]
   const purchaseBills = purchaseBillsRaw as PurchaseBillRow[]
   const assets = assetsRaw as AssetRow[]
-  const balances = new Map<bigint, number>()
-  accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
-  bankRows.forEach((row: BankRow) => {
-    if (!row.account_id) return
-    const previous = balances.get(row.account_id) ?? 0
-    const next = row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance)
-    balances.set(row.account_id, next)
-  })
-  const cashDetails = accounts.map((account: AccountReferenceRecord) => ({
-    amount: balances.get(account.id) ?? 0,
+  const cashDetails = cashPosition.accountBalances.map((account) => ({
+    amount: account.balance,
     date: dateOnly(filter.asOf),
-    description: [account.bankName ?? account.bank, account.name, account.accountNo].filter(Boolean).join(' · '),
+    description: [account.bankName, account.name, account.accountNo].filter(Boolean).join(' · '),
     refNo: account.accountNo || account.name,
   }))
-  const cash = sumDetails(cashDetails)
+  const cash = cashPosition.cashAndBank
   const arDetails = salesBills.map((bill: SalesBillRow) => ({
     amount: Math.max(0, toNumber(bill.receivable_balance) || (toNumber(bill.total_amount) - toNumber(bill.received_amount))),
     date: dateOnly(bill.date),
@@ -858,16 +820,9 @@ export async function buildCashFlowStatement(filter: PeriodFilter) {
   const beginningDate = new Date(filter.from)
   beginningDate.setDate(beginningDate.getDate() - 1)
   const beginningEnd = endOfDay(beginningDate)
-  const [accountsRaw, beforeRowsRaw, periodRowsRaw, loanPaymentsRaw, historicalMonthly] = await Promise.all([
-    listActiveAccounts().then((rows) => rows
-      .filter((row) => scope.branchIds === null || (row.branchId != null && scope.branchIds.includes(row.branchId)))
-      .map((row) => ({ id: row.id, opening_balance: row.openingBalance == null ? null : Number(row.openingBalance) }))),
-    prisma.bank_statement.findMany({
-      include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
-      orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-      take: 30000,
-      where: { ...accountWhere, date: { lte: beginningEnd } },
-    }),
+  const [openingCashPosition, endingCashPosition, periodRowsRaw, loanPaymentsRaw, historicalMonthly] = await Promise.all([
+    buildFinanceCashPosition({ asOf: beginningEnd, branchIds: scope.branchIds }),
+    buildFinanceCashPosition({ asOf: toEnd, branchIds: scope.branchIds }),
     prisma.bank_statement.findMany({
       include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
@@ -886,12 +841,10 @@ export async function buildCashFlowStatement(filter: PeriodFilter) {
           take: 2000,
         }),
   ])
-  const accounts = accountsRaw
-  const beforeRows = beforeRowsRaw as BankRow[]
   const periodRows = periodRowsRaw as BankRow[]
   type PeriodLoanPayment = (typeof loanPaymentsRaw)[number]
-  const openingCash = computeCashBalance(accounts, beforeRows)
-  const endingCash = computeCashBalance(accounts, [...beforeRows, ...periodRows])
+  const openingCash = openingCashPosition.cashAndBank
+  const endingCash = endingCashPosition.cashAndBank
   const groups: Record<CashFlowGroupKey, CashFlowDetailRow[]> = {
     EX: [],
     FIN_IN: [],

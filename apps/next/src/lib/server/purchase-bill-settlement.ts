@@ -1,5 +1,6 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { calculatePurchaseBillPostAdvanceTotals } from '@/lib/purchase-advance'
+import { PURCHASE_BILL_STATUS } from '@/lib/purchase-bill-status'
 import {
   appendSupplierAdvanceStatusLog,
   supplierAdvanceStatusActionForStatus,
@@ -89,7 +90,11 @@ export async function calculatePurchaseBillSettlement(tx: PurchaseBillSettlement
   if (paidAmount - totalAmount > 0.01) throw new Error('ยอดชำระรวมเกินยอดค้างของบิลซื้อ')
 
   const payableBalance = Math.max(0, roundMoney(totalAmount - paidAmount))
-  const status = payableBalance <= 0.01 ? 'paid' : paidAmount <= 0 ? 'unpaid' : 'partial'
+  const status = payableBalance <= 0.01
+    ? PURCHASE_BILL_STATUS.PAID
+    : paidAmount <= 0
+      ? PURCHASE_BILL_STATUS.UNPAID
+      : PURCHASE_BILL_STATUS.PARTIAL
 
   return {
     advanceAllocatedAmount: advanceBaseAllocatedAmount,

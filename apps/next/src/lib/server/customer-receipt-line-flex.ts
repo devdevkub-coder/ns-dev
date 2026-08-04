@@ -17,10 +17,17 @@ export type CustomerReceiptLineFlexData = {
   discount: number
   documentNo: string
   fee: number
-  netCashIn: number
+  bookAmountThb: number
+  bookNetCashInThb: number
+  foreignAudit?: {
+    carryingBookAmountThb: number
+    currencyCode: string
+    fxRate: number
+    nativeAmount: number
+    settlementBookAmountThb: number
+  }
   notes?: string
   paymentMethod: string
-  receivedAmount: number
   status: string
   withholdingTax: number
 }
@@ -42,6 +49,10 @@ function number(value: number) {
 
 function money(value: number) {
   return `฿${number(value)}`
+}
+
+function fxRate(value: number) {
+  return new Intl.NumberFormat('th-TH', { maximumFractionDigits: 3, minimumFractionDigits: 3 }).format(Number.isFinite(value) ? value : 0)
 }
 
 function date(value: string) {
@@ -183,15 +194,16 @@ export function buildCustomerReceiptLineFlexMessage(input: CustomerReceiptLineFl
     .map((allocation) => allocationRow(allocation, input.allocations.length > 1))
   const accountRows: Array<ReturnType<typeof accountRow> | ReturnType<typeof remainingRow>> = shownAccounts
     .map((account) => accountRow(account, input.companyAccounts.length > 1))
-  const allocatedArTotal = input.receivedAmount + input.discount + input.withholdingTax
+  const allocatedArTotal = input.bookAmountThb + input.discount + input.withholdingTax
   const notes = text(input.notes, '')
   const summaryRows = [
-    ...(!sameMoney(input.receivedAmount, input.netCashIn) ? [detailRow('ยอดรับ', money(input.receivedAmount), true)] : []),
+    ...(!sameMoney(input.bookAmountThb, input.bookNetCashInThb) ? [detailRow('ยอดรับ (THB)', money(input.bookAmountThb), true)] : []),
     ...(hasMoney(input.discount) ? [detailRow('ส่วนลด', money(input.discount))] : []),
     ...(hasMoney(input.withholdingTax) ? [detailRow('ภาษีหัก ณ ที่จ่าย', money(input.withholdingTax))] : []),
-    ...(!sameMoney(allocatedArTotal, input.receivedAmount) ? [detailRow('ยอดตัดลูกหนี้', money(allocatedArTotal), true)] : []),
+    ...(!sameMoney(allocatedArTotal, input.bookAmountThb) ? [detailRow('ยอดตัดลูกหนี้ (THB)', money(allocatedArTotal), true)] : []),
     ...(hasMoney(input.fee) ? [detailRow('ค่าธรรมเนียม', money(input.fee))] : []),
-    detailRow('เงินเข้าสุทธิ', money(input.netCashIn), true),
+    detailRow('เงินเข้าสุทธิ (THB)', money(input.bookNetCashInThb), true),
+    ...(input.foreignAudit ? [detailRow(`ยอดที่ลูกค้าโอน (${input.foreignAudit.currencyCode})`, number(input.foreignAudit.nativeAmount)), detailRow('อัตราแลกเปลี่ยน', fxRate(input.foreignAudit.fxRate))] : []),
     ...(notes ? [detailRow('หมายเหตุ', notes)] : []),
   ]
 

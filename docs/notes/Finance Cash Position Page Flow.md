@@ -12,7 +12,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-11
-updated: 2026-06-11
+updated: 2026-07-30
 ---
 
 # Finance Cash Position Page Flow / Flow หน้า Cash Position
@@ -30,10 +30,11 @@ updated: 2026-06-11
 
 | Data | Source | Rule |
 |---|---|---|
-| Account balances | `accounts` + `bank_statement` | opening balance + statement movements/running balance |
-| AR exposure | `sales_bills` - `receipts` | เฉพาะยอดค้างรับ active |
-| AP exposure | `purchase_bills` - `payments` | เฉพาะยอดค้างจ่าย active |
+| Account balances | currency-aware Bank/FCD ledger projection | คำนวณต่อ `account + currency` ณ as-of; ห้ามใช้ `accounts.opening_balance` เป็นยอดยกมา |
+| AR exposure | `sales_bills.receivable_balance` | THB snapshot ของยอดค้างรับ active; receipt facts ใช้ drilldown เท่านั้น |
+| AP exposure | `purchase_bills.payable_balance` | THB snapshot ของยอดค้างจ่าย active; payment facts ใช้ drilldown เท่านั้น |
 | Near due | derived | จาก due date/aging ของ AR/AP |
+| FCD carrying value | FCD ledger projection | ใช้ carrying THB เป็นยอดรวมหลัก; native balance อยู่ใน FCD drilldown/หน้าแลกเงิน |
 
 ## Page Meaning
 
@@ -58,7 +59,7 @@ updated: 2026-06-11
 
 ควรแสดง:
 
-- Account balance รวม
+- Account balance รวมเป็น THB comparable value
 - จำนวนบัญชี active
 - Net exposure = AR - AP
 - Net after AP = cash/bank - AP
@@ -85,15 +86,15 @@ updated: 2026-06-11
 - Bank
 - Branch
 - Type
-- Currency
-- OD limit
-- Balance
+- Currency/FCD indicator
+- Book balance (THB)
+- OD limit/used/available ตาม currency contract
 
 หน้านี้เป็น aggregate/dashboard จึงไม่มี `created_at` ของ row aggregate แต่ drilldown/link ไป Bank/AP/AR ต้องแสดง `วันที่สร้างรายการ` ที่ source page
 
 ## API Contract
 
-`GET /api/finance/cash-position` ตอนนี้ไม่มี query หลัก และควรส่ง:
+`GET /api/finance/cash-position` ปัจจุบันไม่มี query หลัก. Target ต้องรองรับ `asOf`, branch และ account group และส่ง:
 
 - `accounts`
 - `byType`
@@ -103,26 +104,24 @@ updated: 2026-06-11
 - `nearDue.ap`
 - `summary`
 
-Target follow-up อาจเพิ่ม:
-
-- `asOf`
-- branch/account type filter
-- currency filter
-
 ## Business Rules
 
 - Cash Position ต้องอ่านจาก source facts เท่านั้น ไม่บันทึกค่า snapshot เป็น source of truth
 - Cancelled PB/SB/payment/receipt ต้องไม่ถูกนับใน exposure active
 - Account ids ที่ส่งออกต้องเป็น `accounts.code`
 - ถ้าต้องทำ snapshot รายวันในอนาคต ต้อง rebuild/reconcile จาก source facts ได้
+- ห้ามรวม native USD หรือสกุลอื่นเข้ากับ THB โดยตรง
+- KPI, Top Accounts, composition และ net liquidity ต้องใช้ book/carrying THB เท่านั้น
+- native balance, rate และ unrealized valuation อยู่ใน FCD ledger/dashboard หรือหน้าแลกเงิน ไม่ขยาย Cash Position ให้เป็น multi-currency ledger
+- AR/AP ใน Cash Position เป็น THB เท่านั้น
 
 ## Current Implementation / Gap
 
-- มี read baseline จาก accounts, bank_statement, sales_bills, receipts, purchase_bills, payments
+- Current API อ่านเงินสด/ธนาคารจาก Bank Statement book THB และ FCD native projection แยกออกจากยอดหลักแล้ว; ไม่มี runtime currency fallback และไม่ใช้ยอดยกมาต่อสกุลเงินจาก Account Master เป็น ledger
+- Current API อ่าน AR/AP จาก `sales_bills.receivable_balance` และ `purchase_bills.payable_balance` โดยตรงภายใต้ branch scope เดียวกับบัญชีเงิน; ไม่ derive ซ้ำจาก legacy receipt/payment maps
 - ยังไม่มี as-of date support
-- ยังไม่ได้รวม dedicated customer advance/supplier advance table เพราะ target allocation tables ยังไม่ครบ
 - ต้องเพิ่ม drilldown links ไป `/finance/bank`, `/finance/ar`, `/finance/ap`
-- ต้องกำหนด currency/FCD conversion policy ถ้าต้องรวมหลายสกุลเงินจริง
+- ยังต้องเพิ่ม branch/account/as-of filters และ export ตาม [[FCD Foreign Receipt Implementation Task List]]
 
 ## Related Notes
 

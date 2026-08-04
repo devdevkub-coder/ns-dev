@@ -25,7 +25,7 @@ export type CostPoolRow = {
   sourceId: string
   sourceLineId: string
   sourceNo: string
-  sourceType: 'PO_Buy' | 'Production' | 'Grade Adjustment' | 'Spot_Buy'
+  sourceType: 'PO_Buy' | 'Production' | 'Grade Adjustment' | 'Spot_Buy' | 'Opening_Purchase' | 'Opening_PO' | 'Opening_Regrade'
   status: 'Available' | 'Fully' | 'Partial'
   totalCost: number
   unitCost: number
@@ -75,6 +75,11 @@ function sourceTypeFromPoolEntry(
 ): CostPoolRow['sourceType'] | null {
   const normalizedSourceType = (sourceType ?? '').trim().toLowerCase()
   const normalizedRefType = (sourceRefType ?? '').trim().toLowerCase()
+  if (normalizedRefType === 'opening_cost_pool') {
+    if (normalizedSourceType === 'opening_purchase') return 'Opening_Purchase'
+    if (normalizedSourceType === 'opening_po') return 'Opening_PO'
+    if (normalizedSourceType === 'opening_regrade') return 'Opening_Regrade'
+  }
   if (normalizedSourceType === 'purchase') return purchaseMeta?.sourceType ?? 'Spot_Buy'
   if (normalizedRefType === 'pob') return 'PO_Buy'
   if (normalizedSourceType === 'po_buy') return 'PO_Buy'
@@ -86,15 +91,9 @@ function sourceTypeFromPoolEntry(
 }
 
 function costTypeFromSourceType(sourceType: CostPoolRow['sourceType']): CostPoolRow['costType'] {
-  if (sourceType === 'PO_Buy' || sourceType === 'Spot_Buy') return 'Purchase'
-  if (sourceType === 'Grade Adjustment') return 'Regrade'
+  if (sourceType === 'PO_Buy' || sourceType === 'Spot_Buy' || sourceType === 'Opening_Purchase' || sourceType === 'Opening_PO') return 'Purchase'
+  if (sourceType === 'Grade Adjustment' || sourceType === 'Opening_Regrade') return 'Regrade'
   return 'Production'
-}
-
-function defaultCounterparty(sourceType: CostPoolRow['sourceType']) {
-  if (sourceType === 'Production') return 'Production Output'
-  if (sourceType === 'Grade Adjustment') return 'Regrade / Conversion'
-  return 'Purchase Receipt'
 }
 
 function sortRows(rows: CostPoolRow[], sort: string | null) {
@@ -117,7 +116,7 @@ async function buildWorkbook(rows: CostPoolRow[]) {
     Branch: row.branchName,
     CostPoolId: row.costPoolId,
     CostType: row.costType,
-    Counterparty: row.counterparty,
+    ผู้ขาย: row.counterparty,
     Date: row.date,
     OriginalQty: row.qty,
     Product: row.productName,
@@ -139,6 +138,7 @@ async function buildWorkbook(rows: CostPoolRow[]) {
 function xlsxResponse(body: Buffer, filename: string) {
   return new Response(new Uint8Array(body), {
     headers: {
+      'Cache-Control': 'private, no-store',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     },
@@ -304,8 +304,8 @@ export async function getCostPoolRowsData(options: {
       || ''
     const poBuySupplier = resolvedSourceNo ? poBuySupplierByDocNo.get(resolvedSourceNo.trim()) || '' : ''
     const counterparty = sourceTypeValue === 'PO_Buy' || sourceTypeValue === 'Spot_Buy'
-      ? poBuySupplier || purchaseBillSupplier || defaultCounterparty(sourceTypeValue)
-      : defaultCounterparty(sourceTypeValue)
+      ? poBuySupplier || purchaseBillSupplier || '—'
+      : '—'
     rows.push({
       availableQty,
       availableValue: availableQty * unitCost,
@@ -406,7 +406,7 @@ export async function GET(request: Request) {
         usedQty: filteredRows.reduce((sum, row) => sum + row.usedQty, 0),
       },
       summaryByCostType,
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด Cost Pool ไม่ได้', 500)

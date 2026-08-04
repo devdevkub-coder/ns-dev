@@ -6,6 +6,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { Select } from '@/components/ui/Select'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -101,6 +102,7 @@ export function FxRatePageClient() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [fromCurrency, setFromCurrency] = useState('all')
   const [fromDate, setFromDate] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -112,6 +114,9 @@ export function FxRatePageClient() {
   const [sortKey, setSortKey] = useState<FxRateColumnKey | null>(null)
   const columnResize = useResizableColumns('finance.foreign.fx-rate.main.v1', fxRateColumns)
   const hasFilters = Boolean(fromDate || toDate || fromCurrency !== 'all' || active !== 'true')
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const isFormDirty = showForm && formBaseline !== null && formSnapshot !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -205,13 +210,15 @@ export function FxRatePageClient() {
   )
 
   function openCreate() {
-    setForm(emptyForm())
+    const nextForm = emptyForm()
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setShowForm(true)
   }
 
   function openEdit(row: FxRateRow) {
-    setForm({
+    const nextForm = {
       active: row.active,
       fromCurrency: row.fromCurrency,
       id: row.id,
@@ -221,10 +228,31 @@ export function FxRatePageClient() {
       rateType: row.rateType,
       source: row.source ?? '',
       toCurrency: row.toCurrency,
-    })
+    }
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setShowForm(true)
   }
+
+  const closeForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(() => {
+      setFormBaseline(null)
+      setShowForm(false)
+    })
+  }, [isSaving, requestDiscard])
+
+  useEffect(() => {
+    if (!showForm) return
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      closeForm()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [closeForm, showForm])
 
   function validateForm() {
     const nextErrors: Record<string, string> = {}
@@ -248,6 +276,7 @@ export function FxRatePageClient() {
         headers: { 'Content-Type': 'application/json' },
         method: form.id ? 'PATCH' : 'POST',
       })
+      setFormBaseline(null)
       setShowForm(false)
       await loadData()
     } catch (caught) {
@@ -279,9 +308,9 @@ export function FxRatePageClient() {
         <div className="hidden lg:flex flex-wrap items-center gap-2">
           <h2 className="mr-auto text-base font-semibold text-slate-950">FX Rate History</h2>
           <span className="text-xs text-slate-500">วันที่:</span>
-          <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-[130px]" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" value={toDate} onChange={setToDate} />
+          <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-[130px]" value={toDate} onChange={setToDate} />
           
           <Select aria-label="สกุลต้นทาง" className="h-9 w-auto min-w-[120px]" value={fromCurrency} onChange={(event) => setFromCurrency(event.target.value)}>
             <option value="all">ทุกสกุล</option>
@@ -332,11 +361,11 @@ export function FxRatePageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                 </label>
                 <label className="text-xs text-slate-500">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                 </label>
               </div>
               <div className="grid grid-cols-1 gap-2">
@@ -389,14 +418,14 @@ export function FxRatePageClient() {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="rateDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('rateDate', 'วันที่')} />
-              <ResizableTableHead label="From" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fromCurrency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fromCurrency', 'From')} />
-              <ResizableTableHead label="To" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="toCurrency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('toCurrency', 'To')} />
+              <ResizableTableHead align="center" label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="rateDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('rateDate', 'วันที่')} />
+              <ResizableTableHead align="center" label="From" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fromCurrency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fromCurrency', 'From')} />
+              <ResizableTableHead align="center" label="To" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="toCurrency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('toCurrency', 'To')} />
               <ResizableTableHead label="Rate Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="rateType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('rateType', 'Rate Type')} />
               <ResizableTableHead align="right" label="Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="rate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('rate', 'Rate')} />
               <ResizableTableHead label="Source" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="source" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('source', 'Source')} />
               <ResizableTableHead align="center" label="Active" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="active" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('active', 'Active')} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -404,14 +433,14 @@ export function FxRatePageClient() {
             {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxRateColumns.length}>ยังไม่มี FX Rate</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
-                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.rateDate)}</td>
-                <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-800">{row.fromCurrency}</td>
-                <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-800">{row.toCurrency}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(row.rateDate)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-800">{row.fromCurrency}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-800">{row.toCurrency}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.rateType}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatRate(row.rate)}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.source || '-'}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-center text-xs text-slate-600">{row.active ? 'Yes' : 'No'}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right">
+                <td className="whitespace-nowrap px-3 py-3 text-center">
                   <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEdit(row)}>แก้ไข</TableActionMenuItem>} />
                 </td>
               </tr>
@@ -435,7 +464,7 @@ export function FxRatePageClient() {
             className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-sm"
           >
             <div className="flex justify-between items-start">
-              <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.rateDate)}</span>
+              <span className="whitespace-nowrap font-mono text-slate-500 text-xs">{formatDateDisplay(row.rateDate)}</span>
               <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${row.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
                 {row.active ? 'Active' : 'Inactive'}
               </span>
@@ -458,24 +487,24 @@ export function FxRatePageClient() {
       </div>
 
       {showForm ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10" onClick={() => setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10" onClick={closeForm}>
           <div className="w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" data-ns-field-scope="entry" onClick={(e) => e.stopPropagation()}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไข FX Rate' : 'เพิ่ม FX Rate'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setShowForm(false)}>ยกเลิก</button>
-                <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={() => void saveRate()}>{isSaving ? 'กำลังบันทึก' : 'บันทึก'}</button>
+                <button className="h-10 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" disabled={isSaving} type="button" onClick={closeForm}>ยกเลิก</button>
+                <button className="h-10 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={() => void saveRate()}>{isSaving ? 'กำลังบันทึก' : 'บันทึก'}</button>
               </div>
             </div>
             <div className="grid gap-3 bg-slate-50 p-5 text-sm md:grid-cols-2">
-              <Field label="วันที่" error={fieldErrors.rateDate}><DatePickerInput className="w-full h-9 text-sm" value={form.rateDate} onChange={(value) => setForm({ ...form, rateDate: value })} /></Field>
+              <Field label="วันที่" error={fieldErrors.rateDate}><DatePickerInput className="h-10 w-full text-sm" value={form.rateDate} onChange={(value) => setForm({ ...form, rateDate: value })} /></Field>
               <Field label="Rate Type" error={fieldErrors.rateType}><Select className="h-10 w-full" value={form.rateType} onChange={(event) => setForm({ ...form, rateType: event.target.value })}>{rateTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</Select></Field>
               <Field label="From" error={fieldErrors.fromCurrency}><CurrencySelect options={currencyOptions} value={form.fromCurrency} onChange={(value) => setForm({ ...form, fromCurrency: value })} /></Field>
               <Field label="To" error={fieldErrors.toCurrency}><CurrencySelect options={currencyOptions} value={form.toCurrency} onChange={(value) => setForm({ ...form, toCurrency: value })} /></Field>
-              <Field label="Rate" error={fieldErrors.rate}><input className="w-full rounded-md border px-2 py-1.5 text-right font-bold h-9 text-sm outline-none" inputMode="decimal" value={form.rate} onChange={(event) => setForm({ ...form, rate: event.target.value })} /></Field>
-              <Field label="Source"><input className="w-full rounded-md border px-2 py-1.5 h-9 text-sm outline-none" value={form.source} onChange={(event) => setForm({ ...form, source: event.target.value })} /></Field>
+              <Field label="Rate" error={fieldErrors.rate}><input className="h-10 w-full rounded-md border px-2 py-1.5 text-right text-sm font-bold outline-none" inputMode="decimal" value={form.rate} onChange={(event) => setForm({ ...form, rate: event.target.value })} /></Field>
+              <Field label="Source"><input className="h-10 w-full rounded-md border px-2 py-1.5 text-sm outline-none" value={form.source} onChange={(event) => setForm({ ...form, source: event.target.value })} /></Field>
               <Field label="สถานะ"><Select className="h-10 w-full" value={String(form.active)} onChange={(event) => setForm({ ...form, active: event.target.value === 'true' })}><option value="true">Active</option><option value="false">Inactive</option></Select></Field>
-              <Field label="หมายเหตุ"><input className="w-full rounded-md border px-2 py-1.5 h-9 text-sm outline-none" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></Field>
+              <Field label="หมายเหตุ"><input className="h-10 w-full rounded-md border px-2 py-1.5 text-sm outline-none" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></Field>
             </div>
           </div>
         </div>

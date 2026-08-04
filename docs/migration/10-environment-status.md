@@ -1,6 +1,121 @@
 # 10 Environment Status
 
+### Trading Allocation Fact Schema Parity 2026-08-01
+
+- Applied and recorded existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the verified non-pooling PostgreSQL connection. Dev-target already had the same migration, columns, FK, and indexes.
+- Preflight confirmed SIT had neither migration history nor the two columns, `trading_allocation_facts` contained `0` rows, and `stock_cost_pool_entries` contained `403` rows. The migration added nullable `cost_pool_entry_id bigint` and `target_ref_id text`, the restrictive Cost Pool FK, and both partial indexes without backfilling or changing business rows.
+- Postflight confirmed both columns, the FK, both indexes, and migration history. Authenticated runtime smoke returned HTTP 200 for Customer Tracking, Product Tracking, Allocation Ledger, Trading Matching, and Trading Dashboard; this closes the former Dev/SIT difference recorded below without adding a runtime fallback.
+
+### Customer Receipt Payment Method Simplification 2026-07-31
+
+- Migration `20260731130000_limit_active_payment_methods_to_cash_and_bank_transfer.sql` is prepared to retain only the configured active `cash` and `bank` methods: `PM-001` and `PM-002`. It deactivates cheque, PromptPay, FCD transfer, and international transfer master rows without changing historical receipt snapshots.
+- Customer Receipt reads only active Payment Method Master rows. Functional-currency receipts therefore offer cash and bank transfer; foreign receipts filter the same source to the bank method, then enforce an FCD account that supports the selected currency. No runtime method-name or method-code condition is introduced.
+
+### Customer Receipt Google Finance Rate And Rate-Type Retirement 2026-07-31
+
+- Applied and recorded `20260731120000_remove_customer_receipt_fx_rate_type_requirement.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the non-pooling PostgreSQL connection. It supersedes the former foreign-receipt `fx_rate_type` requirement while retaining the deferred reconciliation guard for native amount, settlement THB, carrying THB, FCD split, and allocation facts.
+- No transaction data was changed or backfilled. Preflight found the migration absent and the former rate-type constraint present; postflight confirmed the migration history row exists and the obsolete constraint is removed.
+- Foreign RCP now obtains a suggested current-day USD/THB rate from the shared Google Finance service, shows the quote timestamp, and allows the user to enter or amend the rate before saving. There is no default rate or provider fallback; a missing quote requires manual input.
+
+### Customer Receipt Single-Native-Amount Contract 2026-07-31
+
+- Applied and recorded `20260731110000_simplify_foreign_customer_receipt_native_amount.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the non-pooling PostgreSQL connection. A blanket `supabase db push` was not used because SIT has known migration-history drift.
+- Preflight found `0` active foreign receipts and `0` active headers with unequal `customer_transferred_native_amount` and `received_native_amount`; no transaction data was backfilled or rewritten.
+- The deferred receipt guard now requires the two persisted native columns to be equal for new active foreign RCPs. It derives carrying THB as settlement THB minus Bank Fee, reconciles FCD splits to the one native amount, and permits both `SB` and `CADV` source types.
+- Postflight confirmed the history row, native-equality guard, CADV branch, and `0` active foreign receipts. Customer UAT was not changed.
+
+### Dev/SIT Product Image Schema And Migration-History Reconciliation 2026-07-30
+
+- Applied and recorded `20260730190000_reconcile_legacy_product_image_names_schema.sql` in dev-target and SIT. It verifies that any remaining `public.products.image_names` values are empty before dropping the legacy column; Dev had the column with zero legacy values, while SIT already had no column. Postflight confirms the column is absent in both environments.
+- Repaired SIT migration history through Supabase CLI using its non-pooling connection: `20260608094500` is now recorded as `add_product_image_names`, and `20260725100000` is now recorded as `add_user_profile_image_storage`, matching Dev. The old pooler URL cannot run this CLI repair because it reuses prepared statements.
+- The former intentional Dev/SIT difference for `20260727110000_add_trading_allocation_fact_cost_pool_entry` was closed on 2026-08-01 after Customer Tracking and Allocation Ledger exposed the shared Prisma schema drift at runtime.
+
+### FCD Account Currency Opening-Balance Retirement 2026-07-30
+
+- Applied and recorded `20260730180000_retire_account_currency_opening_balances.sql` in dev-target and SIT after approval to discard test-only legacy values. It drops `public.account_currency_balances.opening_balance`; no row was reset, inferred, or written into a ledger.
+- Postflight confirms the column is absent in both environments. `account_currency_balances` now only declares the active currency capability of an account; Bank Statement and FCD ledger facts remain the balance source of truth.
+
+### Foreign Customer Advance Receipt Contract 2026-07-30
+
+- Applied and recorded `20260730170000_allow_foreign_customer_advance_receipts.sql` in dev-target and SIT. It extends the deferred foreign receipt guard to source type `CADV`: only CADV allocations may exist, allocation THB/native totals must reconcile to the persisted receipt facts, and the receipt cannot contain AR settlement FX by construction.
+- Preflight found zero foreign CADV receipts and zero invalid source-type rows in both environments. No business transaction, rate, currency, or account-master row was backfilled or rewritten.
+
+### Foreign Customer Receipt Database Guard 2026-07-30
+
+- Applied and recorded `20260730160000_enforce_foreign_customer_receipt_contract.sql` in dev-target and SIT. It validates foreign Customer Receipt reconciliation and links only at transaction commit, so the normal header -> Bank Statement -> FCD ledger -> split write order remains valid but incomplete or mismatched facts cannot commit.
+- Preflight found zero foreign receipts and zero invalid split rows in each environment. No transaction, currency, rate, or account-master data was backfilled or rewritten.
+
+### Finance Currency Policy 2026-07-30
+
+### Canonical Bank Statement Facts 2026-07-30
+
+- Applied and recorded `20260730140000_enforce_canonical_bank_statement_facts.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through controlled `psql` transactions. The SIT connection URL required removal of its client-only `uselibpqcompat` parameter before `psql` could connect.
+- Preflight in each environment found `0` Bank Statement rows and `0` incomplete rows, so no statement was rewritten or backfilled. Both environments have exactly one functional-currency policy row.
+- New Bank Statement rows must persist currency, native amount, book amount, source event, and idempotency facts. The constraint rejects invalid direction/precision/book mismatch; the deferred account guard rejects no account/branch, virtual/inactive/non-bank accounts, unsupported account currency, and non-functional movements outside FCD or without a persisted rate. Customer UAT has not received this migration.
+
+- Applied and recorded migration `20260730110000_create_finance_currency_policy.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through Supabase CLI using temporary migration-history workdirs. SIT first failed before applying because its pooled URL reused a prepared statement; retry used the non-pooling URL with only client-specific query parameters removed.
+- Each environment now has exactly one `public.finance_currency_policies` row: `functional_currency_code = THB`, joined and verified against `public.currencies`. RLS is enabled. This is configuration data, not an application fallback or migration seed.
+- Customer UAT has not received this migration or configuration.
+
+### FCD Transaction Ledger Contract 2026-07-30
+
+- Applied and recorded `20260730120000_add_fcd_transaction_ledger_contract.sql` in dev-target and SIT through Supabase CLI temporary migration-history workdirs. The migration is additive: it creates FCD ledger/conversion/revaluation tables and projection, and adds nullable native/book/rate/source/reversal facts to Bank Statement and Customer Receipt tables.
+- Applied and recorded `20260730130000_persist_customer_receipt_fx_rate_type.sql` in dev-target and SIT through controlled `psql` transactions. Preflight confirmed zero persisted foreign Receipt Vouchers, so the new guard `customer_receipts_foreign_fx_rate_type_chk` did not require any data rewrite. Both environments now have nullable `customer_receipts.fx_rate_type` plus the constraint that any foreign receipt header must persist a nonblank rate type.
+- No transaction data, account currency, FX rate, or account opening balance was backfilled. Dev preflight reports two unreconciled legacy FCD opening-balance master rows; SIT reports none. These are intentionally excluded from `fcd_ledger_entries` until an explicit reconciliation/import flow exists.
+- Dev DB rollback probes confirmed an active FCD account with active USD currency can write the ledger/projection; a non-FCD account is rejected and a posted ledger row cannot be updated. Probes were rolled back. Current dev master has no active FCD/USD account, so runtime must continue to fail closed rather than selecting an inactive account.
+- Customer UAT has not received this migration.
+
+### Company Account Database Guards 2026-07-30
+
+- Applied migration `20260730100000_enforce_company_account_business_guards.sql` to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through Supabase CLI using temporary migration-history workdirs; the CLI recorded the migration history rows. The migration does not write migration history itself.
+- Normalized six legacy `accounts.od_limit` NULL values to canonical zero in each environment. No opening balance, account currency, account code, or transaction row was rewritten. Pre-apply backups: Dev `/tmp/ns-erp-dev-before-account-guards-20260729-235547`; SIT `/tmp/ns-erp-sit-before-account-guards-20260730-001132`.
+- Added account shape/currency constraints and deferred guards for currency cardinality and Bank Statement account eligibility. FCD current accounts may use OD; savings accounts may not. Cash/virtual accounts cannot carry bank/FCD/OD fields or be linked to Bank Statement.
+- Dev transactional postflight passed: rejected savings+OD, virtual Statement links, non-FCD multi-currency, and conversion of a Statement-linked bank account to virtual; accepted FCD current+OD. SIT postflight confirmed all three constraints and all three deferred guards, rejected savings+OD, and accepted FCD current+OD. All probe transactions were rolled back.
+- Customer UAT has not received this migration yet.
+
+### Company Account Data Normalization 2026-07-30
+
+- Applied and recorded migration `20260730090000_normalize_company_accounts_to_current_design.sql` in dev-target and SIT.
+- `ACC01-002` FCD now has ordinary bank subtype `savings`, keeps `is_fcd = true`, and has both `THB:0` and `USD:0` currency-balance rows.
+- `ACC01-009` and `ACC01-011` are now company-level `virtual` reimbursement-payable accounts with no bank identity, no OD, THB currency, and zero opening balance. The future advance/loan flow will create their negative balance.
+- Account codes, branches, and transaction rows were not rewritten. Postflight matched Dev and SIT for the normalized rows.
+
+### Company Account Classification And Reimbursement Payable 2026-07-29
+
+- Applied and recorded migration `20260729170000_restructure_company_account_classification.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
+- Applied and recorded migration `20260729180000_create_account_categories_master.sql` in both environments. The form now reads account categories from `public.account_categories`; seeded categories are cash, bank, and virtual reimbursement payable.
+- Added canonical account classification fields for cash, bank, and virtual reimbursement-payable accounts, including bank type, FCD, cheque capability, and branch/currency index support. Reimbursement payable is a company-level virtual account; the person relationship will be owned by the future director-loan flow.
+- Existing account rows were classified from the current account/payment-method data; no transaction data was changed. The virtual account is excluded from Customer Receipt, bank statement, FCD ledger, and bank reconciliation account options.
+- FCD is selected as an explicit form dropdown; currency remains a Currency Master selection for both FCD and non-FCD accounts. Cheque capability was removed from the company-account model.
+- Added `account_currency_balances` for the first FCD form batch. Existing accounts were backfilled with one balance row from the legacy currency/opening balance; FCD transaction ledger migration remains a later batch.
+
 ## Current Direction
+
+### Dev/SIT Transaction Reset 2026-07-29
+
+- ลบ transaction และ derived transaction data ด้วย transactional `TRUNCATE ... RESTART IDENTITY` จำนวน 79 ตารางบน dev-target (`fhglqymcdmrgbsbadnwr`) และ SIT (`vbjlkxbytccklhqvxjuu`) แล้ว.
+- ครอบคลุม bank statement, PO/PB/SB, payments/advances/receipts, production, WTI/WTO, stock ledger/holds/transfers, trading และ profit-cost read models รวมถึง status/allocation/draft/notification rows ที่ผูก FK.
+- ไม่ลบ master data, auth/app users, roles/permissions, settings หรือ `supabase_migrations.schema_migrations`.
+- Postflight ทั้งสอง environment: transaction tables เป้าหมาย 0 rows; accounts 12, products 236, branches 2; migration history คงอยู่ (Dev 155, SIT 153). App users คงอยู่ (Dev 27, SIT 24).
+
+### Strict Branch-Coded Supplier Advance ADV 2026-07-28
+
+- ADV document numbering now rejects a missing/invalid branch code instead of generating a `00` fallback. The selected active branch remains the source of `branch_id` and the `ADV<branch><YYMM>-####` prefix.
+- No new database migration was needed because `supplier_advance_payments.branch_id` is already required and indexed. Existing ADV rows were not rewritten.
+
+### Branch-Coded Payment Approval PMA 2026-07-28
+
+- Applied and recorded `20260728100000_add_branch_to_payment_approvals.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
+- Added nullable `payment_approvals.branch_id` and `idx_payment_approvals_branch_approved_doc`; new PMA splits persist the source branch and PMA list filtering uses the PMA branch snapshot.
+- Removed the PMA `00` branch fallback. Petty-advance-return approvals now require the advance branch before generating PMA/BST numbers.
+- Postflight confirms the column, index, and migration history version `20260728100000` exist in both environments. Existing PMA rows were not backfilled.
+
+### Branch-Coded Document Numbers BST/TRF/TCS/SP 2026-07-28
+
+- Applied and recorded `20260728090000_add_branch_to_bst_trf_tcs_sp.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments retain pre-existing migration-history drift.
+- Added nullable `branch_id` and branch-scoped indexes to `bank_statement`, `transfers`, `trading_cost_sources`, and `sales_plans`. Existing rows were not backfilled or rewritten; new flows require a valid active branch.
+- Runtime document generators now require branch code and emit `BST<branch><YYMM>-####`, `TRF<branch><YYMM>-####`, `TCS<branch><YYMM>-####`, and `SP<branch><YYMM>-####`. TCS and Sales Plan forms/API now require branch selection; Sales Plan and Accounts list flows support branch filtering.
+- Postflight confirms all four columns, four indexes, and migration history version `20260728090000` exist in both environments.
 
 ### Petty Advance Branch Migration 2026-07-27
 
@@ -475,3 +590,15 @@ DB schema redesign status:
 - Applied and recorded `20260724110000_add_production_output_wip_allocations.sql` to dev-target. `production_outputs.source_wip_allocations` is now available for multi-source WIP allocation snapshots; no existing business rows were changed.
 - `20260724130000_add_production_output_drafts.sql` has been applied to dev-target using the project database credentials. Postflight confirmed `public.production_output_drafts` exists with the expected order, payload, audit, and timestamp columns; the table is empty and ready for Draft API testing.
 - Applied and recorded `20260724150000_reconcile_production_wip_ledger_product_dimension.sql` to dev-target. Postflight updated 16 output WIP/loss ledger rows and 2 input-return WIP-out rows so the WIP bucket uses the production-order product dimension while preserving the original input product in `source_input_product_id` when it differed.
+# Environment Canonicalization Checkpoint 2026-07-28
+
+Canonical local environment files are now separated by target:
+
+- Dev: `apps/next/.env.local` -> project `fhglqymcdmrgbsbadnwr`
+- SIT: `apps/next/.env.sit.local` -> project `vbjlkxbytccklhqvxjuu`
+- UAT: `apps/next/.env.uat.local` -> project `ekeomeumqjvbhgwyaqwe`
+
+Removed duplicate/stale local files: root `.env.local` and `apps/next/.env`. `.env.example` files remain templates only. Do not source a root env file for active Next or migration commands; load the target-specific file explicitly.
+
+Production event migration `20260728110000_add_production_event_identity` was applied and recorded in both Dev and SIT. Postflight found 3 expected columns, 3 expected indexes, and 1 migration-history row in each environment. No business data was backfilled.
+- Applied and recorded `20260730150000_lock_fcd_posted_revaluation_periods.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through controlled `psql` transactions. Postflight confirmed `fcd_revaluation_period_lock_guard` is installed once in each environment. It rejects backdated FCD receipt/conversion ledger entries through a still-posted revaluation period for the same account and currency; it does not mutate existing ledgers.

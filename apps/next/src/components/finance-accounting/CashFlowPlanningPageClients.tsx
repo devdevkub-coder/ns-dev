@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   CheckCircle2,
   ChevronDown,
+  Download,
   Gauge,
   Landmark,
   Package,
@@ -15,6 +16,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard, KpiCardGrid } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -184,7 +186,7 @@ export function CashFlowAnalysisPageClient({ initialFilters }: { initialFilters?
         <DateInput label="จาก" value={from} onChange={setFrom} />
         <DateInput label="ถึง" value={to} onChange={setTo} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
-        <a className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>ส่งออก Excel</a>
+        <a className="ml-auto inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
       </div>
 
       {/* Mobile compact filter strip */}
@@ -196,7 +198,7 @@ export function CashFlowAnalysisPageClient({ initialFilters }: { initialFilters?
             <div className="truncate text-xs text-slate-500">{selectedBranch}</div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>ส่งออก Excel</a>
+            <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
             <button
               type="button"
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40"
@@ -428,7 +430,7 @@ export function CashFlowForecastCalendarPageClient({ initialFilters }: { initial
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-forecast-start-mobile">เริ่มวันที่</label>
-            <DatePickerInput ariaLabel="เริ่มวันที่" className="w-full text-sm" id="cash-flow-forecast-start-mobile" value={mobileStartDate} onChange={setMobileStartDate} />
+            <DatePickerInput ariaLabel="เริ่มวันที่" className="h-9 w-full text-sm" id="cash-flow-forecast-start-mobile" value={mobileStartDate} onChange={setMobileStartDate} />
           </div>
 
           <div>
@@ -588,7 +590,7 @@ function DateInput({ label, onChange, value }: { label: string; onChange: (value
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
-  return <Select aria-label="สาขา" className="h-9 w-64 max-w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
+  return <BranchSelectCombobox branches={branches} className="w-[12rem]" controlSize="filter" inputId="cash-flow-branch-filter" label="" placeholder="ทุกสาขา" value={value || null} onChange={(nextValue) => onChange(nextValue ?? '')} />
 }
 
 function AnalysisPanel({ children, className = '', subtitle, title }: { children: ReactNode; className?: string; subtitle?: string; title: string }) {
@@ -1331,7 +1333,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
           <thead className="bg-slate-100">
             <tr>
               <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'ลูกค้า')} />
-              <ResizableTableHead align="right" label="เลขที่บิล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
+              <ResizableTableHead align="center" label="เลขที่บิล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
               <ResizableTableHead align="right" label="ยอดค้าง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดค้าง')} />
               <ResizableTableHead align="right" label="ค้างมาแล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="days" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('days', 'ค้างมาแล้ว')} />
             </tr>
@@ -1340,7 +1342,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
             {sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50/50">
                 <td className="px-3 py-3 font-medium text-slate-900">{row.customerName}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right font-mono text-xs font-semibold text-blue-700">{row.docNo}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs font-semibold text-blue-700">{row.docNo}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{money(row.receivableBalance)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-red-700">{row.daysOverdue} วัน</td>
               </tr>
@@ -1359,7 +1361,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
             <div key={row.id} className="p-3 space-y-1 text-xs hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-slate-900">{row.customerName}</span>
-                <span className="font-mono text-blue-700 font-semibold">{row.docNo}</span>
+                <span className="whitespace-nowrap font-mono text-blue-700 font-semibold">{row.docNo}</span>
               </div>
               <div className="flex justify-between items-center text-xs text-slate-500">
                 <span>ค้าง: <b className="text-slate-800">{money(row.receivableBalance)}</b></span>
@@ -1409,7 +1411,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
           <thead className="bg-slate-100">
             <tr>
               <ResizableTableHead label="ผู้ขาย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'ผู้ขาย')} />
-              <ResizableTableHead align="right" label="เลขที่บิล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
+              <ResizableTableHead align="center" label="เลขที่บิล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
               <ResizableTableHead align="right" label="ยอดค้าง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดค้าง')} />
               <ResizableTableHead align="right" label="ครบกำหนดใน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="days" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('days', 'ครบกำหนดใน')} />
             </tr>
@@ -1418,7 +1420,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
             {sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50/50">
                 <td className="px-3 py-3 font-medium text-slate-900">{row.supplierName}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right font-mono text-xs font-semibold text-blue-700">{row.docNo}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs font-semibold text-blue-700">{row.docNo}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{money(row.payableBalance)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums"><span className={row.daysToDue < 7 ? 'text-red-700' : 'text-slate-600'}>{row.daysToDue} วัน</span></td>
               </tr>
@@ -1437,7 +1439,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
             <div key={row.id} className="p-3 space-y-1 text-xs hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-slate-900">{row.supplierName}</span>
-                <span className="font-mono text-blue-700 font-semibold">{row.docNo}</span>
+                <span className="whitespace-nowrap font-mono text-blue-700 font-semibold">{row.docNo}</span>
               </div>
               <div className="flex justify-between items-center text-xs text-slate-500">
                 <span>ยอด: <b className="text-slate-800">{money(row.payableBalance)}</b></span>
@@ -1489,18 +1491,18 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
               </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-100">
                 <tr>
-                  <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-                  <ResizableTableHead align="right" label="เลขอ้างอิง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขอ้างอิง')} />
-                  <ResizableTableHead align="right" label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+                  <ResizableTableHead align="center" label="เลขอ้างอิง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขอ้างอิง')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
                   <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {sortedRows.map((event) => (
                   <tr key={`${event.type}-${event.refNo}`} className="transition-colors hover:bg-slate-50">
-                    <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-700">{event.type}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono text-xs font-semibold text-blue-700">{event.refNo}</td>
-                    <td className="min-w-0 px-3 py-3 text-right text-slate-700"><div className="truncate">{event.label}</div></td>
+                    <td className="ns-table-textual-column whitespace-nowrap px-3 py-3 text-left font-medium text-slate-700">{event.type}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs font-semibold text-blue-700">{event.refNo}</td>
+                    <td className="ns-table-textual-column min-w-0 px-3 py-3 text-left text-slate-700"><div className="truncate">{event.label}</div></td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums">
                       <span className={event.inOut === 'IN' ? 'text-emerald-700' : 'text-red-700'}>
                         {event.inOut === 'IN' ? '+' : '-'}{money(event.amount)}
@@ -1522,7 +1524,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
                 <div key={`${event.type}-${event.refNo}`} className="p-3.5 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-slate-900">{event.type}</span>
-                    <span className="font-mono text-blue-700 font-semibold">{event.refNo}</span>
+                    <span className="whitespace-nowrap font-mono text-blue-700 font-semibold">{event.refNo}</span>
                   </div>
                   <div className="text-slate-600">{event.label}</div>
                   <div className="flex justify-between items-center pt-1.5 border-t border-slate-100/50">

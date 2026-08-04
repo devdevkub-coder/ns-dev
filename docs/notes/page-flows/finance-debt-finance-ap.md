@@ -6,7 +6,7 @@ tags:
   - finance-debt
   - accounts-payable
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-08-04
 route: /finance/ap
 ---
 
@@ -141,11 +141,10 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - PMA/PMT state separation and locks need end-to-end runtime proof.
 - Source links to PB/PMA/PMT/Supplier Advance are available in detail; export/source-link depth can still be expanded later.
 
-## Filter Surface Convention 2026-08-04
+## Foreign Receipt Boundary 2026-07-30
 
-- What is what: desktop row one owns search, supplier/aging/branch/date controls and `ล้างตัวกรอง`; row two owns status and Excel export. `พบทั้งหมด ... รายการ` belongs only to the table/pagination surface. Mobile keeps search/actions compact and puts `ล้างตัวกรอง` in the filter sheet footer.
-- Why it has to be like this: filter controls stay together, status/actions remain easy to scan, and the result count is shown once next to the data it describes instead of being duplicated in the filter toolbar.
-- Validation: local `/finance/ap` was checked at desktop and emulated mobile widths; filter sheet, clear action, and single table/pagination count were present.
+- Customer Receipt/FCD is not an AP source. AP table, KPI, detail and export remain THB from `purchase_bills.total_amount`, `paid_amount` and `payable_balance`.
+- AP must not read Customer Receipt native currency, receipt rate, settlement FX or FCD ledger entries. Cash Position receives AP as THB exposure only.
 
 ## Drilldown Scope Hydration 2026-07-17
 
@@ -153,6 +152,12 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Why it has to be like this: period-based navigation preserves its source range, while the Financial Dashboard's as-of outstanding KPI intentionally sends an empty `from` plus `to=asOf`; the client must preserve that empty lower bound so older open bills are not dropped by a current-month default.
 - Authorization: bills, branch options, supplier options and returned supplier-branch mappings use the same effective finance branch intersection. Unknown/inactive explicit branches return `404`; existing branches outside scope return `403`; an empty mapped scope returns no branch data.
 - Aging cutoff: `today` is normalized to the Bangkok business date before comparison with the accepted Purchase Bill base date, preventing the 00:00–06:59 Bangkok window from reporting one day behind.
+
+## Compact Filter Layout 2026-08-04
+
+- What is what: desktop row one owns search, supplier, aging bucket, branch, bill-date range and the full `ล้างตัวกรอง` action; row two owns status and `ส่งออก Excel`. The result count belongs only to the table/pagination surface. Mobile keeps search/actions compact and puts `ล้างตัวกรอง` in the expanded filter surface.
+- Why it has to be like this: all scope controls stay together, status and export remain easy to scan, and the same result count is not repeated in both the filter card and the table toolbar.
+- Preserved boundary: filter state, query parameters, API requests, export scope, pagination, permissions and the existing mobile filter interaction do not change. AP still has no channel filter because purchase channel is not a real source in this flow.
 
 ## Implementation Checklist
 

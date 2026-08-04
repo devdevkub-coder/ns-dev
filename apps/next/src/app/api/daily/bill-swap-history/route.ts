@@ -10,7 +10,7 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'purchase.bills.view')
 
     const rows = await prisma.bill_swap_history.findMany({
       orderBy: [{ swap_date: 'desc' }],

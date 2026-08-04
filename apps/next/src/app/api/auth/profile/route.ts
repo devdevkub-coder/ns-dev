@@ -28,7 +28,7 @@ export async function PUT(request: Request) {
     const updatedUser = await prisma.app_users.update({
       data: {
         display_name: parsed.data.displayName,
-        updated_by: context.appUser.email ?? context.authUser.email ?? 'system',
+        updated_by: context.appUser.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
       },
       where: { id: context.appUser.id },
     })

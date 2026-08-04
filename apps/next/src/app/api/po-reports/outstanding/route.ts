@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireBusinessCode } from '@/lib/business-code'
+import { PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
@@ -71,7 +72,7 @@ export async function GET() {
         orderBy: [{ expected_delivery: 'asc' }, { date: 'asc' }],
         take: 5000,
         where: {
-          NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Closed', 'closed', 'Completed', 'completed', 'Fully Matched', 'fully matched', 'Received', 'received'] } },
+          status: { in: [PO_SELL_STATUS.OPEN, PO_SELL_STATUS.PARTIALLY_FULFILLED] },
           require_delivery: { not: false },
         },
       }),
@@ -122,7 +123,7 @@ export async function GET() {
           remainingQty: item.remainingQty,
           remainingValue: item.remainingQty * item.unitPrice,
           soldQty: item.qty - item.remainingQty,
-          status: po.status ?? 'Open',
+          status: requirePoSellStatus(po.status, po.doc_no),
           unitPrice: item.unitPrice,
         }))
     })

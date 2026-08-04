@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'sales.bills.view')
     const scope = new URL(request.url).searchParams.get('scope') ?? 'full'
     const payload = scope === 'global-reference'
       ? await salesGlobalReferenceOptionsPayload()

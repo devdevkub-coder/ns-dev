@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Edit3, Plus, Send, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -12,6 +13,7 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, stockTransferFormSchema, todayDateInput, type StockTransferFormValues } from '@/lib/daily'
 import { firstErrorKeyFromZodIssues, focusFieldError, issueMapFromZodIssues } from '@/lib/form-errors'
@@ -95,7 +97,18 @@ const emptyForm: StockTransferFormValues = {
   toWarehouseId: '',
 }
 
+export function isBlankStockTransferItem(
+  item: Pick<StockTransferFormValues['items'][number], 'productId' | 'qty'>,
+) {
+  return !item.productId.trim() && Number(item.qty) === 0
+}
+
+function formSafetySnapshot(form: StockTransferFormValues) {
+  return JSON.stringify(form)
+}
+
 export function StockTransferPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const [data, setData] = useState<Payload>({ branches: [], page: 1, pageSize: 10, products: [], rows: [], sourceStock: [], summary: { totalQty: 0, totalRows: 0, totalValue: 0 }, totalRows: 0, warehouses: [] })
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -105,6 +118,7 @@ export function StockTransferPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<StockTransferFormValues>(emptyForm)
+  const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(emptyForm))
   const [formOpen, setFormOpen] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -118,6 +132,8 @@ export function StockTransferPageClient() {
   const [totalQtyFrom, setTotalQtyFrom] = useState('')
   const [totalQtyTo, setTotalQtyTo] = useState('')
   const columnResize = useResizableColumns('daily.stock-transfer.v5', stockTransferColumns)
+  const isFormDirty = formOpen && formSafetySnapshot(form) !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -232,17 +248,41 @@ export function StockTransferPageClient() {
     setFieldErrors((current) => ({ ...current, [`items.${index}.${key}`]: '' }))
   }
 
+  function requestRemoveItem(index: number) {
+    if (form.items.length <= 1) return
+    const target = form.items[index]
+    if (!target) return
+    const remove = () => {
+      setForm((current) => ({
+        ...current,
+        items: current.items.filter((_entry, entryIndex) => entryIndex !== index),
+      }))
+    }
+    if (isBlankStockTransferItem(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการโอนสินค้านี้หรือไม่? สินค้าและจำนวนที่กรอกในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการโอนสินค้า',
+    })
+  }
+
   function openCreateForm() {
+    const nextForm = { ...emptyForm, date: todayDateInput(), transferDate: todayDateInput(), items: [{ productId: '', qty: 0 }] }
     setEditingDocNo(null)
-    setForm({ ...emptyForm, date: todayDateInput(), transferDate: todayDateInput(), items: [{ productId: '', qty: 0 }] })
+    setForm(nextForm)
+    setFormBaseline(formSafetySnapshot(nextForm))
     setFieldErrors({})
     setError(null)
     setFormOpen(true)
   }
 
   function openEditForm(row: Row) {
-    setEditingDocNo(row.docNo)
-    setForm({
+    const nextForm: StockTransferFormValues = {
       date: row.date,
       transferDate: row.transferDate || '',
       docNo: row.docNo,
@@ -253,11 +293,36 @@ export function StockTransferPageClient() {
       submitMode: 'draft',
       toBranchId: row.toBranchId,
       toWarehouseId: row.toWarehouseId,
-    })
+    }
+    setEditingDocNo(row.docNo)
+    setForm(nextForm)
+    setFormBaseline(formSafetySnapshot(nextForm))
     setFieldErrors({})
     setError(null)
     setFormOpen(true)
   }
+
+  const closeForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(() => {
+      setFormOpen(false)
+      setEditingDocNo(null)
+    })
+  }, [isSaving, requestDiscard])
+
+  useEffect(() => {
+    if (!formOpen) return
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      closeForm()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [closeForm, formOpen])
 
   async function submitForm(mode: 'draft' | 'post') {
     const parsed = stockTransferFormSchema.safeParse({ ...form, submitMode: mode })
@@ -279,6 +344,7 @@ export function StockTransferPageClient() {
       } else {
         await dailyFetchJson('/api/stock/transfer', { body: JSON.stringify(parsed.data), method: 'POST' })
       }
+      setFormBaseline(formSafetySnapshot(parsed.data))
       setFormOpen(false)
       setEditingDocNo(null)
       await loadData()
@@ -289,8 +355,18 @@ export function StockTransferPageClient() {
     }
   }
 
-  async function cancelDraft(row: Row) {
+  function cancelDraft(row: Row) {
     if (!row.canCancel) return
+    requestConfirmation({
+      title: 'ยืนยันการยกเลิกรายการโอนสินค้า',
+      description: `ต้องการยกเลิกรายการโอนสินค้า ${row.docNo} หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้`,
+      confirmLabel: 'ยืนยันยกเลิก',
+      destructive: true,
+      onConfirm: () => cancelDraftConfirmed(row),
+    })
+  }
+
+  async function cancelDraftConfirmed(row: Row) {
     setIsSaving(true)
     setError(null)
     try {
@@ -301,6 +377,7 @@ export function StockTransferPageClient() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ยกเลิกเอกสารไม่ได้')
+      throw caught
     } finally {
       setIsSaving(false)
     }
@@ -367,10 +444,18 @@ export function StockTransferPageClient() {
             onChange={(event) => setTotalQtyFrom(event.target.value)}
           />
           <span className="text-slate-400">→</span>
-          <Select className="h-9 w-auto" value={sourceBranchFilter} onChange={(event) => setSourceBranchFilter(event.target.value)}>
-            <option value="">ทุกสาขาต้นทาง</option>
-            {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-          </Select>
+          <BranchSelectCombobox
+            allOptionLabel="ทุกสาขาต้นทาง"
+            branches={branchOptions.map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+            className="w-[12rem]"
+            controlSize="filter"
+            includeAllOption
+            inputId="stock-transfer-source-branch-filter"
+            label=""
+            placeholder="ทุกสาขาต้นทาง"
+            value={sourceBranchFilter || null}
+            onChange={(value) => setSourceBranchFilter(value ?? '')}
+          />
           <Input
             className={`h-9 w-[100px] text-right tabular-nums ${numberInputClass}`}
             inputMode="decimal"
@@ -436,18 +521,26 @@ export function StockTransferPageClient() {
         >
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขาต้นทาง</span>
-                <Select className="h-9 w-full" value={sourceBranchFilter} onChange={(event) => setSourceBranchFilter(event.target.value)}>
-                  <option value="">ทุกสาขาต้นทาง</option>
-                  {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-                </Select>
+                <BranchSelectCombobox
+                  allOptionLabel="ทุกสาขาต้นทาง"
+                  branches={branchOptions.map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+                  className="w-full"
+                  controlSize="filter"
+                  includeAllOption
+                  inputId="stock-transfer-source-branch-filter-mobile"
+                  label=""
+                  placeholder="ทุกสาขาต้นทาง"
+                  value={sourceBranchFilter || null}
+                  onChange={(value) => setSourceBranchFilter(value ?? '')}
+                />
               </div>
 
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                 </div>
               </div>
 
@@ -498,14 +591,14 @@ export function StockTransferPageClient() {
       </div>
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8 animate-fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm() }}>
           <form noValidate data-combobox-portal-root="true" className="relative w-full max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl outline-none focus:outline-none flex flex-col max-h-[90vh]" onSubmit={(event) => event.preventDefault()}>
             <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white shrink-0">
               <div>
                 <h3 className="font-bold text-slate-100 text-lg">{editingDocNo ? 'แก้ไขรายการโอนสินค้า' : 'โอนสินค้าระหว่างสาขา'}</h3>
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <Button size="sm" type="button" variant="outline" className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
+                <Button disabled={isSaving} size="sm" type="button" variant="outline" className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" onClick={closeForm}>ยกเลิก</Button>
                 <Button disabled={isSaving} size="sm" type="button" variant="outline" className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" onClick={() => submitForm('draft')}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกแบบร่าง'}</Button>
                 <Button disabled={isSaving} size="sm" type="button" className="h-9 bg-emerald-600 px-5 font-normal text-white hover:bg-emerald-700" onClick={() => submitForm('post')}><Send className="mr-1 h-4 w-4" />{isSaving ? 'กำลังส่ง...' : 'ส่งเข้าสต๊อก'}</Button>
               </div>
@@ -514,10 +607,10 @@ export function StockTransferPageClient() {
             <div className="max-h-[76vh] overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm flex-1">
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid grid-cols-2 gap-4">
                 <FormField error={fieldErrors.date} errorKey="date" label="วันที่เอกสาร *">
-                  <DatePickerInput className="w-full h-9" value={form.date} onChange={(value) => updateForm('date', value)} />
+                  <DatePickerInput className="w-full h-10" value={form.date} onChange={(value) => updateForm('date', value)} />
                 </FormField>
                 <FormField error={fieldErrors.transferDate} errorKey="transferDate" label="วันที่โอนย้าย *">
-                  <DatePickerInput className="w-full h-9" value={form.transferDate ?? ''} onChange={(value) => updateForm('transferDate', value)} />
+                  <DatePickerInput className="w-full h-10" value={form.transferDate ?? ''} onChange={(value) => updateForm('transferDate', value)} />
                 </FormField>
               </div>
 
@@ -578,7 +671,7 @@ export function StockTransferPageClient() {
                         <th className="p-2 text-right">มูลค่า/kg</th>
                         <th className="p-2 text-right">น้ำหนัก</th>
                         <th className="p-2 text-right">มูลค่ารวม</th>
-                        <th className="p-2 text-right">จัดการ</th>
+                        <th className="p-2 text-center">จัดการ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -611,11 +704,11 @@ export function StockTransferPageClient() {
                               />
                             </td>
                             <td className="p-2 pt-4 text-right tabular-nums font-medium text-emerald-700">{formatMoney(lineValue)}</td>
-                            <td className="p-2 text-right">
+                            <td className="p-2 text-center">
                               <TableActionButton
                                 disabled={form.items.length <= 1}
                                 label="ลบรายการ"
-                                menu={<TableActionMenuItem onSelect={() => setForm((current) => ({ ...current, items: current.items.filter((_entry, entryIndex) => entryIndex !== index) }))}>ลบรายการ</TableActionMenuItem>}
+                                menu={<TableActionMenuItem onSelect={() => requestRemoveItem(index)}>ลบรายการ</TableActionMenuItem>}
                               />
                             </td>
                           </tr>
@@ -648,7 +741,7 @@ export function StockTransferPageClient() {
                             type="button"
                             variant="outline"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 h-7 px-2.5"
-                            onClick={() => setForm((current) => ({ ...current, items: current.items.filter((_entry, entryIndex) => entryIndex !== index) }))}
+                            onClick={() => requestRemoveItem(index)}
                           >
                             ลบ
                           </Button>
@@ -791,10 +884,10 @@ export function StockTransferPageClient() {
         {!isLoading && sortedRows.map((row) => (
           <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-2 flex items-start justify-between">
-              <span className="font-bold text-slate-800">{row.docNo}</span>
+              <span className="text-center font-mono font-bold text-slate-800 whitespace-nowrap">{row.docNo}</span>
               <StatusBadge status={row.status} />
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-center text-xs text-slate-500 whitespace-nowrap">
               วันที่เอกสาร: {formatDateDisplay(row.date)}
               {row.transferDate ? ` · วันที่โอน: ${formatDateDisplay(row.transferDate)}` : ''}
             </div>
@@ -833,38 +926,38 @@ export function StockTransferPageClient() {
           </colgroup>
           <TableHeader>
             <tr>
-              <ResizableTableHead label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-              <ResizableTableHead label="วันที่โอนย้าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transferDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
+              <ResizableTableHead align="center" label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead align="center" label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+              <ResizableTableHead align="center" label="วันที่โอนย้าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transferDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
               <ResizableTableHead label="จาก" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="from" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
               <ResizableTableHead label="ไป" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="to" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('to', 'ไป')} />
               <ResizableTableHead align="right" label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="itemCount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} />
               <ResizableTableHead align="right" label="น้ำหนักรวม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนักรวม')} />
               <ResizableTableHead align="right" label="มูลค่ารวม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalValue', 'มูลค่ารวม')} />
-              <ResizableTableHead label="วันที่สร้างรายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="updated" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updated', 'วันที่สร้างรายการ')} />
-              <ResizableTableHead label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="center" label="วันที่สร้างรายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="updated" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updated', 'วันที่สร้างรายการ')} />
+              <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody>
             {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
             {!isLoading && sortedRows.map((row) => (
               <TableRow key={row.id} className="hover:bg-slate-50">
-                <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{row.transferDate ? formatDateDisplay(row.transferDate) : '-'}</TableCell>
+                <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{row.transferDate ? formatDateDisplay(row.transferDate) : '-'}</TableCell>
                 <TableCell className="text-xs font-semibold text-red-600">{row.from}</TableCell>
                 <TableCell className="text-xs font-semibold text-emerald-700">{row.to}</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-slate-700">{row.itemCount.toLocaleString('th-TH')}</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-slate-700">{formatMoney(row.totalQty)} กก.</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-emerald-700">{formatMoney(row.totalValue)}</TableCell>
-                <TableCell className="text-xs text-slate-600">
+                <TableCell className="text-center text-xs text-slate-600">
                   <div className="truncate font-semibold text-slate-700">{row.updatedBy || '-'}</div>
-                  <div className="text-slate-400">{formatDateTime(row.updatedAt)}</div>
+                  <div className="whitespace-nowrap text-slate-400">{formatDateTime(row.updatedAt)}</div>
                 </TableCell>
-                <TableCell><StatusBadge status={row.status} /></TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
+                <TableCell className="text-center"><StatusBadge status={row.status} /></TableCell>
+                <TableCell className="whitespace-nowrap text-center">
+                  <div className="flex justify-center gap-1">
                     <RowActionButton
                       menu={(
                         <>

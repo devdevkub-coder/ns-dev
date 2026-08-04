@@ -1,10 +1,11 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { GuardedLink } from '@/components/ui/GuardedLink'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
@@ -84,8 +85,8 @@ function toSavePayload(record: MasterDataRecord, value: number, fallbackName: st
   }
 }
 
-function percentInputClassName() {
-  return 'h-9 w-full appearance-none px-3 py-1.5 text-right font-semibold tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none border-none outline-none focus:ring-0 bg-transparent'
+function percentInputClassName(heightClass = 'h-10') {
+  return `${heightClass} w-full appearance-none px-3 py-1.5 text-right font-semibold tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none border-none outline-none focus:ring-0 bg-transparent`
 }
 
 function compareSortValues(left: string | number, right: string | number) {
@@ -105,6 +106,14 @@ export function SystemSettingsPageClient() {
   const [whtRecords, setWhtRecords] = useState<MasterDataRecord[]>([])
   const [whtValues, setWhtValues] = useState<Record<string, string>>({})
 
+  const hasUnsavedTaxSettings = Boolean(
+    (vatRecord && vatValue !== toPercentInput(vatRecord.ratePercent))
+    || whtRecords.some((record) => (
+      (whtValues[record.id] ?? toPercentInput(record.ratePercent))
+      !== toPercentInput(record.ratePercent)
+    )),
+  )
+  useUnsavedChangesGuard(hasUnsavedTaxSettings)
   const activeWhtCount = useMemo(() => whtRecords.filter((record) => record.active).length, [whtRecords])
   const whtColumnResize = useResizableColumns('admin.system-settings.wht.v1', whtColumns)
   const sortedWhtRecords = useMemo(() => {
@@ -178,6 +187,11 @@ export function SystemSettingsPageClient() {
     setWhtSortDirection('asc')
   }
 
+  function dismissPendingSave() {
+    if (savingKey !== null) return
+    setPendingSave(null)
+  }
+
   async function confirmSave() {
     if (!pendingSave) return
 
@@ -212,7 +226,7 @@ export function SystemSettingsPageClient() {
             <h2 className="text-base font-bold text-slate-900">ข้อมูลบริษัทสำหรับใบพิมพ์</h2>
           </div>
           <Button asChild className="w-full md:w-auto font-semibold shrink-0" size="sm">
-            <Link href="/admin/company-profile">เปิดหน้าข้อมูลบริษัท</Link>
+            <GuardedLink href="/admin/company-profile">เปิดหน้าข้อมูลบริษัท</GuardedLink>
           </Button>
         </div>
       </section>
@@ -234,7 +248,7 @@ export function SystemSettingsPageClient() {
 
             <label className="block text-sm font-medium text-slate-700">
               อัตรา %
-              <div className="mt-1.5 flex max-w-xs items-center overflow-hidden rounded-md border border-slate-300 bg-white h-9" data-slot="input-group">
+              <div className="mt-1.5 flex h-10 max-w-xs items-center overflow-hidden rounded-md border border-slate-300 bg-white" data-slot="input-group">
                 <Input
                   className={percentInputClassName()}
                   inputMode="decimal"
@@ -319,7 +333,7 @@ export function SystemSettingsPageClient() {
                           <div className="ml-auto flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white" data-slot="input-group">
                             <Input
                               aria-label={`${record.name} อัตราเปอร์เซ็นต์`}
-                              className={percentInputClassName()}
+                              className={percentInputClassName('h-9')}
                               inputMode="decimal"
                               max={100}
                               min={0}
@@ -373,7 +387,7 @@ export function SystemSettingsPageClient() {
                     <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100">
                       <div className="flex-1">
                         <span className="text-slate-400 block text-xs uppercase font-semibold mb-1">อัตรา %</span>
-                        <div className="flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white h-9" data-slot="input-group">
+                        <div className="flex h-10 max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white" data-slot="input-group">
                           <Input
                             aria-label={`${record.name} อัตราเปอร์เซ็นต์`}
                             className={percentInputClassName()}
@@ -414,7 +428,7 @@ export function SystemSettingsPageClient() {
       )}
 
       {pendingSave ? (
-        <Dialog open={!!pendingSave} onOpenChange={() => setPendingSave(null)}>
+        <Dialog open={!!pendingSave} onOpenChange={(open) => { if (!open) dismissPendingSave() }}>
           <DialogContent className="max-w-md rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
             <div data-ns-dialog-header className="border-b border-slate-800 px-5 py-4 bg-slate-900 shrink-0 flex items-center justify-between">
               <div>
@@ -443,7 +457,7 @@ export function SystemSettingsPageClient() {
                 size="sm"
                 type="button"
                 variant="secondary"
-                onClick={() => setPendingSave(null)}
+                onClick={dismissPendingSave}
               >
                 ยกเลิก
               </Button>

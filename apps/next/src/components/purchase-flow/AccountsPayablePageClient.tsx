@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
@@ -147,7 +149,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
   const supplierOptions = useMemo(() => {
     const list = (data?.filters.suppliers ?? []).filter((supplier) => !branchId || (supplier.branchIds ?? []).includes(branchId))
     return [
-      { id: '', label: 'ผู้ขายทั้งหมด' },
+      { id: '', label: 'ผู้ขาย' },
       ...list.map((s) => ({
         id: s.id,
         label: s.code ? `${s.code} - ${s.name}` : s.name,
@@ -285,45 +287,33 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
-        <Metric label="ค้างจ่ายรวม" tone="red" value={formatMoney(totalAp)} />
-        <Metric label="อายุหนี้แล้ว" tone="amber" value={formatMoney(overdueAp)} />
-        <Metric label="อายุไม่เกิน 7 วัน" tone="yellow" value={formatMoney(dueIn7)} />
-        <Metric label="บิลค้างจ่าย" value={`${data?.summary.bills ?? 0} ใบ`} />
-        <Metric className="col-span-2 lg:col-span-1" label="ผู้ขายค้างจ่าย" value={`${data?.summary.suppliers ?? 0} ราย`} />
+      <div className="rounded-xl bg-gradient-to-r from-red-600 to-rose-600 p-5 text-white shadow">
+        <h1 className="text-2xl font-bold">📤 เจ้าหนี้ / Accounts Payable</h1>
+        <p className="mt-1 text-sm opacity-90">สรุปยอดค้างจ่าย Supplier · Aging Buckets · Detail per Bill</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5">
-        {bucketRows.map((bucket) => {
-          const isZero = bucket.total === 0
-          const textClass = isZero ? 'text-slate-500' : bucketTextClass(bucket.bucket)
-          return (
-            <div key={`card-${bucket.bucket}`} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm text-center">
-              <div className={`text-xs font-semibold ${textClass}`}>อายุ {bucketLongLabel(bucket.bucket)}</div>
-              <div className="text-lg font-bold text-slate-900 mt-1 tabular-nums">{formatMoney(bucket.total)}</div>
-              <div className="mt-1 text-xs text-slate-400 font-medium">{bucket.bills} ใบ</div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-rose-700 to-pink-800 p-6 text-white shadow-lg">
+          <div className="absolute -right-8 -top-8 text-8xl opacity-15">📤</div>
+          <div className="relative">
+            <div className="text-sm uppercase tracking-wider opacity-80">💸 ค้างจ่าย Supplier รวม</div>
+            <div className="mt-2 text-4xl font-bold">{formatMoney(totalAp)}</div>
+            <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} บิล · {data?.summary.suppliers ?? 0} Supplier</div>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/20 pt-4">
+              <div><div className="text-[10px] opacity-75">⚠ เกินกำหนด</div><div className="text-lg font-bold text-amber-200">{formatMoney(overdueAp)}</div></div>
+              <div><div className="text-[10px] opacity-75">⏰ ครบใน 7 วัน</div><div className="text-lg font-bold text-yellow-200">{formatMoney(dueIn7)}</div></div>
             </div>
-          )
-        })}
-      </div>
+          </div>
+        </div>
 
-      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 ผู้ขายค้างจ่ายสูงสุด</div>
-        <div className="space-y-1.5">
-          {topSuppliers.map((supplier, index) => (
-            <div key={supplier.supplierName} className="flex items-center gap-2 text-xs">
-              <span className={`w-5 text-center font-bold ${index < 3 ? 'text-red-600' : 'text-slate-400'}`}>{index + 1}</span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold text-slate-700">{supplier.supplierName}</div>
-                <div className="text-xs text-slate-400">{supplier.bills} ใบ · เกินสุด {supplier.oldest} วัน</div>
-              </div>
-              <div className="h-2.5 w-20 rounded-full bg-slate-100 dark:bg-slate-950">
-                <div className="h-2.5 rounded-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} />
-              </div>
-              <div className="w-24 text-right font-bold text-red-700">{formatMoney(supplier.total)}</div>
-            </div>
-          ))}
-          {!isLoading && topSuppliers.length === 0 ? <div className="py-4 text-center text-slate-400">ไม่มีเจ้าหนี้คงค้าง</div> : null}
+        <div className="rounded-2xl bg-white p-4 shadow">
+          <div className="mb-3 text-sm font-bold text-slate-700">📊 Aging Buckets</div>
+          <div className="space-y-2 text-xs">{bucketRows.map((bucket) => <div key={bucket.bucket}><div className="mb-0.5 flex justify-between"><span className={bucketTextClass(bucket.bucket)}>{bucketLongLabel(bucket.bucket)}</span><b>{formatMoney(bucket.total)}</b></div><div className="relative h-5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${bucketBarClass(bucket.bucket)}`} style={{ width: percentage(bucket.total, totalAp) }} /><span className="absolute right-2 top-0 leading-5 text-[10px] font-bold text-slate-700">{bucket.bills} บิล</span></div></div>)}</div>
+        </div>
+
+        <div className="rounded-2xl bg-white p-4 shadow">
+          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 Supplier ค้างจ่ายสูงสุด</div>
+          <div className="space-y-2">{topSuppliers.map((supplier, index) => <div key={supplier.supplierName} className="flex items-center gap-2 text-xs"><span className={`w-5 text-center font-bold ${index < 3 ? 'text-red-600' : 'text-slate-400'}`}>{index + 1}</span><div className="min-w-0 flex-1"><div className="truncate font-semibold text-slate-700">{supplier.supplierName}</div><div className="text-xs text-slate-400">{supplier.bills} ใบ · เกินสุด {supplier.oldest} วัน</div></div><div className="h-2.5 w-20 rounded-full bg-slate-100"><div className="h-2.5 rounded-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} /></div><div className="w-24 text-right font-bold text-red-700">{formatMoney(supplier.total)}</div></div>)}{!isLoading && topSuppliers.length === 0 ? <div className="py-4 text-center text-slate-400">ไม่มีเจ้าหนี้คงค้าง</div> : null}</div>
         </div>
       </div>
 
@@ -341,10 +331,10 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
       {/* Filters Toolbar */}
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
-        <div className="hidden lg:block space-y-3">
+        <div className="hidden space-y-3 lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <input autoComplete="off" className="h-9 min-w-[220px] flex-1 rounded-md border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 2xl:min-w-[260px]" placeholder="ค้นหาเลข PB / ผู้ขาย / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
-            
+
             <div className="w-[105px] min-w-0 shrink-0">
               <SearchCombobox
                 hideLabel
@@ -352,7 +342,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 inputId="ap-supplier-filter"
                 label="ผู้ขาย"
                 options={supplierOptions}
-                placeholder="ผู้ขายทั้งหมด"
+                placeholder="ทุกผู้ขาย"
                 value={supplierId}
                 onChange={(value) => {
                   setPage(1)
@@ -360,7 +350,6 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 }}
               />
             </div>
-            
             <Select className="h-9 w-[120px] shrink-0 px-3 py-2 text-sm [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
               <option value="">ทุกอายุหนี้</option>
               <option value="Current">วันนี้/อนาคต</option>
@@ -369,10 +358,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               <option value="61-90">61-90 วัน</option>
               <option value=">90">&gt;90 วัน</option>
             </Select>
-            <Select className="h-9 w-[105px] shrink-0 px-3 py-2 text-sm [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
-              <option value="">ทุกสาขา</option>
-              {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </Select>
+            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-[105px] min-w-0 shrink-0" controlSize="filter" inputId="accounts-payable-branch-filter" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
             <span className="shrink-0 whitespace-nowrap text-xs text-slate-500">วันที่บิล:</span>
             <DatePickerInput className="w-[110px] shrink-0" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
             <span className="shrink-0 text-slate-400">→</span>
@@ -401,7 +387,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               })}
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button className="flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
+              <button className="flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}><Download aria-hidden="true" className="size-4" />{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
             </div>
           </div>
         </div>
@@ -419,18 +405,19 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               ตัวกรอง
             </button>
             <button
-              className="ml-auto inline-flex h-9 shrink-0 items-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-60"
+              className="ml-auto inline-flex h-9 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
               disabled={isExporting}
               type="button"
               onClick={() => void exportXlsx()}
             >
+              <Download aria-hidden="true" className="size-4" />
               {isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}
             </button>
           </div>
 
           <div className="relative w-full">
             <input
-              autoComplete="off" className="w-full rounded-md border px-3 py-2 text-sm pr-8"
+              autoComplete="off" className="h-9 w-full rounded-md border px-3 py-2 pr-8 text-sm"
               placeholder="ค้นหาเลขบิล / ผู้ขาย / สาขา..."
               type="search"
               value={q}
@@ -446,7 +433,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 inputId="ap-supplier-filter-mobile"
                 label="ผู้ขาย"
                 options={supplierOptions}
-                placeholder="ผู้ขายทั้งหมด"
+                placeholder="ทุกผู้ขาย"
                 value={supplierId}
                 onChange={(value) => {
                   setPage(1)
@@ -461,10 +448,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 <option value="61-90">61-90 วัน</option>
                 <option value=">90">&gt;90 วัน</option>
               </Select>
-              <Select className="h-9 w-full px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
-                <option value="">ทุกสาขา</option>
-                {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </Select>
+              <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-full" controlSize="filter" inputId="accounts-payable-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
               <div className="space-y-1">
                 <span className="block text-xs font-semibold text-slate-600">สถานะ</span>
                 <div aria-label="กรองสถานะเจ้าหนี้" className="flex flex-wrap gap-2" role="group">
@@ -487,11 +471,11 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
                   วันที่บิลจาก
-                  <DatePickerInput className="mt-1 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
                 </label>
                 <label className="text-xs text-slate-500">
                   วันที่บิลถึง
-                  <DatePickerInput className="mt-1 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
                 </label>
               </div>
               <div className="flex justify-end items-center pt-1">
@@ -619,7 +603,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               onClick={() => setSelectedRow(row)}
             >
               <div className="flex justify-between items-start gap-2">
-                <span className="font-bold text-slate-900 text-[15px] leading-snug text-blue-600">{row.docNo}</span>
+                <span className="text-center font-mono font-bold text-[15px] leading-snug text-blue-600 whitespace-nowrap">{row.docNo}</span>
                 <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shrink-0 ${bucketClass(row.bucket)}`}>
                   {bucketLongLabel(row.bucket)} ({row.aging} วัน)
                 </span>
@@ -633,11 +617,11 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                   <div>
                     <span className="text-slate-400 block text-xs uppercase font-semibold">วันที่บิล:</span>
-                    <span className="text-slate-700 font-medium">{formatDateDisplay(row.date)}</span>
+                    <span className="text-center font-medium text-slate-700 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-xs uppercase font-semibold">นับอายุจาก:</span>
-                    <span className="text-slate-700 font-medium">{formatDateDisplay(row.dueDate)}</span>
+                    <span className="text-center font-medium text-slate-700 whitespace-nowrap">{formatDateDisplay(row.dueDate)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-[13px]">
@@ -826,13 +810,13 @@ function SummaryTable({
           <tfoot className="bg-slate-100 font-bold">
             <tr>
               <td className="p-2">รวมทั้งหมด ({summary?.suppliers ?? rows.length} ผู้ขาย)</td>
-              <td className="p-2 text-right">{summary?.bills ?? 0}</td>
-              <td className="p-2 text-right">{formatMoney(bucketTotal('Current'))}</td>
-              <td className="p-2 text-right">{formatMoney(bucketTotal('1-30'))}</td>
-              <td className="p-2 text-right">{formatMoney(bucketTotal('31-60'))}</td>
-              <td className="p-2 text-right">{formatMoney(bucketTotal('61-90'))}</td>
-              <td className="p-2 text-right text-red-700">{formatMoney(bucketTotal('>90'))}</td>
-              <td className="p-2 text-right text-lg text-red-700">{formatMoney(summary?.total ?? 0)}</td>
+              <td className="p-2 text-right tabular-nums">{summary?.bills ?? 0}</td>
+              <td className="p-2 text-right tabular-nums">{formatMoney(bucketTotal('Current'))}</td>
+              <td className="p-2 text-right tabular-nums">{formatMoney(bucketTotal('1-30'))}</td>
+              <td className="p-2 text-right tabular-nums">{formatMoney(bucketTotal('31-60'))}</td>
+              <td className="p-2 text-right tabular-nums">{formatMoney(bucketTotal('61-90'))}</td>
+              <td className="p-2 text-right tabular-nums text-red-700">{formatMoney(bucketTotal('>90'))}</td>
+              <td className="p-2 text-right text-lg tabular-nums text-red-700">{formatMoney(summary?.total ?? 0)}</td>
               <td />
             </tr>
           </tfoot>
@@ -887,9 +871,9 @@ function DetailTable({
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
           <tr>
             <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="เลขที่บิลรับซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิลรับซื้อ')} sortKey="docNo" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันที่บิล" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่บิล')} sortKey="date" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ตั้งต้นอายุหนี้" resizeProps={columnResize.getResizeHandleProps('dueDate', 'ตั้งต้นอายุหนี้')} sortKey="dueDate" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="เลขที่บิลรับซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิลรับซื้อ')} sortKey="docNo" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="วันที่บิล" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่บิล')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="ตั้งต้นอายุหนี้" resizeProps={columnResize.getResizeHandleProps('dueDate', 'ตั้งต้นอายุหนี้')} sortKey="dueDate" onSort={onSort} />
             <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="อายุหนี้" resizeProps={columnResize.getResizeHandleProps('aging', 'อายุหนี้')} sortKey="aging" onSort={onSort} />
             <ResizableTableHead align="right" label="ยอดบิล" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดบิล')} />
             <ResizableTableHead align="right" label="จ่ายแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'จ่ายแล้ว')} />
@@ -902,9 +886,9 @@ function DetailTable({
           {!isLoading && rows.map((row) => (
             <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.aging > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.aging > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
               <td className="p-2 min-w-0 overflow-hidden"><div className="truncate" title={row.supplierName || ''}>{row.supplierName}</div></td>
-              <td className="p-2 whitespace-nowrap"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
-              <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
-              <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.dueDate)}</td>
+              <td className="p-2 text-center whitespace-nowrap"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
+              <td className="p-2 text-center whitespace-nowrap">{formatDateDisplay(row.date)}</td>
+              <td className="p-2 text-center whitespace-nowrap">{formatDateDisplay(row.dueDate)}</td>
               <td className="p-2 text-center whitespace-nowrap"><span className={`rounded-md px-2 py-0.5 text-xs ${bucketClass(row.bucket)}`}>{bucketLongLabel(row.bucket)} ({row.aging})</span></td>
               <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.totalAmount)}</td>
               <td className="p-2 text-right text-emerald-600 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.paidAmount)}</td>
@@ -916,7 +900,7 @@ function DetailTable({
           <tfoot className="bg-slate-100 font-bold">
             <tr>
               <td className="p-2 text-right" colSpan={7}>รวมค้างจ่ายทั้งหมด</td>
-              <td className="p-2 text-right text-lg text-red-700">{formatMoney(summaryTotal)}</td>
+              <td className="p-2 text-right text-lg tabular-nums text-red-700">{formatMoney(summaryTotal)}</td>
             </tr>
           </tfoot>
         ) : null}

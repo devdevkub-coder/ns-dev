@@ -1,5 +1,6 @@
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { requireSalesBillStatus } from '@/lib/server/sales-bill-history'
 import type { Prisma } from '../../../generated/prisma/client'
 
 type SalesBillLineWithFacts = Prisma.sales_bill_linesGetPayload<{
@@ -249,7 +250,7 @@ function salesBillLineFactRow(line: SalesBillLineWithFacts, matchedCogs: number,
     qty: toNumber(line.qty || line.net_weight),
     sourceDocNo: source?.source_doc_no ?? '',
     sourceType: source?.source_type ?? '',
-    status: line.sales_bills.status ?? '',
+    status: requireSalesBillStatus(line.sales_bills.status, line.sales_bills.doc_no),
     transactionMode: line.sales_bills.transaction_mode ?? 'STOCK',
     unit: line.unit_snapshot ?? line.products?.unit ?? 'kg',
     unitPrice: toNumber(line.unit_price),

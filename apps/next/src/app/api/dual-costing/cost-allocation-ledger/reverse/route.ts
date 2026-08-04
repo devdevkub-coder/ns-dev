@@ -23,7 +23,7 @@ function isReversedStatus(status: string | null | undefined) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'finance.dual_costing.reverse')
 
     const body = await request.json()
     const dealId = String(body.dealId ?? '').trim()
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการ Allocation Ledger ของสาขานี้' }, { status: 403 })
     }
 
-    const actor = context.appUser?.email || context.authUser.email || 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     const updatedAt = new Date()
     const result = await prisma.$transaction(async (tx) => {
       // ponytail: one L5 allocation lock is intentionally global until measured contention justifies scoped locks.
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
         throw new AllocationLedgerConflictError('ไม่พบข้อมูลต้นทุนที่ยังใช้งานครบทั้งการจับคู่ จึงไม่สามารถย้อนกลับได้')
       }
       if (activeFacts.some((fact) => fact.cost_pool_entry_id == null)) {
-        throw new AllocationLedgerConflictError('รายการเก่ายังระบุ lot ต้นทุนไม่ชัดเจน จึงไม่สามารถย้อนกลับโดยเดา lot ได้')
+        throw new AllocationLedgerConflictError('รายการเดิมยังระบุรายการ Cost Pool ไม่ชัดเจน จึงไม่สามารถย้อนกลับโดยเดารายการได้')
       }
 
       const productionTarget = anchor.sales_bill_no
@@ -104,13 +104,13 @@ export async function POST(request: Request) {
       const poolIds = Array.from(releasedByPoolId.keys()).map((id) => BigInt(id))
       const pools = await tx.stock_cost_pool_entries.findMany({ where: { id: { in: poolIds } } })
       if (pools.length !== poolIds.length) {
-        throw new AllocationLedgerConflictError('ไม่พบ Cost Pool lot ครบทั้งการจับคู่ จึงไม่สามารถย้อนกลับได้')
+        throw new AllocationLedgerConflictError('ไม่พบรายการ Cost Pool ครบทั้งการจับคู่ จึงไม่สามารถย้อนกลับได้')
       }
 
       const auditNote = `Reversed from Allocation Ledger: ${reason}`
       for (const pool of pools) {
         if (pool.branch_id !== branch.id) {
-          throw new AllocationLedgerConflictError('Cost Pool lot อยู่นอกสาขาที่อนุญาต')
+          throw new AllocationLedgerConflictError('รายการ Cost Pool อยู่นอกสาขาที่อนุญาต')
         }
         const releasedQty = releasedByPoolId.get(pool.id.toString()) ?? 0
         const nextAllocatedQty = toNumber(pool.allocated_qty) - releasedQty

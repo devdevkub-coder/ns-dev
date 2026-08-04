@@ -174,7 +174,7 @@ export function MigrationToolsPageClient() {
             </colgroup>
             <thead className="bg-slate-100">
               <tr>
-                <ResizableTableHead label="วันที่ Snapshot" activeSortKey={snapshotSortKey ?? undefined} direction={snapshotSortDirection} sortKey="date" onSort={handleSnapshotSort} resizeProps={snapshotColumnResize.getResizeHandleProps('date', 'วันที่ Snapshot')} />
+                <ResizableTableHead align="center" label="วันที่ Snapshot" activeSortKey={snapshotSortKey ?? undefined} direction={snapshotSortDirection} sortKey="date" onSort={handleSnapshotSort} resizeProps={snapshotColumnResize.getResizeHandleProps('date', 'วันที่ Snapshot')} />
                 <ResizableTableHead align="right" label="ขนาด (KB)" activeSortKey={snapshotSortKey ?? undefined} direction={snapshotSortDirection} sortKey="sizeKb" onSort={handleSnapshotSort} resizeProps={snapshotColumnResize.getResizeHandleProps('sizeKb', 'ขนาด (KB)')} />
               </tr>
             </thead>
@@ -187,8 +187,8 @@ export function MigrationToolsPageClient() {
                 </tr>
               ) : sortedSnapshotRows.map((row) => (
                 <tr className="hover:bg-slate-50" key={row.id}>
-                  <td className="px-3 py-3 font-medium text-slate-800">{row.date}</td>
-                  <td className="px-3 py-3 text-right tabular-nums text-slate-700">{row.sizeKb.toLocaleString('th-TH')}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-800">{row.date}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{row.sizeKb.toLocaleString('th-TH')}</td>
                 </tr>
               ))}
             </tbody>

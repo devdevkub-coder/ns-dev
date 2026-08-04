@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useActionConfirmation } from '@/components/ui/FormSafetyProvider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AdvancePaymentsPageClient } from '@/components/purchase-flow/AdvancePaymentsPageClient'
 import { CustomerAdvanceForm } from '@/components/purchase-flow/CustomerAdvanceForm'
@@ -13,6 +14,7 @@ function tabFromLocation(): AdvanceTab {
 
 export function AdvancePaymentsTabbedPageClient() {
   const [activeTab, setActiveTab] = useState<AdvanceTab>('payment')
+  const { requestNavigation } = useActionConfirmation()
 
   useEffect(() => {
     const syncFromLocation = () => setActiveTab(tabFromLocation())
@@ -23,11 +25,14 @@ export function AdvancePaymentsTabbedPageClient() {
 
   const changeTab = (value: string) => {
     const nextTab: AdvanceTab = value === 'receipt' ? 'receipt' : 'payment'
-    const url = new URL(window.location.href)
-    if (nextTab === 'receipt') url.searchParams.set('tab', 'receipt')
-    else url.searchParams.delete('tab')
-    window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`)
-    setActiveTab(nextTab)
+    if (nextTab === activeTab) return
+    requestNavigation(() => {
+      const url = new URL(window.location.href)
+      if (nextTab === 'receipt') url.searchParams.set('tab', 'receipt')
+      else url.searchParams.delete('tab')
+      window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`)
+      setActiveTab(nextTab)
+    })
   }
 
   return (

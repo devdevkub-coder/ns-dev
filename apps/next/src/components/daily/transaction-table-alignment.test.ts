@@ -13,6 +13,7 @@ const weightTicketDashboardSource = readSource('./WeightTicketDashboardPageClien
 const weightTicketListSource = readSource('./WeightTicketListPageClient.tsx')
 const poSellSource = readSource('../sales/PoSellPageClient.tsx')
 const advancePaymentsSource = readSource('../purchase-flow/AdvancePaymentsPageClient.tsx')
+const dailyPettyAdvanceSource = readSource('./DailyPettyAdvancePageClient.tsx')
 const resizableTableHeadSource = readSource('../ui/ResizableTableHead.tsx')
 const salesBillsRouteSource = readSource('../../app/sales/bills/page.tsx')
 const globalsSource = readSource('../../app/globals.css')
@@ -57,6 +58,23 @@ function expectLeftAlignedColumn({
   expect(bodyTag).not.toMatch(/(?:justify|text)-(?:center|end|right)/)
 }
 
+function expectCenteredNoWrapColumn({
+  bodyMarker,
+  headerMarker,
+  source,
+}: {
+  bodyMarker: string
+  headerMarker: string
+  source: string
+}) {
+  const headerTag = openingTag(source, 'SortHeader', headerMarker)
+  const bodyTag = openingTag(source, 'td', bodyMarker)
+
+  expect(headerTag).toContain('align="center"')
+  expect(bodyTag).toMatch(/\btext-center\b/)
+  expect(bodyTag).toMatch(/\bwhitespace-nowrap\b/)
+}
+
 describe('transaction bill detail table', () => {
   it('shows the captured unit cost between net quantity and sale price', () => {
     const netQuantityHeader = transactionBillsSource.indexOf('>จำนวนสุทธิ</th>')
@@ -77,7 +95,7 @@ describe('transaction bill detail table', () => {
   })
 })
 
-describe('accepted textual table alignment', () => {
+describe('accepted semantic table alignment', () => {
   it('centers headers, left-aligns text, and right-aligns explicitly numeric cells', () => {
     const headerSelector = 'table.ns-table > thead > tr > th:not([colspan])'
     const bodySelector = 'table.ns-table > :is(tbody, tfoot) > tr > :is(th, td):not([colspan])'
@@ -88,7 +106,7 @@ describe('accepted textual table alignment', () => {
     expect(globalsSource.slice(globalsSource.indexOf(numericSelector), globalsSource.indexOf('}', globalsSource.indexOf(numericSelector)))).toContain('text-align: right !important;')
   })
 
-  it('centers purchase bill columns except money columns on /purchase/bills', () => {
+  it('left-aligns the Supplier while keeping numeric and action columns semantic on /purchase/bills', () => {
     expect(purchaseBillsSource).toContain('<TransactionBillsPageClient mode="purchase" />')
     const supplierHeaderTag = openingTag(transactionBillsSource, 'SortHeader', "getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')")
     const supplierBodyTag = openingTag(transactionBillsSource, 'td', "'supplierName' in row ? row.supplierName : row.customerName")
@@ -96,19 +114,25 @@ describe('accepted textual table alignment', () => {
     const outstandingHeaderTag = openingTag(transactionBillsSource, 'SortHeader', 'sortKey="outstanding"')
     const actionHeaderTag = openingTag(transactionBillsSource, 'ResizableTableHead', "getResizeHandleProps('action', 'จัดการ')")
 
-    expect(supplierHeaderTag).toContain('align="center"')
-    expect(supplierHeaderTag).not.toContain(TEXTUAL_COLUMN_CLASS)
-    expect(supplierBodyTag).toContain('text-center')
-    expect(supplierBodyTag).not.toContain(TEXTUAL_COLUMN_CLASS)
+    expect(supplierHeaderTag).toContain('align="left"')
+    expect(supplierHeaderTag).toContain(TEXTUAL_COLUMN_CLASS)
+    expect(supplierBodyTag).toContain('text-left')
+    expect(supplierBodyTag).toContain(TEXTUAL_COLUMN_CLASS)
     expect(totalHeaderTag).toContain('align="right"')
     expect(totalHeaderTag).toContain('className="ns-table-numeric-header"')
     expect(outstandingHeaderTag).toContain('align="right"')
     expect(outstandingHeaderTag).toContain('className="ns-table-numeric-header"')
     expect(actionHeaderTag).toContain('align="center"')
-    expect(transactionBillsSource).toContain('<td className="p-2 text-center">\n                    <TableActionButton menu={(')
+    const actionBodyTag = openingTag(
+      transactionBillsSource,
+      'td',
+      '<TableActionButton menu={(\n                      <>\n                        <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>',
+    )
+    expect(actionBodyTag).toContain('text-center')
+    expect(actionBodyTag).toContain('whitespace-nowrap')
   })
 
-  it('centers sales bill non-numeric columns and right-aligns numeric columns on /sales/bills', () => {
+  it('left-aligns the Customer and right-aligns numeric columns on /sales/bills', () => {
     expect(salesBillsRouteSource).toContain('<TransactionBillsPageClient mode="sales" />')
     const customerHeaderTag = openingTag(transactionBillsSource, 'SortHeader', "getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')")
     const customerBodyTag = openingTag(transactionBillsSource, 'td', "'supplierName' in row ? row.supplierName : row.customerName")
@@ -119,10 +143,10 @@ describe('accepted textual table alignment', () => {
     const outstandingHeaderTag = openingTag(transactionBillsSource, 'SortHeader', 'sortKey="outstanding"')
     const actionHeaderTag = openingTag(transactionBillsSource, 'ResizableTableHead', "getResizeHandleProps('action', 'จัดการ')")
 
-    expect(customerHeaderTag).toContain('align="center"')
-    expect(customerHeaderTag).not.toContain(TEXTUAL_COLUMN_CLASS)
-    expect(customerBodyTag).toContain('text-center')
-    expect(customerBodyTag).not.toContain(TEXTUAL_COLUMN_CLASS)
+    expect(customerHeaderTag).toContain('align="left"')
+    expect(customerHeaderTag).toContain(TEXTUAL_COLUMN_CLASS)
+    expect(customerBodyTag).toContain('text-left')
+    expect(customerBodyTag).toContain(TEXTUAL_COLUMN_CLASS)
     for (const headerTag of [itemCountHeaderTag, totalHeaderTag, gpHeaderTag, paidHeaderTag, outstandingHeaderTag]) {
       expect(headerTag).toContain('align="right"')
       expect(headerTag).toContain('className="ns-table-numeric-header"')
@@ -152,12 +176,15 @@ describe('accepted textual table alignment', () => {
     })
   })
 
-  it('left-aligns the created date and Supplier columns on /daily/weight-ticket-list', () => {
-    expectLeftAlignedColumn({
+  it('centers document and created date while left-aligning the Supplier or Customer on /daily/weight-ticket-list', () => {
+    expectCenteredNoWrapColumn({
+      bodyMarker: "className={isCancelled ? 'pl-2' : undefined}>{ticket.documentNo}</span>",
+      headerMarker: "getResizeHandleProps('documentNo', 'เลขที่')",
+      source: weightTicketListSource,
+    })
+    expectCenteredNoWrapColumn({
       bodyMarker: '{ticketDate}</div>',
-      bodyTagName: 'td',
       headerMarker: "getResizeHandleProps('createdAt', 'วันที่สร้าง')",
-      headerTagName: 'SortHeader',
       source: weightTicketListSource,
     })
     expectLeftAlignedColumn({
@@ -191,25 +218,29 @@ describe('accepted textual table alignment', () => {
     })
   })
 
-  it('does not opt the WTI dashboard or WTO list into textual alignment', () => {
+  it('keeps the WTI dashboard exception while the primary WTI/WTO list uses semantic alignment', () => {
     const wtiPanelTag = openingTag(weightTicketDashboardSource, 'FlowTablePanel', 'storageKey="daily.weight-ticket-dashboard.wti.v1"')
     const wtoPanelTag = openingTag(weightTicketDashboardSource, 'FlowTablePanel', 'storageKey="daily.weight-ticket-dashboard.wto.v1"')
     const dashboardHeaderTag = openingTag(weightTicketDashboardSource, 'ResizableTableHead', "getResizeHandleProps('party',")
     const dashboardBodyTag = openingTag(weightTicketDashboardSource, 'td', 'title={row.partyName}>{row.partyName}</div>')
-    const listCreatedHeaderTag = openingTag(weightTicketListSource, 'SortHeader', 'sortKey="createdAt"')
     const listPartyHeaderTag = openingTag(weightTicketListSource, 'SortHeader', 'sortKey="partyName"')
-    const listCreatedBodyTag = openingTag(weightTicketListSource, 'td', '{ticketDate}</div>')
     const listPartyBodyTag = openingTag(weightTicketListSource, 'td', '>{ticket.partyName}</td>')
     const dashboardConditionalClass = `leftAlignParty ? '${TEXTUAL_COLUMN_CLASS}`
-    const listConditionalClass = `typeFilter === 'WTI' ? '${TEXTUAL_COLUMN_CLASS}`
 
     expect(wtiPanelTag).not.toContain('leftAlignParty')
     expect(wtoPanelTag).toContain('leftAlignParty')
     expect(dashboardHeaderTag).toContain(dashboardConditionalClass)
     expect(dashboardBodyTag).toContain(dashboardConditionalClass)
-    for (const tag of [listCreatedHeaderTag, listPartyHeaderTag, listCreatedBodyTag, listPartyBodyTag]) {
-      expect(tag).toContain(listConditionalClass)
-      expect(tag).not.toContain(`className="${TEXTUAL_COLUMN_CLASS}"`)
-    }
+    expect(listPartyHeaderTag).toContain('align="left"')
+    expect(listPartyBodyTag).toContain('text-left')
+    expect(weightTicketListSource).not.toContain(`typeFilter === 'WTI' ? '${TEXTUAL_COLUMN_CLASS}`)
+  })
+
+  it('keeps petty-advance mobile document and payment date on one line', () => {
+    const documentTag = openingTag(dailyPettyAdvanceSource, 'span', '>{row.docNo}</span>')
+    const paymentDateTag = openingTag(dailyPettyAdvanceSource, 'span', 'วันที่จ่าย: {formatDateDisplay(row.date)}</span>')
+
+    expect(documentTag).toContain('whitespace-nowrap')
+    expect(paymentDateTag).toContain('whitespace-nowrap')
   })
 })

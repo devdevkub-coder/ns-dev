@@ -8,6 +8,7 @@ import { resolve } from 'node:path'
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { FormSafetyProvider } from '@/components/ui/FormSafetyProvider'
 const mocks = vi.hoisted(() => ({
   cachedWeightTicketReferences: vi.fn(),
   router: {
@@ -41,8 +42,9 @@ describe('weight-ticket product entry start contract', () => {
 
 describe('weight-ticket mobile product workspace contract', () => {
   it('opens a blank product editor without auto-opening the product dropdown', () => {
-    const addLineSource = formSource.match(/function addLine\(\) \{([\s\S]*?)\n  \}\n\n  function closeMobileProductEditor/)
+    const addLineSource = formSource.match(/function addLine\(\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  const closeMobileProductEditor = useCallback/)
 
+    expect(addLineSource).not.toBeNull()
     expect(addLineSource?.[1]).toContain("setMobileProductView('editor')")
     expect(addLineSource?.[1]).not.toContain('setPendingFocusField')
     expect(formSource).toContain('setPendingFocusField(firstErrorKey)')
@@ -63,9 +65,10 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).not.toContain('motion-reduce:transition-none')
     expect(formSource).toContain("activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'")
     expect(formSource).toContain('aria-label="ปิดหน้ากรอกสินค้า"')
-    expect(formSource).toContain('function closeMobileProductEditor(')
+    expect(formSource).toContain('const closeMobileProductEditor = useCallback(')
     expect(formSource).toContain('id={`weight-ticket-line-card-${line.id}`}')
     expect(formSource).toContain("window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape'")
+    expect(formSource).toContain("document.addEventListener('keydown', handleMobileProductEditorKeyDown)")
     expect(formSource).toContain('transition-transform duration-[400ms] ease-[cubic-bezier(.32,.72,0,1)]')
     expect(formSource).toContain('translate-y-full')
     expect(formSource).not.toContain('animate-in slide-in-from-bottom-8')
@@ -114,7 +117,7 @@ describe('weight-ticket mobile product workspace contract', () => {
   })
 
   it('uses two compact rows for a normal impurity input on mobile', () => {
-    expect(formSource).toContain("? 'grid-cols-1'\n                                  : usesPercentDeduction")
+    expect(formSource).toMatch(/\? 'grid-cols-1'\r?\n\s*: usesPercentDeduction/)
     expect(formSource).toContain("? 'grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)]'")
     expect(formSource).toContain("const mobileImpuritySelectorColumns = usesPercentDeduction ? 'col-span-3 md:col-span-1' : 'col-span-2 md:col-span-1'")
     expect(formSource).toContain('!isOtherProductImpurity && mobileImpuritySelectorColumns')
@@ -125,6 +128,11 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('"grid min-w-0 grid-cols-2 gap-3 sm:gap-4"')
   })
 
+  it('keeps all three lot weight controls in one row', () => {
+    expect(formSource).toContain('grid grid-cols-3 items-start gap-2 sm:gap-4')
+    expect(formSource).not.toMatch(/<div className="col-span-2 sm:col-span-1">\s*<FieldBlock label="น้ำหนักหลังหักภาชนะ">/)
+  })
+
   it('uses collapsible mobile cards for impurity entries', () => {
     expect(formSource).toContain('const [collapsedImpurityIds, setCollapsedImpurityIds] = useState<Record<string, boolean>>({})')
     expect(formSource).toContain('function toggleImpurityCollapsed(impurityId: string)')
@@ -133,6 +141,10 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('setCollapsedImpurityIds((current) => ({')
     expect(formSource).toContain("isOtherProductImpurity ? 'flex' : 'hidden md:flex'")
     expect(formSource).toContain('ลบสิ่งเจือปน')
+  })
+  it('keeps mobile product and impurity removal behind the confirmation guards', () => {
+    expect(formSource).toContain('requestProductRemoval(activeLine.id)')
+    expect(formSource).toContain('requestImpurityRemoval(child.id)')
   })
 })
 
@@ -201,7 +213,13 @@ describe('weight-ticket product editor behavior', () => {
 
   async function renderForm() {
     await act(async () => {
-      root.render(React.createElement(WeightTicketFormCore))
+      root.render(
+        React.createElement(
+          FormSafetyProvider,
+          null,
+          React.createElement(WeightTicketFormCore),
+        ),
+      )
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
   }
@@ -271,6 +289,26 @@ describe('weight-ticket product editor behavior', () => {
     expect(productInput?.getAttribute('aria-expanded')).toBe('true')
   })
 
+  it('reserves equal mobile label height for all three product-entry weight inputs', async () => {
+    await renderForm()
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
+      await Promise.resolve()
+    })
+
+    const weightLabels = Array.from(container.querySelectorAll<HTMLLabelElement>('label')).filter((label) => (
+      /^(น้ำหนักรวม \(กก\. \/ ลัง\)|หักภาชนะ \(กก\.\)|น้ำหนักหลังหักภาชนะ)/.test(label.textContent?.trim() ?? '')
+    ))
+
+    expect(weightLabels).toHaveLength(3)
+    for (const label of weightLabels) {
+      expect(label.className).toContain('min-h-10')
+      expect(label.className).toContain('leading-5')
+      expect(label.className).toContain('sm:min-h-0')
+    }
+  })
+
   it('still focuses the first invalid field after saving an incomplete product entry', async () => {
     await renderForm()
 
@@ -325,6 +363,43 @@ describe('weight-ticket product editor behavior', () => {
     expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).toBeNull()
   })
 
+  it('closes the mobile editor with Escape even when focus stays on the add-product trigger', async () => {
+    await renderForm()
+
+    const addProductButton = container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')
+    expect(addProductButton).not.toBeNull()
+
+    await act(async () => {
+      addProductButton?.click()
+      addProductButton?.focus()
+      await Promise.resolve()
+    })
+
+    expect(document.activeElement).toBe(addProductButton)
+
+    vi.useFakeTimers()
+    const escapeEvent = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' })
+    await act(async () => {
+      document.dispatchEvent(escapeEvent)
+      await Promise.resolve()
+    })
+
+    expect(escapeEvent.defaultPrevented).toBe(true)
+    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).not.toBeNull()
+    expect(container.querySelector('[class*="translate-y-full"]')).not.toBeNull()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(399)
+    })
+
+    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).not.toBeNull()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+
+    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).toBeNull()
+  })
   it('keeps the same exit motion when the browser requests reduced motion', async () => {
     prefersReducedMotion = true
     await renderForm()

@@ -13,6 +13,7 @@ import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type CostSourceColumnKey = 'date' | 'product' | 'remainingAmount' | 'remainingQty' | 'source' | 'supplier'
 type ReadinessColumnKey = 'costPoolQty' | 'costPoolValue' | 'netValue' | 'poBuyAmount' | 'poSellAmount' | 'product' | 'status'
@@ -171,6 +172,8 @@ type AgingBuckets = {
   '31+': AgingBucket
 }
 type CostSourceRow = {
+  branchId: string
+  branchName: string
   date: string
   id: string
   productCode: string
@@ -186,9 +189,11 @@ type CostSourceRow = {
   unitCost: number
 }
 type CostSourcesPayload = {
+  branches: Array<{ code: string; id: string; name: string }>
   rows: CostSourceRow[]
 }
 type CostSourceForm = {
+  branchId: string
   date: string
   notes: string
   productId: string
@@ -221,6 +226,7 @@ function searchOptions(options: Option[], allLabel: string): SearchComboboxOptio
 
 function sourceFormDefaults(): CostSourceForm {
   return {
+    branchId: '',
     date: todayDateInput(),
     notes: '',
     productId: '',
@@ -312,6 +318,7 @@ export function TradingDashboardPageClient() {
   const [productId, setProductId] = useState('all')
   const [sourceForm, setSourceForm] = useState<CostSourceForm>(() => sourceFormDefaults())
   const [sourceRows, setSourceRows] = useState<CostSourceRow[]>([])
+  const [sourceBranches, setSourceBranches] = useState<CostSourcesPayload['branches']>([])
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [sourceSaving, setSourceSaving] = useState(false)
   const [sourcesLoading, setSourcesLoading] = useState(false)
@@ -345,6 +352,7 @@ export function TradingDashboardPageClient() {
     setSourcesLoading(true)
     try {
       const payload = await dailyFetchJson<CostSourcesPayload>('/api/trading/cost-sources')
+      setSourceBranches(payload.branches ?? [])
       setSourceRows(payload.rows)
     } catch (caught) {
       setSourceError(caught instanceof Error ? caught.message : 'โหลดต้นทุนซื้อมาขายไปไม่ได้')
@@ -400,6 +408,7 @@ export function TradingDashboardPageClient() {
       await dailyFetchJson<{ sourceNo: string }>('/api/trading/cost-sources', {
         body: JSON.stringify({
           date: sourceForm.date,
+          branchId: sourceForm.branchId,
           notes: sourceForm.notes.trim() || null,
           productId: sourceForm.productId,
           qty: Number(sourceForm.qty),
@@ -416,6 +425,12 @@ export function TradingDashboardPageClient() {
     } finally {
       setSourceSaving(false)
     }
+  }
+
+  const closeCostSourceModal = () => {
+    setIsSourceModalOpen(false)
+    setSourceError(null)
+    setSourceForm(sourceFormDefaults())
   }
 
   const clearFilters = () => {
@@ -522,8 +537,9 @@ export function TradingDashboardPageClient() {
         isSaving={sourceSaving}
         productOptions={sourceProductOptions}
         rows={sourceRows}
+        branchOptions={sourceBranches.map((branch) => ({ id: branch.id, label: `${branch.code} - ${branch.name}`, searchText: `${branch.code} ${branch.name}` }))}
         supplierOptions={sourceSupplierOptions}
-        onClose={() => setIsSourceModalOpen(false)}
+        onClose={closeCostSourceModal}
         onFormChange={setSourceForm}
         onRefresh={loadCostSources}
         onSubmit={submitCostSource}
@@ -544,6 +560,7 @@ function CostSourceModal({
   onSubmit,
   productOptions,
   rows,
+  branchOptions,
   supplierOptions,
 }: {
   error: string | null
@@ -557,6 +574,7 @@ function CostSourceModal({
   onSubmit: () => void
   productOptions: SearchComboboxOption[]
   rows: CostSourceRow[]
+  branchOptions: SearchComboboxOption[]
   supplierOptions: SearchComboboxOption[]
 }) {
   const columnResize = useResizableColumns('trading.dashboard.cost-source.v5', costSourceColumns)
@@ -569,11 +587,13 @@ function CostSourceModal({
     : Number.isFinite(unitCost) && Number.isFinite(qty)
       ? unitCost * qty
       : 0
-  const canSubmit = Boolean(form.date && form.productId && Number(form.qty) > 0 && (Number(form.unitCost) > 0 || Number(form.totalAmount) > 0))
+  const canSubmit = Boolean(form.date && form.branchId && form.productId && Number(form.qty) > 0 && (Number(form.unitCost) > 0 || Number(form.totalAmount) > 0))
   const update = <K extends keyof CostSourceForm>(key: K, value: CostSourceForm[K]) => onFormChange({ ...form, [key]: value })
+  const { requestDiscard } = useUnsavedChangesGuard(isOpen && JSON.stringify(form) !== JSON.stringify(sourceFormDefaults()))
+  const requestClose = () => requestDiscard(onClose)
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) requestClose() }}>
       <DialogContent className="max-h-[92vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="ต้นทุนซื้อมาขายไป" hideClose>
         <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-6 py-4 text-white">
           <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -583,7 +603,7 @@ function CostSourceModal({
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
               <Button className="h-9 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white" disabled={!canSubmit || isSaving} type="button" variant="outline" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
-              <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+              <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={requestClose}>ปิด</Button>
             </div>
           </div>
         </DialogHeader>
@@ -603,6 +623,17 @@ function CostSourceModal({
                   placeholder="ค้นหาสินค้า"
                   value={form.productId}
                   onChange={(value) => update('productId', value)}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <SearchCombobox
+                  inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700"
+                  inputId="trading-cost-source-branch"
+                  label="สาขา *"
+                  options={branchOptions}
+                  placeholder="เลือกสาขา"
+                  value={form.branchId}
+                  onChange={(value) => update('branchId', value)}
                 />
               </div>
               <div className="col-span-2">
@@ -644,7 +675,7 @@ function CostSourceModal({
           <div className="rounded-md border border-slate-200 bg-white overflow-hidden shadow-xs col-span-2 lg:col-span-1">
             <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 bg-slate-50/50">
               <div>
-                <div className="text-sm font-bold text-slate-800">รายการต้นทุนล่าสุด</div>
+                <div className="text-sm font-bold text-slate-800">รายการล่าสุด</div>
                 <div className="text-xs text-slate-500">แสดงเฉพาะรายการที่ยังใช้เป็นต้นทุนซื้อมาขายไปได้</div>
               </div>
               <button className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-600 hover:bg-slate-50 hover:text-slate-800 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer transition-colors" type="button" onClick={onRefresh}>
@@ -666,25 +697,25 @@ function CostSourceModal({
                 </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium text-xs">
                   <tr>
-                    <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="แหล่งที่มา" resizeProps={columnResize.getResizeHandleProps('source', 'แหล่งที่มา')} sortKey="source" onSort={changeSort} />
-                    <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
-                    <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} sortKey="product" onSort={changeSort} />
-                    <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplier', 'ผู้ขาย')} sortKey="supplier" onSort={changeSort} />
+                    <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="แหล่งที่มา" resizeProps={columnResize.getResizeHandleProps('source', 'แหล่งที่มา')} sortKey="source" onSort={changeSort} />
+                    <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+                    <ResizableTableHead activeSortKey={sortKey ?? undefined} align="left" className="ns-table-textual-column" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} sortKey="product" onSort={changeSort} />
+                    <ResizableTableHead activeSortKey={sortKey ?? undefined} align="left" className="ns-table-textual-column" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplier', 'ผู้ขาย')} sortKey="supplier" onSort={changeSort} />
                     <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="จำนวนคงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'จำนวนคงเหลือ')} sortKey="remainingQty" onSort={changeSort} />
                     <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="มูลค่าคงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'มูลค่าคงเหลือ')} sortKey="remainingAmount" onSort={changeSort} />
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={6}>กำลังโหลดข้อมูล</td></tr> : null}
-                  {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={6}>ยังไม่มีรายการต้นทุน</td></tr> : null}
+                  {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={6}>ยังไม่มีรายการ</td></tr> : null}
                   {sortedRows.map((row) => (
                     <tr key={row.id} className="border-t border-slate-200">
-                      <td className="p-3 font-mono text-xs font-semibold text-slate-800 overflow-hidden truncate">{row.sourceNo}</td>
-                      <td className="p-3 text-right text-xs overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
-                      <td className="p-3 text-right overflow-hidden truncate">{row.productCode ? `${row.productCode} - ${row.productName}` : row.productName}</td>
-                      <td className="p-3 text-right overflow-hidden truncate">{row.supplierName}</td>
-                      <td className="p-3 text-right overflow-hidden truncate">{formatMoney(row.remainingQty)}</td>
-                      <td className="p-3 text-right font-semibold text-emerald-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
+                      <td className="whitespace-nowrap p-3 text-center font-mono text-xs font-semibold text-slate-800 overflow-hidden truncate">{row.sourceNo}</td>
+                      <td className="whitespace-nowrap p-3 text-center text-xs overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                      <td className="ns-table-textual-column p-3 text-left overflow-hidden truncate">{row.productCode ? `${row.productCode} - ${row.productName}` : row.productName}</td>
+                      <td className="ns-table-textual-column p-3 text-left overflow-hidden truncate">{row.supplierName}</td>
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums overflow-hidden truncate">{formatMoney(row.remainingQty)}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-emerald-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -755,7 +786,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="PO ซื้อ" resizeProps={columnResize.getResizeHandleProps('poBuyAmount', 'PO ซื้อ')} sortKey="poBuyAmount" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="PO ขาย" resizeProps={columnResize.getResizeHandleProps('poSellAmount', 'PO ขาย')} sortKey="poSellAmount" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="มูลค่าสุทธิ" resizeProps={columnResize.getResizeHandleProps('netValue', 'มูลค่าสุทธิ')} sortKey="netValue" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -769,7 +800,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
                   <td className="p-3 text-right text-blue-700 font-semibold whitespace-nowrap tabular-nums">{formatMoney(row.poBuyAmount)}</td>
                   <td className="p-3 text-right text-amber-700 font-semibold whitespace-nowrap tabular-nums">{formatMoney(row.poSellAmount)}</td>
                   <td className={`p-3 text-right font-bold whitespace-nowrap tabular-nums ${row.netValue >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{formatMoney(row.netValue)}</td>
-                  <td className="p-3 text-right whitespace-nowrap"><ReadinessStatusPill status={row.status} /></td>
+                  <td className="p-3 text-center whitespace-nowrap"><ReadinessStatusPill status={row.status} /></td>
                 </tr>
               ))}
             </tbody>
@@ -888,11 +919,11 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
           <tfoot className="border-t bg-slate-50 font-bold border-slate-200 text-slate-700">
             <tr>
               <td className="p-3">รวม</td>
-              <td className="p-3 text-right">{formatMoney(totals.qty)}</td>
-              <td className="p-3 text-right text-emerald-700">{formatMoney(totals.sales)}</td>
-              <td className="p-3 text-right text-red-700">{formatMoney(totals.cost)}</td>
-              <td className={`p-3 text-right ${totals.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(totals.gp)}</td>
-              <td className="p-3 text-right">{totals.sales > 0 ? (totals.gp / totals.sales * 100).toFixed(2) : '0.00'}%</td>
+              <td className="whitespace-nowrap p-3 text-right tabular-nums">{formatMoney(totals.qty)}</td>
+              <td className="whitespace-nowrap p-3 text-right tabular-nums text-emerald-700">{formatMoney(totals.sales)}</td>
+              <td className="whitespace-nowrap p-3 text-right tabular-nums text-red-700">{formatMoney(totals.cost)}</td>
+              <td className={`whitespace-nowrap p-3 text-right tabular-nums ${totals.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(totals.gp)}</td>
+              <td className="whitespace-nowrap p-3 text-right tabular-nums">{totals.sales > 0 ? (totals.gp / totals.sales * 100).toFixed(2) : '0.00'}%</td>
             </tr>
           </tfoot>
         </table>
@@ -954,13 +985,13 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-700 font-semibold">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="PB / ต้นทุนซื้อมาขายไป" resizeProps={columnResize.getResizeHandleProps('docNo', 'PB / ต้นทุนซื้อมาขายไป')} sortKey="docNo" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplier', 'ผู้ขาย')} sortKey="supplier" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="PB / ต้นทุนซื้อมาขายไป" resizeProps={columnResize.getResizeHandleProps('docNo', 'PB / ต้นทุนซื้อมาขายไป')} sortKey="docNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="left" className="ns-table-textual-column" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplier', 'ผู้ขาย')} sortKey="supplier" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ยอดซื้อ" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดซื้อ')} sortKey="totalAmount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ต้นทุนที่จับคู่แล้ว" resizeProps={columnResize.getResizeHandleProps('matchedAmount', 'ต้นทุนที่จับคู่แล้ว')} sortKey="matchedAmount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ยอดคงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'ยอดคงเหลือ')} sortKey="remainingAmount" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -968,13 +999,13 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
             {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={7}>ยังไม่มีข้อมูลตามเงื่อนไข</td></tr> : null}
             {sortedRows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
-                <td className="p-3 font-mono font-semibold overflow-hidden truncate"><Link className="text-purple-700 hover:underline" href={row.sourceUrl}>{row.docNo}</Link></td>
-                <td className="p-3 text-right text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
-                <td className="p-3 text-right text-slate-800 font-medium overflow-hidden truncate">{row.partyName}</td>
-                <td className="p-3 text-right font-semibold text-slate-700 overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
-                <td className="p-3 text-right text-red-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedAmount)}</td>
-                <td className="p-3 text-right font-bold text-amber-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
-                <td className="p-3 text-right overflow-hidden truncate"><StatusPill status={row.allocationStatus} /></td>
+                <td className="whitespace-nowrap p-3 text-center font-mono font-semibold overflow-hidden truncate"><Link className="text-purple-700 hover:underline" href={row.sourceUrl}>{row.docNo}</Link></td>
+                <td className="whitespace-nowrap p-3 text-center text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                <td className="ns-table-textual-column p-3 text-left text-slate-800 font-medium overflow-hidden truncate">{row.partyName}</td>
+                <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
+                <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-red-700 overflow-hidden truncate">{formatMoney(row.matchedAmount)}</td>
+                <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-amber-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
+                <td className="whitespace-nowrap p-3 text-center overflow-hidden truncate"><StatusPill status={row.allocationStatus} /></td>
               </tr>
             ))}
           </tbody>
@@ -989,9 +1020,9 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
           <div key={row.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
             <div className="flex justify-between items-start border-b border-slate-100 pb-2">
               <div className="font-mono text-xs font-semibold text-purple-700">
-                <Link className="hover:underline" href={row.sourceUrl}>{row.docNo}</Link>
+                <Link className="whitespace-nowrap hover:underline" href={row.sourceUrl}>{row.docNo}</Link>
               </div>
-              <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
+              <span className="whitespace-nowrap text-xs font-semibold text-slate-400">{formatDateDisplay(row.date)}</span>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               <div className="col-span-2">
@@ -1041,15 +1072,15 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-700 font-semibold">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="SB" resizeProps={columnResize.getResizeHandleProps('docNo', 'SB')} sortKey="docNo" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} sortKey="customer" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="SB" resizeProps={columnResize.getResizeHandleProps('docNo', 'SB')} sortKey="docNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="left" className="ns-table-textual-column" direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} sortKey="customer" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ยอดขาย" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดขาย')} sortKey="totalAmount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ต้นทุนที่จับคู่แล้ว" resizeProps={columnResize.getResizeHandleProps('matchedCogs', 'ต้นทุนที่จับคู่แล้ว')} sortKey="matchedCogs" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="GP" resizeProps={columnResize.getResizeHandleProps('gp', 'GP')} sortKey="gp" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="GP%" resizeProps={columnResize.getResizeHandleProps('gpPct', 'GP%')} sortKey="gpPct" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="รอจับคู่" resizeProps={columnResize.getResizeHandleProps('pendingAmount', 'รอจับคู่')} sortKey="pendingAmount" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -1057,15 +1088,15 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
             {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={9}>ยังไม่มีข้อมูลตามเงื่อนไข</td></tr> : null}
             {sortedRows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
-                <td className="p-3 font-mono font-semibold overflow-hidden truncate"><Link className="text-purple-700 hover:underline" href={row.sourceUrl}>{row.docNo}</Link></td>
-                <td className="p-3 text-right text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
-                <td className="p-3 text-right text-slate-800 font-medium overflow-hidden truncate">{row.partyName}</td>
-                <td className="p-3 text-right text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
-                <td className="p-3 text-right text-red-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedCogs)}</td>
-                <td className={`p-3 text-right font-bold overflow-hidden truncate ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</td>
-                <td className="p-3 text-right font-medium text-slate-500 overflow-hidden truncate">{row.gpPct.toFixed(2)}%</td>
-                <td className="p-3 text-right font-semibold text-amber-700 overflow-hidden truncate">{formatMoney(row.pendingAmount)}</td>
-                <td className="p-3 text-right overflow-hidden truncate"><StatusPill status={row.allocationStatus} /></td>
+                <td className="whitespace-nowrap p-3 text-center font-mono font-semibold overflow-hidden truncate"><Link className="text-purple-700 hover:underline" href={row.sourceUrl}>{row.docNo}</Link></td>
+                <td className="whitespace-nowrap p-3 text-center text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                <td className="ns-table-textual-column p-3 text-left text-slate-800 font-medium overflow-hidden truncate">{row.partyName}</td>
+                <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-emerald-700 overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
+                <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-red-700 overflow-hidden truncate">{formatMoney(row.matchedCogs)}</td>
+                <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums overflow-hidden truncate ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</td>
+                <td className="whitespace-nowrap p-3 text-right font-medium tabular-nums text-slate-500 overflow-hidden truncate">{row.gpPct.toFixed(2)}%</td>
+                <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-amber-700 overflow-hidden truncate">{formatMoney(row.pendingAmount)}</td>
+                <td className="whitespace-nowrap p-3 text-center overflow-hidden truncate"><StatusPill status={row.allocationStatus} /></td>
               </tr>
             ))}
           </tbody>
@@ -1080,9 +1111,9 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
           <div key={row.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
             <div className="flex justify-between items-start border-b border-slate-100 pb-2">
               <div className="font-mono text-xs font-semibold text-purple-700">
-                <Link className="hover:underline" href={row.sourceUrl}>{row.docNo}</Link>
+                <Link className="whitespace-nowrap hover:underline" href={row.sourceUrl}>{row.docNo}</Link>
               </div>
-              <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
+              <span className="whitespace-nowrap text-xs font-semibold text-slate-400">{formatDateDisplay(row.date)}</span>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               <div className="col-span-2">

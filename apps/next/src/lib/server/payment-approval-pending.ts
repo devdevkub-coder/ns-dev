@@ -3,7 +3,10 @@ import { toDateOnly } from '@/lib/server/daily'
 
 function normalizeBranchCode(value: string | null | undefined) {
   const trimmed = String(value ?? '').trim()
-  return trimmed ? trimmed.padStart(2, '0').slice(-2) : '00'
+  const digits = trimmed.replace(/\D/g, '')
+  const normalized = digits ? digits.padStart(2, '0').slice(-2) : ''
+  if (!normalized) throw new Error('ไม่พบรหัสสาขาสำหรับออกเลข PMA')
+  return normalized
 }
 
 export async function nextPaymentApprovalDocNos(

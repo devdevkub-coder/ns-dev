@@ -23,7 +23,7 @@ describe('PO Sell desktop table layout', () => {
 
     expect(source).toContain("{ key: 'action', minWidth: 64, defaultWidth: 72, maxWidth: 88 }")
     expect(source).toContain("style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}")
-    expect(actionCell).toContain('className="whitespace-nowrap text-right"')
+    expect(actionCell).toContain('className="whitespace-nowrap text-center"')
     expect(actionCell).toContain('<TableActionButton menu={(')
     expect(actionCell).toContain('<TableActionMenuItem')
     expect(actionCell).toContain('row.canEdit')

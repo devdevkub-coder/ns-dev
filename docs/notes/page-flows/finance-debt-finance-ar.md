@@ -6,7 +6,7 @@ tags:
   - finance-debt
   - accounts-receivable
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-08-04
 route: /finance/ar
 ---
 
@@ -134,12 +134,25 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Source links to SB/RCP/customer advance allocation are available in row detail; export/source-link depth can still be expanded later.
 - Need created date in list/detail/export.
 
+## Foreign Receipt Contract 2026-07-30
+
+- AR remains a THB read model: `sales_bills.receivable_balance` is the only visible-balance source for table, KPI and export.
+- A foreign RCP can close a THB Sales Bill at the receipt-day rate. Its native amount, rate, settlement THB and settlement FX are audit facts on the RCP, not a currency conversion of the Sales Bill.
+- RCP drilldown may show `receipt_currency_code`, `received_native_amount`, `fx_rate`, `settlement_book_amount` and `settlement_fx_difference`. This information is detail-only and must not add a currency column or native aggregate to AR.
+- Revaluation and FCD conversion never amend the settled Sales Bill or its AR amount.
+
 ## Drilldown Scope Hydration 2026-07-17
 
 - What is what: `/finance/ar` accepts outward `from`, `to`, and branch-code `branchId` from a related-report URL and initializes the AR client with them before its first request.
 - Why it has to be like this: period-based navigation preserves its source range, while the Financial Dashboard's as-of outstanding KPI intentionally sends an empty `from` plus `to=asOf`; the client must preserve that empty lower bound so older open bills are not dropped by a current-month default.
 - Authorization: bills, branch options, customer options and returned customer-branch mappings use the same effective finance branch intersection. Unknown/inactive explicit branches return `404`; existing branches outside scope return `403`; an empty mapped scope returns no branch data.
 - Aging cutoff: `today` is normalized to the Bangkok business date before comparison with due dates, preventing the 00:00–06:59 Bangkok window from reporting one day behind.
+
+## Compact Filter Layout 2026-08-04
+
+- What is what: desktop row one owns search, customer, sales channel, aging bucket, branch, bill-date range and the full `ล้างตัวกรอง` action; row two owns status and `ส่งออก Excel`. The result count belongs only to the table/pagination surface. Mobile keeps search/actions compact and puts `ล้างตัวกรอง` in the expanded filter surface.
+- Why it has to be like this: all scope controls stay together, status and export remain easy to scan, and the same result count is not repeated in both the filter card and the table toolbar.
+- Preserved boundary: filter state, query parameters, API requests, export scope, pagination, permissions and the existing mobile filter interaction do not change.
 
 ## Implementation Checklist
 
@@ -150,9 +163,3 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - [x] Add source document links
 - [ ] Add created-date display/export
 - [x] Add Customer Advance allocation drilldown
-
-## Filter Surface Convention 2026-08-04
-
-- What is what: desktop row one owns search, customer/channel/aging/branch/date controls and `ล้างตัวกรอง`; row two owns status and Excel export. `พบทั้งหมด ... รายการ` belongs only to the table/pagination surface. Mobile keeps search/actions compact and puts `ล้างตัวกรอง` in the filter sheet footer.
-- Why it has to be like this: filter controls stay together, status/actions remain easy to scan, and the result count is shown once next to the data it describes instead of being duplicated in the filter toolbar.
-- Validation: local `/finance/ar` was checked at desktop and emulated mobile widths; filter sheet, clear action, and single table/pagination count were present.

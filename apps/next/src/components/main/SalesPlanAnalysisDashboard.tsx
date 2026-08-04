@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Calculator, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -71,7 +71,7 @@ export function SalesPlanAnalysisDashboard() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
-  const load = async (targetMonth = month) => {
+  const load = useCallback(async (targetMonth = month) => {
     setIsLoading(true)
     setError('')
     try {
@@ -83,11 +83,11 @@ export function SalesPlanAnalysisDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [month])
 
   useEffect(() => {
     void load('2026-07')
-  }, [])
+  }, [load])
 
   const productOptions = useMemo(() => Array.from(new Map(
     (data?.productAnalysis ?? [])
@@ -170,11 +170,11 @@ export function SalesPlanAnalysisDashboard() {
         <div className="flex min-w-max items-end gap-2">
           <label className="flex shrink-0 flex-col gap-1 text-[11px] font-semibold text-slate-500" htmlFor="sales-plan-analysis-month">
             เดือน
-            <input className="h-8 w-[140px] rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-700" id="sales-plan-analysis-month" type="month" value={month} onChange={(event) => { setMonth(event.target.value); void load(event.target.value) }} />
+            <input className="h-9 w-[140px] rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-700" id="sales-plan-analysis-month" type="month" value={month} onChange={(event) => { setMonth(event.target.value); void load(event.target.value) }} />
           </label>
           <label className="flex shrink-0 flex-col gap-1 text-[11px] font-semibold text-slate-500">
             หมวด
-            <Select className="h-8 w-[150px] text-xs" value={group} onChange={(event) => setGroup(event.target.value)}>
+            <Select className="h-9 w-[150px] text-xs" value={group} onChange={(event) => setGroup(event.target.value)}>
               <option value="">ทุกหมวด</option>
               {groupOptions.map((value) => <option key={value} value={value}>{value}</option>)}
             </Select>
@@ -183,7 +183,7 @@ export function SalesPlanAnalysisDashboard() {
             สินค้า
             <SearchCombobox
               hideLabel
-              inputClassName="h-8 w-[300px] text-xs"
+              inputClassName="h-9 w-[300px] text-xs"
               inputId="sales-plan-analysis-product"
               label="สินค้า"
               options={productOptions}
@@ -192,8 +192,8 @@ export function SalesPlanAnalysisDashboard() {
               onChange={setProduct}
             />
           </div>
-          <button className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={isLoading} onClick={() => void load()} type="button"><RefreshCw className="size-3.5" />รีเฟรช</button>
-          {(group || product) ? <button className="h-8 shrink-0 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" onClick={() => { setGroup(''); setProduct('') }} type="button">ล้างตัวกรอง</button> : null}
+          <button className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={isLoading} onClick={() => void load()} type="button"><RefreshCw className="size-3.5" />รีเฟรช</button>
+          {(group || product) ? <button className="h-9 shrink-0 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" onClick={() => { setGroup(''); setProduct('') }} type="button">ล้างตัวกรอง</button> : null}
         </div>
       </div>
 
@@ -229,7 +229,7 @@ function AnalysisTable({ columns, isExporting, page, pageSize, rows, title, tota
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 p-4">
         <h2 className="text-sm font-bold text-slate-800">{title}</h2>
-        <button className="inline-flex h-9 items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={isExporting || !rows.length} onClick={onExport} type="button"><Download className="size-4" />ส่งออก Excel</button>
+        <button className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={isExporting || !rows.length} onClick={onExport} type="button"><Download className="size-4" />ส่งออก Excel</button>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
         <span className="text-xs font-semibold text-slate-500">แสดง {totalItems ? `${((page - 1) * pageSize) + 1}-${Math.min(page * pageSize, totalItems)}` : '0'} จาก {totalItems.toLocaleString('th-TH')} รายการ</span>
@@ -241,7 +241,7 @@ function AnalysisTable({ columns, isExporting, page, pageSize, rows, title, tota
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-100"><tr>{columns.map((column) => <th className={`whitespace-nowrap px-3 py-3 text-xs font-bold text-slate-600 ${column.numeric ? 'text-right' : 'text-left'}`} key={column.key}>{column.label}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => <tr className="hover:bg-slate-50" key={`${String(row.code)}-${title}`}>

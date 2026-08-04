@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, SquarePen, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { GuardedLink } from '@/components/ui/GuardedLink'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Input } from '@/components/ui/Input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
@@ -107,6 +108,7 @@ function downstreamDocLabel(targetType: 'PURCHASE_BILL' | 'SALES_BILL') {
 
 export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string }) {
   const router = useRouter()
+  const { requestConfirmation } = useActionConfirmation()
   const [ticket, setTicket] = useState<WeightTicketRecord | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -124,6 +126,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
     title: string
   } | null>(null)
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
+  useUnsavedChangesGuard(Boolean(ticket?.canCancel && cancelNote.trim()))
 
   async function loadStockReturnAvailability(documentNo: string) {
     const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store' })
@@ -209,10 +212,28 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       const updated = await cancelWeightTicket(ticket.id, cancelNote)
       setTicket(updated)
     } catch (caught) {
-      setCancelError(getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้'))
+      const message = getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้')
+      setCancelError(message)
+      throw new Error(message)
     } finally {
       setIsCanceling(false)
     }
+  }
+
+  function requestCancelTicket() {
+    if (!ticket) return
+    if (!cancelNote.trim()) {
+      setCancelError('กรอกหมายเหตุการยกเลิก')
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ยืนยันยกเลิก',
+      description: `เอกสาร ${ticket.documentNo} จะเปลี่ยนสถานะเป็นยกเลิก และเก็บประวัติการทำรายการไว้`,
+      destructive: true,
+      onConfirm: handleCancelTicket,
+      title: 'ยืนยันการยกเลิกเอกสารหรือไม่?',
+    })
   }
 
   async function handleConfirmTicket() {
@@ -272,10 +293,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <Button asChild size="xs" type="button" variant="outline">
-            <Link href="/daily/weight-ticket-list">
+            <GuardedLink href="/daily/weight-ticket-list">
               <ArrowLeft className="mr-1 size-3" />
               กลับไปรายการ
-            </Link>
+            </GuardedLink>
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -297,10 +318,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
           ) : null}
           {ticket.canEdit ? (
             <Button asChild type="button" variant="outline">
-              <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
+              <GuardedLink href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
                 <SquarePen className="mr-2 size-4" />
                 แก้ไข
-              </Link>
+              </GuardedLink>
             </Button>
           ) : null}
         </div>
@@ -474,7 +495,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold text-slate-900">{usageActionLabel(event.action)}</div>
-                      <div className="mt-1 text-xs text-slate-500">{formatDateTime(event.createdAt)}</div>
+                      <div className="whitespace-nowrap mt-1 text-xs text-slate-500">{formatDateTime(event.createdAt)}</div>
                     </div>
                     <div className={cn('shrink-0 text-right text-sm font-semibold tabular-nums', usageWeightClass(event.action))}>
                       {usageWeightLabel(event.action, event.allocatedNetWeight)}
@@ -490,9 +511,9 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                       <div className="text-xs text-slate-500">เอกสารปลายทาง</div>
                       <div className="mt-1">
                         {event.targetDocNo ? (
-                          <Link className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                          <GuardedLink className="whitespace-nowrap font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                             {event.targetDocNo}
-                          </Link>
+                          </GuardedLink>
                         ) : (
                           '-'
                         )}
@@ -516,10 +537,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
               <table className="ns-table min-w-full divide-y divide-slate-100 text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs">
                   <tr>
-                    <th className="px-3 py-3 text-left">เวลา</th>
-                    <th className="px-3 py-3 text-left">เหตุการณ์</th>
+                    <th className="px-3 py-3 text-center">เวลา</th>
+                    <th className="px-3 py-3 text-center">เหตุการณ์</th>
                     <th className="px-3 py-3 text-left">สินค้า</th>
-                    <th className="px-3 py-3 text-left">เอกสารปลายทาง</th>
+                    <th className="px-3 py-3 text-center">เอกสารปลายทาง</th>
                     <th className="px-3 py-3 text-right">น้ำหนักสุทธิ</th>
                     <th className="px-3 py-3 text-right">คงเหลือหลังรายการ</th>
                     <th className="px-3 py-3 text-left">ผู้ทำรายการ/หมายเหตุ</th>
@@ -534,17 +555,17 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                     </tr>
                   ) : ticket.usageTimeline.map((event) => (
                     <tr key={event.id}>
-                      <td className="whitespace-nowrap px-3 py-3 text-slate-500">{formatDateTime(event.createdAt)}</td>
-                      <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">{usageActionLabel(event.action)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center text-slate-500">{formatDateTime(event.createdAt)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-900">{usageActionLabel(event.action)}</td>
                       <td className="px-3 py-3">
                         <div className="font-medium text-slate-900">{event.productName}</div>
                         {event.productCode ? <div className="mt-0.5 text-xs text-slate-500">{event.productCode}</div> : null}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                      <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">
                         {event.targetDocNo ? (
-                          <Link className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                          <GuardedLink className="font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                             {event.targetDocNo}
-                          </Link>
+                          </GuardedLink>
                         ) : (
                           '-'
                         )}
@@ -582,11 +603,11 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="font-semibold text-slate-900">{downstreamDocLabel(allocation.targetType)}</div>
-                    <div className="mt-1 text-xs text-slate-500">{formatDateTime(allocation.createdAt)}</div>
+                    <div className="whitespace-nowrap mt-1 text-xs text-slate-500">{formatDateTime(allocation.createdAt)}</div>
                   </div>
-                  <Link className="shrink-0 font-medium text-blue-700 hover:underline" href={downstreamDocHref(allocation.targetType, allocation.targetDocNo)}>
+                  <GuardedLink className="shrink-0 whitespace-nowrap font-mono font-medium text-blue-700 hover:underline" href={downstreamDocHref(allocation.targetType, allocation.targetDocNo)}>
                     {allocation.targetDocNo}
-                  </Link>
+                  </GuardedLink>
                 </div>
                 {allocation.targetLineNo ? <div className="mt-1 text-xs text-slate-500">รายการ {allocation.targetLineNo}</div> : null}
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -623,14 +644,14 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             <table className="ns-table min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs">
                 <tr>
-                  <th className="px-3 py-3 text-left">เวลา</th>
-                  <th className="px-3 py-3 text-left">ประเภทปลายทาง</th>
-                  <th className="px-3 py-3 text-left">เลขที่เอกสาร</th>
+                  <th className="px-3 py-3 text-center">เวลา</th>
+                  <th className="px-3 py-3 text-center">ประเภทปลายทาง</th>
+                  <th className="px-3 py-3 text-center">เลขที่เอกสาร</th>
                   <th className="px-3 py-3 text-left">สินค้า</th>
                   <th className="px-3 py-3 text-right">น้ำหนักรวม</th>
                   <th className="px-3 py-3 text-right">หัก</th>
                   <th className="px-3 py-3 text-right">น้ำหนักสุทธิ</th>
-                  <th className="px-3 py-3 text-left">สถานะ</th>
+                  <th className="px-3 py-3 text-center">สถานะ</th>
                   <th className="px-3 py-3 text-left">ผู้ทำรายการ</th>
                 </tr>
               </thead>
@@ -643,12 +664,12 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   </tr>
                 ) : ticket.downstreamAllocations.map((allocation) => (
                   <tr key={allocation.id}>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-500">{formatDateTime(allocation.createdAt)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-700">{downstreamDocLabel(allocation.targetType)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-700">
-                      <Link className="font-medium text-blue-700 hover:underline" href={downstreamDocHref(allocation.targetType, allocation.targetDocNo)}>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-500">{formatDateTime(allocation.createdAt)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">{downstreamDocLabel(allocation.targetType)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">
+                      <GuardedLink className="font-mono font-medium text-blue-700 hover:underline" href={downstreamDocHref(allocation.targetType, allocation.targetDocNo)}>
                         {allocation.targetDocNo}
-                      </Link>
+                      </GuardedLink>
                       {allocation.targetLineNo ? <div className="mt-0.5 text-xs text-slate-500">รายการ {allocation.targetLineNo}</div> : null}
                     </td>
                     <td className="px-3 py-3">
@@ -658,7 +679,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(allocation.allocatedGrossWeight)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(allocation.allocatedDeductWeight)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(allocation.allocatedNetWeight)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">{allocation.status || '-'}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{allocation.status || '-'}</td>
                     <td className="px-3 py-3 text-slate-600">{allocation.createdBy || '-'}</td>
                   </tr>
                 ))}
@@ -702,12 +723,12 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                     {targetDocNo || productName || allocatedNetWeight != null ? (
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
                         {targetDocNo ? (
-                          <Link
-                            className="font-medium text-blue-700 hover:underline"
+                          <GuardedLink
+                            className="whitespace-nowrap font-mono font-medium text-blue-700 hover:underline"
                             href={downstreamDocHref((metadataString(event.metadata, 'targetType') || 'PURCHASE_BILL') as 'PURCHASE_BILL' | 'SALES_BILL', targetDocNo)}
                           >
                             {targetDocNo}
-                          </Link>
+                          </GuardedLink>
                         ) : null}
                         {productName ? <span>{productName}</span> : null}
                         {allocatedNetWeight != null ? <span>{formatWeight(allocatedNetWeight)} กก.</span> : null}
@@ -762,7 +783,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 />
                 {cancelError ? <div className="mt-1 text-xs text-red-600">{cancelError}</div> : null}
               </div>
-              <Button disabled={isCanceling} type="button" variant="outline" onClick={handleCancelTicket}>
+              <Button disabled={isCanceling} type="button" variant="outline" onClick={requestCancelTicket}>
                 <XCircle className="mr-2 size-4" />
                 {isCanceling ? 'กำลังยกเลิก...' : 'ยกเลิกเอกสาร'}
               </Button>

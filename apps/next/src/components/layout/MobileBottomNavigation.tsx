@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   User,
@@ -9,6 +8,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { canAccessPath, navigationItems, sidebarNavigationPath } from '@/lib/navigation'
+import { GuardedLink } from '@/components/ui/GuardedLink'
 
 type MobileBottomNavigationProps = {
   authContext: { permissions: string[] } | null
@@ -114,7 +114,7 @@ export function MobileBottomNavigation({ authContext, onOpenSidebar }: MobileBot
           const isActive = tab.isActive
 
           return (
-            <Link
+            <GuardedLink
               href={tab.href!}
               key={tab.key}
               className={`flex h-full flex-1 flex-col items-center justify-center gap-1 outline-none transition-all duration-200 ${
@@ -127,7 +127,7 @@ export function MobileBottomNavigation({ authContext, onOpenSidebar }: MobileBot
               <span className={`w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-xs font-medium leading-none ${isActive ? 'font-bold' : ''}`}>
                 {tab.label}
               </span>
-            </Link>
+            </GuardedLink>
           )
         })}
       </div>

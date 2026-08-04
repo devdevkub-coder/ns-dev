@@ -147,8 +147,8 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
           <table className="ns-table w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
               <tr>
-                <th className="p-2 text-left">วันที่</th>
-                <th className="p-2 text-left">บิลรับซื้อ</th>
+                <th className="p-2 text-center whitespace-nowrap">วันที่</th>
+                <th className="p-2 text-center whitespace-nowrap">บิลรับซื้อ</th>
                 <th className="p-2 text-right">ฐาน</th>
                 <th className="p-2 text-right">VAT</th>
                 <th className="p-2 text-right">ยอดที่หัก</th>
@@ -157,17 +157,17 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
             <tbody>
               {row.supplier_advance_allocations.map((allocation) => (
                 <tr key={allocation.allocation_key} className="border-t">
-                  <td className="p-2">{dateOrDash(allocation.created_at)}</td>
-                  <td className="p-2">
+                  <td className="p-2 text-center whitespace-nowrap">{dateOrDash(allocation.created_at)}</td>
+                  <td className="p-2 text-center whitespace-nowrap">
                     {allocation.purchase_bills ? (
-                      <Link className="text-blue-700 hover:underline" href={`/purchase/bills/${allocation.purchase_bills.doc_no}`}>
+                      <Link className="font-mono text-blue-700 hover:underline" href={`/purchase/bills/${allocation.purchase_bills.doc_no}`}>
                         {allocation.purchase_bills.doc_no}
                       </Link>
                     ) : '-'}
                   </td>
-                  <td className="p-2 text-right font-medium">{money(toNumber(allocation.allocated_subtotal_amount))}</td>
-                  <td className="p-2 text-right font-medium">{money(toNumber(allocation.allocated_vat_amount))}</td>
-                  <td className="p-2 text-right font-medium">{money(toNumber(allocation.allocated_amount))}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{money(toNumber(allocation.allocated_subtotal_amount))}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{money(toNumber(allocation.allocated_vat_amount))}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{money(toNumber(allocation.allocated_amount))}</td>
                 </tr>
               ))}
               {row.supplier_advance_allocations.length === 0 ? (

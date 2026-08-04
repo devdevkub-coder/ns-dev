@@ -1,8 +1,9 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { GuardedLink } from '@/components/ui/GuardedLink'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { resetPasswordSchema } from '@/lib/auth'
 import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
@@ -19,6 +20,7 @@ export function ResetPasswordPageClient() {
   const [sessionEmail, setSessionEmail] = useState('')
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
+  useUnsavedChangesGuard(Boolean(password || confirmPassword))
 
   useEffect(() => {
     if (!supabase) return
@@ -117,7 +119,7 @@ export function ResetPasswordPageClient() {
             <span className="relative mt-1 block">
               <input
                 autoComplete="new-password"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isLoading || !isSessionReady}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="อย่างน้อย 8 ตัวอักษร"
@@ -141,7 +143,7 @@ export function ResetPasswordPageClient() {
             ยืนยัน Password ใหม่ <span className="text-red-600">*</span>
             <input
               autoComplete="new-password"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading || !isSessionReady}
               onChange={(event) => setConfirmPassword(event.target.value)}
               placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
@@ -163,9 +165,9 @@ export function ResetPasswordPageClient() {
           </button>
 
           <div className="text-center">
-            <Link className="text-sm font-medium text-slate-600 hover:underline" href="/forgot-password">
+            <GuardedLink className="text-sm font-medium text-slate-600 hover:underline" href="/forgot-password">
               ขอลิงก์ใหม่
-            </Link>
+            </GuardedLink>
           </div>
         </form>
       </div>

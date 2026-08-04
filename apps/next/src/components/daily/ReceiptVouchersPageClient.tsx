@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Check, Download, Printer } from 'lucide-react'
+import { Check, Download, Plus, Printer } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
@@ -17,6 +18,7 @@ import { Select } from '@/components/ui/Select'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { openReceiptVoucherPrint, openReceiptVoucherPrintWindow, type ReceiptVoucherPrintDocument } from '@/lib/receipt-voucher-print'
@@ -306,6 +308,7 @@ export function ReceiptVouchersPageClient() {
     }
   }
   const [form, setForm] = useState<ReceiptVoucherFormState>(() => blankForm())
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null)
   const [paymentMethodOptions, setPaymentMethodOptions] = useState<PaymentMethodOption[]>([])
@@ -321,6 +324,11 @@ export function ReceiptVouchersPageClient() {
 
   const [sortKey, setSortKey] = useState<ReceiptVoucherColumnKey>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const hasUnsavedForm = formMode !== null && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(hasUnsavedForm)
+  const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(cancelingRow && cancelNote.trim()))
+  const { requestConfirmation } = useActionConfirmation()
 
   const changeSort = useCallback((nextKey: ReceiptVoucherColumnKey) => {
     if (nextKey === 'action') return
@@ -396,7 +404,7 @@ export function ReceiptVouchersPageClient() {
         }
         return sortDirection === 'asc' ? comparison : -comparison
       })
-  }, [branchFilter, dateFrom, dateTo, rows, search, sortKey, sortDirection, statusFilter])
+  }, [dateFrom, dateTo, rows, search, sortKey, sortDirection, statusFilter])
 
   const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => supplierOptions.map((supplier) => ({
     description: supplier.taxId ? `เลขประจำตัวผู้เสียภาษี ${supplier.taxId}` : supplier.address,
@@ -439,7 +447,9 @@ export function ReceiptVouchersPageClient() {
   }
 
   function openCreateForm() {
-    setForm({ ...blankForm(), payerSignerName: currentActorName })
+    const nextForm = { ...blankForm(), payerSignerName: currentActorName }
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFormError(null)
     setFormMode('create')
   }
@@ -447,15 +457,23 @@ export function ReceiptVouchersPageClient() {
   function openEditForm(row: ReceiptVoucherRow) {
     if (row.status === 'cancelled') return
     const purchaseBill = purchaseBillOptions.find((bill) => bill.docNo === row.purchaseBillDocNo)
-    setForm({ ...normalizeFormFromRow(row), branchId: row.branchId || purchaseBill?.branchId || '', supplierCode: row.supplierCode || purchaseBill?.sellerCode || '' })
+    const nextForm = { ...normalizeFormFromRow(row), branchId: row.branchId || purchaseBill?.branchId || '', supplierCode: row.supplierCode || purchaseBill?.sellerCode || '' }
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFormError(null)
     setFormMode('edit')
   }
 
-  function closeForm() {
+  function closeFormNow() {
     if (isSaving) return
     setFormMode(null)
+    setFormBaseline(null)
     setFormError(null)
+  }
+
+  function closeForm() {
+    if (isSaving) return
+    requestDiscard(closeFormNow)
   }
 
   function updateForm(patch: Partial<ReceiptVoucherFormState>) {
@@ -551,6 +569,7 @@ export function ReceiptVouchersPageClient() {
         }),
         method: formMode === 'edit' ? 'PATCH' : 'POST',
       })
+      setFormBaseline(null)
       setFormMode(null)
       await loadData()
     } catch (caught) {
@@ -560,15 +579,16 @@ export function ReceiptVouchersPageClient() {
     }
   }
 
-  async function cancelReceiptVoucher() {
+  function cancelReceiptVoucher() {
     if (!cancelingRow) return
     const note = cancelNote.trim()
     if (!note) {
       setCancelError('กรุณากรอกเหตุผลการยกเลิก')
       return
     }
-    setIsSaving(true)
     setCancelError(null)
+    requestConfirmation({ title: 'ยืนยันการยกเลิกใบสำคัญรับเงิน', description: `ต้องการยกเลิกใบสำคัญรับเงิน ${cancelingRow.docNo} หรือไม่?`, confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
+    setIsSaving(true)
     try {
       await dailyFetchJson('/api/purchase/receipt-vouchers', {
         body: JSON.stringify({ action: 'cancel', docNo: cancelingRow.docNo, note }),
@@ -579,9 +599,11 @@ export function ReceiptVouchersPageClient() {
       await loadData()
     } catch (caught) {
       setCancelError(caught instanceof Error ? caught.message : 'ยกเลิกใบสำคัญรับเงินไม่ได้')
+      throw caught instanceof Error ? caught : new Error('ยกเลิกใบสำคัญรับเงินไม่ได้')
     } finally {
       setIsSaving(false)
     }
+    } })
   }
 
   return (
@@ -593,7 +615,7 @@ export function ReceiptVouchersPageClient() {
         <div className="hidden lg:block rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
             <Input
-              className="min-w-[260px] flex-1 rounded-md"
+              className="h-9 min-w-[260px] flex-1 rounded-md"
               placeholder="ค้นเลขที่ RV / ผู้รับเงิน / บิลซื้อ / ทะเบียนรถ..."
               type="search"
               value={search}
@@ -602,13 +624,19 @@ export function ReceiptVouchersPageClient() {
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500">วันที่ออกเอกสาร:</span>
-              <DatePickerInput id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
+              <DatePickerInput className="h-9" id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
-              <Select className="h-9 w-auto" value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}>
-                <option value="">ทุกสาขา</option>
-                {branchOptions.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-              </Select>
+              <DatePickerInput className="h-9" id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
+              <BranchSelectCombobox
+                branches={branchOptions.filter((branch) => branch.active).map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+                className="w-[12rem]"
+                controlSize="filter"
+                inputId="receipt-vouchers-branch-filter"
+                label=""
+                placeholder="ทุกสาขา"
+                value={branchFilter || null}
+                onChange={(value) => setBranchFilter(value ?? '')}
+              />
             </div>
 
             {hasActiveFilter ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
@@ -630,13 +658,13 @@ export function ReceiptVouchersPageClient() {
               </button>
             ))}
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <Button asChild className="gap-2" size="sm" variant="export">
+              <Button asChild className="gap-2" variant="export">
                 <a href={exportHref}>
                   <Download className="size-4" />
                   <span>ส่งออก Excel</span>
                 </a>
               </Button>
-              <Button size="sm" type="button" onClick={openCreateForm}>+ สร้างใบสำคัญรับเงิน</Button>
+              <Button className="gap-2" type="button" onClick={openCreateForm}><Plus aria-hidden="true" className="size-4" />สร้างใบสำคัญรับเงิน</Button>
             </div>
           </div>
         </div>
@@ -645,7 +673,7 @@ export function ReceiptVouchersPageClient() {
         <div className="block lg:hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2">
             <Input
-              className="flex-1 min-w-0 rounded-md"
+              className="h-9 min-w-0 flex-1 rounded-md"
               placeholder="ค้นหาเลขที่ / ผู้รับ / บิลซื้อ..."
               type="search"
               value={search}
@@ -660,7 +688,7 @@ export function ReceiptVouchersPageClient() {
             </button>
             {hasActiveFilter ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้าง</Button> : null}
           </div>
-          <Button asChild className="mt-2 w-full gap-2" size="sm" variant="export">
+          <Button asChild className="mt-2 h-10 w-full gap-2" variant="export">
             <a href={exportHref}>
               <Download className="size-4" />
               <span>ส่งออก Excel</span>
@@ -717,9 +745,9 @@ export function ReceiptVouchersPageClient() {
                 <div>
                   <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                   <div className="flex items-center gap-2">
-                    <DatePickerInput className="flex-1" id="receipt-vouchers-mobile-date-from" value={dateFrom} onChange={setDateFrom} />
+                    <DatePickerInput className="h-9 flex-1" id="receipt-vouchers-mobile-date-from" value={dateFrom} onChange={setDateFrom} />
                     <span className="text-slate-400">→</span>
-                    <DatePickerInput className="flex-1" id="receipt-vouchers-mobile-date-to" value={dateTo} onChange={setDateTo} />
+                    <DatePickerInput className="h-9 flex-1" id="receipt-vouchers-mobile-date-to" value={dateTo} onChange={setDateTo} />
                   </div>
                 </div>
           </MobileFilterSheet>
@@ -748,8 +776,8 @@ export function ReceiptVouchersPageClient() {
               onClick={() => setDetailRow(row)}
             >
               <div className="flex justify-between items-start mb-2">
-                <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-                <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+                <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
+                <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
               </div>
               <div className="text-sm font-semibold text-slate-700 mb-2">
                 {row.sellerName || '-'}
@@ -757,7 +785,7 @@ export function ReceiptVouchersPageClient() {
               <div className="mb-2"><StatusPill status={row.status} /></div>
               <div className="text-xs text-slate-500 space-y-1 mb-3">
                 {row.sellerTaxId ? <div>เลขประจำตัวผู้เสียภาษี: {row.sellerTaxId}</div> : null}
-                {row.purchaseBillDocNo ? <div>บิลซื้อ: <span className="font-semibold text-slate-700">{row.purchaseBillDocNo}</span></div> : null}
+                {row.purchaseBillDocNo ? <div>บิลซื้อ: <span className="text-center font-mono font-semibold text-slate-700 whitespace-nowrap">{row.purchaseBillDocNo}</span></div> : null}
                 {row.licensePlate ? <div>ทะเบียน: <span className="font-semibold text-slate-700">{row.licensePlate}</span></div> : null}
               </div>
               <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
@@ -794,32 +822,32 @@ export function ReceiptVouchersPageClient() {
             </colgroup>
             <TableHeader>
               <tr>
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่ RV" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ RV')} sortKey="docNo" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่ออกเอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่ออกเอกสาร')} sortKey="date" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขที่ RV" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ RV')} sortKey="docNo" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="วันที่ออกเอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่ออกเอกสาร')} sortKey="date" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} className="ns-table-textual-column" direction={sortDirection} label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('sellerName', 'ผู้รับเงิน')} sortKey="sellerName" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขประจำตัวผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('sellerTaxId', 'เลขประจำตัวผู้เสียภาษี')} sortKey="sellerTaxId" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บิลซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseBillDocNo', 'บิลซื้อ')} sortKey="purchaseBillDocNo" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ทะเบียน" resizeProps={columnResize.getResizeHandleProps('licensePlate', 'ทะเบียน')} sortKey="licensePlate" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขประจำตัวผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('sellerTaxId', 'เลขประจำตัวผู้เสียภาษี')} sortKey="sellerTaxId" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="บิลซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseBillDocNo', 'บิลซื้อ')} sortKey="purchaseBillDocNo" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="ทะเบียน" resizeProps={columnResize.getResizeHandleProps('licensePlate', 'ทะเบียน')} sortKey="licensePlate" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="น้ำหนัก (กก.)" resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนัก (กก.)')} sortKey="totalQty" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'จำนวนเงิน')} sortKey="totalAmount" onSort={changeSort} />
-                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+                <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
               </tr>
             </TableHeader>
             <TableBody className="divide-y divide-slate-100">
               {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></TableRow> : null}
               {!isLoading && pagedRows.map((row) => (
                 <TableRow key={row.id} className={`cursor-pointer ${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'}`} onClick={() => setDetailRow(row)}>
-                  <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
-                  <td className="whitespace-nowrap p-2">{formatDateDisplay(row.date)}</td>
+                  <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</td>
+                  <td className="whitespace-nowrap p-2 text-center">{formatDateDisplay(row.date)}</td>
                   <td className="ns-table-textual-column p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
-                  <td className="p-2 text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
-                  <td className="p-2 text-xs text-slate-700">{row.purchaseBillDocNo || '-'}</td>
-                  <td className="p-2 text-xs text-slate-600">{row.licensePlate || '-'}</td>
-                  <td className="p-2"><StatusPill status={row.status} /></td>
+                  <td className="whitespace-nowrap p-2 text-center font-mono text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
+                  <td className="whitespace-nowrap p-2 text-center font-mono text-xs text-slate-700">{row.purchaseBillDocNo || '-'}</td>
+                  <td className="whitespace-nowrap p-2 text-center font-mono text-xs text-slate-600">{row.licensePlate || '-'}</td>
+                  <td className="p-2 text-center"><StatusPill status={row.status} /></td>
                   <TableNumberCell value={formatMoney(row.totalQty)} />
                   <TableNumberCell strong value={formatMoney(row.totalAmount)} />
-                  <td className="whitespace-nowrap p-2 text-right">
+                  <td className="whitespace-nowrap p-2 text-center">
                     <TableActionButton
                       busy={printingDocNo === row.docNo}
                       menu={(
@@ -867,9 +895,11 @@ export function ReceiptVouchersPageClient() {
           row={cancelingRow}
           onCancel={() => {
             if (isSaving) return
-            setCancelingRow(null)
-            setCancelNote('')
-            setCancelError(null)
+            requestDiscardCancelNote(() => {
+              setCancelingRow(null)
+              setCancelNote('')
+              setCancelError(null)
+            })
           }}
           onConfirm={cancelReceiptVoucher}
           onNoteChange={(value) => {
@@ -991,7 +1021,7 @@ function ReceiptVoucherFormModal({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_180px]">
               <div className="col-span-1">
                 <FormField label="สาขา">
-                  <Select className="h-9 w-full" disabled={mode === 'edit'} value={form.branchId} onChange={(event) => onUpdateForm({ branchId: event.target.value, purchaseBillDocNo: '' })}>
+                  <Select className="h-10 w-full" disabled={mode === 'edit'} value={form.branchId} onChange={(event) => onUpdateForm({ branchId: event.target.value, purchaseBillDocNo: '' })}>
                     <option value="">เลือกสาขาก่อน</option>
                     {branchOptions.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
                   </Select>
@@ -1000,7 +1030,7 @@ function ReceiptVoucherFormModal({
               <div className="sm:col-span-2 lg:col-span-1">
                 <SearchCombobox
                   disabled={mode === 'edit'}
-                  inputClassName="h-9 bg-white"
+                  inputClassName="h-10 bg-white"
                   inputId="rv-supplier"
                   label="Supplier"
                   options={supplierSearchOptions}
@@ -1013,7 +1043,7 @@ function ReceiptVoucherFormModal({
               <div className="col-span-1">
                 <SearchCombobox
                   disabled={mode === 'edit'}
-                  inputClassName="h-9 bg-white"
+                  inputClassName="h-10 bg-white"
                   inputId="rv-purchase-bill"
                   label="อ้างอิงบิลซื้อ"
                   options={purchaseBillSearchOptions}
@@ -1086,7 +1116,7 @@ function ReceiptVoucherFormModal({
                       <td className="p-1.5 md:p-2 text-slate-600">{item.unit || 'กก.'}</td>
                       <td className="p-1.5 md:p-2 text-right tabular-nums">{formatMoney(toNumber(item.qty))}</td>
                       <td className="p-1.5 md:p-2 text-right tabular-nums">{formatMoney(toNumber(item.price))}</td>
-                      <td className="p-1.5 md:p-2 text-right font-semibold text-emerald-700">{formatMoney(itemAmount(item))}</td>
+                      <td className="p-1.5 md:p-2 text-right tabular-nums font-semibold text-emerald-700">{formatMoney(itemAmount(item))}</td>
                     </tr>
                   ))}
                 </tbody>

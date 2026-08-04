@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
 
 const mocks = vi.hoisted(() => ({
   branchFindMany: vi.fn(),
@@ -84,7 +85,7 @@ const routes = [
       receivable_balance: 100,
       received_amount: 0,
       sales_channels: null,
-      status: 'open',
+      status: SALES_BILL_STATUS.UNRECEIVED,
       total_amount: 100,
     },
     billFindMany: mocks.salesBillFindMany,

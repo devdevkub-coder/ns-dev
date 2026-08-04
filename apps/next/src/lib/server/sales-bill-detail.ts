@@ -1,5 +1,6 @@
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { requireSalesBillStatus, salesBillStatusText } from '@/lib/server/sales-bill-history'
 import { salesBillLineFactsForBills } from '@/lib/server/sales-bill-line-facts'
 import type { Prisma } from '../../../generated/prisma/client'
 
@@ -132,20 +133,7 @@ type SalesBillLineFact = Prisma.sales_bill_linesGetPayload<{
 }>
 
 function salesBillStatusLabel(status: string | null | undefined) {
-  switch (String(status ?? '').toLowerCase()) {
-    case 'unreceived':
-      return 'ยังไม่รับเงิน'
-    case 'partial':
-      return 'รับเงินบางส่วน'
-    case 'received':
-    case 'paid':
-      return 'รับเงินครบแล้ว'
-    case 'cancelled':
-    case 'canceled':
-      return 'ยกเลิก'
-    default:
-      return status ?? '-'
-  }
+  return salesBillStatusText(status)
 }
 
 function salesBillHistoryActionLabel(action: string | null | undefined) {
@@ -624,7 +612,7 @@ export async function getSalesBillDetail(
       createdAt: log.created_at.toISOString(),
       details,
       id: log.event_key ?? `sales-bill-status:${String(log.id)}`,
-      status: log.to_status ?? '',
+      status: requireSalesBillStatus(log.to_status, bill.doc_no),
       statusLabel: salesBillStatusLabel(log.to_status),
       title: salesBillHistoryActionLabel(log.action),
       tone: salesBillHistoryTone(log.action),
@@ -742,7 +730,7 @@ export async function getSalesBillDetail(
     readModelWarning: '',
     receivedAmount: toNumber(bill.received_amount),
     salesName: salesperson?.name ?? bill.salesman ?? '-',
-    status: bill.status ?? '',
+    status: requireSalesBillStatus(bill.status, bill.doc_no),
     statusLabel: salesBillStatusLabel(bill.status),
     sourceUsageFacts,
     stockReturnOptions: activeReturnPendingOuts.map((hold) => ({

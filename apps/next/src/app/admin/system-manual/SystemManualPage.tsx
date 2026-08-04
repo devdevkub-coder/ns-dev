@@ -28,7 +28,7 @@ export function SystemManualPage({ manual }: SystemManualPageProps) {
           <label className="relative block w-full lg:w-[360px]">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
             <input
-              className="h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="h-9 w-full rounded-md border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               placeholder="ค้นหาคู่มือ / Flow / ชื่อเมนู..."
               type="search"
             />

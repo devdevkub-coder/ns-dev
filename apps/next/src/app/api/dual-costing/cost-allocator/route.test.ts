@@ -158,6 +158,12 @@ function expectNoWrites() {
 }
 
 describe('POST /api/dual-costing/cost-allocator', () => {
+  it('requires the dedicated allocation permission before mutating financial facts', async () => {
+    await post(requestBody())
+
+    expect(mocks.requirePermission).toHaveBeenCalledWith(actor, 'finance.dual_costing.allocate')
+  })
+
   it.each([9, 11])('rejects requested quantity %s when it is not the target remainder before writing', async (qtyToUse) => {
     const response = await post(requestBody({ candidates: [{ costPoolId: 'SCP-001', qtyToUse }] }))
 

@@ -1,6 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Download } from 'lucide-react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
@@ -17,7 +20,6 @@ type FcdAccount = {
   id: string
   label: string
   name: string
-  openingBalance: number
   type: string
 }
 
@@ -27,7 +29,7 @@ type FcdRow = {
   foreignBal: number
   foreignIn: number
   foreignOut: number
-  fxRate: number
+  fxRate: number | null
   id: string
   refNo: string
   thbBal: number
@@ -36,11 +38,23 @@ type FcdRow = {
   type: string
 }
 
+type FcdValuation = {
+  currentThbValue: number | null
+  latestValuationRate: number | null
+  rateFound: boolean
+  rateReference: string | null
+  rateSource: string | null
+  rateType: string | null
+  unrealizedDifference: number | null
+  valuationDate: string | null
+  weightedCarryingRate: number | null
+}
+
 type FcdPayload = {
-  account: (Omit<FcdAccount, 'label'> & { openingBalance: number }) | null
-  filters: { accounts: FcdAccount[] }
+  account: Omit<FcdAccount, 'label'> | null
+  filters: { accounts: FcdAccount[]; functionalCurrencyCode: string; rateTypes: string[] }
   rows: FcdRow[]
-  summary: { accountCount: number; currency: string; foreignBalance: number; rows: number; thbBalance: number }
+  summary: { accountCount: number; currency: string; foreignBalance: number; rows: number; thbBalance: number; valuation: FcdValuation }
 }
 
 type FcdColumnKey =
@@ -72,19 +86,32 @@ const fcdColumns: Array<ResizableColumnDefinition<FcdColumnKey>> = [
 ]
 
 export function FcdLedgerPageClient() {
-  const [accountId, setAccountId] = useState('')
+  const searchParams = useSearchParams()
+  const requestedAccountCode = searchParams.get('accountId')?.trim().toUpperCase() ?? ''
+  const requestedCurrencyCode = searchParams.get('currencyCode')?.trim().toUpperCase() ?? ''
+  const [accountId, setAccountId] = useState(() => requestedAccountCode && requestedCurrencyCode ? `${requestedAccountCode}|${requestedCurrencyCode}` : '')
   const [data, setData] = useState<FcdPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sortKey, setSortKey] = useState<FcdColumnKey | null>(null)
+  const [valuationDate, setValuationDate] = useState('')
+  const [valuationRateType, setValuationRateType] = useState('')
   const columnResize = useResizableColumns('finance.foreign.fcd-ledger.main.v1', fcdColumns)
 
   const query = useMemo(() => {
     const params = new URLSearchParams()
-    if (accountId) params.set('accountId', accountId)
+    if (accountId) {
+      const separatorIndex = accountId.lastIndexOf('|')
+      if (separatorIndex > 0) {
+        params.set('accountId', accountId.slice(0, separatorIndex))
+        params.set('currencyCode', accountId.slice(separatorIndex + 1))
+      }
+    }
+    if (valuationDate) params.set('valuationDate', valuationDate)
+    if (valuationRateType) params.set('valuationRateType', valuationRateType)
     return params.toString()
-  }, [accountId])
+  }, [accountId, valuationDate, valuationRateType])
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -92,19 +119,19 @@ export function FcdLedgerPageClient() {
     try {
       const payload = await dailyFetchJson<FcdPayload>(`/api/finance/foreign/fcd-ledger${query ? `?${query}` : ''}`)
       setData(payload)
-      if (!accountId && payload.account?.id) setAccountId(payload.account.id)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลด FCD Ledger ไม่ได้')
     } finally {
       setIsLoading(false)
     }
-  }, [accountId, query])
+  }, [query])
 
   useEffect(() => {
     void loadData()
   }, [loadData])
 
   const currency = data?.summary.currency || data?.account?.currency || ''
+  const valuation = data?.summary.valuation
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const sortedRows = useMemo(() => {
     if (!sortKey) return rows
@@ -144,6 +171,12 @@ export function FcdLedgerPageClient() {
           คืนค่าเดิมตาราง
         </button>
       ) : null}
+      {accountId ? (
+        <a className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-sm hover:bg-emerald-700" href={`/api/finance/foreign/fcd-ledger?${query ? `${query}&` : ''}format=xlsx`}>
+          <Download aria-hidden="true" className="size-4" />
+          ส่งออก Excel
+        </a>
+      ) : null}
     </>
   )
 
@@ -157,13 +190,23 @@ export function FcdLedgerPageClient() {
           {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.label} ({account.currency})</option>)}
           {!isLoading && (data?.filters.accounts.length ?? 0) === 0 ? <option value="">ไม่มีบัญชี FCD</option> : null}
         </Select>
+        <DatePickerInput className="h-9 w-40" value={valuationDate} onChange={setValuationDate} ariaLabel="วันที่ดูมูลค่า FCD" />
+        <Select className="h-9 w-full border-slate-200 text-sm md:w-56" value={valuationRateType} onChange={(event) => setValuationRateType(event.target.value)}>
+          <option value="">เลือกประเภท rate เพื่อดูมูลค่า</option>
+          {(data?.filters.rateTypes ?? []).map((rateType) => <option key={rateType} value={rateType}>{rateType}</option>)}
+        </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-5 text-sm">
         <SharedKpiCard icon="🏦" label="บัญชี" tone="slate" value={data?.account?.name ?? '-'} />
         <SharedKpiCard icon="💱" label={`ยอดคงเหลือ (${currency || '-'})`} tone={(data?.summary.foreignBalance ?? 0) === 0 ? 'slate' : 'indigo'} value={formatMoney(data?.summary.foreignBalance ?? 0)} />
-        <SharedKpiCard icon="💰" label="ยอดคงเหลือ THB Equivalent" tone={(data?.summary.thbBalance ?? 0) === 0 ? 'slate' : 'blue'} value={formatMoney(data?.summary.thbBalance ?? 0)} />
+        <SharedKpiCard icon="💰" label={`Carrying (${data?.filters.functionalCurrencyCode ?? '-'})`} tone={(data?.summary.thbBalance ?? 0) === 0 ? 'slate' : 'blue'} value={formatMoney(data?.summary.thbBalance ?? 0)} />
+        <SharedKpiCard icon="📈" label="Weighted carrying rate" tone="slate" value={valuation?.weightedCarryingRate == null ? '-' : valuation.weightedCarryingRate.toFixed(3)} />
+        <SharedKpiCard icon="🧮" label={valuation?.rateFound ? 'มูลค่าตาม rate ที่เลือก' : 'สถานะ rate'} tone={valuation?.rateFound ? 'emerald' : 'slate'} value={valuation?.rateFound && valuation.currentThbValue != null ? formatMoney(valuation.currentThbValue) : 'ไม่มีข้อมูล rate'} />
       </div>
+      {valuation?.rateFound && valuation.unrealizedDifference != null ? (
+        <p className="px-1 text-sm text-slate-600">ส่วนต่างจาก carrying: <span className="font-semibold tabular-nums text-slate-900">{formatMoney(valuation.unrealizedDifference)}</span> {data?.filters.functionalCurrencyCode ?? ''}</p>
+      ) : null}
 
       <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
         {tableControls}
@@ -182,9 +225,9 @@ export function FcdLedgerPageClient() {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead align="center" label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
               <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-              <ResizableTableHead label="เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เอกสาร')} />
+              <ResizableTableHead align="center" label="เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เอกสาร')} />
               <ResizableTableHead label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
               <ResizableTableHead align="right" label="FCD เข้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignIn" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignIn', 'FCD เข้า')} />
               <ResizableTableHead align="right" label="FCD ออก" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignOut" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignOut', 'FCD ออก')} />
@@ -199,10 +242,10 @@ export function FcdLedgerPageClient() {
             {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fcdColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fcdColumns.length}>ยังไม่มีรายการเดินบัญชี FCD</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
-              <tr key={row.id} className={`transition-colors ${isOpeningRow(row) ? 'bg-slate-100 font-semibold' : 'hover:bg-slate-50'}`}>
-                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatFcdDate(row.date)}</td>
+              <tr id={`entry-${row.id}`} key={row.id} className="transition-colors hover:bg-slate-50">
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatFcdDate(row.date)}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.type}</td>
-                <td className="min-w-0 truncate px-3 py-3 font-mono text-xs text-blue-600">{row.refNo}</td>
+                <td className="whitespace-nowrap min-w-0 truncate px-3 py-3 text-center font-mono text-xs text-blue-600">{row.refNo}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.description || '-'}</td>
                 <MoneyCell tone="in" value={row.foreignIn} />
                 <MoneyCell tone="out" value={row.foreignOut} />
@@ -227,25 +270,23 @@ export function FcdLedgerPageClient() {
           <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มีรายการเดินบัญชี FCD</div>
         ) : null}
         {!isLoading && sortedRows.map((row) => {
-          const isOpening = isOpeningRow(row)
           return (
             <div
+              id={`entry-${row.id}`}
               key={row.id}
-              className={`rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-xs ${isOpening ? 'bg-slate-50' : ''}`}
+              className="space-y-2 rounded-xl border border-slate-100 bg-white p-4 text-xs shadow-sm"
             >
               <div className="flex justify-between items-start">
-                <span className="font-mono text-slate-500 text-xs">{formatFcdDate(row.date)}</span>
-                <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${isOpening ? 'bg-slate-200 text-slate-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                <span className="whitespace-nowrap font-mono text-slate-500 text-xs">{formatFcdDate(row.date)}</span>
+                <span className="whitespace-nowrap rounded-md bg-indigo-100 px-1.5 py-0.5 text-xs font-bold text-indigo-700">
                   {row.type}
                 </span>
               </div>
               
-              {!isOpening && (
-                <div className="flex justify-between">
-                  <span className="font-mono text-blue-600 font-semibold">Ref: {row.refNo}</span>
-                  {row.fxRate ? <span className="text-slate-400">Rate: {formatMoney(row.fxRate)}</span> : null}
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span className="whitespace-nowrap font-mono text-blue-600 font-semibold">Ref: {row.refNo}</span>
+                {row.fxRate ? <span className="text-slate-400">Rate: {formatMoney(row.fxRate)}</span> : null}
+              </div>
               
               <div className="text-slate-700">{row.description || '-'}</div>
 
@@ -288,10 +329,6 @@ function getFcdSortValue(row: FcdRow, key: FcdColumnKey): string | number {
   }
 
   return row[key] ?? ''
-}
-
-function isOpeningRow(row: FcdRow) {
-  return row.type === 'ยอดยกมา'
 }
 
 function MoneyCell({ tone, value }: { tone: 'in' | 'out'; value: number }) {

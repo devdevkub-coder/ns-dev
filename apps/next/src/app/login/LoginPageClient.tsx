@@ -1,8 +1,9 @@
 'use client'
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { GuardedLink } from '@/components/ui/GuardedLink'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { loginSchema } from '@/lib/auth'
 import { completeBrowserLoginSession } from '@/lib/auth-client-contract'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
@@ -31,9 +32,18 @@ export function LoginPageClient() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [successfulRedirect, setSuccessfulRedirect] = useState<string | null>(null)
   const hasValidatedExistingSession = useRef(false)
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
+  const { hasUnsavedChanges } = useActionConfirmation()
+  const isFormDirty = !successfulRedirect && Boolean(identifier || password)
+  useUnsavedChangesGuard(isFormDirty)
+
+  useEffect(() => {
+    if (!successfulRedirect || hasUnsavedChanges) return
+    window.location.assign(successfulRedirect)
+  }, [hasUnsavedChanges, successfulRedirect])
 
   useEffect(() => {
     if (!supabase || hasValidatedExistingSession.current) return
@@ -42,10 +52,18 @@ export function LoginPageClient() {
     let mounted = true
 
     void (async () => {
-      const session = await getSessionSafely(supabase).catch(() => null)
+      const session = await getSessionSafely(supabase).catch(async () => {
+        // Clear a stale refresh-token session before allowing a fresh login.
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+        return null
+      })
       if (!mounted || !session) return
 
-      await supabase.auth.refreshSession().catch(() => undefined)
+      const { error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+        return
+      }
       const completion = await completeBrowserLoginSession({
         fetchImpl: fetch,
         signOut: () => supabase.auth.signOut({ scope: 'local' }),
@@ -86,6 +104,9 @@ export function LoginPageClient() {
     setIsLoading(true)
 
     try {
+      // Avoid a stale local session racing with password authentication.
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: parsed.data.email,
         password: parsed.data.password,
@@ -107,10 +128,11 @@ export function LoginPageClient() {
       }
 
       await supabase.auth.getSession().catch(() => undefined)
+      setIdentifier('')
       setPassword('')
       const redirectParam = searchParams.get('redirect')
       const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()
-      window.location.assign(redirectPath)
+      setSuccessfulRedirect(redirectPath)
     } catch {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
       setError('เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่')
@@ -146,7 +168,7 @@ export function LoginPageClient() {
             Email <span className="text-red-600">*</span>
             <input
               autoComplete="email"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
               onChange={(event) => setIdentifier(event.target.value)}
               placeholder="name@company.com"
@@ -161,7 +183,7 @@ export function LoginPageClient() {
             <span className="relative mt-1 block">
               <input
                 autoComplete="current-password"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isLoading}
                 onChange={(event) => setPassword(event.target.value)}
                 onKeyDown={submitOnPasswordEnter}
@@ -195,9 +217,9 @@ export function LoginPageClient() {
           </label>
 
           <div className="text-right">
-            <Link className="text-sm font-medium text-blue-700 hover:underline" href="/forgot-password">
+            <GuardedLink className="text-sm font-medium text-blue-700 hover:underline" href="/forgot-password">
               ลืมรหัสผ่าน?
-            </Link>
+            </GuardedLink>
           </div>
 
           {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}

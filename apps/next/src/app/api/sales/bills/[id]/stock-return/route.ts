@@ -6,7 +6,7 @@ import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, 
 import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
-import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
+import { appendSalesBillStatusLog, isSalesBillCancelledStatus, requireSalesBillStatus, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { closeActiveWtoPendingOutForSalesBillReturn, WtoPendingOutError } from '@/lib/server/stock-holds'
 import { appendWtoPendingOutEventsForHoldKeys } from '@/lib/server/weight-ticket-pending-out-events'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
@@ -29,7 +29,7 @@ function scopedSalesBillWhere(allowedBranchIds: bigint[] | null) {
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'finance.cash.view')
+    requirePermission(auth, 'sales.bills.update')
 
     const { id } = await context.params
     const billRef = decodeURIComponent(id)
@@ -51,7 +51,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         where: { doc_no: billRef, ...scopedSalesBillWhere(branchScope.ids) },
       })
       if (!bill) throw new Error('ไม่พบบิลขายที่ต้องการรับของคืน')
-      if (String(bill.status ?? '').toLowerCase() === 'cancelled' || String(bill.status ?? '').toLowerCase() === 'canceled') {
+      if (isSalesBillCancelledStatus(bill.status, bill.doc_no)) {
         throw new Error('รับของคืนจากบิลขายที่ยกเลิกแล้วไม่ได้')
       }
 
@@ -256,7 +256,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
         note: values.reason ?? values.note ?? 'รับของคืนจาก WTO',
         salesBillId: bill.id,
-        toStatus: bill.status ?? 'open',
+        toStatus: requireSalesBillStatus(bill.status, bill.doc_no),
       })
 
       return {

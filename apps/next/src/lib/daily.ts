@@ -35,6 +35,10 @@ const optionalSafeId = (label: string) => z.preprocess(
 const requiredDate = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD')
 const money = (label: string) => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).min(0, `${label}ต้องไม่ติดลบ`)
 const positiveMoney = (label: string) => money(label).gt(0, `${label}ต้องมากกว่า 0`)
+const positiveFxRate = z.coerce.number({ invalid_type_error: 'อัตราแลกเปลี่ยนต้องเป็นตัวเลข' })
+  .finite('อัตราแลกเปลี่ยนต้องเป็นตัวเลข')
+  .gt(0, 'อัตราแลกเปลี่ยนต้องมากกว่า 0')
+  .refine((value) => Math.abs((value * 100) - Math.round(value * 100)) < 1e-8, 'อัตราแลกเปลี่ยนต้องมีทศนิยมไม่เกิน 2 ตำแหน่ง')
 
 export const transferFormSchema = z.object({
   id: optionalSafeId('รหัสรายการ'),
@@ -209,6 +213,9 @@ export const customerReceiptFormSchema = z.object({
   withholdingTax: money('ภาษีหัก ณ ที่จ่าย').default(0),
   discount: money('ส่วนลด').default(0),
   fee: money('ค่าธรรมเนียม').default(0),
+  receiptCurrencyCode: z.string().trim().min(3, 'รหัสสกุลเงินไม่ถูกต้อง').max(6, 'รหัสสกุลเงินไม่ถูกต้อง').regex(/^[A-Za-z0-9]+$/, 'รหัสสกุลเงินไม่ถูกต้อง').transform((value) => value.toUpperCase()).optional(),
+  customerTransferredNativeAmount: money('ยอดที่ลูกค้าโอน').optional(),
+  fxRate: positiveFxRate.optional(),
   method: z.string().trim().min(1, 'เลือกวิธีรับเงิน').max(80, 'วิธีรับเงินยาวเกินไป').regex(businessTextPattern, 'วิธีรับเงินมีรูปแบบไม่ถูกต้อง'),
   notes: optionalGeneralText('หมายเหตุ', 500),
   salesBillLines: z.array(customerReceiptLineFormSchema).default([]),
@@ -238,6 +245,9 @@ export const customerReceiptFormSchema = z.object({
   if (value.sourceType === 'CADV' && !hasCustomerAdvanceLines) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือก CADV อย่างน้อย 1 รายการ', path: ['customerAdvanceLines'] })
   }
+  // Whether the receipt currency is foreign depends on the runtime functional-currency
+  // policy. The server owns that comparison so this shared form contract has no
+  // hardcoded currency fallback.
 })
 
 export type CustomerReceiptFormValues = z.infer<typeof customerReceiptFormSchema>
@@ -266,11 +276,14 @@ export type StockTransferFormValues = z.infer<typeof stockTransferFormSchema>
 export type DailyAccountOption = {
   active: boolean
   balance?: number
+  accountGroup?: string | null
   code: string | null
   id: string
+  isFcd?: boolean
   name: string
   type: string
   subtype?: string | null
+  supportedCurrencies?: string[]
   odLimit?: number | null
   odUsed?: number | null
   odRemaining?: number | null

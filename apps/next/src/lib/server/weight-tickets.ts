@@ -1,5 +1,7 @@
 import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
+import { PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
+import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
 import {
   appendImpurityProductMeta,
   calculateWeightTicketLineTotals,
@@ -13,7 +15,7 @@ import {
   type WeightTicketStatus,
   type WeightTicketType,
 } from '@/lib/weight-tickets'
-import type { AppAuthContext } from '@/lib/server/auth-context'
+import { getBranchCodeIntersection, type AppAuthContext } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
@@ -370,8 +372,8 @@ function documentPeriod(date: string) {
   return date.slice(2, 4) + date.slice(5, 7)
 }
 
-export function branchScopeIds(context: AppAuthContext) {
-  return context.appUser?.branchIds ?? []
+export function branchScopeIds(context: AppAuthContext): string[] | null {
+  return getBranchCodeIntersection(context)
 }
 
 export function enteredByLabel(context: AppAuthContext) {
@@ -414,9 +416,12 @@ export async function nextWeightTicketDocNo(
   return `${startsWith}${String(lastNumber + 1).padStart(4, '0')}`
 }
 
-export function weightTicketWhere(query: WeightTicketQuery, scopedBranchIds: string[]): Prisma.weight_ticketsWhereInput {
+export function weightTicketWhere(query: WeightTicketQuery, scopedBranchIds: string[] | null): Prisma.weight_ticketsWhereInput {
   const andWhere: Prisma.weight_ticketsWhereInput[] = []
-  if (scopedBranchIds.length) andWhere.push({ branches: { code: { in: scopedBranchIds } } })
+  if (scopedBranchIds !== null) {
+    if (!scopedBranchIds.length) andWhere.push({ id: { in: [] } })
+    else andWhere.push({ branches: { code: { in: scopedBranchIds } } })
+  }
   if (query.branchId) andWhere.push({ branches: { code: query.branchId } })
 
   const where: Prisma.weight_ticketsWhereInput = andWhere.length ? { AND: andWhere } : {}
@@ -614,7 +619,7 @@ export async function getWeightTicketUsageCountsByTicketIds(
            , pbra.weight_ticket_id
       from public.purchase_bill_receipt_allocations pbra
       join public.purchase_bills pb on pb.id = pbra.purchase_bill_id
-      where lower(coalesce(pb.status, '')) not in ('cancelled', 'cancelled_supplier_swap')
+      where pb.status in (${Prisma.join(PURCHASE_BILL_ACTIVE_STATUSES)})
         and pbra.allocation_status = 'active'
         and pbra.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
       group by pbra.weight_ticket_id
@@ -625,7 +630,7 @@ export async function getWeightTicketUsageCountsByTicketIds(
            , sba.weight_ticket_id
       from public.sales_bill_source_allocations sba
       join public.sales_bills sb on sb.id = sba.sales_bill_id
-      where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
+      where sb.status in (${Prisma.join([SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED])})
         and sba.status = 'active'
         and sba.source_type = 'WTO'
         and sba.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
@@ -677,7 +682,7 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
       join public.weight_tickets wt on wt.id = pbra.weight_ticket_id
       left join public.products products on products.id = pbi.product_id
       left join public.products summary_products on summary_products.id = wts.product_id
-      where lower(coalesce(pb.status, '')) not in ('cancelled', 'cancelled_supplier_swap')
+      where pb.status in (${Prisma.join(PURCHASE_BILL_ACTIVE_STATUSES)})
         and pbra.allocation_status = 'active'
         and pbi.item_status = 'active'
         and pbra.weight_ticket_id = ${ticketId}
@@ -704,7 +709,7 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
       from public.sales_bill_source_allocations sba
       join public.sales_bills sb on sb.id = sba.sales_bill_id
       join public.weight_tickets wt on wt.id = sba.weight_ticket_id
-      where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
+      where sb.status in (${Prisma.join([SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED])})
         and sba.status = 'active'
         and sba.source_type = 'WTO'
         and sba.weight_ticket_id = ${ticketId}
@@ -1173,12 +1178,13 @@ export const weightTicketInclude = {
   },
 } as const
 
-export async function findScopedWeightTicket(documentNo: string, scopedBranchIds: string[]) {
+export async function findScopedWeightTicket(documentNo: string, scopedBranchIds: string[] | null) {
+  if (scopedBranchIds !== null && !scopedBranchIds.length) return null
   return prisma.weight_tickets.findFirst({
     include: weightTicketInclude,
     where: {
       doc_no: documentNo,
-      ...(scopedBranchIds.length ? { branches: { code: { in: scopedBranchIds } } } : {}),
+      ...(scopedBranchIds !== null ? { branches: { code: { in: scopedBranchIds } } } : {}),
     },
   })
 }

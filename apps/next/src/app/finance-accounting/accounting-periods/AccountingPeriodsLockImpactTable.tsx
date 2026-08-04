@@ -72,14 +72,14 @@ export function AccountingPeriodsLockImpactTable({ rows }: { rows: readonly (rea
           <thead className="bg-slate-100">
             <tr>
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="หมวดงาน" resizeProps={columnResize.getResizeHandleProps('area', 'หมวดงาน')} sortKey="area" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ผลกระทบที่ต้องล็อก" resizeProps={columnResize.getResizeHandleProps('impact', 'ผลกระทบที่ต้องล็อก')} sortKey="impact" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="left" className="ns-table-textual-column" direction={sortDirection} label="ผลกระทบที่ต้องล็อก" resizeProps={columnResize.getResizeHandleProps('impact', 'ผลกระทบที่ต้องล็อก')} sortKey="impact" onSort={handleSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
             {sortedRows.map((row) => (
               <tr key={row.area} className="transition-colors hover:bg-slate-50">
                 <td className="whitespace-nowrap p-3 align-top font-semibold text-slate-900">{row.area}</td>
-                <td className="min-w-0 p-3 align-top text-right text-slate-700"><span className="block break-words">{row.impact}</span></td>
+                <td className="ns-table-textual-column min-w-0 p-3 align-top text-left text-slate-700"><span className="block break-words">{row.impact}</span></td>
               </tr>
             ))}
           </tbody>

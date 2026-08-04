@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -17,6 +18,7 @@ import { ApiError } from '@/lib/api-client'
 import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
 import { ArrowDownUp, Download, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import {
   applyMobileFilterDraft,
   createMobileFilterDraft,
@@ -31,6 +33,8 @@ type ProductionMovementRow = {
   createdAt?: string | null
   date: string
   docNo: string
+  eventKey?: string | null
+  outputRound?: number | null
   id?: string
   lotNo: string
   outputType?: string
@@ -325,6 +329,7 @@ function productionHistoryToneClass(status: string) {
 }
 
 export function ProductionOrdersPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const [data, setData] = useState<ProductionOrdersPayload | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -575,35 +580,53 @@ export function ProductionOrdersPageClient() {
   async function cancelOrderFromList(row: ProductionOrderRow) {
     const reason = window.prompt('เหตุผลการยกเลิก')?.trim()
     if (!reason) return
-    if (!window.confirm('ระบบจะย้อนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
-    setError(null)
-    try {
-      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
-        body: JSON.stringify({ action: 'cancel', reason }),
-        method: 'PATCH',
-      })
-      await loadData(page)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ยกเลิกใบสั่งผลิตไม่ได้')
-    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันยกเลิก',
+      description: 'ระบบจะคืนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่',
+      destructive: true,
+      onConfirm: async () => {
+        setError(null)
+        try {
+          await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
+            body: JSON.stringify({ action: 'cancel', reason }),
+            method: 'PATCH',
+          })
+          await loadData(page)
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'ยกเลิกใบสั่งผลิตไม่ได้')
+          throw caught
+        }
+      },
+      title: 'ยืนยันการยกเลิกใบสั่งผลิตหรือไม่?',
+    })
   }
 
   async function completeOrderFromList(row: ProductionOrderRow) {
     const wipQty = Math.max(0, row.wipQty ?? 0)
-    const confirmCloseWithWip = wipQty > 0.000001
-      ? window.confirm(`ยังมี WIP คงเหลือ ${formatMoney(wipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`)
-      : false
-    if (wipQty > 0.000001 && !confirmCloseWithWip) return
-    setError(null)
-    try {
-      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
-        body: JSON.stringify({ action: 'complete', confirmCloseWithWip, note: '' }),
-        method: 'PATCH',
-      })
-      await loadData(page)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'จบงานผลิตไม่ได้')
+    const completeOrder = async (confirmCloseWithWip: boolean, rethrow = false) => {
+      setError(null)
+      try {
+        await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
+          body: JSON.stringify({ action: 'complete', confirmCloseWithWip, note: '' }),
+          method: 'PATCH',
+        })
+        await loadData(page)
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'จบงานผลิตไม่ได้')
+        if (rethrow) throw caught
+      }
     }
+    if (wipQty <= 0.000001) {
+      await completeOrder(false)
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันจบงาน',
+      description: `ยังมี WIP คงเหลือ ${formatMoney(wipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`,
+      destructive: true,
+      onConfirm: () => completeOrder(true, true),
+      title: 'ยืนยันการจบงานผลิตหรือไม่?',
+    })
   }
 
   return (
@@ -645,10 +668,16 @@ export function ProductionOrdersPageClient() {
           <DatePickerInput ariaLabel="วันที่สร้างรายการตั้งแต่" className="w-[130px] !h-9 text-sm" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
           <span className="text-slate-400">→</span>
           <DatePickerInput ariaLabel="วันที่สร้างรายการถึง" className="w-[130px] !h-9 text-sm" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
-          <Select aria-label="กรองตามสาขา" className="h-9 w-40" value={branchCode} onChange={(event) => { setBranchCode(event.target.value); setPage(1) }}>
-            <option value="">ทุกสาขา</option>
-            {(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}
-          </Select>
+          <BranchSelectCombobox
+            branches={(data?.filters.branches ?? []).map((branch) => ({ id: branch.code, name: branch.name }))}
+            className="w-[12rem]"
+            controlSize="filter"
+            inputId="production-orders-branch-filter"
+            label=""
+            placeholder="ทุกสาขา"
+            value={branchCode || null}
+            onChange={(value) => { setBranchCode(value ?? ''); setPage(1) }}
+          />
           {hasActiveFilters ? (
             <button className="h-9 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>
               ล้างตัวกรอง
@@ -746,13 +775,19 @@ export function ProductionOrdersPageClient() {
           onClose={closeMobileFilters}
           title="ตัวกรองใบสั่งผลิต"
         >
-              <label className="block">
+              <div className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                <Select className="h-9 w-full" value={mobileFilterDraft?.branchCode ?? branchCode} onChange={(event) => updateMobileFilters({ branchCode: event.target.value })}>
-                  <option value="">ทุกสาขา</option>
-                  {(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}
-                </Select>
-              </label>
+                <BranchSelectCombobox
+                  branches={(data?.filters.branches ?? []).map((branch) => ({ id: branch.code, name: branch.name }))}
+                  className="w-full"
+                  controlSize="filter"
+                  inputId="production-orders-branch-filter-mobile"
+                  label=""
+                  placeholder="ทุกสาขา"
+                  value={(mobileFilterDraft?.branchCode ?? branchCode) || null}
+                  onChange={(value) => updateMobileFilters({ branchCode: value ?? '' })}
+                />
+              </div>
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
                 <div className="flex flex-wrap gap-2">
@@ -766,9 +801,9 @@ export function ProductionOrdersPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่สร้างรายการ</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput ariaLabel="วันที่สร้างรายการตั้งแต่" className="flex-1" value={mobileDateFrom} onChange={(value) => updateMobileFilters({ dateFrom: value })} />
+                  <DatePickerInput ariaLabel="วันที่สร้างรายการตั้งแต่" className="h-9 flex-1" value={mobileDateFrom} onChange={(value) => updateMobileFilters({ dateFrom: value })} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput ariaLabel="วันที่สร้างรายการถึง" className="flex-1" value={mobileDateTo} onChange={(value) => updateMobileFilters({ dateTo: value })} />
+                  <DatePickerInput ariaLabel="วันที่สร้างรายการถึง" className="h-9 flex-1" value={mobileDateTo} onChange={(value) => updateMobileFilters({ dateTo: value })} />
                 </div>
               </div>
 
@@ -890,10 +925,10 @@ export function ProductionOrdersPageClient() {
                     resizeProps={columnResize.getResizeHandleProps('startDate', 'วันที่เริ่มผลิต')}
                   />
                   <ResizableTableHead activeSortKey={sort} align="center" direction={direction} label="วันที่สร้างรายการ" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้างรายการ')} sortKey="createdAt" onSort={toggleSort} />
-                  <ResizableTableHead align="center" label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
-                  <ResizableTableHead align="center" label="สินค้าที่ผลิต" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้าที่ผลิต')} />
-                  <ResizableTableHead align="center" label="เครื่องจักร" resizeProps={columnResize.getResizeHandleProps('machine', 'เครื่องจักร')} />
-                  <ResizableTableHead align="center" label="คลังรับผลผลิต" resizeProps={columnResize.getResizeHandleProps('warehouseName', 'คลังรับผลผลิต')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="สินค้าที่ผลิต" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้าที่ผลิต')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="เครื่องจักร" resizeProps={columnResize.getResizeHandleProps('machine', 'เครื่องจักร')} />
+                  <ResizableTableHead align="left" className="ns-table-textual-column" label="คลังรับผลผลิต" resizeProps={columnResize.getResizeHandleProps('warehouseName', 'คลังรับผลผลิต')} />
                   <ResizableTableHead activeSortKey={sort} align="right" direction={direction} label="ปริมาณเบิก (กก.)" resizeProps={columnResize.getResizeHandleProps('inputQty', 'ปริมาณเบิก (กก.)')} sortKey="inputQty" onSort={toggleSort} />
                   <ResizableTableHead activeSortKey={sort} align="right" direction={direction} label="WIP คงเหลือ (กก.)" resizeProps={columnResize.getResizeHandleProps('wipQty', 'WIP คงเหลือ (กก.)')} sortKey="wipQty" onSort={toggleSort} />
                   <ResizableTableHead activeSortKey={sort} align="right" direction={direction} label="ปริมาณผลิต (กก.)" resizeProps={columnResize.getResizeHandleProps('outputQty', 'ปริมาณผลิต (กก.)')} sortKey="outputQty" onSort={toggleSort} />
@@ -935,24 +970,24 @@ export function ProductionOrdersPageClient() {
                       className="hover:bg-slate-50 cursor-pointer transition-colors"
                       onClick={() => void openOrder(row)}
                     >
-                      <td className="p-3 truncate text-center font-mono font-semibold text-slate-900" title={row.docNo}>{row.docNo}</td>
+                      <td className="whitespace-nowrap p-3 text-center font-mono font-semibold text-slate-900" title={row.docNo}>{row.docNo}</td>
                       <td className="p-3 whitespace-nowrap text-center">{row.startDate ? formatDateDisplay(row.startDate) : '-'}</td>
                       <td className="p-3 whitespace-nowrap text-center text-slate-500"><span className="block">{createdDateTime.date}</span>{createdDateTime.time ? <span className="block text-xs">{createdDateTime.time}</span> : null}</td>
-                      <td className="p-3 truncate text-center" title={row.branchName}>{row.branchName}</td>
-                      <td className="p-3 min-w-0 text-center">
+                      <td className="ns-table-textual-column p-3 truncate text-left" title={row.branchName}>{row.branchName}</td>
+                      <td className="ns-table-textual-column p-3 min-w-0 text-left">
                         <div className="font-semibold text-slate-800 truncate" title={row.productName || 'ยังไม่ได้กำหนดสินค้า'}>{row.productName || 'ยังไม่ได้กำหนดสินค้า'}</div>
                         <div className="text-xs text-slate-400 font-mono mt-0.5 truncate">{row.productCode || row.productId || '-'}</div>
                       </td>
-                      <td className="p-3 min-w-0 text-center">
+                      <td className="ns-table-textual-column p-3 min-w-0 text-left">
                         {row.machineName ? (
                           <span className="font-medium text-slate-800 truncate" title={row.machineName}>{row.machineName}</span>
                         ) : '-'}
                       </td>
-                      <td className="p-3 truncate text-center" title={row.warehouseName}>{row.warehouseName || '-'}</td>
+                      <td className="ns-table-textual-column p-3 truncate text-left" title={row.warehouseName}>{row.warehouseName || '-'}</td>
                       <td className="p-3 text-right font-medium tabular-nums text-slate-700">{formatMoney(row.inputQty)}</td>
                       <td className="p-3 text-right font-medium tabular-nums text-slate-600">{formatMoney(wipQty)}</td>
                       <td className="p-3 text-right font-semibold tabular-nums text-slate-800">{formatMoney(row.outputQty)}</td>
-                      <td className="p-3 text-center font-bold tabular-nums">
+                      <td className="p-3 text-right font-bold tabular-nums">
                         {row.inputQty > 0 ? (
                           <span className={yieldPct >= 90 ? 'text-emerald-700' : yieldPct >= 70 ? 'text-blue-700' : 'text-amber-700'}>
                             {yieldPct.toFixed(1)}%
@@ -1148,6 +1183,7 @@ function CountdownTimer({ closedAt }: { closedAt: string | null }) {
 
 
 function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row }: { mode: 'create' | 'detail'; onClose: (refresh?: boolean) => void; onOpenCreated: (docNo: string) => Promise<void>; onRefreshRow: (docNo: string) => Promise<ProductionOrderRow | null>; row: ProductionOrderRow | null }) {
+  const { requestConfirmation } = useActionConfirmation()
   const isCreate = mode === 'create'
   const [options, setOptions] = useState<ProductionOrderOptions>(emptyOptions)
   const [tab, setTab] = useState<'header' | 'input' | 'output' | 'history'>('header')
@@ -1159,6 +1195,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
   const [returnInputDocNos, setReturnInputDocNos] = useState<string[]>([])
   const [returnQuantities, setReturnQuantities] = useState<Record<string, string>>({})
   const [returnReason, setReturnReason] = useState('')
+  const [returnFormBaseline, setReturnFormBaseline] = useState<string | null>(null)
   const [wip, setWip] = useState<WipPayload | null>(null)
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({})
   const [createForm, setCreateForm] = useState({
@@ -1184,6 +1221,14 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
   const outputNetQtyRef = useRef<HTMLInputElement | null>(null)
   const outputLossQtyRef = useRef<HTMLInputElement | null>(null)
   const outputSourceWipQtyRef = useRef<HTMLInputElement | null>(null)
+  const [formBaseline, setFormBaseline] = useState<string | null>(() => JSON.stringify(isCreate
+    ? { createForm }
+    : { inputDrafts, inputForm, outputDrafts, outputForm, outputWipDrafts, showOutputWipEntryRow }
+  ))
+  const [formDefaultsLoaded, setFormDefaultsLoaded] = useState(false)
+  const [outputDraftLoaded, setOutputDraftLoaded] = useState(isCreate)
+  const userEditedFormRef = useRef(false)
+  const [hasUserEditedForm, setHasUserEditedForm] = useState(false)
 
   const inputWarehouseOptions = useMemo(() => {
     if (!row?.branchCode) return []
@@ -1254,6 +1299,59 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
   const canWrite = row
     ? ['Open', 'In Production', 'Partially Completed'].includes(row.status) || isGracePeriodActive(row)
     : false
+  const formSafetySnapshot = useMemo(() => JSON.stringify(isCreate
+    ? { createForm }
+    : { inputDrafts, inputForm, outputDrafts, outputForm, outputWipDrafts, showOutputWipEntryRow }
+  ), [createForm, inputDrafts, inputForm, isCreate, outputDrafts, outputForm, outputWipDrafts, showOutputWipEntryRow])
+  const formSafetySnapshotRef = useRef(formSafetySnapshot)
+  const formSafetyReady = formDefaultsLoaded && (isCreate || outputDraftLoaded)
+
+  useEffect(() => {
+    formSafetySnapshotRef.current = formSafetySnapshot
+  }, [formSafetySnapshot])
+
+  useEffect(() => {
+    if (userEditedFormRef.current) return
+    userEditedFormRef.current = false
+    setHasUserEditedForm(false)
+    setFormBaseline(formSafetySnapshotRef.current)
+    setFormDefaultsLoaded(false)
+    setOutputDraftLoaded(isCreate)
+  }, [isCreate, row?.docNo])
+
+  useEffect(() => {
+    if (!formSafetyReady || userEditedFormRef.current) return
+    setFormBaseline(formSafetySnapshot)
+  }, [formSafetyReady, formSafetySnapshot])
+
+  const isFormDirty = (isCreate || canWrite) && (formSafetyReady || hasUserEditedForm) && formBaseline !== null && formSafetySnapshot !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const returnFormSafetySnapshot = useMemo(() => JSON.stringify({ quantities: returnQuantities, reason: returnReason }), [returnQuantities, returnReason])
+  const returnFormIsDirty = returnInputDocNos.length > 0 && returnFormBaseline !== null && returnFormSafetySnapshot !== returnFormBaseline
+  const { requestDiscard: requestReturnDiscard } = useUnsavedChangesGuard(returnFormIsDirty)
+
+  function resetFormSafetyBaseline() {
+    userEditedFormRef.current = false
+    setHasUserEditedForm(false)
+    setFormBaseline(null)
+  }
+
+  function requestModalClose() {
+    if (isSaving) return
+    requestDiscard(() => onClose(false))
+  }
+
+  function resetInputReturnForm() {
+    setReturnInputDocNos([])
+    setReturnQuantities({})
+    setReturnReason('')
+    setReturnFormBaseline(null)
+  }
+
+  function requestInputReturnClose() {
+    if (isSaving) return
+    requestReturnDiscard(resetInputReturnForm)
+  }
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => options.products.map((product) => ({
     id: product.code,
     label: `${product.code} - ${product.name}`,
@@ -1286,11 +1384,13 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         setOutputForm((current) => ({ ...current, destinationWarehouseCode: current.destinationWarehouseCode || payload.warehouses.find((warehouse) => warehouse.branchCode === row?.branchCode && warehouse.type?.toUpperCase() !== 'WIP')?.code || '', productCode: current.productCode || payload.products[0]?.code || '' }))
       } catch (caught) {
         if (!cancelled) setError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกไม่ได้')
+      } finally {
+        if (!cancelled) setFormDefaultsLoaded(true)
       }
     }
     void loadOptions()
     return () => { cancelled = true }
-  }, [])
+  }, [row?.branchCode])
 
   useEffect(() => {
     if (!row) return
@@ -1321,6 +1421,8 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         setOutputForm((form) => ({ ...form, date: payload.draft?.outputForm.date ?? form.date, notes: payload.draft?.outputForm.notes ?? form.notes }))
       } catch (caught) {
         if (!cancelled) setError(caught instanceof Error ? caught.message : 'โหลดร่างผลผลิตไม่ได้')
+      } finally {
+        if (!cancelled) setOutputDraftLoaded(true)
       }
     }
     void loadOutputDraft()
@@ -1412,6 +1514,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         method: 'POST',
       })
       await onOpenCreated(created.docNo)
+      resetFormSafetyBaseline()
     })
   }
 
@@ -1491,6 +1594,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
       setInputDrafts([])
       setInputForm((form) => ({ ...form, lotNo: '', netQty: '' }))
       setTab('input')
+      resetFormSafetyBaseline()
     })
   }
 
@@ -1513,6 +1617,21 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
       stockStatus: (inputForm.stockStatus || 'RM') as 'RM' | 'FG',
     }])
     setInputForm((form) => ({ ...form, lotNo: '', netQty: '', productCode: '' }))
+  }
+
+  function removeInputDraft(index: number) {
+    setInputDrafts((drafts) => drafts.filter((_draft, draftIndex) => draftIndex !== index))
+  }
+
+  function requestRemoveInputDraft(index: number) {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบรายการ',
+      description: 'รายการวัตถุดิบที่เตรียมเบิกนี้จะถูกนำออกจากรายการที่กำลังแก้ไข',
+      destructive: true,
+      onConfirm: () => removeInputDraft(index),
+      title: 'ยืนยันการลบรายการวัตถุดิบ',
+    })
   }
 
   function persistOutputDraft(nextOutputDrafts: ProductionOutputDraft[], nextOutputWipDrafts: ProductionOutputWipDraft[]) {
@@ -1568,7 +1687,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
       setError('กรุณาระบุน้ำหนักรวม (กก.) หรือ Loss kg อย่างน้อย 1 รายการ')
       return
     }
-    await runAction(async () => {
+    const submitPostedOutput = async (confirmQuantityVariance: boolean) => {
       const lines = outputDrafts.map((draft) => ({
         categoryCode: draft.categoryCode,
         destinationWarehouseCode: draft.destinationWarehouseCode,
@@ -1576,23 +1695,35 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         netQty: Number(draft.netQty),
         productCode: draft.productCode || row.productCode,
       })).filter((line) => line.netQty > 0)
-      const postOutput = (confirmCostVariance: boolean) => dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}/outputs`, {
-        body: JSON.stringify({ confirmCostVariance, date: outputForm.date, lines, lossQty, notes: outputForm.notes || undefined, sourceWipLines: validSourceWipLines, sourceWipQty: totalSourceWipQty }),
+      const postOutput = (confirmQuantityVariance: boolean) => dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}/outputs`, {
+        body: JSON.stringify({ confirmQuantityVariance, date: outputForm.date, lines, lossQty, notes: outputForm.notes || undefined, sourceWipLines: validSourceWipLines, sourceWipQty: totalSourceWipQty }),
         method: 'POST',
       })
-      try {
-        await postOutput(false)
-      } catch (caught) {
-        if (!(caught instanceof ApiError) || caught.status !== 409 || !caught.message.startsWith('ตรวจพบจำนวนต่างก่อนส่งเข้าคลัง')) throw caught
-        const confirmed = window.confirm(`${caught.message}\n\nยืนยันส่งผลผลิตเข้าคลังหรือไม่?`)
-        if (!confirmed) return
-        await postOutput(true)
-      }
+      await postOutput(confirmQuantityVariance)
       await onRefreshRow(row.docNo)
       setOutputDrafts([])
       setOutputWipDrafts([])
       setOutputForm((form) => ({ ...form, lossQty: '', lotNo: '', netQty: '', notes: '', productCode: '', sourceWipQty: '' }))
       setTab('output')
+      resetFormSafetyBaseline()
+    }
+    await runAction(async () => {
+      try {
+        await submitPostedOutput(false)
+      } catch (caught) {
+        if (!(caught instanceof ApiError) || caught.status !== 409 || !caught.message.startsWith('ตรวจพบจำนวนต่างก่อนส่งเข้าคลัง')) throw caught
+        requestConfirmation({
+          confirmLabel: 'ยืนยันส่งเข้าคลัง',
+          description: `${caught.message}\n\nยืนยันส่งผลผลิตเข้าคลังหรือไม่?`,
+          destructive: true,
+          onConfirm: async () => {
+            await runAction(async () => {
+              await submitPostedOutput(true)
+            }, true)
+          },
+          title: 'ยืนยันการส่งผลผลิตเข้าคลังหรือไม่?',
+        })
+      }
     })
   }
 
@@ -1646,6 +1777,17 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     setOutputDrafts(nextOutputDrafts)
     persistOutputDraft(nextOutputDrafts, outputWipDrafts)
     setError(null)
+  }
+
+  function requestRemoveOutputDraft(index: number) {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบรายการ',
+      description: 'รายการผลผลิตที่เตรียมส่งเข้าคลังนี้จะถูกนำออกจากแบบร่าง',
+      destructive: true,
+      onConfirm: () => removeOutputDraft(index),
+      title: 'ยืนยันการลบรายการผลผลิต',
+    })
   }
 
   function addOutputWipDraft(formElement?: HTMLFormElement) {
@@ -1725,40 +1867,107 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     setError(null)
   }
 
+  function requestRemoveOutputWipDraft(id: string) {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบรายการ',
+      description: 'รายการวัตถุดิบใน WIP ที่ใช้ผลิตนี้จะถูกนำออกจากแบบร่าง',
+      destructive: true,
+      onConfirm: () => removeOutputWipDraft(id),
+      title: 'ยืนยันการลบวัตถุดิบใน WIP',
+    })
+  }
+
   function clearOutputWipDraft() {
     if (outputSourceWipQtyRef.current) outputSourceWipQtyRef.current.value = ''
     setOutputForm((form) => ({ ...form, sourceKey: '', sourceWipQty: '' }))
     setShowOutputWipEntryRow(false)
   }
 
+  function requestClearOutputWipDraft() {
+    if (!Boolean(outputForm.sourceKey || outputForm.sourceWipQty)) {
+      clearOutputWipDraft()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'แก้ไขต่อ',
+      confirmLabel: 'ล้างข้อมูล',
+      description: 'ข้อมูลวัตถุดิบใน WIP ที่กำลังกรอกจะหายไป',
+      destructive: true,
+      onConfirm: clearOutputWipDraft,
+      title: 'ล้างข้อมูลวัตถุดิบใน WIP หรือไม่?',
+    })
+  }
+
+  function clearOutputEntry() {
+    if (outputNetQtyRef.current) outputNetQtyRef.current.value = ''
+    if (outputLossQtyRef.current) outputLossQtyRef.current.value = ''
+    setOutputForm((form) => ({ ...form, lossQty: '', netQty: '' }))
+  }
+
+  function requestClearOutputEntry() {
+    if (!Boolean(outputForm.lotNo || outputForm.lossQty || outputForm.netQty)) {
+      clearOutputEntry()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'แก้ไขต่อ',
+      confirmLabel: 'ล้างข้อมูล',
+      description: 'ข้อมูลผลผลิตที่กำลังกรอกจะหายไป',
+      destructive: true,
+      onConfirm: clearOutputEntry,
+      title: 'ล้างข้อมูลผลผลิตหรือไม่?',
+    })
+  }
+
   async function patchOrder(action: 'cancel' | 'complete') {
     if (!row) return
     const reason = action === 'cancel' ? window.prompt('เหตุผลการยกเลิก')?.trim() : undefined
     if (action === 'cancel' && !reason) return
-    if (action === 'cancel' && !window.confirm('ระบบจะย้อนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
-    const confirmCloseWithWip = action === 'complete' && rowWipQty > 0.000001
-      ? window.confirm(`ยังมี WIP คงเหลือ ${formatMoney(rowWipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`)
-      : false
-    if (action === 'complete' && rowWipQty > 0.000001 && !confirmCloseWithWip) return
-    await runAction(async () => {
-      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
-        body: JSON.stringify(action === 'complete' ? { action, confirmCloseWithWip, note: '' } : { action, reason }),
-        method: 'PATCH',
+    const patchConfirmedOrder = async (confirmCloseWithWip: boolean, keepConfirmationOpen = false) => {
+      await runAction(async () => {
+        await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
+          body: JSON.stringify(action === 'complete' ? { action, confirmCloseWithWip, note: '' } : { action, reason }),
+          method: 'PATCH',
+        })
+        await onRefreshRow(row.docNo)
+      }, keepConfirmationOpen)
+    }
+    if (action === 'cancel') {
+      requestConfirmation({
+        confirmLabel: 'ยืนยันยกเลิก',
+        description: 'ระบบจะคืนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่',
+        destructive: true,
+        onConfirm: () => patchConfirmedOrder(false, true),
+        title: 'ยืนยันการยกเลิกใบสั่งผลิตหรือไม่?',
       })
-      await onRefreshRow(row.docNo)
-    })
+      return
+    }
+    if (rowWipQty > 0.000001) {
+      requestConfirmation({
+        confirmLabel: 'ยืนยันจบงาน',
+        description: `ยังมี WIP คงเหลือ ${formatMoney(rowWipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`,
+        destructive: true,
+        onConfirm: () => patchConfirmedOrder(true, true),
+        title: 'ยืนยันการจบงานผลิตหรือไม่?',
+      })
+      return
+    }
+    await patchConfirmedOrder(false)
   }
 
   function openInputReturn(docNos: string[]) {
     if (!row) return
     const selectedRows = row.inputs.filter((input) => docNos.includes(input.docNo) && input.status?.toLowerCase() === 'active' && input.id)
     const groups = groupProductionInputReturnRows(selectedRows, row.wipSummary?.groups)
+    const quantities = Object.fromEntries(groups.map((group) => [group.key, '']))
     setReturnInputDocNos(docNos)
     setReturnReason('')
-    setReturnQuantities(Object.fromEntries(groups.map((group) => [group.key, ''])))
+    setReturnQuantities(quantities)
+    setReturnFormBaseline(JSON.stringify({ quantities, reason: '' }))
   }
 
-  async function submitInputReturn() {
+  function submitInputReturn() {
     if (!row || returnInputDocNos.length === 0) return
     const lines: Array<{ inputId: string; qty: number }> = []
     for (const group of returnRows) {
@@ -1780,53 +1989,69 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
       setError('กรุณาระบุจำนวนที่ต้องการคืนอย่างน้อย 1 รายการ')
       return
     }
-    if (!returnReason.trim()) {
+    const reason = returnReason.trim()
+    if (!reason) {
       setError('กรุณาระบุเหตุผลการคืนวัตถุดิบ')
       return
     }
-    await runAction(async () => {
-      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}/inputs/return`, {
-        body: JSON.stringify({ lines, reason: returnReason.trim() }),
-        method: 'POST',
-      })
-      await onRefreshRow(row.docNo)
-      setReturnInputDocNos([])
-      setReturnQuantities({})
-      setReturnReason('')
-      setTab('input')
+    requestConfirmation({
+      confirmLabel: 'ยืนยันคืนวัตถุดิบ',
+      description: 'ระบบจะคืนวัตถุดิบตามจำนวนที่ระบุกลับเข้าคลังต้นทาง และปรับยอด WIP ตามเหตุผลที่บันทึก ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: async () => {
+        await runAction(async () => {
+          await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}/inputs/return`, {
+            body: JSON.stringify({ lines, reason }),
+            method: 'POST',
+          })
+          await onRefreshRow(row.docNo)
+          resetInputReturnForm()
+          setTab('input')
+        }, true)
+      },
+      title: 'ยืนยันการคืนวัตถุดิบ',
     })
   }
 
-  async function reverseMovement(kind: 'outputs', docNo: string) {
+  async function voidOutput(docNo: string) {
     if (!row) return
-      const reason = window.prompt('เหตุผลการยกเลิกผลผลิต')?.trim()
+    const reason = window.prompt('เหตุผลการยกเลิกผลผลิต')?.trim()
     if (!reason) return
-    await runAction(async () => {
-      const endpoint = `/api/production/orders/${encodeURIComponent(row.docNo)}/outputs/${encodeURIComponent(docNo)}/void`
-      await dailyFetchJson(endpoint, {
-        body: JSON.stringify({ date: todayDateInput(), reason }),
-        method: 'POST',
-      })
-      await onRefreshRow(row.docNo)
-      setTab('output')
+    requestConfirmation({
+      confirmLabel: 'ยืนยันย้อนกลับผลผลิต',
+      description: 'ระบบจะย้อนกลับรายการผลผลิตนี้ตามเหตุผลที่ระบุ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: async () => {
+        await runAction(async () => {
+          const endpoint = `/api/production/orders/${encodeURIComponent(row.docNo)}/outputs/${encodeURIComponent(docNo)}/void`
+          await dailyFetchJson(endpoint, {
+            body: JSON.stringify({ date: todayDateInput(), reason }),
+            method: 'POST',
+          })
+          await onRefreshRow(row.docNo)
+          setTab('output')
+        }, true)
+      },
+      title: 'ยืนยันการย้อนกลับผลผลิตหรือไม่?',
     })
   }
 
-  async function runAction(action: () => Promise<void>) {
+  async function runAction(action: () => Promise<void>, rethrow = false) {
     setError(null)
     setIsSaving(true)
     try {
       await action()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลไม่สำเร็จ')
+      if (rethrow) throw caught
     } finally {
       setIsSaving(false)
     }
   }
 
   return (
-    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(false) }}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-7xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 outline-none focus:outline-none max-h-[92vh] animate-fade-in" hideClose>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) requestModalClose() }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-7xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 outline-none focus:outline-none max-h-[92vh] animate-fade-in" hideClose onChangeCapture={() => { userEditedFormRef.current = true; setHasUserEditedForm(true) }}>
         <DialogHeader className="shrink-0 rounded-none border-b border-slate-800 bg-slate-900 px-4 py-4 text-white dark:border-slate-700 dark:bg-[#0f172a] sm:px-5">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div className="min-w-0">
@@ -1839,7 +2064,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               {isCreate ? (
                 <>
-                  <ModalDismissButton onClick={() => onClose(false)} />
+                  <ModalDismissButton disabled={isSaving} onClick={requestModalClose} />
                   <button
                     className="h-11 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 sm:h-9"
                     disabled={isSaving}
@@ -1857,7 +2082,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                   {canWrite && row.status !== 'Cancelled' ? (
                     <button className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50 sm:h-9" disabled={isSaving} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิกใบสั่งผลิต</button>
                   ) : null}
-                  <ModalDismissButton onClick={() => onClose(false)} />
+                  <ModalDismissButton disabled={isSaving} onClick={requestModalClose} />
                 </>
               ) : null}
             </div>
@@ -1972,7 +2197,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
               hideWarehouse
               historyBeforeForm
               onGroupReturn={openInputReturn}
-              onReverse={() => undefined}
+              onVoid={() => undefined}
               form={(
                 <div className="space-y-3 text-sm">
                   <div className="md:col-span-4">
@@ -1986,7 +2211,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                   </div>
                   {inputDrafts.length > 0 ? (
                     <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                      <table className="min-w-full text-xs">
+                      <table className="ns-table min-w-full text-xs">
                         <thead className="bg-slate-100 text-slate-600">
                           <tr>
                             <th className="p-2 text-center">รายการวัตถุดิบที่เตรียมเบิก</th>
@@ -2005,7 +2230,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                               <td className="p-2 text-center">{inputWarehouseOptions.find((warehouse) => warehouse.code === draft.sourceWarehouseCode)?.name ?? draft.sourceWarehouseCode}</td>
                               <td className="p-2 text-right font-semibold tabular-nums">{formatMoney(Number(draft.netQty))}</td>
                               <td className="p-2 text-center">
-                                <button className="text-xs font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => setInputDrafts((drafts) => drafts.filter((_, draftIndex) => draftIndex !== index))}>ลบ</button>
+                                <TableActionButton label="ลบ" menu={<TableActionMenuItem onClick={() => requestRemoveInputDraft(index)}>ลบ</TableActionMenuItem>} />
                               </td>
                             </tr>
                           ))}
@@ -2030,7 +2255,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                         setInputForm((form) => ({ ...form, sourceWarehouseCode, stockStatus: inferredStatus }))
                       }}
                     />
-                    <FormField label="น้ำหนักรวม (กก.) *"><input key={`input-net-${row?.inputCount ?? 0}-${inputDrafts.length}`} ref={inputNetQtyRef} id="production-input-net-qty" className={quantityInputClass} defaultValue={inputForm.netQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" required aria-required="true" onBlur={formatQuantityInputOnBlur} onInput={sanitizeQuantityInput} onKeyDown={preventQuantityExponent} /></FormField>
+                    <FormField label="น้ำหนักรวม (กก.) *"><input key={`input-net-${row?.inputCount ?? 0}-${inputDrafts.length}`} ref={inputNetQtyRef} id="production-input-net-qty" className={quantityInputClass} defaultValue={inputForm.netQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" required aria-required="true" onBlur={(event) => { formatQuantityInputOnBlur(event); const netQty = event.currentTarget.value; setInputForm((form) => ({ ...form, netQty })) }} onInput={(event) => { sanitizeQuantityInput(event); const netQty = event.currentTarget.value; setInputForm((form) => ({ ...form, netQty })) }} onKeyDown={preventQuantityExponent} /></FormField>
                   </div>
                   <div className="flex justify-end">
                     <button className="rounded-md border border-blue-600 bg-white px-4 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50" type="button" onClick={() => addInputDraft(document.getElementById('production-input-product')?.closest('form') as HTMLFormElement | null ?? undefined)}>
@@ -2055,7 +2280,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
               formTitle="ข้อมูลการผลิต"
               wipRows={row?.inputs ?? []}
               wipSummary={displayWipSummary}
-              onReverse={(docNo) => void reverseMovement('outputs', docNo)}
+              onVoid={(docNo) => void voidOutput(docNo)}
               form={(
                 <div className="grid gap-3 text-sm md:grid-cols-3">
                   <FormField label="วันที่ผลิต *"><DatePickerInput className="max-w-[16rem]" value={outputForm.date} onChange={(date) => setOutputForm((form) => ({ ...form, date }))} /></FormField>
@@ -2064,7 +2289,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                       <h5 className="text-xs font-bold text-slate-600">ตารางรายการวัตถุดิบใน WIP ที่ใช้ผลิต</h5>
                     </div>
                     <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                      <table className="min-w-[760px] w-full text-xs">
+                      <table className="ns-table min-w-[760px] w-full text-xs">
                         <thead className="bg-slate-100 text-slate-600"><tr><th className="p-2 text-center">วัตถุดิบ <span className="text-red-600">*</span></th><th className="w-64 p-2 text-right">น้ำหนักที่ใช้ผลิต (กก.) <span className="text-red-600">*</span></th><th className="w-36 p-2 text-center">จัดการ</th></tr></thead>
                         <tbody className="divide-y divide-slate-200">
                           {outputWipDrafts.map((draft, index) => {
@@ -2076,7 +2301,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                                 {draftOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
                               </select></td>
                               <td className="p-2"><input data-output-wip-qty-index={index} aria-label={`น้ำหนักที่ใช้ผลิต รายการที่ ${index + 1}`} className={quantityInputClass} inputMode="decimal" max={getOutputWipAvailableQty(draft.sourceKey, draft.id)} min="0.01" placeholder="0.00" step="0.01" type="number" value={draft.qty} required onChange={(event) => { const value = sanitizeOutputWipQtyInput(event.target.value); const max = getOutputWipAvailableQty(draft.sourceKey, draft.id); updateOutputWipDraft(index, { qty: value }); validateOutputWipQty(value, max) }} onBlur={(event) => { const value = sanitizeOutputWipQtyInput(event.target.value); updateOutputWipDraft(index, { qty: value && Number(value) >= 0 ? Number(value).toFixed(2) : value }); validateOutputWipQty(value, getOutputWipAvailableQty(draft.sourceKey, draft.id)) }} onKeyDown={preventQuantityExponent} /></td>
-                              <td className="p-2 text-center"><button aria-label={`ลบวัตถุดิบใน WIP รายการที่ ${index + 1}`} className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => removeOutputWipDraft(draft.id)}>ลบ</button></td>
+                              <td className="p-2 text-center"><TableActionButton aria-label={`ลบวัตถุดิบใน WIP รายการที่ ${index + 1}`} label="ลบ" menu={<TableActionMenuItem onClick={() => requestRemoveOutputWipDraft(draft.id)}>ลบ</TableActionMenuItem>} /></td>
                             </tr>
                           })}
                           {showOutputWipEntryRow ? <tr>
@@ -2090,7 +2315,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                               </select>
                             </td>
                             <td className="p-2"><input data-output-wip-qty-index={outputWipDrafts.length} key={`output-source-wip-${row?.outputCount ?? 0}-${outputWipDrafts.length}`} ref={outputSourceWipQtyRef} id="production-output-source-wip-qty" aria-label="น้ำหนักที่ใช้ผลิต" className={quantityInputClass} max={getOutputWipAvailableQty(outputForm.sourceKey)} min="0.01" value={outputForm.sourceWipQty ?? ''} inputMode="decimal" placeholder="0.00" step="0.01" type="number" required aria-required="true" onChange={(event) => { const value = sanitizeOutputWipQtyInput(event.target.value); const max = getOutputWipAvailableQty(outputForm.sourceKey); setOutputForm((form) => ({ ...form, sourceWipQty: value })); validateOutputWipQty(value, max) }} onBlur={(event) => { const value = sanitizeOutputWipQtyInput(event.target.value); const numericValue = Number(value); setOutputForm((form) => ({ ...form, sourceWipQty: value && Number.isFinite(numericValue) && numericValue >= 0 ? numericValue.toFixed(2) : value })); validateOutputWipQty(value, getOutputWipAvailableQty(outputForm.sourceKey)) }} onKeyDown={preventQuantityExponent} /></td>
-                            <td className="p-2 text-center"><button aria-label="ล้างรายการวัตถุดิบใหม่" className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={clearOutputWipDraft}>ลบ</button></td>
+                            <td className="p-2 text-center"><TableActionButton aria-label="ล้างรายการวัตถุดิบใหม่" label="ลบ" menu={<TableActionMenuItem onClick={requestClearOutputWipDraft}>ลบ</TableActionMenuItem>} /></td>
                           </tr> : null}
                           <tr>
                             <td className="p-2" colSpan={3}>
@@ -2109,7 +2334,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                   </div>
                   <ProductionOutputDraftTable
                     notes={outputForm.notes}
-                    onRemove={removeOutputDraft}
+                    onRemove={requestRemoveOutputDraft}
                     outputDate={outputForm.date}
                     outputDrafts={outputDrafts}
                     outputProductOptions={options.products}
@@ -2120,15 +2345,15 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                   <div className="md:col-span-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600">ตารางรายการผลผลิตที่ได้</h5>
                     <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                      <table className="min-w-[920px] w-full text-xs">
+                      <table className="ns-table min-w-[920px] w-full text-xs">
                         <thead className="bg-slate-100 text-slate-600"><tr><th className="p-2 text-center">สินค้าที่ได้ <span className="text-red-600">*</span></th><th className="w-56 p-2 text-center">คลังรับผลผลิต <span className="text-red-600">*</span></th><th className="w-52 p-2 text-right">จำนวนผลผลิตที่ได้ (กก.)</th><th className="w-52 p-2 text-right">สูญเสียจากการผลิต (กก.)</th><th className="w-36 p-2 text-center">จัดการ</th></tr></thead>
                         <tbody>
                           <tr>
                             <td className="p-2"><SearchCombobox hideLabel inputId="production-output-product" label="สินค้าที่ได้ *" options={productSearchOptions} placeholder="พิมพ์รหัส/ชื่อสินค้า..." value={outputForm.productCode} onChange={(productCode) => setOutputForm((form) => ({ ...form, productCode }))} /></td>
                             <td className="p-2"><Select aria-invalid="false" id="production-output-destination-warehouse" name="production-output-destination-warehouse" className="h-10 w-full" required value={outputForm.destinationWarehouseCode} onChange={(event) => setOutputForm((form) => ({ ...form, destinationWarehouseCode: event.target.value }))}><option value="">เลือกคลังรับผลผลิต</option>{outputWarehouseOptions.map((option) => <option key={`${option.code}-${option.id}`} value={option.code}>{option.name}</option>)}</Select></td>
-                            <td className="p-2"><input key={`output-net-${row?.outputCount ?? 0}-${outputDrafts.length}`} ref={outputNetQtyRef} id="production-output-net-qty" aria-label="จำนวนผลผลิตที่ได้ (กก.)" className={quantityInputClass} defaultValue={outputForm.netQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" onBlur={formatQuantityInputOnBlur} onInput={sanitizeQuantityInput} onKeyDown={preventQuantityExponent} /></td>
-                            <td className="p-2"><input key={`output-loss-${row?.outputCount ?? 0}-${outputDrafts.length}`} ref={outputLossQtyRef} id="production-output-loss-qty" aria-label="สูญเสียจากการผลิต (กก.)" className={quantityInputClass} defaultValue={outputForm.lossQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" onBlur={formatQuantityInputOnBlur} onInput={sanitizeQuantityInput} onKeyDown={preventQuantityExponent} /></td>
-                            <td className="p-2 text-center"><button aria-label="ล้างรายการผลผลิตใหม่" className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => { if (outputNetQtyRef.current) outputNetQtyRef.current.value = ''; if (outputLossQtyRef.current) outputLossQtyRef.current.value = '' }}>ลบ</button></td>
+                            <td className="p-2"><input key={`output-net-${row?.outputCount ?? 0}-${outputDrafts.length}`} ref={outputNetQtyRef} id="production-output-net-qty" aria-label="จำนวนผลผลิตที่ได้ (กก.)" className={quantityInputClass} defaultValue={outputForm.netQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" onBlur={(event) => { formatQuantityInputOnBlur(event); const netQty = event.currentTarget.value; setOutputForm((form) => ({ ...form, netQty })) }} onInput={(event) => { sanitizeQuantityInput(event); const netQty = event.currentTarget.value; setOutputForm((form) => ({ ...form, netQty })) }} onKeyDown={preventQuantityExponent} /></td>
+                            <td className="p-2"><input key={`output-loss-${row?.outputCount ?? 0}-${outputDrafts.length}`} ref={outputLossQtyRef} id="production-output-loss-qty" aria-label="สูญเสียจากการผลิต (กก.)" className={quantityInputClass} defaultValue={outputForm.lossQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" onBlur={(event) => { formatQuantityInputOnBlur(event); const lossQty = event.currentTarget.value; setOutputForm((form) => ({ ...form, lossQty })) }} onInput={(event) => { sanitizeQuantityInput(event); const lossQty = event.currentTarget.value; setOutputForm((form) => ({ ...form, lossQty })) }} onKeyDown={preventQuantityExponent} /></td>
+                            <td className="p-2 text-center"><TableActionButton aria-label="ล้างรายการผลผลิตใหม่" label="ลบ" menu={<TableActionMenuItem onClick={requestClearOutputEntry}>ลบ</TableActionMenuItem>} /></td>
                           </tr>
                           <tr><td className="p-2" colSpan={5}><button className="h-9 rounded-md border border-blue-600 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50" type="button" onClick={() => addOutputDraft(document.getElementById('production-output-net-qty')?.closest('form') as HTMLFormElement | null ?? undefined)}>+ เพิ่มรายการผลผลิต</button></td></tr>
                         </tbody>
@@ -2156,7 +2381,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         </div>
 
       </DialogContent>
-      <Dialog open={returnInputDocNos.length > 0} onOpenChange={(open) => { if (!open && !isSaving) setReturnInputDocNos([]) }}>
+      <Dialog open={returnInputDocNos.length > 0} onOpenChange={(open) => { if (!open) requestInputReturnClose() }}>
         <DialogContent className="max-h-[90vh] max-w-5xl bg-white" hideClose>
           <DialogHeader>
             <div className="flex items-center justify-between gap-3">
@@ -2164,7 +2389,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                 <DialogTitle>คืนวัตถุดิบ</DialogTitle>
                 <DialogDescription className="mt-1">เลือกจำนวนที่จะคืนเข้าคลังต้นทาง โดยใช้ต้นทุนเฉลี่ยของ WIP ณ เวลาคืน</DialogDescription>
               </div>
-              <ModalDismissButton onClick={() => setReturnInputDocNos([])} />
+              <ModalDismissButton disabled={isSaving} onClick={requestInputReturnClose} />
             </div>
           </DialogHeader>
           <div className="max-h-[65vh] space-y-4 overflow-y-auto bg-slate-50 p-4">
@@ -2172,9 +2397,9 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
               <table className="ns-table min-w-full text-sm">
                 <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                   <tr>
-                    <th className="p-2.5 text-center">สินค้า</th>
+                    <th className="ns-table-textual-column p-2.5 text-left">สินค้า</th>
                     <th className="p-2.5 text-center">ประเภท</th>
-                    <th className="p-2.5 text-center">คลังต้นทาง</th>
+                    <th className="ns-table-textual-column p-2.5 text-left">คลังต้นทาง</th>
                     <th className="p-2.5 text-right">เบิก (กก.)</th>
                     <th className="p-2.5 text-right">คืนแล้ว (กก.)</th>
                     <th className="p-2.5 text-right">คงเหลือคืนได้ (กก.)</th>
@@ -2189,9 +2414,9 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                     const returnQty = Number(returnQuantities[input.key] || 0)
                     return (
                       <tr key={input.key}>
-                        <td className="p-2.5 text-center"><span className="block font-semibold">{input.productName}</span><span className="block font-mono text-xs text-slate-400">{input.productCode}</span></td>
+                        <td className="ns-table-textual-column p-2.5 text-left"><span className="block font-semibold">{input.productName}</span><span className="block font-mono text-xs text-slate-400">{input.productCode}</span></td>
                         <td className="p-2.5 text-center font-semibold">{stockCategoryLabel(input.stockStatus)}</td>
-                        <td className="p-2.5 text-center">{input.warehouseName}</td>
+                        <td className="ns-table-textual-column p-2.5 text-left">{input.warehouseName}</td>
                         <td className="p-2.5 text-right tabular-nums">{formatMoney(input.qty)}</td>
                         <td className="p-2.5 text-right tabular-nums">{formatMoney(input.returnedQty ?? 0)}</td>
                         <td className="p-2.5 text-right font-semibold tabular-nums">{formatMoney(returnableQty)}</td>
@@ -2207,8 +2432,8 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
             <FormField label="เหตุผลการคืนวัตถุดิบ *"><textarea className="min-h-20 w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="ระบุเหตุผลการคืนวัตถุดิบ" value={returnReason} onChange={(event) => setReturnReason(event.target.value)} /></FormField>
           </div>
           <DialogFooter>
-            <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => setReturnInputDocNos([])}>ยกเลิก</button>
-            <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" disabled={isSaving || returnRows.length === 0} type="button" onClick={() => void submitInputReturn()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกการคืน'}</button>
+            <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={isSaving} type="button" onClick={requestInputReturnClose}>ยกเลิก</button>
+            <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" disabled={isSaving || returnRows.length === 0} type="button" onClick={submitInputReturn}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกการคืน'}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2296,7 +2521,7 @@ function ProductionOrderTimeline({ events }: { events: ProductionOrderHistoryRow
                       </button>
                       {isExpanded ? (
                         <div className="mt-2 overflow-x-auto rounded border border-slate-200">
-                          <table className="min-w-full text-xs">
+                          <table className="ns-table min-w-full text-xs">
                             <thead className="bg-slate-50 text-slate-500"><tr><th className="px-2 py-1.5 text-left">สินค้า</th><th className="px-2 py-1.5 text-center">ประเภท</th><th className="px-2 py-1.5 text-right">จำนวน (กก.)</th><th className="px-2 py-1.5 text-right">ต้นทุน/กก.</th><th className="px-2 py-1.5 text-right">ต้นทุนรวม</th></tr></thead>
                             <tbody className="divide-y divide-slate-100">
                               {event.lines.map((line) => <tr key={`${line.productCode}-${line.warehouseName}`}><td className="px-2 py-1.5 text-left"><div className="font-semibold text-slate-700">{line.productName}</div><div className="text-slate-400">{line.productCode} · {line.warehouseName}</div></td><td className="px-2 py-1.5 text-center">{stockCategoryLabel(line.stockCategory)}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.qty)}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.unitCost)}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.totalCost)}</td></tr>)}
@@ -2320,10 +2545,10 @@ function ProductionOrderTimeline({ events }: { events: ProductionOrderHistoryRow
                 <div className="mt-2 rounded-md border border-amber-100 bg-amber-50/40 px-3 py-2 text-xs text-slate-600">
                   <div className="font-semibold text-slate-700">วัตถุดิบ WIP ที่ใช้</div>
                   <div className="mt-2 overflow-x-auto rounded border border-slate-200 bg-white">
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-slate-50 text-slate-500"><tr><th className="px-2 py-1.5 text-left">สินค้า</th><th className="px-2 py-1.5 text-center">ประเภท</th><th className="px-2 py-1.5 text-center">คลังต้นทาง</th><th className="px-2 py-1.5 text-right">จำนวน (กก.)</th><th className="px-2 py-1.5 text-right">ต้นทุน/กก.</th><th className="px-2 py-1.5 text-right">ต้นทุนรวม</th></tr></thead>
+                    <table className="ns-table min-w-full text-xs">
+                      <thead className="bg-slate-50 text-slate-500"><tr><th className="px-2 py-1.5 text-left">สินค้า</th><th className="px-2 py-1.5 text-center">ประเภท</th><th className="px-2 py-1.5 text-left">คลังต้นทาง</th><th className="px-2 py-1.5 text-right">จำนวน (กก.)</th><th className="px-2 py-1.5 text-right">ต้นทุน/กก.</th><th className="px-2 py-1.5 text-right">ต้นทุนรวม</th></tr></thead>
                       <tbody className="divide-y divide-slate-100">
-                        {event.sourceWipLines.map((line) => <tr key={`${line.productCode}-${line.stockCategory}-${line.warehouseName}`}><td className="px-2 py-1.5 text-left"><div className="font-semibold text-slate-700">{line.productName}</div><div className="text-slate-400">{line.productCode}</div></td><td className="px-2 py-1.5 text-center">{stockCategoryLabel(line.stockCategory)}</td><td className="px-2 py-1.5 text-center">{line.warehouseName}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.qty)}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.unitCost)}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.totalCost)}</td></tr>)}
+                        {event.sourceWipLines.map((line) => <tr key={`${line.productCode}-${line.stockCategory}-${line.warehouseName}`}><td className="px-2 py-1.5 text-left"><div className="font-semibold text-slate-700">{line.productName}</div><div className="text-slate-400">{line.productCode}</div></td><td className="px-2 py-1.5 text-center">{stockCategoryLabel(line.stockCategory)}</td><td className="px-2 py-1.5 text-left">{line.warehouseName}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.qty)}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.unitCost)}</td><td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(line.totalCost)}</td></tr>)}
                       </tbody>
                     </table>
                   </div>
@@ -2359,7 +2584,7 @@ function MovementPanel({
   hideWarehouse = false,
   isSaving,
   onGroupReturn,
-  onReverse,
+  onVoid,
   reversalLabel,
   onSubmit,
   outputResult = false,
@@ -2379,7 +2604,7 @@ function MovementPanel({
   hideWarehouse?: boolean
   isSaving: boolean
   onGroupReturn?: (docNos: string[]) => void
-  onReverse: (docNo: string) => void
+  onVoid: (docNo: string) => void
   reversalLabel: string
   onSubmit: (formElement?: HTMLFormElement) => void
   outputResult?: boolean
@@ -2393,8 +2618,8 @@ function MovementPanel({
   const movementColumnCount = 9 - (hideDate ? 1 : 0) - (hideDocument ? 1 : 0) - (hideTotalValue ? 1 : 0) - (hideWarehouse ? 1 : 0)
   return (
     <div className={`flex flex-col rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm ${historyBeforeForm ? 'space-y-5' : 'space-y-3'}`}>
-      {outputResult ? <ProductionOutputResultTable canVoid={canWrite} onVoid={onReverse} rows={rows} /> : null}
-      {wipSummary ? <WipSummaryTable canWrite={canWrite} onReverse={onGroupReturn ?? (() => undefined)} reversalLabel={reversalLabel} rows={wipRows ?? []} showActions={!outputResult} summary={wipSummary} /> : null}
+      {outputResult ? <ProductionOutputResultTable canVoid={canWrite} onVoid={onVoid} rows={rows} /> : null}
+      {wipSummary ? <WipSummaryTable canWrite={canWrite} onReturn={onGroupReturn ?? (() => undefined)} returnLabel={reversalLabel} rows={wipRows ?? []} showActions={!outputResult} summary={wipSummary} /> : null}
       {canWrite ? (
         <form
           ref={formRef}
@@ -2469,14 +2694,14 @@ function MovementPanel({
                   {!hideTotalValue ? <td className="p-2.5 whitespace-nowrap text-right font-semibold text-slate-800 tabular-nums">{formatMoney(row.totalCost)}</td> : null}
                   <td className="p-2.5 text-center">
                     <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                      {isRowActive ? 'ใช้งาน' : isRowReturned ? 'คืนครบแล้ว' : 'ย้อนรายการแล้ว'}
+                      {isRowActive ? 'ใช้งาน' : isRowReturned ? 'คืนครบแล้ว' : 'ยกเลิกแล้ว'}
                     </span>
                   </td>
                   <td className="p-2.5 text-center">
                     {canWrite && isRowActive ? (
                       <TableActionButton
                         label={reversalLabel}
-                        menu={<TableActionMenuItem onSelect={() => onReverse(row.docNo)}>{reversalLabel}</TableActionMenuItem>}
+                        menu={<TableActionMenuItem onSelect={() => onVoid(row.docNo)}>{reversalLabel}</TableActionMenuItem>}
                       />
                     ) : null}
                   </td>
@@ -2507,13 +2732,13 @@ function MovementPanel({
                     <span className="text-sm text-slate-500 font-mono block mt-0.5">{row.productCode}</span>
                   </div>
                   <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                    {isRowActive ? 'ใช้งาน' : isRowReturned ? 'คืนครบแล้ว' : 'ย้อนรายการแล้ว'}
+                    {isRowActive ? 'ใช้งาน' : isRowReturned ? 'คืนครบแล้ว' : 'ยกเลิกแล้ว'}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 py-2 border-t border-b border-slate-100/50 text-center text-slate-600 text-sm">
-                  {!hideDate ? <div><span className="text-slate-500 font-medium">{dateLabel ?? 'วันที่/เวลา'}:</span><span className="block">{movementDateTime.date}</span>{movementDateTime.time ? <span className="block text-xs text-slate-500">{movementDateTime.time}</span> : null}</div> : null}
-                  {!hideDocument ? <div><span className="text-slate-500 font-medium">เลขที่:</span> <span className="font-mono">{row.docNo}</span></div> : null}
+                  {!hideDate ? <div><span className="text-slate-500 font-medium">{dateLabel ?? 'วันที่/เวลา'}:</span><span className="block whitespace-nowrap">{movementDateTime.date}</span>{movementDateTime.time ? <span className="block whitespace-nowrap text-xs text-slate-500">{movementDateTime.time}</span> : null}</div> : null}
+                  {!hideDocument ? <div><span className="text-slate-500 font-medium">เลขที่:</span> <span className="whitespace-nowrap font-mono">{row.docNo}</span></div> : null}
                   {!hideWarehouse ? <div><span className="text-slate-500 font-medium">คลัง:</span> {row.warehouseName}</div> : null}
                 </div>
 
@@ -2537,7 +2762,7 @@ function MovementPanel({
                     <button
                       className="rounded-md border border-slate-300 bg-white px-3 py-1.5 h-9 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       type="button"
-                      onClick={() => onReverse(row.docNo)}
+                      onClick={() => onVoid(row.docNo)}
                     >
                       {reversalLabel}
                     </button>
@@ -2556,7 +2781,7 @@ function MovementPanel({
   )
 }
 
-function WipSummaryTable({ canWrite, onReverse, reversalLabel, rows, showActions = true, summary }: { canWrite: boolean; onReverse: (docNos: string[]) => void; reversalLabel: string; rows: ProductionMovementRow[]; showActions?: boolean; summary: ProductionWipSummary }) {
+function WipSummaryTable({ canWrite, onReturn, returnLabel, rows, showActions = true, summary }: { canWrite: boolean; onReturn: (docNos: string[]) => void; returnLabel: string; rows: ProductionMovementRow[]; showActions?: boolean; summary: ProductionWipSummary }) {
   const activeDocNos = [...new Set(rows.filter((row) => row.status?.toLowerCase() === 'active').map((row) => row.docNo))]
   const showReturnActions = showActions && canWrite && activeDocNos.length > 0
   const visibleGroups = summary.groups
@@ -2567,8 +2792,8 @@ function WipSummaryTable({ canWrite, onReverse, reversalLabel, rows, showActions
         <table className="ns-table min-w-full table-fixed divide-y divide-slate-200 text-sm">
           <thead className="border-b border-slate-200 bg-slate-100 text-xs font-semibold text-slate-600">
             <tr>
-              <th className="p-2.5 text-center">สินค้า</th>
-              <th className="p-2.5 text-center">คลังต้นทาง</th>
+              <th className="ns-table-textual-column p-2.5 text-left">สินค้า</th>
+              <th className="ns-table-textual-column p-2.5 text-left">คลังต้นทาง</th>
               <th className="p-2.5 text-right" data-column-align="right">เบิกสุทธิ (กก.)</th>
               <th className="p-2.5 text-right" data-column-align="right">ใช้ไปผลิตแล้ว (กก.)</th>
               <th className="p-2.5 text-right" data-column-align="right">คงเหลือใน WIP (กก.)</th>
@@ -2580,14 +2805,14 @@ function WipSummaryTable({ canWrite, onReverse, reversalLabel, rows, showActions
           <tbody>
             {visibleGroups.map((group) => (
               <tr key={`${group.productCode}-${group.stockCategory}-${group.warehouseName}`}>
-                <td className="p-2.5 text-center"><span className="block font-semibold text-slate-700">{group.productName}</span><span className="block text-xs font-mono text-slate-400">{group.productCode}</span></td>
-                <td className="p-2.5 text-center text-slate-600">{group.warehouseName}</td>
+                <td className="ns-table-textual-column p-2.5 text-left"><span className="block font-semibold text-slate-700">{group.productName}</span><span className="block text-xs font-mono text-slate-400">{group.productCode}</span></td>
+                <td className="ns-table-textual-column p-2.5 text-left text-slate-600">{group.warehouseName}</td>
                 <td className="p-2.5 text-right font-semibold tabular-nums">{formatMoney(group.inputQty)}</td>
                 <td className="p-2.5 text-right tabular-nums">{formatMoney(group.consumedWipQty)}</td>
                 <td className={`p-2.5 text-right font-semibold tabular-nums ${group.wipQty < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatMoney(group.wipQty)}</td>
                 <td className={`p-2.5 text-right tabular-nums ${group.wipQty < 0 ? 'text-red-600' : 'text-slate-600'}`}>{formatMoney(group.wipQty * group.avgCost)}</td>
                 <td className="p-2.5 text-right text-slate-600 tabular-nums">{formatMoney(group.avgCost)}</td>
-                {showReturnActions ? <td className="p-2.5 text-center"><button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => onReverse(group.docNos)}>{reversalLabel}</button></td> : null}
+                {showReturnActions ? <td className="p-2.5 text-center"><TableActionButton label={returnLabel} menu={<TableActionMenuItem onSelect={() => onReturn(group.docNos)}>{returnLabel}</TableActionMenuItem>} /></td> : null}
               </tr>
             ))}
             <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
@@ -2633,7 +2858,7 @@ function WipSummaryTable({ canWrite, onReverse, reversalLabel, rows, showActions
                 <div className={`mt-0.5 text-right font-semibold tabular-nums ${group.wipQty < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatMoney(group.wipQty)}</div>
               </div>
             </div>
-            {showReturnActions ? <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-2"><button className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => onReverse(group.docNos)}>{reversalLabel}</button></div> : null}
+            {showReturnActions ? <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-2"><TableActionButton label={returnLabel} menu={<TableActionMenuItem onSelect={() => onReturn(group.docNos)}>{returnLabel}</TableActionMenuItem>} mobileLabel /></div> : null}
           </div>
         ))}
         <div className="space-y-3 bg-slate-50 p-3.5">
@@ -2658,6 +2883,7 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
       createdAt: string | null | undefined
       date: string
       docNo: string
+      eventKey: string
       lossQty: number
       notes: string | null | undefined
       outputQty: number
@@ -2668,11 +2894,13 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
       warehouseName: string
     }>()
     for (const row of rows) {
-      const current = grouped.get(row.docNo) ?? {
+      if (!row.eventKey) continue
+      const current = grouped.get(row.eventKey) ?? {
         categoryCode: '',
         createdAt: row.createdAt,
         date: row.date,
         docNo: row.docNo,
+        eventKey: row.eventKey,
         lossQty: 0,
         notes: row.notes,
         outputQty: 0,
@@ -2693,7 +2921,7 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
       }
       current.status = row.status
       current.notes = row.notes ?? current.notes
-      grouped.set(row.docNo, current)
+      grouped.set(row.eventKey, current)
     }
     return [...grouped.values()]
   }, [rows])
@@ -2705,21 +2933,21 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
         <table className="ns-table hidden min-w-full table-fixed divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: 980 }}>
           <colgroup><col style={{ width: 180 }} /><col style={{ width: 110 }} /><col style={{ width: 150 }} /><col style={{ width: 130 }} /><col style={{ width: 130 }} /><col style={{ width: 110 }} /><col style={{ width: 130 }} /><col />{canVoid ? <col style={{ width: 130 }} /> : null}</colgroup>
           <thead className="border-b border-slate-200 bg-slate-100 text-xs font-semibold text-slate-600"><tr>
-            <th className="p-2.5 text-center">สินค้า</th><th className="p-2.5 text-center">ประเภท</th><th className="p-2.5 text-center">คลังรับผลผลิต</th><th className="p-2.5 text-right">จำนวนผลผลิตที่ได้ (กก.)</th><th className="p-2.5 text-right">สูญเสีย (กก.)</th><th className="p-2.5 text-center">วันที่ผลิต</th><th className="p-2.5 text-right">WIP ที่ใช้ (กก.)</th><th className="p-2.5 text-left">หมายเหตุ</th>{canVoid ? <th className="p-2.5 text-center">จัดการ</th> : null}
+            <th className="ns-table-textual-column p-2.5 text-left">สินค้า</th><th className="p-2.5 text-center">ประเภท</th><th className="ns-table-textual-column p-2.5 text-left">คลังรับผลผลิต</th><th className="p-2.5 text-right">จำนวนผลผลิตที่ได้ (กก.)</th><th className="p-2.5 text-right">สูญเสีย (กก.)</th><th className="p-2.5 text-center">วันที่ผลิต</th><th className="p-2.5 text-right">WIP ที่ใช้ (กก.)</th><th className="p-2.5 text-left">หมายเหตุ</th>{canVoid ? <th className="p-2.5 text-center">จัดการ</th> : null}
           </tr></thead>
           <tbody className="divide-y divide-slate-200">
             {results.map((result) => {
               const dateTime = formatMovementDateTimeParts(result.createdAt)
-              return <tr key={result.docNo}>
-                <td className="p-2.5 text-center"><span className="block truncate font-semibold" title={result.productName}>{result.productName}</span><span className="block truncate font-mono text-xs text-slate-400">{result.productCode}</span></td>
+              return <tr key={result.eventKey}>
+                <td className="ns-table-textual-column p-2.5 text-left"><span className="block truncate font-semibold" title={result.productName}>{result.productName}</span><span className="block truncate font-mono text-xs text-slate-400">{result.productCode}</span></td>
                 <td className="p-2.5 text-center">{result.categoryCode ? stockCategoryLabel(result.categoryCode) : '-'}</td>
-                <td className="p-2.5 text-center">{result.warehouseName || '-'}</td>
+                <td className="ns-table-textual-column p-2.5 text-left">{result.warehouseName || '-'}</td>
                 <td className="p-2.5 text-right font-semibold tabular-nums">{formatMoney(result.outputQty)}</td>
                 <td className="p-2.5 text-right tabular-nums">{formatMoney(result.lossQty)}</td>
                 <td className="p-2.5 text-center whitespace-nowrap"><span className="block">{formatDateDisplay(result.date)}</span><span className="block text-xs text-slate-500">{dateTime.time}</span></td>
                 <td className="p-2.5 text-right tabular-nums">{formatMoney(result.sourceWipQty)}</td>
                 <td className="p-2.5 text-left truncate" title={result.notes ?? ''}>{result.notes || '-'}</td>
-                {canVoid ? <td className="p-2.5 text-center">{result.status === 'active' ? <button className="rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => onVoid(result.docNo)}>ยกเลิกผลผลิต</button> : <span className="text-xs text-slate-400">ยกเลิกแล้ว</span>}</td> : null}
+                {canVoid ? <td className="p-2.5 text-center">{result.status === 'active' ? <TableActionButton label="ยกเลิกผลผลิต" menu={<TableActionMenuItem onSelect={() => onVoid(result.docNo)}>ยกเลิกผลผลิต</TableActionMenuItem>} /> : <span className="text-xs text-slate-400">ยกเลิกแล้ว</span>}</td> : null}
               </tr>
             })}
             {results.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={canVoid ? 9 : 8}>ยังไม่มีผลลัพธ์จากการผลิต</td></tr> : null}
@@ -2727,10 +2955,10 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
         </table>
         <div className="divide-y divide-slate-200 lg:hidden">
           {results.map((result) => <div key={result.docNo} className="space-y-2 p-3.5 text-sm">
-            <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-800">{result.productName}</div><div className="font-mono text-xs text-slate-400">{result.productCode} · {stockCategoryLabel(result.categoryCode)}</div></div><div className="text-right text-xs text-slate-500">{result.warehouseName || '-'}<br />{formatDateDisplay(result.date)} {formatMovementDateTimeParts(result.createdAt).time}</div></div>
+            <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-800">{result.productName}</div><div className="font-mono text-xs text-slate-400">{result.productCode} · {stockCategoryLabel(result.categoryCode)}</div></div><div className="whitespace-nowrap text-right text-xs text-slate-500">{result.warehouseName || '-'}<br />{formatDateDisplay(result.date)} {formatMovementDateTimeParts(result.createdAt).time}</div></div>
             <div className="grid grid-cols-3 gap-2 border-y border-slate-100 py-2 text-right tabular-nums"><div><div className="text-xs text-slate-500">ผลผลิต</div>{formatMoney(result.outputQty)}</div><div><div className="text-xs text-slate-500">สูญเสีย</div>{formatMoney(result.lossQty)}</div><div><div className="text-xs text-slate-500">WIP ที่ใช้</div>{formatMoney(result.sourceWipQty)}</div></div>
             {result.notes ? <div className="text-xs text-slate-500">หมายเหตุ: {result.notes}</div> : null}
-            {canVoid && result.status === 'active' ? <div className="flex justify-end border-t border-slate-100 pt-2"><button className="min-h-9 rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => onVoid(result.docNo)}>ยกเลิกผลผลิต</button></div> : null}
+            {canVoid && result.status === 'active' ? <div className="flex justify-end border-t border-slate-100 pt-2"><TableActionButton label="ยกเลิกผลผลิต" menu={<TableActionMenuItem onSelect={() => onVoid(result.docNo)}>ยกเลิกผลผลิต</TableActionMenuItem>} mobileLabel /></div> : null}
           </div>)}
           {results.length === 0 ? <div className="p-8 text-center text-slate-400">ยังไม่มีผลลัพธ์จากการผลิต</div> : null}
         </div>
@@ -2746,20 +2974,20 @@ function ProductionOutputDraftTable({ notes, onRemove, outputDate, outputDrafts,
       <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
         <table className="ns-table min-w-full table-fixed divide-y divide-slate-200 text-sm" style={{ minWidth: 1220 }}>
           <colgroup><col style={{ width: 180 }} /><col style={{ width: 110 }} /><col style={{ width: 150 }} /><col style={{ width: 130 }} /><col style={{ width: 130 }} /><col style={{ width: 110 }} /><col style={{ width: 130 }} /><col /><col style={{ width: 90 }} /></colgroup>
-          <thead className="border-b border-slate-200 bg-slate-100 text-xs font-semibold text-slate-600"><tr><th className="p-2.5 text-center">สินค้า</th><th className="p-2.5 text-center whitespace-nowrap">ประเภท</th><th className="p-2.5 text-center">คลังรับผลผลิต</th><th className="p-2.5 text-right" data-column-align="right">จำนวนผลผลิตที่ได้ (กก.)</th><th className="p-2.5 text-right" data-column-align="right">สูญเสีย (กก.)</th><th className="p-2.5 text-center">วันที่ผลิต</th><th className="p-2.5 text-right" data-column-align="right">WIP ที่ใช้ (กก.)</th><th className="p-2.5 text-left">หมายเหตุ</th><th className="p-2.5 text-center">จัดการ</th></tr></thead>
+          <thead className="border-b border-slate-200 bg-slate-100 text-xs font-semibold text-slate-600"><tr><th className="ns-table-textual-column p-2.5 text-left">สินค้า</th><th className="p-2.5 text-center whitespace-nowrap">ประเภท</th><th className="ns-table-textual-column p-2.5 text-left">คลังรับผลผลิต</th><th className="p-2.5 text-right" data-column-align="right">จำนวนผลผลิตที่ได้ (กก.)</th><th className="p-2.5 text-right" data-column-align="right">สูญเสีย (กก.)</th><th className="p-2.5 text-center">วันที่ผลิต</th><th className="p-2.5 text-right" data-column-align="right">WIP ที่ใช้ (กก.)</th><th className="p-2.5 text-left">หมายเหตุ</th><th className="p-2.5 text-center">จัดการ</th></tr></thead>
           <tbody className="divide-y divide-slate-200">
             {outputDrafts.map((draft, index) => {
               const warehouse = outputWarehouseOptions.find((option) => option.code === draft.destinationWarehouseCode)
               return <tr key={draft.id}>
-                <td className="p-2.5 text-center"><span className="block font-semibold text-slate-700">{outputProductOptions.find((product) => product.code === draft.productCode)?.name ?? (draft.productCode ? productName : 'สูญเสียจากการผลิต')}</span><span className="block font-mono text-xs text-slate-400">{draft.productCode || '-'}</span></td>
+                <td className="ns-table-textual-column p-2.5 text-left"><span className="block font-semibold text-slate-700">{outputProductOptions.find((product) => product.code === draft.productCode)?.name ?? (draft.productCode ? productName : 'สูญเสียจากการผลิต')}</span><span className="block font-mono text-xs text-slate-400">{draft.productCode || '-'}</span></td>
                 <td className="p-2.5 text-center font-semibold whitespace-nowrap text-slate-600">{stockCategoryLabel(draft.categoryCode)}</td>
-                <td className="p-2.5 text-center">{warehouse?.name ?? draft.destinationWarehouseCode}</td>
+                <td className="ns-table-textual-column p-2.5 text-left">{warehouse?.name ?? draft.destinationWarehouseCode}</td>
                 <td className="p-2.5 text-right font-semibold tabular-nums">{Number(draft.netQty).toFixed(2)}</td>
                 <td className="p-2.5 text-right font-semibold tabular-nums">{Number(draft.lossQty).toFixed(2)}</td>
                 <td className="p-2.5 text-center whitespace-nowrap">{formatDateDisplay(outputDate)}</td>
                 <td className="p-2.5 text-right tabular-nums">{formatMoney(sourceWipQty)}</td>
                 <td className="p-2.5 text-left truncate" title={notes}>{notes || '-'}</td>
-                <td className="p-2.5 text-center"><button className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => onRemove(index)}>ลบ</button></td>
+                <td className="p-2.5 text-center"><TableActionButton label="ลบ" menu={<TableActionMenuItem onClick={() => onRemove(index)}>ลบ</TableActionMenuItem>} /></td>
               </tr>
             })}
             {outputDrafts.length === 0 ? <tr><td className="p-4 text-center text-slate-400" colSpan={9}>ยังไม่มีรายการผลผลิตที่เตรียมส่งเข้าคลัง</td></tr> : null}
@@ -2915,10 +3143,11 @@ function Metric({ label, value, tone = 'normal' }: { label: string; tone?: 'norm
   return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
-function ModalDismissButton({ onClick }: { onClick: () => void }) {
+function ModalDismissButton({ disabled = false, onClick }: { disabled?: boolean; onClick: () => void }) {
   return (
     <button
-      className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white transition-colors hover:border-rose-700 hover:bg-rose-700 sm:h-9"
+      className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white transition-colors hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50 sm:h-9"
+      disabled={disabled}
       type="button"
       onClick={onClick}
     >

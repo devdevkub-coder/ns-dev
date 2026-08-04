@@ -6,6 +6,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 import { invalidateImpurityReferenceCache } from '@/lib/server/reference-master-cache'
+import { MASTER_DATA_PAGE_PERMISSIONS } from '@/lib/master-data-page-permissions'
 
 export const runtime = 'nodejs'
 
@@ -36,7 +37,7 @@ async function findImpurityByName(name: string) {
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.reference.view')
+    requirePermission(context, MASTER_DATA_PAGE_PERMISSIONS.impurities.view)
 
     const rows = await prisma.$queryRaw<PrismaImpurityRow[]>`
       select id, code, name, active, created_at, updated_at
@@ -54,10 +55,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.reference.manage')
-
     const values = impurityFormSchema.parse(await request.json())
     const internalId = values.id ? parseInternalBigIntId(values.id) : null
+    requirePermission(context, internalId ? MASTER_DATA_PAGE_PERMISSIONS.impurities.update : MASTER_DATA_PAGE_PERMISSIONS.impurities.create)
     if (values.id && internalId == null) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'รหัสสิ่งเจือปนไม่ถูกต้อง' }, { status: 400 })
     }

@@ -85,10 +85,10 @@ describe('Sales Plan design contract', () => {
       'lockedBuy',
       'stock',
     ])
-    expect(columns).toContain("{ key: 'metalGroup', label: 'หมวด', defaultWidth: 120, minWidth: 100, align: 'right' }")
+    expect(columns).toContain("{ key: 'metalGroup', label: 'หมวด', defaultWidth: 120, minWidth: 100, align: 'left' }")
     expect(cellPositions.every((position) => position >= 0)).toBe(true)
     expect(cellPositions).toEqual([...cellPositions].sort((left, right) => left - right))
-    expect(desktopRow).toContain('<td className="p-3 text-right text-xs font-medium text-slate-500">{text(row.metalGroup)}</td>')
+    expect(desktopRow).toContain('<td className="p-3 text-left text-xs font-medium text-slate-500">{text(row.metalGroup)}</td>')
     expect(desktopRow).not.toContain('px-4 py-3')
     expect(table).toContain('onResetWidths={pendingSaleResize.hasCustomWidths ? pendingSaleResize.resetColumnWidths : undefined}')
     expect(table).toContain("style={{ minWidth: pendingSaleResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}")
@@ -121,7 +121,7 @@ describe('Sales Plan design contract', () => {
     const pendingStatCard = client.slice(client.indexOf('function PendingStatCard'), client.indexOf('export function SalesCommissionPageClient'))
 
     expect(client).toContain("import { focusFieldError } from '@/lib/form-errors'")
-    expect(client).toContain("(['productCode', 'customerCode', 'containers', 'kgPerContainer', 'lmeCf', 'sellPctLme'] as const)")
+    expect(client).toContain("(['branchCode', 'productCode', 'customerCode', 'containers', 'kgPerContainer', 'lmeCf', 'sellPctLme'] as const)")
     expect(client).toContain('setPlanDraftFieldErrors(nextFieldErrors)')
     expect(client).toContain('focusFieldError(firstErrorKey)')
     expect(client).toContain("if (selectedDraftProduct && draftLmeCf <= 0) nextFieldErrors.lmeCf = 'LME cf ต้องมากกว่า 0'")

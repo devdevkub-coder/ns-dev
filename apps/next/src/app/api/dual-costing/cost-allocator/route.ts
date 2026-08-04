@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
+import { PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { canAccessBranchId, getAllowedBranchIds } from '@/lib/server/branch-scope'
@@ -135,6 +136,11 @@ function isCancelled(status: string | null | undefined) {
   return ['cancelled', 'canceled', 'short closed'].includes((status ?? '').trim().toLowerCase())
 }
 
+function isUnavailablePoSellForCosting(status: string | null | undefined, docNo: string) {
+  const canonical = requirePoSellStatus(status, docNo)
+  return canonical === PO_SELL_STATUS.CANCELLED || canonical === PO_SELL_STATUS.SHORT_CLOSED
+}
+
 function isDualCostingGroup(group?: string | null) {
   const normalized = (group ?? '').toLowerCase()
   return ['ทองแดง', 'ทองเหลือง', 'copper', 'brass'].some((key) => normalized.includes(key))
@@ -205,7 +211,7 @@ export async function GET(request: Request) {
         take: 5000,
         where: {
           branch_id: branch.id,
-          NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Short Closed', 'short closed'] } },
+          status: { in: [PO_SELL_STATUS.OPEN, PO_SELL_STATUS.PARTIALLY_FULFILLED, PO_SELL_STATUS.COMPLETED] },
         },
       }),
       prisma.sales_bills.findMany({
@@ -547,7 +553,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'finance.dual_costing.allocate')
 
     const body = await request.json()
     const { productId, poSellId, sourceType, candidates, notes } = body as {
@@ -574,7 +580,7 @@ export async function POST(request: Request) {
       .filter((candidate) => Number.isFinite(candidate.qtyToUse) && candidate.qtyToUse > 0)
 
     if (normalizedCandidates.length === 0) {
-      return NextResponse.json({ error: 'ไม่มีรายการต้นทุนที่พร้อมยืนยันการจัดสรร' }, { status: 400 })
+      return NextResponse.json({ error: 'ไม่มีรายการที่พร้อมยืนยันการจัดสรร' }, { status: 400 })
     }
 
     const invalidCandidate = normalizedCandidates.find((candidate) => !candidate.costPoolId)
@@ -586,7 +592,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'เลือกรายการ Cost Pool ซ้ำ กรุณาเปิด Preview ใหม่' }, { status: 400 })
     }
 
-    const actor = context.appUser?.email || context.authUser.email || 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     const branch = await getDualCostingBranch()
     const allowedBranchIds = await getAllowedBranchIds(context)
     if (!canAccessBranchId(allowedBranchIds, branch.id, { allowNull: false })) {
@@ -669,7 +675,7 @@ export async function POST(request: Request) {
           include: { customers: true }
         })
         if (!poSell) throw new Error(`ไม่พบ PO Sell ID: ${poId}`)
-        if (isCancelled(poSell.status)) {
+        if (isUnavailablePoSellForCosting(poSell.status, poSell.doc_no)) {
           throw new Error(`PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว`)
         }
         if (poSell.branch_id !== branch.id) throw new Error(`ไม่พบ PO Sell ID: ${poId}`)

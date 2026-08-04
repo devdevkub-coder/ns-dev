@@ -200,7 +200,7 @@ function assertPositiveWtoAverageCost(value: number | null | undefined, message:
 export async function loadWtoStockOptions(input: {
   branchId: string
   productId: string
-  scopedBranchIds: string[]
+  scopedBranchIds: string[] | null
 }) {
   const branchCode = normalizeCode(input.branchId)
   const productCode = normalizeCode(input.productId)
@@ -211,7 +211,7 @@ export async function loadWtoStockOptions(input: {
   if (!productCode) {
     throw new WtoStockOptionError('เลือกสินค้า', 400, 'PRODUCT_REQUIRED')
   }
-  if (input.scopedBranchIds.length && !input.scopedBranchIds.includes(branchCode)) {
+  if (input.scopedBranchIds !== null && !input.scopedBranchIds.includes(branchCode)) {
     throw new WtoStockOptionError('ไม่มีสิทธิ์ดูสต็อกของสาขานี้', 403, 'BRANCH_FORBIDDEN')
   }
 

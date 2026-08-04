@@ -10,6 +10,7 @@ import { Button as UiButton } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Input as UiInput } from '@/components/ui/Input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -159,6 +160,10 @@ type PoBuyStatusKey = 'cancelled' | 'open' | 'partial' | 'received' | 'shortClos
 
 function blankItem(): PoBuyFormItem {
   return { productId: '', qty: 0, unitPrice: 0 }
+}
+
+export function isBlankPoBuyItem(item: Pick<PoBuyFormItem, 'productId' | 'qty' | 'unitPrice'>) {
+  return !item.productId.trim() && item.qty === 0 && item.unitPrice === 0
 }
 
 function todayIsoDate() {
@@ -470,6 +475,7 @@ export function PoBuyPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [form, setForm] = useState<PoBuyFormState>(() => blankForm())
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [fromDate, setFromDate] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -514,12 +520,29 @@ export function PoBuyPageClient() {
     const totalCost = subtotal + vatAmount
     return { lineCount: form.items.length, subtotal, totalCost, totalQty, vatAmount, vatRatePercent }
   }, [data?.vatRatePercent, form.hasVat, form.items])
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const isFormDirty = showForm && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const { requestConfirmation } = useActionConfirmation()
+
+  const discardForm = () => {
+    setEditingPoId(null)
+    setEditingPoNo(null)
+    setShowForm(false)
+  }
+
+  const closeForm = () => {
+    if (isSaving) return
+    requestDiscard(discardForm)
+  }
 
   const openCreateForm = () => {
     if (!data?.capabilities.create) return
+    const nextForm = blankForm()
     setEditingPoId(null)
     setEditingPoNo(null)
-    setForm(blankForm())
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -527,10 +550,7 @@ export function PoBuyPageClient() {
 
   const openEditForm = (row: PoBuyRow) => {
     if (!data?.capabilities.update) return
-    setEditingPoId(row.id)
-    setEditingPoNo(row.docNo)
-    setSelectedRow(null)
-    setForm({
+    const nextForm = {
       branchId: row.branchId,
       expectedDelivery: row.expectedDelivery,
       hasVat: row.hasVat,
@@ -541,7 +561,12 @@ export function PoBuyPageClient() {
       })),
       notes: row.notes ?? '',
       supplierId: row.supplierId,
-    })
+    }
+    setEditingPoId(row.id)
+    setEditingPoNo(row.docNo)
+    setSelectedRow(null)
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -601,9 +626,26 @@ export function PoBuyPageClient() {
   }
 
   const removeItem = (index: number) => {
-    setForm((current) => current.items.length <= 1
-      ? current
-      : { ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) })
+    if (form.items.length <= 1) return
+    const target = form.items[index]
+    if (!target) return
+    const remove = () => {
+      setForm((current) => current.items.length <= 1
+        ? current
+        : { ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) })
+    }
+    if (isBlankPoBuyItem(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการสินค้าใน PO Buy นี้หรือไม่? สินค้า จำนวน และราคาต่อหน่วยในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการ PO Buy',
+    })
   }
 
   const submitForm = async () => {
@@ -623,9 +665,7 @@ export function PoBuyPageClient() {
         body: JSON.stringify(editingPoId ? { ...payload, id: editingPoId } : payload),
         method: editingPoId ? 'PUT' : 'POST',
       })
-      setShowForm(false)
-      setEditingPoId(null)
-      setEditingPoNo(null)
+      discardForm()
       await loadData()
     } catch (caught) {
       if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
@@ -637,7 +677,7 @@ export function PoBuyPageClient() {
     }
   }
 
-  const submitCancel = async () => {
+  const submitCancel = () => {
     if (!cancelingRow) return
     const note = cancelNote.trim()
     if (!note) {
@@ -647,23 +687,33 @@ export function PoBuyPageClient() {
 
     setError(null)
     setCancelNoteError('')
-    setIsSaving(true)
-    try {
-      await dailyFetchJson<{ docNo: string; id: string }>('/api/purchase/po-buy', {
-        body: JSON.stringify({ id: cancelingRow.id, note }),
-        method: 'PATCH',
-      })
-      setCancelingRow(null)
-      setCancelNote('')
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ยกเลิก PO Buy ไม่ได้')
-    } finally {
-      setIsSaving(false)
-    }
+    requestConfirmation({
+      title: 'ยืนยันการยกเลิก PO Buy',
+      description: `ต้องการยกเลิก PO Buy ${cancelingRow.docNo} หรือไม่?`,
+      confirmLabel: 'ยืนยันยกเลิก',
+      destructive: true,
+      onConfirm: async () => {
+        setIsSaving(true)
+        try {
+          await dailyFetchJson<{ docNo: string; id: string }>('/api/purchase/po-buy', {
+            body: JSON.stringify({ id: cancelingRow.id, note }),
+            method: 'PATCH',
+          })
+          setCancelingRow(null)
+          setCancelNote('')
+          await loadData()
+        } catch (caught) {
+          const error = caught instanceof Error ? caught : new Error('ยกเลิก PO Buy ไม่ได้')
+          setError(error.message)
+          throw error
+        } finally {
+          setIsSaving(false)
+        }
+      },
+    })
   }
 
-  const submitShortClose = async () => {
+  const submitShortClose = () => {
     if (!shortClosingRow) return
     const note = shortCloseNote.trim()
     if (!note) {
@@ -673,20 +723,30 @@ export function PoBuyPageClient() {
 
     setError(null)
     setShortCloseNoteError('')
-    setIsSaving(true)
-    try {
-      await dailyFetchJson<{ docNo: string; id: string }>('/api/purchase/po-buy', {
-        body: JSON.stringify({ action: 'shortClose', id: shortClosingRow.id, note }),
-        method: 'PATCH',
-      })
-      setShortClosingRow(null)
-      setShortCloseNote('')
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ปิดรับไม่ครบไม่สำเร็จ')
-    } finally {
-      setIsSaving(false)
-    }
+    requestConfirmation({
+      title: 'ยืนยันการปิดรับไม่ครบ',
+      description: `ต้องการปิดรับ PO Buy ${shortClosingRow.docNo} ไม่ครบหรือไม่?`,
+      confirmLabel: 'ยืนยันปิดรับไม่ครบ',
+      destructive: true,
+      onConfirm: async () => {
+        setIsSaving(true)
+        try {
+          await dailyFetchJson<{ docNo: string; id: string }>('/api/purchase/po-buy', {
+            body: JSON.stringify({ action: 'shortClose', id: shortClosingRow.id, note }),
+            method: 'PATCH',
+          })
+          setShortClosingRow(null)
+          setShortCloseNote('')
+          await loadData()
+        } catch (caught) {
+          const error = caught instanceof Error ? caught : new Error('ปิดรับไม่ครบไม่สำเร็จ')
+          setError(error.message)
+          throw error
+        } finally {
+          setIsSaving(false)
+        }
+      },
+    })
   }
 
   const printPoBuy = async (row: PoBuyRow) => {
@@ -800,18 +860,17 @@ export function PoBuyPageClient() {
           <UiInput className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลข PO / ชื่อผู้ขาย / ชื่อสินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <BranchSelectCombobox
             branches={(data?.options.branches ?? []).filter((branch) => branch.active !== false)}
-            className="w-full sm:w-auto"
+            className="w-[12rem]"
             controlSize="filter"
             inputId="po-buy-list-branch-filter"
-            label="สาขา"
             placeholder="ทุกสาขา"
             value={branchFilter}
             onChange={(value) => setBranchFilter(value ?? '')}
           />
           <label className="text-xs text-slate-500">วันที่:</label>
-          <DatePickerInput id="po-buy-date-from" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput className="h-9" id="po-buy-date-from" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput id="po-buy-date-to" value={toDate} onChange={setToDate} />
+          <DatePickerInput className="h-9" id="po-buy-date-to" value={toDate} onChange={setToDate} />
           {hasFilters ? <UiButton size="xs" type="button" variant="secondary" onClick={resetFilters}>✕ ล้าง</UiButton> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -923,8 +982,9 @@ export function PoBuyPageClient() {
               <div>
                 <BranchSelectCombobox
                   branches={(data?.options.branches ?? []).filter((branch) => branch.active !== false)}
+                  className="w-full"
+                  controlSize="filter"
                   inputId="po-buy-list-mobile-branch-filter"
-                  label="สาขา"
                   placeholder="ทุกสาขา"
                   value={branchFilter}
                   onChange={(value) => setBranchFilter(value ?? '')}
@@ -934,9 +994,9 @@ export function PoBuyPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="h-9 flex-1" value={fromDate} onChange={setFromDate} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="h-9 flex-1" value={toDate} onChange={setToDate} />
                 </div>
               </div>
 
@@ -996,8 +1056,8 @@ export function PoBuyPageClient() {
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
+              <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
             </div>
             
             <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -1064,18 +1124,18 @@ export function PoBuyPageClient() {
           <TableHeader>
             <tr>
               <ResizableTableHead align="center" label={<input aria-label="เลือก PO ทั้งหมดในตาราง" checked={allVisibleSelected} disabled={rows.length === 0} type="checkbox" onChange={toggleVisibleSelection} />} resizeProps={columnResize.getResizeHandleProps('checkbox', 'เลือก')} />
-              <PoBuySortHeader activeKey={sortKey} className="ns-leading-business-column" direction={sortDirection} label="เลขที่ PO ซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ PO ซื้อ')} sortKey="docNo" onSort={changeSort} />
-              <PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="วันที่สร้างเอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้างเอกสาร')} sortKey="date" onSort={changeSort} />
+              <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่ PO ซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ PO ซื้อ')} sortKey="docNo" onSort={changeSort} />
+              <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่สร้างเอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้างเอกสาร')} sortKey="date" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} className="ns-leading-business-column [&>button]:justify-start [&>button]:text-left [&>div]:justify-start [&>div]:text-left" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="รายการสินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'รายการสินค้า')} sortKey="productName" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="จำนวนรวม" resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} sortKey="qty" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="มูลค่ารวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'มูลค่ารวม')} sortKey="totalAmount" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รอรับรวม" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'รอรับรวม')} sortKey="remainingQty" onSort={changeSort} />
-              <PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="วันที่กำหนดส่ง" resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่กำหนดส่ง')} sortKey="expectedDelivery" onSort={changeSort} />
+              <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่กำหนดส่ง" resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่กำหนดส่ง')} sortKey="expectedDelivery" onSort={changeSort} />
               <ResizableTableHead align="center" label="หมายเหตุ" resizeProps={columnResize.getResizeHandleProps('note', 'หมายเหตุ')} />
               <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-              <PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัพเดตล่าสุด')} sortKey="updatedAt" onSort={changeSort} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัพเดตล่าสุด')} sortKey="updatedAt" onSort={changeSort} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody>
@@ -1084,8 +1144,8 @@ export function PoBuyPageClient() {
             {!isLoading && pageRows.map((row, index) => (
               <TableRow key={row.id} className={`cursor-pointer border-slate-100 hover:bg-slate-50 ${index % 2 === 1 ? 'bg-slate-50/40' : ''}`} onClick={() => setSelectedRow(row)}>
                 <TableCell className="text-center"><input aria-label={`เลือก ${row.docNo}`} checked={selectedPoIds.includes(row.id)} type="checkbox" onChange={() => toggleRowSelection(row.id)} onClick={(event) => event.stopPropagation()} /></TableCell>
-                <TableCell className="ns-leading-business-column whitespace-nowrap font-mono">{row.docNo}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="whitespace-nowrap text-center font-mono">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.date)}</TableCell>
                 <TableCell className="w-36">
                   <div className="w-full text-left">{row.supplierName}</div>
                 </TableCell>
@@ -1095,7 +1155,7 @@ export function PoBuyPageClient() {
                 <TableNumberCell value={formatMoney(row.qty)} />
                 <TableNumberCell strong value={formatMoney(row.totalAmount)} />
                 <TableNumberCell tone="amber" value={formatMoney(row.remainingQty)} />
-                <TableCell className="whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
+                <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.expectedDelivery)}</TableCell>
                 <TableCell className="text-center"><PoBuyNoteIndicator note={row.notes} poNo={row.docNo} /></TableCell>
                 <TableCell className="w-28 whitespace-nowrap text-center">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadge(row.status)}`}>
@@ -1103,8 +1163,8 @@ export function PoBuyPageClient() {
                     {poBuyStatusLabel(row.status)}
                   </span>
                 </TableCell>
-                <TableCell className="w-28 whitespace-nowrap text-xs text-slate-600"><div className="truncate">{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-xs text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></TableCell>
-                <TableCell className="whitespace-nowrap text-right">
+                <TableCell className="w-28 whitespace-nowrap text-center text-xs text-slate-600"><div className="truncate">{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-xs text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></TableCell>
+                <TableCell className="whitespace-nowrap text-center">
                   <TableActionButton menu={(
                     <>
                       {data?.capabilities.update && row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
@@ -1141,7 +1201,7 @@ export function PoBuyPageClient() {
           products={data?.options.products ?? []}
           suppliers={data?.options.suppliers ?? []}
           onAddItem={addItem}
-          onClose={() => setShowForm(false)}
+          onClose={closeForm}
           onRemoveItem={removeItem}
           onSubmit={submitForm}
           onUpdate={updateForm}
@@ -1303,9 +1363,14 @@ function PoBuyCancelModal({
   onSubmit: () => void
   row: PoBuyRow
 }) {
+  const { requestDiscard } = useUnsavedChangesGuard(note.length > 0)
+  const requestClose = () => {
+    if (!isSaving) requestDiscard(onClose)
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
-      if (!open && !isSaving) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent aria-labelledby="po-buy-cancel-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md border-0 bg-slate-900 shadow-2xl !p-0 outline-none focus:outline-none md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md overflow-hidden" hideClose>
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white flex flex-row items-center rounded-t-md">
@@ -1329,7 +1394,7 @@ function PoBuyCancelModal({
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="bg-white border-t border-slate-100 px-5 py-3.5 flex justify-end gap-2">
-          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="bg-red-600 font-semibold hover:bg-red-700 text-white h-9 px-4 rounded-md transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
       </DialogContent>
@@ -1354,9 +1419,14 @@ function PoBuyShortCloseModal({
   onSubmit: () => void
   row: PoBuyRow
 }) {
+  const { requestDiscard } = useUnsavedChangesGuard(note.length > 0)
+  const requestClose = () => {
+    if (!isSaving) requestDiscard(onClose)
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
-      if (!open && !isSaving) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent aria-labelledby="po-buy-short-close-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md border-0 bg-slate-900 shadow-2xl !p-0 outline-none focus:outline-none md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md overflow-hidden" hideClose>
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white flex flex-row items-center rounded-t-md">
@@ -1380,7 +1450,7 @@ function PoBuyShortCloseModal({
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="bg-white border-t border-slate-100 px-5 py-3.5 flex justify-end gap-2">
-          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="bg-amber-600 font-semibold hover:bg-amber-700 text-white h-9 px-4 rounded-md transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยันปิดรับไม่ครบ'}</UiButton>
         </DialogFooter>
       </DialogContent>
@@ -1484,7 +1554,7 @@ function SupplierSearchCombobox({
       error={error}
       inputId="po-buy-supplier-search"
       label="ผู้ขาย *"
-      inputClassName="!h-9 px-2 py-1.5"
+      inputClassName="!h-10 px-2 py-1.5"
       options={options.map((supplier) => ({
         id: supplier.id,
         label: optionLabel(supplier),
@@ -1664,7 +1734,7 @@ function PoBuyFormModal({
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="col-span-2 sm:col-span-1" data-field-invalid={errors.branchId ? 'true' : undefined}>
               <label className="mb-1 block text-xs">สาขา <span className="text-red-600">*</span></label>
-              <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+              <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-10 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                 <option disabled value="">เลือกสาขา</option>
                 {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </UiSelect>
@@ -1683,7 +1753,7 @@ function PoBuyFormModal({
             </div>
             <div className="col-span-2 lg:col-span-1">
               <label className="mb-1 block text-xs">วันส่งมอบ <span className="text-red-600">*</span></label>
-              <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-9 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+              <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-10 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
               {fieldError('expectedDelivery')}
             </div>
           </div>
@@ -1719,13 +1789,13 @@ function PoBuyFormModal({
                         <MoneyPatternInput error={Boolean(errors[`items.${index}.unitPrice`])} required value={item.unitPrice} onChange={(value) => onUpdateItem(index, 'unitPrice', value)} />
                         {fieldError(`items.${index}.unitPrice`)}
                       </TableCell>
-                      <TableCell className="bg-blue-50 p-1 px-2 text-right font-bold text-blue-700">{formatMoney(item.qty * item.unitPrice)}</TableCell>
+                      <TableCell className="bg-blue-50 p-1 px-2 text-right font-bold tabular-nums text-blue-700">{formatMoney(item.qty * item.unitPrice)}</TableCell>
                       <TableCell className="p-1 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500 hover:text-red-700 outline-none" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
                 <tfoot className="bg-slate-50 font-bold border-t border-slate-100">
-                  <tr><td className="p-2 text-right">รวม {formTotals.lineCount} รายการ</td><td className="p-2 text-right">{formatMoney(formTotals.totalQty)}</td><td /><td className="p-2 text-right text-base text-blue-700">{formatMoney(formTotals.subtotal)}</td><td /></tr>
+                  <tr><td className="p-2 text-right">รวม {formTotals.lineCount} รายการ</td><td className="p-2 text-right tabular-nums">{formatMoney(formTotals.totalQty)}</td><td /><td className="p-2 text-right text-base tabular-nums text-blue-700">{formatMoney(formTotals.subtotal)}</td><td /></tr>
                 </tfoot>
               </Table>
             </div>
@@ -1920,9 +1990,9 @@ function PoBuyDetailModal({
                   {row.items.map((item, index) => (
                     <TableRow key={`${item.productId}-${index}`}>
                       <TableCell>{item.productName || '-'}</TableCell>
-                      <TableCell className="text-right">{formatMoney(item.qty)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(item.remainingQty)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(item.unitPrice)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatMoney(item.qty)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatMoney(item.remainingQty)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatMoney(item.unitPrice)}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>

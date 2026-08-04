@@ -3,29 +3,17 @@ import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, type MasterDataRouteProps, updateMasterDataStatusSchema, toIso, toNumber } from '@/lib/server/master-data'
 import { outwardBranchReference } from '@/lib/server/branch-reference'
-import { invalidateAccountReferenceCache, listActivePaymentMethods } from '@/lib/server/reference-master-cache'
+import { invalidateAccountReferenceCache } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
-function paymentMethodGroupForName(
-  paymentMethodTypes: Map<string, 'cash' | 'bank'>,
-  paymentMethodName: string | null | undefined,
-) {
-  if (!paymentMethodName) return null
-  return paymentMethodTypes.get(String(paymentMethodName).trim()) ?? null
-}
-
 function normalizeSubtype(
-  row: { currency?: string | null; od_limit?: unknown; subtype?: string | null; type?: string | null },
-  paymentMethodTypes: Map<string, 'cash' | 'bank'>,
+  row: { account_group: string; bank_account_type?: string | null },
 ) {
-  if (row.subtype === 'savings' || row.subtype === 'current' || row.subtype === 'cash' || row.subtype === 'fcd' || row.subtype === 'od') return row.subtype
-  if (row.subtype === 'bank' || row.subtype === 'other') return 'savings'
-  if (paymentMethodGroupForName(paymentMethodTypes, row.type) === 'cash') return 'cash'
-  if (Number(row.od_limit ?? 0) > 0) return 'od'
-  if (String(row.currency ?? 'THB').toUpperCase() !== 'THB') return 'fcd'
-  if (paymentMethodGroupForName(paymentMethodTypes, row.type) === 'bank') return 'savings'
-  return 'savings'
+  if (row.account_group === 'cash') return 'cash'
+  if (row.account_group === 'virtual') return 'virtual'
+  if (row.bank_account_type === 'savings' || row.bank_account_type === 'current') return row.bank_account_type
+  throw new Error(`บัญชีธนาคาร ${row.account_group} ไม่มีประเภทบัญชีธนาคารที่ถูกต้อง`)
 }
 
 export async function PATCH(request: Request, { params }: MasterDataRouteProps) {
@@ -35,8 +23,6 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
 
     const { id } = await params
     const values = updateMasterDataStatusSchema.parse(await request.json())
-    const paymentMethodRows = await listActivePaymentMethods()
-    const paymentMethodTypes = new Map(paymentMethodRows.map((row) => [row.name, row.type === 'cash' ? 'cash' : 'bank'] as const))
     const resolved = await prisma.accounts.findFirst({
       select: { id: true },
       where: {
@@ -44,25 +30,12 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
       } as any,
     })
     if (!resolved) throw new Error('ไม่พบบัญชีเงินที่ต้องการอัปเดต')
-    const [row, statementSum] = await Promise.all([
-      prisma.accounts.update({ where: { id: resolved.id }, data: { active: values.active }, include: { branches: true } }),
-      prisma.bank_statement.aggregate({
-        _sum: {
-          amount_in: true,
-          amount_out: true,
-        },
-        where: { account_id: resolved.id },
-      }),
-    ])
+    const row = await prisma.accounts.update({ where: { id: resolved.id }, data: { active: values.active }, include: { branches: true } })
     await invalidateAccountReferenceCache()
     const branch = outwardBranchReference(row.branches, row.branch_id)
     const outwardId = requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`)
 
-    const realBalance = (toNumber(row.opening_balance) ?? 0) + ((toNumber(statementSum._sum?.amount_in) ?? 0) - (toNumber(statementSum._sum?.amount_out) ?? 0))
     const odLimit = toNumber(row.od_limit) ?? 0
-    const odUsed = Math.max(0, -realBalance)
-    const odRemaining = Math.max(0, odLimit - odUsed)
-    const availableToPay = realBalance + odLimit
 
     return masterDataJson({
       id: outwardId,
@@ -70,7 +43,7 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
       name: row.name,
       active: row.active ?? true,
       type: row.type,
-      subtype: normalizeSubtype(row, paymentMethodTypes),
+      subtype: normalizeSubtype(row),
       phone: null,
       email: null,
       note: null,
@@ -82,12 +55,7 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
       bankBranch: row.bank_branch,
       accountNo: row.account_no,
       currency: row.currency,
-      openingBalance: toNumber(row.opening_balance),
       odLimit,
-      realBalance,
-      odUsed,
-      odRemaining,
-      availableToPay,
       branchId: branch.branchId,
       branchName: branch.branchName,
       address: null,

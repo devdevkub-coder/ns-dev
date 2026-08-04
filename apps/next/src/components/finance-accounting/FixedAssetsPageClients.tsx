@@ -1,6 +1,7 @@
 'use client'
 
 import { Children, isValidElement, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Download, Plus } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
@@ -12,6 +13,7 @@ import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { Select } from '@/components/ui/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type AssetRegisterRow = {
   acquisitionType: string
@@ -120,7 +122,7 @@ const blankAssetForm: AssetFormState = {
   warrantyExpireDate: '',
 }
 
-const fieldClass = 'w-full rounded-md border border-slate-100 px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100'
+const fieldClass = 'h-10 w-full rounded-md border border-slate-100 px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100'
 
 type DepreciationPayload = {
   designState: { glPosting: string; reverseWrite: string; runWrite: string }
@@ -229,6 +231,9 @@ const blankDisposalForm = (): DisposalFormState => ({
 })
 
 export function AssetRegisterPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
+  const [assetFormBaseline, setAssetFormBaseline] = useState<string | null>(null)
+  const [importFormBaseline, setImportFormBaseline] = useState<string | null>(null)
   const [category, setCategory] = useState('all')
   const [data, setData] = useState<AssetRegisterPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -246,6 +251,9 @@ export function AssetRegisterPageClient() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sortKey, setSortKey] = useState<AssetRegisterSortKey | null>(null)
   const columnResize = useResizableColumns('finance-accounting.asset-register.main.v1', assetRegisterColumns)
+  const assetFormIsDirty = modal === 'asset' && assetFormBaseline !== null && JSON.stringify(form) !== assetFormBaseline
+  const importFormIsDirty = modal === 'import' && importFormBaseline !== null && JSON.stringify(importRows) !== importFormBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(assetFormIsDirty || importFormIsDirty)
 
   useEffect(() => {
     setPage(1)
@@ -333,18 +341,22 @@ export function AssetRegisterPageClient() {
 
   const openCreate = () => {
     setError(null)
+    setAssetFormBaseline(JSON.stringify(blankAssetForm))
     setForm(blankAssetForm)
     setModal('asset')
   }
 
   const openEdit = (row: AssetRegisterRow) => {
     setError(null)
-    setForm(assetRowToForm(row))
+    const nextForm = assetRowToForm(row)
+    setAssetFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setModal('asset')
   }
 
   const openImport = () => {
     setError(null)
+    setImportFormBaseline(JSON.stringify([]))
     setImportRows([])
     setImportPreview(null)
     setModal('import')
@@ -373,6 +385,7 @@ export function AssetRegisterPageClient() {
         method: 'POST',
       })
       setData(result.payload)
+      setAssetFormBaseline(JSON.stringify(form))
       setModal(null)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกทะเบียนทรัพย์สินไม่ได้')
@@ -381,8 +394,8 @@ export function AssetRegisterPageClient() {
     }
   }
 
-  const deactivateAsset = async (row: AssetRegisterRow) => {
-    if (!window.confirm(`ปิดใช้งานทรัพย์สิน ${row.code} ?`)) return
+  const deactivateAsset = (row: AssetRegisterRow) => {
+    requestConfirmation({ title: 'ยืนยันการปิดใช้งานทรัพย์สิน', description: `ต้องการปิดใช้งานทรัพย์สิน ${row.code} หรือไม่?`, confirmLabel: 'ยืนยันปิดใช้งาน', destructive: true, onConfirm: async () => {
     setIsSaving(true)
     setError(null)
     try {
@@ -393,9 +406,26 @@ export function AssetRegisterPageClient() {
       setData(result.payload)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ปิดใช้งานทรัพย์สินไม่ได้')
+      throw caught
     } finally {
       setIsSaving(false)
     }
+      },
+    })
+  }
+
+  const closeAssetForm = () => {
+    if (isSaving) return
+    requestDiscard(() => setModal(null))
+  }
+
+  const closeImportForm = () => {
+    if (isSaving) return
+    requestDiscard(() => {
+      setImportRows([])
+      setImportPreview(null)
+      setModal(null)
+    })
   }
 
   const previewImport = async (rowsToPreview = importRows) => {
@@ -428,6 +458,7 @@ export function AssetRegisterPageClient() {
         method: 'POST',
       })
       setData(result.payload)
+      setImportFormBaseline(JSON.stringify([]))
       setImportRows([])
       setImportPreview(null)
       setModal(null)
@@ -531,13 +562,14 @@ export function AssetRegisterPageClient() {
           >
             นำเข้า
           </button>
-          <LinkButton href={exportHref} variant="export">ส่งออก Excel</LinkButton>
+          <LinkButton href={exportHref} variant="export"><Download aria-hidden="true" className="size-4" />ส่งออก Excel</LinkButton>
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-xs font-normal text-white shadow-sm transition hover:bg-blue-700 outline-none focus:ring-0"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white shadow-sm transition hover:bg-blue-700 outline-none focus:ring-0"
           >
-            + เพิ่มทรัพย์สิน
+            <Plus aria-hidden="true" className="size-4" />
+            เพิ่มทรัพย์สิน
           </button>
         </div>
       </div>
@@ -707,17 +739,17 @@ export function AssetRegisterPageClient() {
             </colgroup>
             <thead className="bg-slate-100">
               <tr>
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="รหัสทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('code', 'รหัสทรัพย์สิน')} sortKey="code" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ชื่อทรัพย์สิน / สถานที่" resizeProps={columnResize.getResizeHandleProps('assetName', 'ชื่อทรัพย์สิน / สถานที่')} sortKey="assetName" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} sortKey="category" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} sortKey="branchName" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="วันที่ซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseDate', 'วันที่ซื้อ')} sortKey="purchaseDate" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="รหัสทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('code', 'รหัสทรัพย์สิน')} sortKey="code" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ชื่อทรัพย์สิน / สถานที่" resizeProps={columnResize.getResizeHandleProps('assetName', 'ชื่อทรัพย์สิน / สถานที่')} sortKey="assetName" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} sortKey="category" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} sortKey="branchName" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="วันที่ซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseDate', 'วันที่ซื้อ')} sortKey="purchaseDate" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ต้นทุนสุทธิ" resizeProps={columnResize.getResizeHandleProps('netAssetCost', 'ต้นทุนสุทธิ')} sortKey="netAssetCost" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อมสะสม" resizeProps={columnResize.getResizeHandleProps('accumDep', 'ค่าเสื่อมสะสม')} sortKey="accumDep" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="มูลค่าคงเหลือ (NBV)" resizeProps={columnResize.getResizeHandleProps('nbv', 'มูลค่าคงเหลือ')} sortKey="nbv" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อม/เดือน" resizeProps={columnResize.getResizeHandleProps('monthlyDep', 'ค่าเสื่อมต่อเดือน')} sortKey="monthlyDep" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -727,20 +759,20 @@ export function AssetRegisterPageClient() {
               ) : null}
               {!isLoading && pagedRows.map((row) => (
                 <tr key={row.id} className="transition-colors hover:bg-slate-50">
-                  <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-amber-700">{row.code}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="whitespace-nowrap px-3 py-3 text-center font-mono font-bold text-amber-700">{row.code}</td>
+                  <td className="px-3 py-3">
                     <div className="font-semibold text-slate-900">{row.name}</div>
                     <div className="text-xs text-slate-400">{row.location || '-'}</div>
                   </td>
-                  <td className="px-3 py-3 text-right text-slate-700">{row.category}</td>
-                  <td className="px-3 py-3 text-right text-slate-700">{row.branchName}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{row.purchaseDate || '-'}</td>
+                  <td className="px-3 py-3 text-slate-700">{row.category}</td>
+                  <td className="px-3 py-3 text-slate-700">{row.branchName}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{row.purchaseDate || '-'}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums text-slate-700">{formatMoney(row.netAssetCost)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">{formatMoney(row.accumDep)}</td>
                   <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.nbv > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{formatMoney(row.nbv)}</td>
                   <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums ${row.monthlyDep > 0 ? 'text-amber-700' : 'text-slate-700'}`}>{formatMoney(row.monthlyDep)}</td>
-                  <td className="px-3 py-3 text-right"><StatusPill status={row.assetStatus} /></td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-3 py-3 text-center whitespace-nowrap"><StatusPill status={row.assetStatus} /></td>
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     <TableActionButton menu={(
                       <>
                         <TableActionMenuItem disabled={isSaving} onSelect={() => openEdit(row)}>แก้ไข</TableActionMenuItem>
@@ -775,7 +807,7 @@ export function AssetRegisterPageClient() {
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs sm:text-xs">
                 <div><span className="text-slate-400 block text-xs">หมวดหมู่ / สาขา</span><span className="font-medium text-slate-700 block truncate">{row.category} / {row.branchName}</span></div>
-                <div><span className="text-slate-400 block text-xs">วันที่ซื้อ</span><span className="font-medium text-slate-700 block">{row.purchaseDate || '-'}</span></div>
+                <div><span className="text-slate-400 block text-xs">วันที่ซื้อ</span><span className="block whitespace-nowrap font-medium text-slate-700">{row.purchaseDate || '-'}</span></div>
                 <div><span className="text-slate-400 block text-xs">ต้นทุนสุทธิ</span><span className="font-bold text-slate-800 block">{formatMoney(row.netAssetCost)}</span></div>
                 <div><span className="text-slate-400 block text-xs">ค่าเสื่อมสะสม</span><span className="font-medium text-slate-500 block">{formatMoney(row.accumDep)}</span></div>
                 <div><span className="text-slate-400 block text-xs">มูลค่าคงเหลือ (NBV)</span><span className={`font-extrabold text-xs sm:text-sm block ${row.nbv > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{formatMoney(row.nbv)}</span></div>
@@ -797,7 +829,7 @@ export function AssetRegisterPageClient() {
 
 
       {modal === 'asset' ? (
-        <Modal title={form.id ? `แก้ไขทรัพย์สิน ${form.code}` : 'เพิ่มทรัพย์สิน'}>
+        <Modal title={form.id ? `แก้ไขทรัพย์สิน ${form.code}` : 'เพิ่มทรัพย์สิน'} onDismiss={closeAssetForm}>
           <div className="space-y-4">
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <h3 className="mb-4 text-sm font-bold text-slate-800">ข้อมูลหลัก</h3>
@@ -842,14 +874,14 @@ export function AssetRegisterPageClient() {
             </section>
           </div>
           <ModalActions>
-            <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeAssetForm}>ยกเลิก</ActionButton>
             <ActionButton strong disabled={isSaving} onClick={saveAsset}>{isSaving ? 'กำลังบันทึก' : 'บันทึก'}</ActionButton>
           </ModalActions>
         </Modal>
       ) : null}
 
       {modal === 'import' ? (
-        <Modal title="นำเข้าทะเบียนทรัพย์สิน">
+        <Modal title="นำเข้าทะเบียนทรัพย์สิน" onDismiss={closeImportForm}>
           <div className="space-y-3">
             <input
               accept=".csv,.tsv,.txt"
@@ -883,7 +915,7 @@ export function AssetRegisterPageClient() {
             ) : null}
           </div>
           <ModalActions>
-            <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeImportForm}>ยกเลิก</ActionButton>
             <ActionButton disabled={isSaving || importBlocked} strong onClick={commitImport}>{isSaving ? 'กำลังนำเข้า' : 'ยืนยันนำเข้า'}</ActionButton>
           </ModalActions>
         </Modal>
@@ -894,6 +926,7 @@ export function AssetRegisterPageClient() {
 }
 
 export function DepreciationPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const [data, setData] = useState<DepreciationPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -913,6 +946,7 @@ export function DepreciationPageClient() {
   const [historySortDirection, setHistorySortDirection] = useState<SortDirection>('asc')
   const [historySortKey, setHistorySortKey] = useState<DepreciationSortKey | null>(null)
   const columnResize = useResizableColumns('finance-accounting.depreciation.history.v1', depreciationColumns)
+  const { requestDiscard: requestReverseDiscard } = useUnsavedChangesGuard(Boolean(reverseRow) && reverseReason.length > 0)
 
   useEffect(() => {
     setPage(1)
@@ -1022,23 +1056,40 @@ export function DepreciationPageClient() {
     }
   }
 
-  const reverseDepreciation = async () => {
+  const reverseDepreciation = () => {
     if (!reverseRow) return
-    setIsSaving(true)
-    setError(null)
-    try {
-      await dailyFetchJson('/api/finance-accounting/depreciation', {
-        body: JSON.stringify({ action: 'reverse', id: reverseRow.id, periodMonth: month, periodYear: year, reason: reverseReason }),
-        method: 'PATCH',
-      })
-      loadData()
+    requestConfirmation({
+      confirmLabel: 'ยืนยันย้อนกลับ',
+      description: `ต้องการย้อนกลับค่าเสื่อม ${reverseRow.refNo} หรือไม่? ระบบจะบันทึกเหตุผลและย้อนกลับรายการบัญชีที่เกี่ยวข้อง`,
+      destructive: true,
+      onConfirm: async () => {
+        setIsSaving(true)
+        setError(null)
+        try {
+          await dailyFetchJson('/api/finance-accounting/depreciation', {
+            body: JSON.stringify({ action: 'reverse', id: reverseRow.id, periodMonth: month, periodYear: year, reason: reverseReason }),
+            method: 'PATCH',
+          })
+          loadData()
+          setReverseRow(null)
+          setReverseReason('')
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'ย้อนกลับค่าเสื่อมราคาไม่ได้')
+          throw caught
+        } finally {
+          setIsSaving(false)
+        }
+      },
+      title: 'ยืนยันการย้อนกลับค่าเสื่อมราคา',
+    })
+  }
+
+  const closeReverseModal = () => {
+    if (isSaving) return
+    requestReverseDiscard(() => {
       setReverseRow(null)
       setReverseReason('')
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ย้อนกลับค่าเสื่อมราคาไม่ได้')
-    } finally {
-      setIsSaving(false)
-    }
+    })
   }
 
   return (
@@ -1244,25 +1295,25 @@ export function DepreciationPageClient() {
             </colgroup>
             <thead className="sticky top-0 bg-slate-100">
               <tr>
-                <ResizableTableHead activeSortKey={historySortKey ?? undefined} direction={historySortDirection} label="เลขที่รันค่าเสื่อม" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่รันค่าเสื่อม')} sortKey="refNo" onSort={changeHistorySort} />
-                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="งวด" resizeProps={columnResize.getResizeHandleProps('period', 'งวด')} sortKey="period" onSort={changeHistorySort} />
-                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeHistorySort} />
+                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="center" direction={historySortDirection} label="เลขที่รันค่าเสื่อม" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่รันค่าเสื่อม')} sortKey="refNo" onSort={changeHistorySort} />
+                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="center" direction={historySortDirection} label="งวด" resizeProps={columnResize.getResizeHandleProps('period', 'งวด')} sortKey="period" onSort={changeHistorySort} />
+                <ResizableTableHead activeSortKey={historySortKey ?? undefined} direction={historySortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="ค่าเสื่อมสะสมก่อน" resizeProps={columnResize.getResizeHandleProps('accumBefore', 'ค่าเสื่อมสะสมก่อน')} sortKey="accumBefore" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="ค่าเสื่อมงวดนี้" resizeProps={columnResize.getResizeHandleProps('depreciationAmount', 'ค่าเสื่อมงวดนี้')} sortKey="depreciationAmount" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="ค่าเสื่อมสะสมหลัง" resizeProps={columnResize.getResizeHandleProps('accumAfter', 'ค่าเสื่อมสะสมหลัง')} sortKey="accumAfter" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="NBV ก่อน" resizeProps={columnResize.getResizeHandleProps('nbvBefore', 'NBV ก่อน')} sortKey="nbvBefore" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="NBV หลัง" resizeProps={columnResize.getResizeHandleProps('nbvAfter', 'NBV หลัง')} sortKey="nbvAfter" onSort={changeHistorySort} />
-                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeHistorySort} />
-                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
+                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="center" direction={historySortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeHistorySort} />
+                <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               <LoadingOrEmpty colSpan={10} isLoading={isLoading} rows={filteredRows.length} />
               {pagedRows.map((row) => (
                 <tr key={row.id} className={`transition-colors hover:bg-slate-50 ${row.status === 'reversed' ? 'bg-slate-50 opacity-70' : ''}`}>
-                  <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-red-700">{row.refNo}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">{row.period}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="whitespace-nowrap px-3 py-3 text-center font-mono font-bold text-red-700">{row.refNo}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">{row.period}</td>
+                  <td className="px-3 py-3">
                     <div className="font-semibold text-slate-800">{row.assetName}</div>
                     <div className="text-xs text-slate-400 font-medium font-mono">{row.assetCode}</div>
                   </td>
@@ -1271,10 +1322,10 @@ export function DepreciationPageClient() {
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.accumAfter)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">{formatMoney(row.nbvBefore)}</td>
                   <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.nbvAfter > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{formatMoney(row.nbvAfter)}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     <StatusPill status={row.status} />
                   </td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     {row.status === 'reversed' ? (
                       <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
                     ) : (
@@ -1297,7 +1348,7 @@ export function DepreciationPageClient() {
             pagedRows.map((row) => (
               <div key={row.id} className={`p-4 space-y-2.5 text-xs ${row.status === 'reversed' ? 'opacity-70 bg-slate-50/50' : 'bg-white'}`}>
                 <div className="flex justify-between items-center">
-                  <span className="font-mono font-bold text-red-700">{row.refNo}</span>
+                  <span className="whitespace-nowrap font-mono font-bold text-red-700">{row.refNo}</span>
                   <span className="font-semibold text-slate-500 text-xs">{row.period}</span>
                 </div>
                 <div>
@@ -1367,13 +1418,13 @@ export function DepreciationPageClient() {
           </div>
           <TableShell>
             <table className="ns-table w-full text-xs">
-              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><Th>ทรัพย์สิน</Th><Th align="right">ค่าเสื่อมสะสมก่อน</Th><Th align="right">ค่าเสื่อม</Th><Th align="right">ค่าเสื่อมสะสมหลัง</Th><Th align="right">NBV หลัง</Th><Th align="right">สถานะหลังประมวลผล</Th></tr></thead>
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><Th>ทรัพย์สิน</Th><Th align="right">ค่าเสื่อมสะสมก่อน</Th><Th align="right">ค่าเสื่อม</Th><Th align="right">ค่าเสื่อมสะสมหลัง</Th><Th align="right">NBV หลัง</Th><Th align="center">สถานะหลังประมวลผล</Th></tr></thead>
               <tbody>
                 {preview.rows.map((row) => (
                   <tr key={row.assetId} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
                     <Td><div className="font-medium">{row.assetCode}</div><div className="text-slate-400">{row.assetName}</div></Td>
                     <Td align="right">{formatMoney(row.accumBefore)}</Td><Td align="right">{formatMoney(row.depreciationAmount)}</Td><Td align="right">{formatMoney(row.accumAfter)}</Td><Td align="right">{formatMoney(row.nbvAfter)}</Td>
-                    <Td align="right">{row.willFullyDepreciate ? <Chip tone="blue">คิดค่าเสื่อมครบแล้ว</Chip> : <Chip tone="emerald">พร้อมใช้งาน</Chip>}</Td>
+                    <Td align="center">{row.willFullyDepreciate ? <Chip tone="blue">คิดค่าเสื่อมครบแล้ว</Chip> : <Chip tone="emerald">พร้อมใช้งาน</Chip>}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -1396,7 +1447,7 @@ export function DepreciationPageClient() {
             <Field label="เหตุผลการย้อนกลับ"><textarea className={`${fieldClass} min-h-24`} value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} /></Field>
           </div>
           <ModalActions>
-            <ActionButton onClick={() => setReverseRow(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeReverseModal}>ยกเลิก</ActionButton>
             <ActionButton disabled={isSaving} strong onClick={reverseDepreciation}>{isSaving ? 'กำลังย้อนกลับ' : 'ยืนยันย้อนกลับ'}</ActionButton>
           </ModalActions>
         </Modal>
@@ -1406,6 +1457,8 @@ export function DepreciationPageClient() {
 }
 
 export function AssetDisposalPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
+  const [disposalFormBaseline, setDisposalFormBaseline] = useState<string | null>(null)
   const [data, setData] = useState<DisposalPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<DisposalFormState>(blankDisposalForm)
@@ -1419,6 +1472,9 @@ export function AssetDisposalPageClient() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sortKey, setSortKey] = useState<DisposalSortKey | null>(null)
   const columnResize = useResizableColumns('finance-accounting.asset-disposal.history.v1', disposalColumns)
+  const disposalFormIsDirty = modal === 'create' && disposalFormBaseline !== null && JSON.stringify(form) !== disposalFormBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(disposalFormIsDirty)
+  const { requestDiscard: requestReverseDiscard } = useUnsavedChangesGuard(modal === 'reverse' && reverseReason.length > 0)
 
   useEffect(() => {
     setPage(1)
@@ -1472,7 +1528,9 @@ export function AssetDisposalPageClient() {
   const gainLossPreview = sellingPrice - (selectedAsset?.nbv ?? 0)
 
   const openCreate = () => {
-    setForm(blankDisposalForm())
+    const nextForm = blankDisposalForm()
+    setDisposalFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setError(null)
     setModal('create')
   }
@@ -1490,6 +1548,7 @@ export function AssetDisposalPageClient() {
         method: 'POST',
       })
       setData(result.payload)
+      setDisposalFormBaseline(JSON.stringify(form))
       setModal(null)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกจำหน่ายทรัพย์สินไม่ได้')
@@ -1504,24 +1563,50 @@ export function AssetDisposalPageClient() {
     setModal('reverse')
   }
 
-  const reverseDisposal = async () => {
-    if (!reverseRow) return
-    setIsSaving(true)
-    setError(null)
-    try {
-      const result = await dailyFetchJson<{ payload: DisposalPayload }>('/api/finance-accounting/asset-disposal', {
-        body: JSON.stringify({ action: 'reverse', id: reverseRow.id, reason: reverseReason }),
-        method: 'PATCH',
-      })
-      setData(result.payload)
+  const closeDisposalForm = () => {
+    if (isSaving) return
+    requestDiscard(() => {
+      setForm(blankDisposalForm())
+      setModal(null)
+    })
+  }
+
+  const closeReverseModal = () => {
+    if (isSaving) return
+    requestReverseDiscard(() => {
       setModal(null)
       setReverseRow(null)
       setReverseReason('')
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ย้อนกลับรายการจำหน่ายทรัพย์สินไม่ได้')
-    } finally {
-      setIsSaving(false)
-    }
+    })
+  }
+
+  const reverseDisposal = () => {
+    if (!reverseRow) return
+    requestConfirmation({
+      confirmLabel: 'ยืนยันย้อนกลับ',
+      description: `ต้องการย้อนกลับรายการจำหน่าย ${reverseRow.disposalNo} หรือไม่? ระบบจะบันทึกเหตุผลและย้อนกลับรายการบัญชีที่เกี่ยวข้อง`,
+      destructive: true,
+      onConfirm: async () => {
+        setIsSaving(true)
+        setError(null)
+        try {
+          const result = await dailyFetchJson<{ payload: DisposalPayload }>('/api/finance-accounting/asset-disposal', {
+            body: JSON.stringify({ action: 'reverse', id: reverseRow.id, reason: reverseReason }),
+            method: 'PATCH',
+          })
+          setData(result.payload)
+          setModal(null)
+          setReverseRow(null)
+          setReverseReason('')
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'ย้อนกลับรายการจำหน่ายทรัพย์สินไม่ได้')
+          throw caught
+        } finally {
+          setIsSaving(false)
+        }
+      },
+      title: 'ยืนยันการย้อนกลับรายการจำหน่าย',
+    })
   }
 
   return (
@@ -1624,39 +1709,39 @@ export function AssetDisposalPageClient() {
             </colgroup>
             <thead className="bg-slate-100">
               <tr>
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เลขที่จำหน่าย" resizeProps={columnResize.getResizeHandleProps('disposalNo', 'เลขที่จำหน่าย')} sortKey="disposalNo" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('disposalType', 'ประเภท')} sortKey="disposalType" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="เลขที่จำหน่าย" resizeProps={columnResize.getResizeHandleProps('disposalNo', 'เลขที่จำหน่าย')} sortKey="disposalNo" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('disposalType', 'ประเภท')} sortKey="disposalType" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ราคาขาย" resizeProps={columnResize.getResizeHandleProps('sellingPrice', 'ราคาขาย')} sortKey="sellingPrice" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="NBV ณ วันจำหน่าย" resizeProps={columnResize.getResizeHandleProps('nbv', 'NBV ณ วันจำหน่าย')} sortKey="nbv" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="กำไร/(ขาดทุน)" resizeProps={columnResize.getResizeHandleProps('gainLoss', 'กำไรหรือขาดทุน')} sortKey="gainLoss" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="เหตุผล" resizeProps={columnResize.getResizeHandleProps('reason', 'เหตุผล')} sortKey="reason" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เหตุผล" resizeProps={columnResize.getResizeHandleProps('reason', 'เหตุผล')} sortKey="reason" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               <LoadingOrEmpty colSpan={10} isLoading={isLoading} rows={rows.length} emptyText="ยังไม่มีรายการจำหน่ายทรัพย์สิน" />
               {pagedRows.map((row) => (
                 <tr key={row.id} className={`transition-colors hover:bg-slate-50 ${row.status === 'reversed' ? 'bg-slate-50 opacity-70' : ''}`}>
-                  <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-slate-700">{row.disposalNo}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{row.date}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="whitespace-nowrap px-3 py-3 text-center font-mono font-bold text-slate-700">{row.disposalNo}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{row.date}</td>
+                  <td className="px-3 py-3">
                     <div className="font-semibold text-slate-800">{row.assetCode}</div>
                     <div className="text-xs text-slate-400 font-medium">{row.assetName}</div>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-medium text-slate-700">{row.disposalType}</td>
+                  <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-700">{row.disposalType}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.sellingPrice)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">{formatMoney(row.nbv)}</td>
                   <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${(row.gainLoss ?? 0) > 0 ? 'text-emerald-700' : (row.gainLoss ?? 0) < 0 ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.gainLoss)}</td>
-                  <td className="min-w-0 px-3 py-3 text-right text-slate-500" title={row.reason}>
+                  <td className="min-w-0 px-3 py-3 text-slate-500" title={row.reason}>
                     <div className="truncate">{row.reason || '-'}</div>
                   </td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     <StatusPill status={row.status} />
                   </td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     {row.status === 'reversed' ? (
                       <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
                     ) : (
@@ -1680,7 +1765,7 @@ export function AssetDisposalPageClient() {
               <div key={row.id} className={`p-4 space-y-2.5 text-xs ${row.status === 'reversed' ? 'opacity-70 bg-slate-50/50' : 'bg-white'}`}>
                 <div className="flex justify-between items-center">
                   <span className="font-mono font-bold text-slate-700">{row.disposalNo}</span>
-                  <span className="font-semibold text-slate-500 text-xs">{row.date}</span>
+                  <span className="whitespace-nowrap text-xs font-semibold text-slate-500">{row.date}</span>
                 </div>
                 <div>
                   <div className="font-bold text-slate-800">{row.assetCode}</div>
@@ -1738,7 +1823,7 @@ export function AssetDisposalPageClient() {
 
 
       {modal === 'create' ? (
-        <Modal title="จำหน่ายทรัพย์สิน">
+        <Modal title="จำหน่ายทรัพย์สิน" onDismiss={closeDisposalForm}>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
             <Field label="ทรัพย์สิน"><IdOptionSelect blankLabel="-เลือกทรัพย์สิน-" options={data?.assetOptions ?? []} value={form.assetId} onChange={(value) => updateForm('assetId', value)} /></Field>
             <Field label="วันที่"><input className={fieldClass} type="date" value={form.disposalDate} onChange={(event) => updateForm('disposalDate', event.target.value)} /></Field>
@@ -1765,7 +1850,7 @@ export function AssetDisposalPageClient() {
             </div>
           ) : null}
           <ModalActions>
-            <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeDisposalForm}>ยกเลิก</ActionButton>
             <ActionButton disabled={isSaving || !form.assetId} strong onClick={saveDisposal}>{isSaving ? 'กำลังบันทึก' : 'บันทึก'}</ActionButton>
           </ModalActions>
         </Modal>
@@ -1781,7 +1866,7 @@ export function AssetDisposalPageClient() {
             <Field label="เหตุผลการย้อนกลับ"><textarea className={`${fieldClass} min-h-24`} value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} /></Field>
           </div>
           <ModalActions>
-            <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeReverseModal}>ยกเลิก</ActionButton>
             <ActionButton disabled={isSaving} strong onClick={reverseDisposal}>{isSaving ? 'กำลังย้อนกลับ' : 'ยืนยันย้อนกลับ'}</ActionButton>
           </ModalActions>
         </Modal>
@@ -1930,14 +2015,23 @@ function splitDelimitedLine(line: string, delimiter: string) {
   return cells
 }
 
-function Modal({ children, title }: { children: ReactNode; title: string }) {
+function Modal({ children, onDismiss, title }: { children: ReactNode; onDismiss?: () => void; title: string }) {
   const childList = Children.toArray(children)
   const actionElement = childList.find((child) => isValidElement<{ children?: ReactNode }>(child) && child.type === ModalActions)
   const content = childList.filter((child) => !(isValidElement(child) && child.type === ModalActions))
   const actions = isValidElement<{ children?: ReactNode }>(actionElement) ? actionElement.props.children : null
 
+  useEffect(() => {
+    if (!onDismiss) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !document.querySelector('[role="dialog"]')) onDismiss()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onDismiss])
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-0 sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onDismiss?.() }}>
       <div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-slate-900 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-6xl sm:rounded-md" data-ns-field-scope="entry">
         <div data-ns-dialog-header className="flex shrink-0 flex-wrap items-center justify-between gap-3 bg-slate-900 px-4 py-3 text-white dark:bg-[#0f172a] sm:px-6 sm:py-4">
           <h2 className="min-w-0 truncate text-sm font-semibold text-white">{title}</h2>
@@ -2006,7 +2100,7 @@ function ActionButton({ children, disabled = false, onClick, strong = false }: {
 
 function LinkButton({ children, href, variant = 'default' }: { children: ReactNode; href: string; variant?: 'default' | 'export' }) {
   const className = variant === 'export'
-    ? 'inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-xs font-normal text-white transition hover:bg-emerald-700 outline-none focus:ring-0'
+    ? 'inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 outline-none focus:ring-0'
     : 'inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-600 transition hover:bg-slate-50 outline-none focus:ring-0'
   return <a className={className} href={href}>{children}</a>
 }
@@ -2111,26 +2205,26 @@ function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: Depreci
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="รหัสทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('code', 'รหัสทรัพย์สิน')} sortKey="code" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ชื่อทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อทรัพย์สิน')} sortKey="name" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="รหัสทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('code', 'รหัสทรัพย์สิน')} sortKey="code" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ชื่อทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อทรัพย์สิน')} sortKey="name" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ต้นทุนสุทธิ" resizeProps={columnResize.getResizeHandleProps('netAssetCost', 'ต้นทุนสุทธิ')} sortKey="netAssetCost" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อมสะสมเดิม" resizeProps={columnResize.getResizeHandleProps('accumDep', 'ค่าเสื่อมสะสมเดิม')} sortKey="accumDep" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="NBV ปัจจุบัน" resizeProps={columnResize.getResizeHandleProps('nbv', 'NBV ปัจจุบัน')} sortKey="nbv" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อม/เดือน" resizeProps={columnResize.getResizeHandleProps('monthlyDep', 'ค่าเสื่อมต่อเดือน')} sortKey="monthlyDep" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             <LoadingOrEmpty colSpan={7} isLoading={isLoading} rows={rows.length} />
             {sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
-                <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-amber-700">{row.code}</td>
-                <td className="px-3 py-3 text-right font-semibold text-slate-800">{row.name}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center font-mono font-bold text-amber-700">{row.code}</td>
+                <td className="px-3 py-3 font-semibold text-slate-800">{row.name}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.netAssetCost)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">{formatMoney(row.accumDep)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.nbv > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{formatMoney(row.nbv)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums ${row.monthlyDep > 0 ? 'text-amber-700' : 'text-slate-700'}`}>{formatMoney(row.monthlyDep)}</td>
-                <td className="px-3 py-3 text-right"><StatusPill status={row.assetStatus} /></td>
+                <td className="px-3 py-3 text-center whitespace-nowrap"><StatusPill status={row.assetStatus} /></td>
               </tr>
             ))}
           </tbody>
@@ -2211,8 +2305,8 @@ function Th({ align = 'left', children, className = '' }: { align?: 'center' | '
 }
 
 function Td({ align = 'left', children, strong = false, className = '', title }: { align?: 'center' | 'left' | 'right'; children: ReactNode; strong?: boolean; className?: string; title?: string }) {
-  const textAlign = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-  return <td title={title} className={`whitespace-nowrap px-4 py-3 border-b border-slate-100/60 ${textAlign} ${strong ? 'font-bold text-slate-900' : 'text-slate-700'} ${className}`}>{children}</td>
+  const alignmentClass = align === 'right' ? 'text-right whitespace-nowrap tabular-nums' : align === 'center' ? 'text-center whitespace-nowrap' : 'text-left break-words'
+  return <td title={title} className={`px-4 py-3 border-b border-slate-100/60 ${alignmentClass} ${strong ? 'font-bold text-slate-900' : 'text-slate-700'} ${className}`}>{children}</td>
 }
 
 function Chip({ children, tone }: { children: ReactNode; tone: 'amber' | 'blue' | 'emerald' }) {

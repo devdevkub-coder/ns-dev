@@ -36,6 +36,7 @@
 | Tracking 360 | `Tracking 360 Flow.md` | customer/supplier/product tracking baseline |
 | Dual Costing | `Dual Costing Flow.md` | dual costing category baseline |
 | Shared document history rules | `Document Timeline Policy.md` | history/timeline contract |
+| Shared form safety and confirmation | `Form Safety and Confirmation Policy.md` | unsaved-discard and destructive-confirmation contract |
 | Shared reporting rules | `Reporting History Snapshot Policy.md` | history snapshot contract |
 
 ## High-Value Supporting Notes
@@ -43,6 +44,7 @@
 | Topic | Note |
 |---|---|
 | Purchase bill details | `Purchase Bills Page Flow.md` |
+| Purchase and sales bill status | `Bill Status Contract.md` |
 | Sales bill details | `Sales Bills Page Flow.md` |
 | PO Buy | `PO Buy Page Flow.md` |
 | PO Sell | `PO Sell Flow.md` |
@@ -50,6 +52,8 @@
 | Receipt voucher | `Receipt Voucher Page Flow.md` |
 | Customer advance receipt | `Customer Advance Receipt Flow.md` |
 | FCD customer receipt / FX | `Receive Payment From The Customer Via Their FCD Account.md` |
+| FCD implementation task list | `FCD Foreign Receipt Implementation Task List.md` |
+| FCD currency policy | `Finance Currency Policy Contract.md` |
 | Stock ledger DB/API | `Stock Ledger DB API Design.md` |
 | Reference cache | `Reference Master Cache Flow.md` |
 | Printable docs | `Printable Documents.md` |

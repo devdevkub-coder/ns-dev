@@ -15,6 +15,8 @@ export const runtime = 'nodejs'
 
 type BankQuery = {
   accountId: string | null
+  accountGroup: string | null
+  bankAccountType: string | null
   branchCode: string | null
   from: string | null
   page: number
@@ -40,11 +42,19 @@ type BankStatementRow = {
   docNo: string
   id: string
   movement: number
+  movementCurrencyCode: string
+  nativeAmountIn: number
+  nativeAmountOut: number
+  bookFxRate: number | null
   note: string
+  odUsed: number
   refId: string
   refNo: string
   refType: string
+  reversalOfId: string | null
   runningBalance: number
+  sourceEventKey: string
+  sourceEventType: string
   type: string
 }
 
@@ -54,6 +64,8 @@ function parseQuery(url: URL): BankQuery {
   const branchCode = url.searchParams.get('branchCode')?.trim().toUpperCase()
   return {
     accountId: url.searchParams.get('accountId') || null,
+    accountGroup: url.searchParams.get('accountGroup') || null,
+    bankAccountType: url.searchParams.get('bankAccountType') || null,
     branchCode: branchCode && branchCode !== 'ALL' ? branchCode : null,
     from: url.searchParams.get('from') || null,
     page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
@@ -126,7 +138,13 @@ export async function GET(request: Request) {
       throw new Error('ไม่พบบัญชีเงินบริษัทตามรหัสบัญชีที่ระบุ')
     }
     const allAccounts = await listActiveAccounts()
-    const accounts = allAccounts.filter((account) => !branch || account.branchCode === branch.code)
+    if (query.bankAccountType && query.accountGroup !== 'bank') {
+      throw new Error('ประเภทบัญชีธนาคารใช้ได้เฉพาะประเภทบัญชีบริษัท ธนาคาร')
+    }
+    const accounts = allAccounts.filter((account) => account.accountGroup !== 'virtual'
+      && (!branch || account.branchCode === branch.code)
+      && (!query.accountGroup || account.accountGroup === query.accountGroup)
+      && (!query.bankAccountType || account.bankAccountType === query.bankAccountType))
     if (accountReference && !accounts.some((account) => account.id === accountReference.id)) {
       throw new Error('บัญชีเงินบริษัทไม่อยู่ในสาขาที่เลือกหรือไม่มีสิทธิ์ดูข้อมูล')
     }
@@ -142,26 +160,32 @@ export async function GET(request: Request) {
       where: statementWhere(query, internalAccountId, visibleAccountIds, true),
     })
 
-    const accountCodeByInternalId = new Map(accounts.map((account: AccountReferenceRecord) => [String(account.id), account.code] as const))
-    const runningByAccount = new Map<string, number>()
-    accounts.forEach((account: AccountReferenceRecord) => {
-      const openingBalance = account.openingBalance == null ? 0 : Number(account.openingBalance)
-      runningByAccount.set(String(account.id), openingBalance)
-    })
+    const accountByInternalId = new Map(accounts.map((account: AccountReferenceRecord) => [String(account.id), account] as const))
+    // Bank Statement is the only balance source for this page. Account Master
+    // only supplies the selectable account metadata and never seeds a balance.
+    const runningByAccount = new Map<string, number>(accounts.map((account: AccountReferenceRecord) => [String(account.id), 0]))
 
     const rowsWithRunning: BankStatementRow[] = sourceRows.map((row: (typeof sourceRows)[number]) => {
       const internalAccountKey = row.account_id?.toString() ?? ''
-      const outwardAccountId = internalAccountKey ? (accountCodeByInternalId.get(internalAccountKey) ?? '') : ''
+      const account = internalAccountKey ? accountByInternalId.get(internalAccountKey) : undefined
+      const outwardAccountId = account?.code ?? ''
       const previous = runningByAccount.get(internalAccountKey) ?? 0
-      const movement = toNumber(row.amount_in) - toNumber(row.amount_out)
-      const runningBalance = row.balance === null || row.balance === undefined ? previous + movement : toNumber(row.balance)
-      runningByAccount.set(internalAccountKey, runningBalance)
+      const amountIn = toNumber(row.amount_in)
+      const amountOut = toNumber(row.amount_out)
+      const movement = amountIn - amountOut
+      const rawBookBalance = previous + movement
+      runningByAccount.set(internalAccountKey, rawBookBalance)
+      const odLimit = account?.odLimit == null ? 0 : Number(account.odLimit)
+      const hasOd = account?.subtype === 'current' && odLimit > 0
+      const odUsed = hasOd ? Math.max(0, -rawBookBalance) : 0
+      const runningBalance = hasOd ? Math.max(0, rawBookBalance) : rawBookBalance
       return {
         accountId: outwardAccountId,
         accountName: row.accounts?.name ?? '-',
         accountNo: row.accounts?.account_no ?? '',
-        amountIn: toNumber(row.amount_in),
-        amountOut: toNumber(row.amount_out),
+        amountIn,
+        amountOut,
+        bookFxRate: row.book_fx_rate == null ? null : toNumber(row.book_fx_rate),
         bankName: row.accounts?.bank_name ?? row.accounts?.bank ?? '',
         branchName: row.accounts?.branches?.name ?? '-',
         cashFlowCategory: row.cash_flow_category ?? '',
@@ -169,19 +193,26 @@ export async function GET(request: Request) {
         description: row.description ?? row.desc ?? '',
         id: row.doc_no,
         movement,
+        movementCurrencyCode: row.movement_currency_code,
+        nativeAmountIn: toNumber(row.native_amount_in),
+        nativeAmountOut: toNumber(row.native_amount_out),
         note: row.note ?? '',
+        odUsed,
         docNo: row.doc_no,
         refId: row.ref_no ?? row.doc_no,
         refNo: row.ref_no ?? '',
         refType: row.ref_type ?? '',
+        reversalOfId: row.reversal_of_id?.toString() ?? null,
         runningBalance,
+        sourceEventKey: row.source_event_key,
+        sourceEventType: row.source_event_type,
         type: row.type ?? '',
       }
     })
 
     const visibleRows = rowsWithRunning
       .filter((row: BankStatementRow) => !query.from || row.date >= query.from)
-      .filter((row: BankStatementRow) => !search || `${row.accountName} ${row.accountNo} ${row.bankName} ${row.refNo} ${row.refType} ${row.description} ${row.note}`.toLowerCase().includes(search))
+      .filter((row: BankStatementRow) => !search || `${row.accountName} ${row.accountNo} ${row.bankName} ${row.docNo} ${row.refNo} ${row.refType} ${row.description} ${row.note}`.toLowerCase().includes(search))
       .sort((left: BankStatementRow, right: BankStatementRow) => {
         const direction = query.sortDirection === 'asc' ? 1 : -1
         return (left.date.localeCompare(right.date) || left.refNo.localeCompare(right.refNo) || left.id.localeCompare(right.id)) * direction
@@ -200,14 +231,21 @@ export async function GET(request: Request) {
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(await buildWorkbook(visibleRows.map((row: BankStatementRow) => ({
         Account: row.accountName,
-        AmountIn: row.amountIn,
-        AmountOut: row.amountOut,
-        Balance: row.runningBalance,
+        BookAmountInTHB: row.amountIn,
+        BookAmountOutTHB: row.amountOut,
+        BookBalanceTHB: row.runningBalance,
+        MovementCurrency: row.movementCurrencyCode,
+        NativeAmountIn: row.nativeAmountIn,
+        NativeAmountOut: row.nativeAmountOut,
+        BookFxRate: row.bookFxRate ?? '',
         Date: row.date,
         Description: row.description,
         DocNo: row.docNo,
         RefNo: row.refNo,
         RefType: row.refType,
+        ReversalOfId: row.reversalOfId ?? '',
+        SourceEventKey: row.sourceEventKey,
+        SourceEventType: row.sourceEventType,
         Type: row.type,
       }))), `finance_bank_${new Date().toISOString().slice(0, 10)}.xlsx`)
     }
@@ -223,14 +261,15 @@ export async function GET(request: Request) {
         branches: visibleBranches.map((row) => ({ code: row.code, id: row.code, name: row.name })),
         accounts: accounts.map((row: AccountReferenceRecord) => ({
           accountNo: row.accountNo,
+          accountGroup: row.accountGroup,
           active: true,
+          bankAccountType: row.bankAccountType,
           bankName: row.bankName,
           branchName: row.branchName ?? '',
           code: row.code,
           currency: row.currency,
           id: row.code,
           name: row.name,
-          openingBalance: row.openingBalance == null ? 0 : Number(row.openingBalance),
           type: row.type,
           subtype: row.subtype,
           odLimit: row.odLimit == null ? null : Number(row.odLimit),

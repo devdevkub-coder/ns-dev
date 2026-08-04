@@ -129,7 +129,7 @@ P3 ทำเสร็จตาม current-code baseline แล้ว:
 
 | Group | Routes |
 |---|---|
-| Master Data | Accepted baseline: `/master-data/customers`, `/master-data/salespersons`, `/master-data/suppliers`, `/master-data/products`, `/master-data/product-types`, `/master-data/product-units`, `/master-data/impurities`, `/master-data/branches`, `/master-data/warehouses`, `/master-data/accounts`, `/master-data/payment-methods`, `/master-data/account-subtypes`, `/master-data/bank-names`, `/master-data/channels`, `/master-data/expense-categories`, `/master-data/expense-types`, `/master-data/directors`, `/master-data/machines`, `/master-data/machine-types`, `/master-data/production-lines`, `/master-data/currencies`, `/master-data/beneficiaries`, `/master-data/remittance-purposes` |
+| Master Data | Accepted baseline: `/master-data/customers`, `/master-data/salespersons`, `/master-data/suppliers`, `/master-data/products`, `/master-data/product-types`, `/master-data/product-units`, `/master-data/impurities`, `/master-data/branches`, `/master-data/warehouses`, `/master-data/accounts`, `/master-data/payment-methods`, `/master-data/bank-names`, `/master-data/channels`, `/master-data/expense-categories`, `/master-data/expense-types`, `/master-data/directors`, `/master-data/machines`, `/master-data/machine-types`, `/master-data/production-lines`, `/master-data/currencies`, `/master-data/beneficiaries`, `/master-data/remittance-purposes` |
 | Admin / System | `/admin/system-settings`, `/admin/company-profile`, `/admin/transaction-ledger`, `/admin/migration-tools`, `/admin/audit`, `/admin/users-permissions` |
 Admin/System proof notes:
 

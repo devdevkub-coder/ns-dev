@@ -7,17 +7,33 @@ import { prisma } from '@/lib/server/prisma'
 export const runtime = 'nodejs'
 
 type FxGainLossRow = Awaited<ReturnType<typeof prisma.fx_gain_loss.findMany>>[number]
+type StatementReference = { docNo: string; referenceNo: string }
+type ReceiptReference = { docNo: string }
 
-function mapRow(row: FxGainLossRow, referenceBySource: Map<string, string>) {
+const AR_SETTLEMENT_REF_TYPE = 'RCP'
+const AR_SETTLEMENT_LABEL = 'AR Settlement'
+
+function mapRow(
+  row: FxGainLossRow,
+  referenceBySource: Map<string, StatementReference>,
+  receiptById: Map<string, ReceiptReference>,
+  branchNameById: Map<string, string>,
+) {
   const foreignAmount = toNumber(row.amount_fc)
   const originalFxRate = toNumber(row.rate_book)
   const settlementFxRate = toNumber(row.rate_settlement)
   const gainLossAmount = toNumber(row.gain_loss)
   const sourceKey = row.ref_type && row.ref_id ? `${row.ref_type}:${row.ref_id}` : ''
-  const referenceNo = sourceKey ? referenceBySource.get(sourceKey) : null
+  const statementReference = sourceKey ? referenceBySource.get(sourceKey) : null
+  const receiptReference = row.ref_type === AR_SETTLEMENT_REF_TYPE && row.ref_id
+    ? receiptById.get(row.ref_id)
+    : null
+  const referenceNo = receiptReference?.docNo ?? statementReference?.referenceNo ?? null
   const outwardReference = referenceNo ?? '-'
   return {
     currency: (row.currency || '').toUpperCase(),
+    branch: row.branch_id ? branchNameById.get(row.branch_id.toString()) ?? '-' : '-',
+    cashAppliedThb: foreignAmount * settlementFxRate - gainLossAmount,
     date: toDateOnly(row.date),
     foreignAmount,
     fxGainLossAmount: gainLossAmount,
@@ -28,10 +44,14 @@ function mapRow(row: FxGainLossRow, referenceBySource: Map<string, string>) {
     originalThbValue: foreignAmount * originalFxRate,
     reference: outwardReference,
     referenceNo,
+    sourceDocumentHref: receiptReference
+      ? `/sales/receipts?${new URLSearchParams({ q: receiptReference.docNo })}`
+      : statementReference ? `/finance/bank?${new URLSearchParams({ q: statementReference.docNo })}` : null,
+    sourceLedgerHref: null,
     sourceRefId: outwardReference,
     settlementFxRate,
     settlementThbValue: foreignAmount * settlementFxRate,
-    transactionType: row.ref_type || 'FX Gain/Loss',
+    transactionType: row.ref_type === AR_SETTLEMENT_REF_TYPE ? AR_SETTLEMENT_LABEL : row.ref_type || 'FX Gain/Loss',
   }
 }
 
@@ -45,13 +65,14 @@ export async function GET(request: Request) {
     const to = url.searchParams.get('to')
     const currency = url.searchParams.get('currency')?.trim().toUpperCase()
     const refType = url.searchParams.get('refType')?.trim()
+    const persistedRefType = refType === AR_SETTLEMENT_LABEL ? AR_SETTLEMENT_REF_TYPE : refType
 
     const rows = await prisma.fx_gain_loss.findMany({
       orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
       take: 5000,
       where: {
         ...(currency && currency !== 'ALL' ? { currency } : {}),
-        ...(refType && refType !== 'all' ? { ref_type: refType } : {}),
+        ...(persistedRefType && persistedRefType !== 'all' ? { ref_type: persistedRefType } : {}),
         ...(from || to ? {
           date: {
             ...(from ? { gte: normalizeDate(from) } : {}),
@@ -65,14 +86,114 @@ export async function GET(request: Request) {
       .filter((row) => row.ref_type && row.ref_id)
       .map((row) => ({ refId: row.ref_id as string, refType: row.ref_type as string }))
     const statements = sourcePairs.length > 0 ? await prisma.bank_statement.findMany({
-      select: { ref_id: true, ref_no: true, ref_type: true },
+      select: { doc_no: true, ref_id: true, ref_no: true, ref_type: true },
       where: {
         OR: sourcePairs.map((pair) => ({ ref_id: pair.refId, ref_type: pair.refType })),
       },
     }) : []
-    const referenceBySource = new Map(statements.filter((row) => row.ref_id && row.ref_no && row.ref_type).map((row) => [`${row.ref_type}:${row.ref_id}`, row.ref_no as string]))
+    const referenceBySource = new Map(statements
+      .filter((row) => row.ref_id && row.ref_no && row.ref_type)
+      .map((row) => [`${row.ref_type}:${row.ref_id}`, { docNo: row.doc_no, referenceNo: row.ref_no as string }]))
+    const receiptIds = Array.from(new Set(rows
+      .filter((row) => row.ref_type === AR_SETTLEMENT_REF_TYPE && row.ref_id)
+      .map((row) => BigInt(row.ref_id as string))))
+    const [receipts, branches] = await Promise.all([
+      receiptIds.length > 0
+        ? prisma.customer_receipts.findMany({ select: { doc_no: true, id: true }, where: { id: { in: receiptIds } } })
+        : Promise.resolve([]),
+      prisma.branches.findMany({ select: { code: true, id: true, name: true }, where: { id: { in: Array.from(new Set(rows.flatMap((row) => row.branch_id ? [row.branch_id] : []))) } } }),
+    ])
+    const receiptById = new Map(receipts.map((receipt) => [receipt.id.toString(), { docNo: receipt.doc_no }]))
+    const branchNameById = new Map(branches.map((branch) => [branch.id.toString(), `${branch.code} - ${branch.name}`]))
 
-    const mappedRows = rows.map((row) => mapRow(row, referenceBySource))
+    const [conversionRows, revaluationRows] = await Promise.all([
+      prisma.fcd_conversions.findMany({
+        orderBy: [{ conversion_date: 'desc' }, { id: 'desc' }],
+        take: 5000,
+        where: {
+          status: 'active',
+          reversal_of_id: null,
+          ...(from || to ? { conversion_date: { ...(from ? { gte: normalizeDate(from) } : {}), ...(to ? { lte: normalizeDate(to) } : {}) } } : {}),
+          ...(currency && currency !== 'ALL' ? { source_currency_code: currency } : {}),
+        },
+      }),
+      prisma.fcd_revaluation_batches.findMany({
+        orderBy: [{ period_end: 'desc' }, { id: 'desc' }],
+        take: 5000,
+        where: { status: 'posted', ...(from || to ? { period_end: { ...(from ? { gte: normalizeDate(from) } : {}), ...(to ? { lte: normalizeDate(to) } : {}) } } : {}) },
+      }),
+    ])
+    const conversionLines = conversionRows.length ? await prisma.fcd_conversion_lines.findMany({ where: { conversion_id: { in: conversionRows.map((row) => row.id) } } }) : []
+    const revaluationLines = revaluationRows.length ? await prisma.fcd_revaluation_lines.findMany({ where: { batch_id: { in: revaluationRows.map((row) => row.id) }, posted: true } }) : []
+    const accountIds = Array.from(new Set([
+      ...conversionRows.map((row) => row.source_account_id),
+      ...revaluationLines.map((line) => line.account_id),
+    ]))
+    const accounts = accountIds.length > 0 ? await prisma.accounts.findMany({
+      select: { code: true, id: true },
+      where: { id: { in: accountIds } },
+    }) : []
+    const conversionById = new Map(conversionRows.map((row) => [row.id.toString(), row]))
+    const revaluationById = new Map(revaluationRows.map((row) => [row.id.toString(), row]))
+    const accountCodeById = new Map(accounts.map((account) => [account.id.toString(), account.code]))
+    const conversionFxRows = conversionLines.flatMap((line) => {
+      const conversion = conversionById.get(line.conversion_id.toString())
+      if (!conversion || (refType && refType !== 'all' && refType !== 'FCD Conversion')) return []
+      const nativeAmount = toNumber(line.native_amount)
+      const carryingThb = toNumber(line.carrying_thb_out)
+      const receivedThb = toNumber(line.actual_thb_received)
+      const sourceAccountCode = accountCodeById.get(conversion.source_account_id.toString())
+      if (!sourceAccountCode || !line.source_fcd_ledger_entry_id) throw new Error('รายการแลกเงิน FCD อ้างอิงบัญชีหรือ FCD ledger ไม่ครบ')
+      return [{
+        branch: '-',
+        cashAppliedThb: null,
+        currency: conversion.source_currency_code,
+        date: toDateOnly(conversion.conversion_date),
+        foreignAmount: nativeAmount,
+        fxGainLossAmount: toNumber(line.realized_fx_difference),
+        gainLossType: toNumber(line.realized_fx_difference) > 0 ? 'gain' : toNumber(line.realized_fx_difference) < 0 ? 'loss' : 'neutral',
+        id: `fcd-conversion:${conversion.doc_no}:${line.line_no}`,
+        notes: conversion.bank_reference ?? '',
+        originalFxRate: nativeAmount > 0 ? carryingThb / nativeAmount : 0,
+        originalThbValue: carryingThb,
+        reference: conversion.doc_no,
+        referenceNo: conversion.doc_no,
+        sourceDocumentHref: `/finance/foreign/fcd-conversions?${new URLSearchParams({ docNo: conversion.doc_no })}`,
+        sourceLedgerHref: `/finance/foreign/fcd-ledger?${new URLSearchParams({ accountId: sourceAccountCode, currencyCode: conversion.source_currency_code })}#entry-${line.source_fcd_ledger_entry_id}`,
+        settlementFxRate: nativeAmount > 0 ? receivedThb / nativeAmount : 0,
+        settlementThbValue: receivedThb,
+        transactionType: 'FCD Conversion',
+      }]
+    })
+    const revaluationFxRows = revaluationLines.flatMap((line) => {
+      const batch = revaluationById.get(line.batch_id.toString())
+      if (!batch || (currency && currency !== 'ALL' && line.currency_code !== currency) || (refType && refType !== 'all' && refType !== 'FCD Revaluation')) return []
+      const nativeBalance = toNumber(line.native_balance)
+      const carryingThb = toNumber(line.carrying_thb_before)
+      const accountCode = accountCodeById.get(line.account_id.toString())
+      if (!accountCode || !line.fcd_ledger_entry_id) throw new Error('รายการตีมูลค่า FCD อ้างอิงบัญชีหรือ FCD ledger ไม่ครบ')
+      return [{
+        branch: '-',
+        cashAppliedThb: null,
+        currency: line.currency_code,
+        date: toDateOnly(line.period_end),
+        foreignAmount: nativeBalance,
+        fxGainLossAmount: toNumber(line.unrealized_fx_difference),
+        gainLossType: toNumber(line.unrealized_fx_difference) > 0 ? 'gain' : toNumber(line.unrealized_fx_difference) < 0 ? 'loss' : 'neutral',
+        id: `fcd-revaluation:${batch.doc_no}:${line.id}`,
+        notes: batch.rate_reference ?? '',
+        originalFxRate: nativeBalance > 0 ? carryingThb / nativeBalance : 0,
+        originalThbValue: carryingThb,
+        reference: batch.doc_no,
+        referenceNo: batch.doc_no,
+        sourceDocumentHref: `/finance/foreign/fcd-revaluations?${new URLSearchParams({ docNo: batch.doc_no })}`,
+        sourceLedgerHref: `/finance/foreign/fcd-ledger?${new URLSearchParams({ accountId: accountCode, currencyCode: line.currency_code })}#entry-${line.fcd_ledger_entry_id}`,
+        settlementFxRate: toNumber(line.closing_fx_rate),
+        settlementThbValue: toNumber(line.revalued_thb_amount),
+        transactionType: 'FCD Revaluation',
+      }]
+    })
+    const mappedRows = [...rows.map((row) => mapRow(row, referenceBySource, receiptById, branchNameById)), ...conversionFxRows, ...revaluationFxRows]
     const totalGain = mappedRows.filter((row) => row.fxGainLossAmount >= 0).reduce((sum, row) => sum + row.fxGainLossAmount, 0)
     const totalLoss = mappedRows.filter((row) => row.fxGainLossAmount < 0).reduce((sum, row) => sum + Math.abs(row.fxGainLossAmount), 0)
 

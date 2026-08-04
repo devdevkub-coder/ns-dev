@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-code'
+import { requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
@@ -54,7 +55,7 @@ async function refreshAdvancePaymentPaymentStatus(tx: Parameters<typeof prisma.$
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'purchase.bills.pay')
 
     const payload = cancelPaymentSchema.parse(await request.json())
     const actor = currentActor(context)
@@ -404,7 +405,7 @@ export async function POST(request: Request) {
           note: payload.reason,
           purchaseBillDocNo: currentBill.doc_no,
           purchaseBillId: billId,
-          toStatus: refreshedBill?.status ?? currentBill.status ?? 'unpaid',
+          toStatus: requirePurchaseBillStatus(refreshedBill?.status ?? currentBill.status, currentBill.doc_no),
         })
       }
     })

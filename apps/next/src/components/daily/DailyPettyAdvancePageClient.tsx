@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -10,6 +11,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ApiError } from '@/lib/api-client'
 import { dailyFetchJson, formatMoney, pettyAdvanceFormSchema, pettyAdvanceReturnFormSchema, todayDateInput, type DailyAccountOption, type PettyAdvanceFormValues } from '@/lib/daily'
@@ -121,11 +123,13 @@ export function DailyPettyAdvancePageClient() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<PettyAdvanceFormValues>(emptyForm)
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [detailRow, setDetailRow] = useState<PettyAdvanceRow | null>(null)
   const [returnForm, setReturnForm] = useState({ accountId: '', amount: '', date: todayDateInput(), notes: '' })
+  const [returnFormBaseline, setReturnFormBaseline] = useState<string | null>(null)
   const [returningRow, setReturningRow] = useState<PettyAdvanceRow | null>(null)
   const [recipientOptions, setRecipientOptions] = useState<PettyAdvanceRecipientOption[]>([])
   const [rows, setRows] = useState<PettyAdvanceRow[]>([])
@@ -144,6 +148,12 @@ export function DailyPettyAdvancePageClient() {
   }, [search, status, type])
   const formRef = useRef<HTMLFormElement>(null)
   const columnResize = useResizableColumns('daily.petty-advance.v5', pettyAdvanceColumns)
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const hasUnsavedForm = formOpen && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(hasUnsavedForm)
+  const returnFormSnapshot = useMemo(() => JSON.stringify(returnForm), [returnForm])
+  const hasUnsavedReturnForm = returningRow !== null && returnFormBaseline !== null && returnFormBaseline !== returnFormSnapshot
+  const { requestDiscard: requestReturnFormDiscard } = useUnsavedChangesGuard(hasUnsavedReturnForm)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -248,13 +258,15 @@ export function DailyPettyAdvancePageClient() {
   }
 
   function openCreateForm() {
-    setForm({ ...emptyForm, date: todayDateInput(), recipientId: '' })
+    const nextForm = { ...emptyForm, date: todayDateInput(), recipientId: '' }
+    setFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setFieldErrors({})
     setFormOpen(true)
   }
 
   function openEditForm(row: PettyAdvanceRow) {
-    setForm({
+    const nextForm = {
       accountId: '',
       amount: row.amount,
       branchId: row.branchId,
@@ -266,7 +278,9 @@ export function DailyPettyAdvancePageClient() {
       recipientName: row.recipientName,
       status: row.status,
       type: row.type,
-    })
+    }
+    setFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setFieldErrors({})
     setFormOpen(true)
   }
@@ -275,8 +289,52 @@ export function DailyPettyAdvancePageClient() {
     setDetailRow(null)
     setReturningRow(row)
     const defaultAccountId = row.accountId ?? activeAccounts[0]?.id ?? ''
-    setReturnForm({ accountId: defaultAccountId, amount: String(Math.max(0, row.remaining)), date: todayDateInput(), notes: '' })
+    const nextReturnForm = { accountId: defaultAccountId, amount: String(Math.max(0, row.remaining)), date: todayDateInput(), notes: '' }
+    setReturnFormBaseline(JSON.stringify(nextReturnForm))
+    setReturnForm(nextReturnForm)
   }
+
+  const closeForm = useCallback(() => {
+    setFormBaseline(null)
+    setFormOpen(false)
+  }, [])
+
+  const requestCloseForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(closeForm)
+  }, [closeForm, isSaving, requestDiscard])
+
+  const closeReturnForm = useCallback(() => {
+    setReturnFormBaseline(null)
+    setReturningRow(null)
+  }, [])
+
+  const requestCloseReturnForm = useCallback(() => {
+    if (isSaving) return
+    requestReturnFormDiscard(closeReturnForm)
+  }, [closeReturnForm, isSaving, requestReturnFormDiscard])
+
+  useEffect(() => {
+    if (!formOpen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      requestCloseForm()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [formOpen, requestCloseForm])
+
+  useEffect(() => {
+    if (!returningRow) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      requestCloseReturnForm()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [requestCloseReturnForm, returningRow])
 
   async function saveForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -296,7 +354,7 @@ export function DailyPettyAdvancePageClient() {
         body: JSON.stringify(parsed.data),
         method: 'POST',
       })
-      setFormOpen(false)
+      closeForm()
       await loadData()
     } catch (caught) {
       if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
@@ -333,7 +391,7 @@ export function DailyPettyAdvancePageClient() {
         body: JSON.stringify(parsed.data),
         method: 'POST',
       })
-      setReturningRow(null)
+      closeReturnForm()
       setReturnForm({ accountId: '', amount: '', date: todayDateInput(), notes: '' })
       await loadData()
     } catch (caught) {
@@ -391,11 +449,16 @@ export function DailyPettyAdvancePageClient() {
         {/* Desktop Filters */}
         <div className="mt-3 space-y-2 hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500 w-14 inline-block shrink-0">สาขา:</span>
-            <Select className="h-9 w-auto" value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}>
-              <option value="">ทุกสาขา</option>
-              {branches.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-            </Select>
+            <BranchSelectCombobox
+              branches={branches.filter((branch) => branch.active).map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+              className="w-[12rem]"
+              controlSize="filter"
+              inputId="petty-advance-branch-filter"
+              label=""
+              placeholder="ทุกสาขา"
+              value={branchFilter || null}
+              onChange={(value) => setBranchFilter(value ?? '')}
+            />
             <span className="text-xs text-slate-500 w-14 inline-block shrink-0">ประเภท:</span>
             <SegmentFilterButton active={!type} label="ทุกประเภท" onClick={() => setType('')} />
             <SegmentFilterButton active={type === 'DIRECTOR_LOAN'} label="กู้กรรมการ" onClick={() => setType(type === 'DIRECTOR_LOAN' ? '' : 'DIRECTOR_LOAN')} />
@@ -531,12 +594,12 @@ export function DailyPettyAdvancePageClient() {
       ) : null}
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseForm() }}>
           <form ref={formRef} noValidate className="w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไขรายการยืมเงิน' : 'บันทึกรายการยืมเงิน'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
+                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={requestCloseForm}>ยกเลิก</button>
                 <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</button>
               </div>
             </div>
@@ -573,7 +636,7 @@ export function DailyPettyAdvancePageClient() {
                   <SearchCombobox
                      error={fieldErrors.recipientId ?? fieldErrors.recipientName}
                      errorKey="recipientId"
-                     inputClassName="h-9 text-sm"
+                     inputClassName="h-10 text-sm"
                      inputId="petty-advance-recipient"
                      label="ผู้จ่าย *"
                      options={recipientOptions}
@@ -594,12 +657,12 @@ export function DailyPettyAdvancePageClient() {
       ) : null}
 
       {returningRow ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseReturnForm() }}>
           <form noValidate className="w-full max-w-md overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveReturn}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">คืนเงิน — {returningRow.docNo} / {returningRow.recipientName}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setReturningRow(null)}>ยกเลิก</button>
+                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={requestCloseReturnForm}>ยกเลิก</button>
                 <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? 'กำลังส่งอนุมัติ...' : 'ส่งอนุมัติคืนเงิน'}</button>
               </div>
             </div>
@@ -675,14 +738,14 @@ export function DailyPettyAdvancePageClient() {
             onClick={() => setDetailRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+              <span className="whitespace-nowrap font-bold text-slate-800 text-sm">{row.docNo}</span>
               <StatusBadge status={row.status} />
             </div>
             <div className="flex justify-between items-center text-xs text-slate-500 mb-3">
               <span className={row.type === 'DIRECTOR_LOAN' ? 'text-purple-700 font-semibold' : 'text-amber-700 font-semibold'}>
                 {typeLabel(row.type)}
               </span>
-              <span>วันที่จ่าย: {formatDateDisplay(row.date)}</span>
+              <span className="whitespace-nowrap">วันที่จ่าย: {formatDateDisplay(row.date)}</span>
             </div>
             <div className="text-sm font-semibold text-slate-700 mb-3">
               {row.recipientName}
@@ -737,8 +800,8 @@ export function DailyPettyAdvancePageClient() {
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่จ่าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} />
+              <ResizableTableHead align="center" label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead align="center" label="วันที่จ่าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} />
               <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
               <ResizableTableHead label="ผู้รับเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="recipientName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('recipientName', 'ผู้รับเงิน')} />
               <ResizableTableHead align="right" label="ยอดยืม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดยืม')} />
@@ -746,15 +809,15 @@ export function DailyPettyAdvancePageClient() {
               <ResizableTableHead align="right" label="คืนแล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="returned" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('returned', 'คืนแล้ว')} />
               <ResizableTableHead align="right" label="คงค้าง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="remaining" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('remaining', 'คงค้าง')} />
               <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs font-semibold">
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setDetailRow(row)}>
-                <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                <td className="p-2">{formatDateDisplay(row.date)}</td>
+                <td className="whitespace-nowrap p-2 text-center font-mono text-xs">{row.docNo}</td>
+                <td className="whitespace-nowrap p-2 text-center">{formatDateDisplay(row.date)}</td>
                 <td className="p-2"><span className={row.type === 'DIRECTOR_LOAN' ? 'text-purple-700' : 'text-amber-700'}>{typeLabel(row.type)}</span></td>
                 <td className="p-2 font-medium">{row.recipientName}</td>
                 <td className="p-2 pr-4 text-right tabular-nums">{formatMoney(row.amount)}</td>
@@ -762,7 +825,7 @@ export function DailyPettyAdvancePageClient() {
                 <td className="p-2 pr-4 text-right text-emerald-700 tabular-nums">{formatMoney(row.returned)}</td>
                 <td className={`p-2 pr-4 text-right font-bold tabular-nums ${row.remaining > 1 ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(row.remaining)}</td>
                 <td className="p-2 text-center"><StatusBadge status={row.status} /></td>
-                <td className="whitespace-nowrap p-2 text-right">
+                <td className="whitespace-nowrap p-2 text-center">
                   <TableActionButton
                     menu={(
                       <>
@@ -847,7 +910,7 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
                 <table className="ns-table w-full text-xs">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
-                      <th className="p-2 text-left">วันที่</th>
+                      <th className="p-2 text-center">วันที่</th>
                       <th className="p-2 text-right">จำนวน</th>
                       <th className="p-2 text-left">บัญชีรับ</th>
                       <th className="p-2 text-left">หมายเหตุ</th>
@@ -856,7 +919,7 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
                   <tbody>
                     {returns.map((entry) => (
                       <tr key={entry.id} className="border-t border-slate-100">
-                        <td className="p-2 font-mono">{entry.date}</td>
+                        <td className="whitespace-nowrap p-2 text-center font-mono">{entry.date}</td>
                         <td className="p-2 text-right font-bold text-emerald-700 tabular-nums">{formatMoney(entry.amount)}</td>
                         <td className="p-2 text-slate-700">{entry.accountName}</td>
                         <td className="p-2 text-slate-600">{entry.notes || '-'}</td>
@@ -920,8 +983,8 @@ function TextField(props: { error?: string; fieldName?: string; label: string; o
     <label className="block" data-field={props.fieldName}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{props.required ? <span className="ml-1 text-red-600">*</span> : null}</span>
       {props.type === 'date'
-        ? <DatePickerInput ariaInvalid={Boolean(props.error)} className={`h-9 w-full ${props.error ? 'border-red-400 bg-red-50' : ''}`} readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
-        : <input aria-invalid={Boolean(props.error)} className={`h-9 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-900'}`} readOnly={props.readOnly} required={props.required} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
+        ? <DatePickerInput ariaInvalid={Boolean(props.error)} className={`h-10 w-full ${props.error ? 'border-red-400 bg-red-50' : ''}`} readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
+        : <input aria-invalid={Boolean(props.error)} className={`h-10 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-900'}`} readOnly={props.readOnly} required={props.required} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )
@@ -935,7 +998,7 @@ function MoneyField(props: { error?: string; fieldName?: string; label: string; 
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{props.required ? <span className="ml-1 text-red-600">*</span> : null}</span>
       <input
         aria-invalid={Boolean(props.error)}
-        className={`h-9 w-full rounded-md border bg-white px-3 text-right text-sm tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'}`}
+        className={`h-10 w-full rounded-md border bg-white px-3 text-right text-sm tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'}`}
         inputMode="decimal"
         placeholder="0.00"
         required={props.required}

@@ -2,7 +2,7 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
 import { XLSX } from '@/lib/server/xlsx'
 import { requireBusinessCode } from '@/lib/business-code'
-import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
+import { PURCHASE_BILL_ACTIVE_STATUSES, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
@@ -73,7 +73,7 @@ function billWhere(query: ApQuery, branchId: bigint | null, allowedBranchCodes: 
         ? { branches: { is: { code: { in: allowedBranchCodes } } } }
         : {}),
     ...(supplierId !== null ? { supplier_id: supplierId } : {}),
-    ...(query.status ? { status: query.status } : { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } }),
+    ...(query.status ? { status: query.status } : { status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] } }),
     ...(query.from || query.to
       ? {
           date: {
@@ -174,7 +174,7 @@ export async function GET(request: Request) {
           payableBalance,
           purchaseBillId: bill.id.toString(),
           sourceOfTruth: 'purchase_bills',
-          status: bill.status ?? 'open',
+          status: requirePurchaseBillStatus(bill.status, bill.doc_no),
           supplierCode: bill.suppliers?.code ?? '',
           supplierId: bill.suppliers?.code ?? '',
           supplierName: bill.suppliers?.name ?? '-',
@@ -365,7 +365,7 @@ export async function GET(request: Request) {
         },
       }
     })
-    const statuses = Array.from(new Set(bills.map((bill) => bill.status ?? 'open'))).sort()
+    const statuses = Array.from(new Set(bills.map((bill) => requirePurchaseBillStatus(bill.status, bill.doc_no)))).sort()
 
     return NextResponse.json({
       byBucket,

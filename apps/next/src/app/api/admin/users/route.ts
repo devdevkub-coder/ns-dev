@@ -95,7 +95,7 @@ async function assertUserRefs(
   const [roles, branches, department] = await Promise.all([
     prisma.app_roles.findMany({
       select: { id: true },
-      where: { id: { in: parsedRoleIds }, active: true, is_employee_role: true },
+      where: { id: { in: parsedRoleIds }, active: true },
     }),
     findActiveBranchReferencesByCodes(branchIds),
     prisma.departments.findFirst({
@@ -282,7 +282,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'อีเมลนี้มีอยู่แล้ว' }, { status: 409 })
     }
 
-    const actor = context.appUser?.email ?? context.authUser.email ?? 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.app_users.create({
         data: {

@@ -40,10 +40,8 @@ async function verifyLineSignature(rawBody: string, signature: string | null) {
   if (!matched) {
     console.error('[line-webhook] verify failed: signature mismatch', {
       secretLength: secret.length,
-      secretPrefix: secret.slice(0, 4),
       rawBodyLength: rawBody.length,
-      signature,
-      digest,
+      signatureLength: signature.length,
     })
   } else {
     console.info('[line-webhook] verify success!')

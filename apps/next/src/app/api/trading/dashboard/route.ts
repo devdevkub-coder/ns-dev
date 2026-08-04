@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode } from '@/lib/business-code'
+import { isActivePoSellStatus } from '@/lib/po-sell-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
@@ -34,7 +35,7 @@ function activeBillStatus(status?: string | null) {
   return !['cancelled', 'canceled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
-function activeCommitmentStatus(status?: string | null) {
+function activePoBuyCommitmentStatus(status?: string | null) {
   return !['cancelled', 'canceled', 'closed', 'completed', 'fully matched', 'received', 'short closed', 'void', 'voided', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
@@ -515,8 +516,8 @@ export async function GET(request: Request) {
       readinessByProduct.set(resolved.id, current)
     }
 
-    const activePoBuys = poBuys.filter((po) => activeCommitmentStatus(po.status))
-    const activePoSells = poSells.filter((po) => activeCommitmentStatus(po.status))
+    const activePoBuys = poBuys.filter((po) => activePoBuyCommitmentStatus(po.status))
+    const activePoSells = poSells.filter((po) => isActivePoSellStatus(po.status, po.doc_no))
     const pendingBuyAging = emptyAgingBuckets()
     const pendingSellAging = emptyAgingBuckets()
 

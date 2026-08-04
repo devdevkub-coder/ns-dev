@@ -61,8 +61,8 @@ const productionOrderInclude = {
   branches: true,
   products: true,
   production_lines: true,
-  production_inputs: { include: { products: true, production_input_returns: { where: { status: 'active' } } }, orderBy: [{ date: 'asc' }, { id: 'asc' }] },
-  production_outputs: { include: { products: true }, orderBy: [{ date: 'asc' }, { id: 'asc' }], where: { status: 'active' } },
+  production_inputs: { include: { products: true, production_input_returns: { where: { status: 'active' } } }, orderBy: [{ date: 'asc' }, { id: 'asc' }], where: { event_key: { not: null } } },
+  production_outputs: { include: { products: true }, orderBy: [{ date: 'asc' }, { id: 'asc' }], where: { event_key: { not: null }, status: 'active' } },
   production_order_status_logs: { orderBy: [{ created_at: 'desc' }, { id: 'desc' }] },
   production_machines: true,
   warehouses: true,
@@ -350,6 +350,7 @@ function mapProductionOrderRows(rows: ProductionOrderRecord[], warehouseById: Ma
         createdAt: input.created_at?.toISOString() ?? null,
         date: toDateOnly(input.date),
         docNo: input.doc_no,
+        eventKey: input.event_key,
         id: input.id.toString(),
         lotNo: input.lot_no ?? '',
         productCode: input.products?.code ? requireBusinessCode(input.products.code, `สินค้า ${input.product_id}`) : '',
@@ -444,6 +445,8 @@ function mapProductionOrderRows(rows: ProductionOrderRecord[], warehouseById: Ma
         createdAt: output.created_at?.toISOString() ?? null,
         date: toDateOnly(output.date),
         docNo: output.doc_no,
+        eventKey: output.event_key,
+        outputRound: output.output_round,
         lotNo: output.lot_no ?? '',
         outputType: output.output_type ?? '',
         productCode: output.products?.code ? requireBusinessCode(output.products.code, `สินค้า ${output.product_id}`) : '',
@@ -528,6 +531,7 @@ function xlsxResponse(body: Buffer, filename: string) {
     headers: {
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Cache-Control': 'private, no-store',
     },
   })
 }
@@ -729,7 +733,7 @@ export async function GET(request: Request) {
         wipQty: summary.wipQty,
       },
       summaryScope: 'page',
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     console.error('[production/orders] GET failed', {
       code: caught instanceof Error && 'code' in caught ? caught.code : undefined,
