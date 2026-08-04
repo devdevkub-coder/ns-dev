@@ -592,7 +592,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'เลือกรายการ Cost Pool ซ้ำ กรุณาเปิด Preview ใหม่' }, { status: 400 })
     }
 
-    const actor = context.appUser?.email || context.authUser.email || 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     const branch = await getDualCostingBranch()
     const allowedBranchIds = await getAllowedBranchIds(context)
     if (!canAccessBranchId(allowedBranchIds, branch.id, { allowNull: false })) {

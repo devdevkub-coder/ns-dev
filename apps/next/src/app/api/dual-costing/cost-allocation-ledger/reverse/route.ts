@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการ Allocation Ledger ของสาขานี้' }, { status: 403 })
     }
 
-    const actor = context.appUser?.email || context.authUser.email || 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     const updatedAt = new Date()
     const result = await prisma.$transaction(async (tx) => {
       // ponytail: one L5 allocation lock is intentionally global until measured contention justifies scoped locks.
