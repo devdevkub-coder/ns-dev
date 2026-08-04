@@ -134,7 +134,7 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
   const customerOptions = useMemo(() => {
     const list = (data?.filters.customers ?? []).filter((customer) => !branchId || (customer.branchIds ?? []).includes(branchId))
     return [
-      { id: '', label: 'ทุกลูกค้า' },
+      { id: '', label: 'ลูกค้า' },
       ...list.map((c) => ({
         id: c.id,
         label: c.code ? `${c.code} - ${c.name}` : c.name,
@@ -374,17 +374,17 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden space-y-2 lg:block">
-          <div className="flex flex-wrap items-center gap-2">
-            <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลขบิล / ลูกค้า / ช่องทาง / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
-            
-            <div className="w-[15rem] shrink-0">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(220px,260px)_minmax(180px,220px)_minmax(180px,220px)_minmax(180px,220px)] items-center gap-2">
+            <input autoComplete="off" className="h-9 min-w-0 rounded-md border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลขบิล / ลูกค้า / ช่องทาง / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
+
+            <div className="min-w-0">
               <SearchCombobox
                 hideLabel
                 inputClassName="h-9 text-sm rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
                 inputId="ar-customer-filter"
                 label="ลูกค้า"
                 options={customerOptions}
-                placeholder="ทุกลูกค้า"
+                placeholder="ลูกค้า"
                 value={customerId}
                 onChange={(value) => {
                   setPage(1)
@@ -392,24 +392,22 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
                 }}
               />
             </div>
-            
-            <Select className="h-9 w-[9.5rem] shrink-0 px-3 py-2 text-sm" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
-              <option value="">ทุกช่องทาง</option>
+            <Select className="h-9 w-full px-3 py-2 text-sm" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
+              <option value="">ช่องทาง</option>
               {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
             </Select>
-            
-            <Select className="h-9 w-[9.5rem] shrink-0 px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
-              <option value="">ทุกอายุหนี้</option>
+
+            <Select className="h-9 w-full px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
+              <option value="">อายุหนี้</option>
               <option value="Current">ยังไม่ครบกำหนด</option>
               <option value="1-30">1-30</option>
               <option value="31-60">31-60</option>
               <option value="61-90">61-90</option>
               <option value=">90">&gt;90</option>
             </Select>
-
-            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-[11rem] shrink-0" controlSize="filter" inputId="accounts-receivable-branch-filter" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
+            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-full" controlSize="filter" inputId="accounts-receivable-branch-filter" label="" placeholder="สาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
           </div>
-          
+
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">สถานะ:</span>
@@ -486,7 +484,7 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
                 inputId="ar-customer-filter-mobile"
                 label="ลูกค้า"
                 options={customerOptions}
-                placeholder="ทุกลูกค้า"
+                placeholder="ลูกค้า"
                 value={customerId}
                 onChange={(value) => {
                   setPage(1)
@@ -494,18 +492,18 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
                 }}
               />
               <Select className="h-9 w-full px-3 py-2 text-sm" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
-                <option value="">ทุกช่องทาง</option>
+                <option value="">ช่องทาง</option>
                 {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
               </Select>
               <Select className="h-9 w-full px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
-                <option value="">ทุกอายุหนี้</option>
+                <option value="">อายุหนี้</option>
                 <option value="Current">ยังไม่ครบกำหนด</option>
                 <option value="1-30">1-30</option>
                 <option value="31-60">31-60</option>
                 <option value="61-90">61-90</option>
                 <option value=">90">&gt;90</option>
               </Select>
-              <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-full" controlSize="filter" inputId="accounts-receivable-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
+              <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-full" controlSize="filter" inputId="accounts-receivable-branch-filter-mobile" label="" placeholder="สาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
               <div className="space-y-1">
                 <span className="block text-xs font-semibold text-slate-600">สถานะ</span>
                 <div aria-label="กรองสถานะลูกหนี้" className="flex flex-wrap gap-2" role="group">
