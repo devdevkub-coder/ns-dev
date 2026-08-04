@@ -7,12 +7,14 @@
 - ถอน `stock.ledger.view` จากทั้งสอง role; `GET /api/production/orders/product-stock` ใช้ `production.orders.view` ที่ central proxy และยังคง route guard แบบ OR เพื่อรองรับ warehouse.
 - บังคับ production role ให้มี dashboard landing grant และตรวจ action ยกเลิกผลผลิตด้วย `production.orders.reverse`.
 - ไม่เขียนทับ direct user overrides; SIT preflight พบ forbidden override ของสอง role เป็นศูนย์. ไม่ใช้ Super Admin และไม่แตะ Production.
+- Local focused permission/API tests ผ่าน `15/15`; lint, type-check, webpack production build และ `git diff --check` ผ่าน. Migration postflight ผ่าน `forbidden_role_grants=0`, `forbidden_user_overrides=0`, history `20260804140000` ครบ.
+- Code push ไป `sit-origin/main` ที่ `991d1349` และ Vercel SIT deployment `dpl_DiLtdiCAUvnmyr42gM4gMZnf3yun` ขึ้น READY แล้ว. Browser run ถูก discard เพราะ session ที่ได้เป็น `system_admin`/`isAdmin=true`; local env ไม่มี credential non-admin ที่ยืนยันได้แยกสำหรับสอง role.
 
 Expected write areas: navigation/API tests, production output reverse guard, role-scope migration, and the related WTI/production flow notes.
 
 Required validation: focused positive/negative UI permission contracts, API guard tests, workspace lint/type-check/build, `git diff --check`, SIT migration postflight, and SIT browser smoke with non-admin department accounts.
 
-Immediate next task: apply/record the role-scope migration on SIT only, run postflight and browser smoke, then commit and push to `sit-origin/main`.
+Immediate next task: ขอ/เปิด session SIT ของ `sorting_department` และ `production_department` ที่ไม่ใช่ Super Admin แล้ว rerun browser UI/API matrix; ห้ามสร้างหรือบันทึก password ใน repo.
 
 # Coordinator Page/API Permission Alignment — 2026-08-04
 
