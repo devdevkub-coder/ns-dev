@@ -9,6 +9,20 @@ import { listActiveBranches, listActiveBranchesByCodes, listActiveProductReferen
 
 type DbClient = Prisma.TransactionClient | typeof prisma
 
+export function productionStockLedgerWhere(input: { branchId: bigint; productId: bigint; warehouseIds: bigint[] }): Prisma.stock_ledgerWhereInput {
+  return {
+    branch_id: input.branchId,
+    OR: [{ not_available_for_sale: false }, { not_available_for_sale: null }],
+    product_id: input.productId,
+    warehouse_id: { in: input.warehouseIds },
+    output_category: { in: ['RM', 'FG'] },
+  }
+}
+
+export function productionStockStatus(outputCategory: string | null) {
+  return outputCategory?.trim().toUpperCase() || ''
+}
+
 export class ProductionOrderError extends Error {
   status: number
 
@@ -509,6 +523,13 @@ async function stockSnapshot(tx: DbClient, input: {
   return { qty, unitCost: qty > 0 ? value / qty : 0, value }
 }
 
+export function productionStockReceiptCost(input: { outputQty: number; productionCost: number }) {
+  return {
+    totalCost: input.productionCost,
+    unitCost: input.outputQty > 0 ? input.productionCost / input.outputQty : 0,
+  }
+}
+
 async function lockProductionOrder(tx: Prisma.TransactionClient, orderId: bigint) {
   await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`production.order.${orderId.toString()}`}))`
 }
@@ -612,6 +633,7 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
           date: normalizeDate(postingDate),
           lot_no: line.lotNo ?? null,
           movement_type: 'PRODUCTION_INPUT_OUT',
+          not_available_for_sale: false,
           output_category: line.stockStatus,
           product_id: product.id,
           qty_out: line.netQty,
@@ -629,6 +651,7 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
           date: normalizeDate(postingDate),
           lot_no: line.lotNo ?? null,
           movement_type: 'WIP_IN',
+          not_available_for_sale: false,
           output_category: 'WIP',
           // WIP is a stock bucket for the exact input line that was issued.
           // The production order target is not a substitute for the source product.
@@ -772,6 +795,7 @@ async function returnProductionInputInTransaction(tx: Prisma.TransactionClient, 
           date: normalizeDate(toBangkokDateOnly(new Date())),
           lot_no: input.lot_no,
           movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
+          not_available_for_sale: false,
           notes: values.reason,
           output_category: 'WIP',
           product_id: input.product_id,
@@ -789,6 +813,7 @@ async function returnProductionInputInTransaction(tx: Prisma.TransactionClient, 
           date: normalizeDate(toBangkokDateOnly(new Date())),
           lot_no: input.lot_no,
           movement_type: 'PRODUCTION_INPUT_RETURN_STOCK_IN',
+          not_available_for_sale: false,
           notes: values.reason,
           output_category: stockCategory,
           product_id: input.product_id,
@@ -927,14 +952,9 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
         status: line.categoryCode,
         warehouseId: destinationWarehouse.id,
       })
-      const destinationStock = await stockSnapshot(tx, {
-        branchId: order.branch_id,
-        productId: product.id,
-        status: line.categoryCode,
-        warehouseId: destinationWarehouse.id,
-      })
-      const stockReceiptUnitCost = destinationStock.unitCost
-      const stockReceiptTotalCost = line.netQty * stockReceiptUnitCost
+      const stockReceiptCost = productionStockReceiptCost({ outputQty: line.netQty, productionCost: lineCost })
+      const stockReceiptUnitCost = stockReceiptCost.unitCost
+      const stockReceiptTotalCost = stockReceiptCost.totalCost
       outputQty += line.netQty
       outputValue += lineCost
       stockReceiptValue += stockReceiptTotalCost
@@ -1005,6 +1025,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
             date: normalizeDate(values.date),
             lot_no: line.lotNo ?? null,
             movement_type: 'PRODUCTION_OUTPUT_WIP_OUT',
+            not_available_for_sale: false,
             notes: values.notes ?? null,
             output_category: 'WIP',
             product_id: BigInt(allocation.productId),
@@ -1024,6 +1045,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
           date: normalizeDate(values.date),
           lot_no: line.lotNo ?? null,
           movement_type: line.categoryCode === 'FG' ? 'PRODUCTION_OUTPUT_IN' : 'PRODUCTION_OUTPUT_RM_IN',
+          not_available_for_sale: false,
           notes: values.notes ?? null,
           output_category: line.categoryCode,
           product_id: product.id,
@@ -1070,6 +1092,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
           created_by: actor,
           date: normalizeDate(values.date),
           movement_type: 'PRODUCTION_LOSS',
+          not_available_for_sale: false,
           notes: values.notes ?? null,
           output_category: 'LOSS',
           product_id: BigInt(allocation.productId),
@@ -1226,6 +1249,7 @@ async function voidProductionOutputInTransaction(tx: Prisma.TransactionClient, o
           date: normalizeDate(values.date),
           lot_no: output.lot_no,
           movement_type: 'PRODUCTION_OUTPUT_REVERSE_STOCK_OUT',
+          not_available_for_sale: false,
           notes: values.reason,
           output_category: stockStatus,
           product_id: output.product_id,
@@ -1263,6 +1287,7 @@ async function voidProductionOutputInTransaction(tx: Prisma.TransactionClient, o
         date: normalizeDate(values.date),
         lot_no: output.lot_no,
         movement_type: 'PRODUCTION_OUTPUT_REVERSE_WIP_IN',
+        not_available_for_sale: false,
         notes: values.reason,
         output_category: 'WIP',
         product_id: allocation.productId,
@@ -1379,6 +1404,7 @@ export async function completeProductionOrder(orderDocNo: string, note: string |
             date: postingDate,
             lot_no: input.lot_no,
             movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
+            not_available_for_sale: false,
             notes: note?.trim() || 'คืน WIP คงเหลือก่อนปิดงาน',
             output_category: 'WIP',
             product_id: input.product_id,
@@ -1397,6 +1423,7 @@ export async function completeProductionOrder(orderDocNo: string, note: string |
             date: postingDate,
             lot_no: input.lot_no,
             movement_type: 'PRODUCTION_INPUT_RETURN_STOCK_IN',
+            not_available_for_sale: false,
             notes: note?.trim() || 'คืน WIP คงเหลือก่อนปิดงาน',
             output_category: input.stock_category,
             product_id: input.product_id,
@@ -1566,21 +1593,15 @@ export async function productionProductStock(input: { branchCode: string; produc
 
   const snapshots = await prisma.stock_ledger.groupBy({
     by: ['warehouse_id', 'output_category'],
-    where: {
-      branch_id: branch.id,
-      lot_no: null,
-      OR: [{ not_available_for_sale: false }, { not_available_for_sale: null }],
-      output_category: { in: ['RM', 'FG'] },
-      product_id: product.id,
-      warehouse_id: { in: warehouses.map((warehouse) => warehouse.id) },
-    },
+    where: productionStockLedgerWhere({ branchId: branch.id, productId: product.id, warehouseIds: warehouses.map((warehouse) => warehouse.id) }),
     _sum: { qty_in: true, qty_out: true, value_in: true, value_out: true },
   })
   const warehouseById = new Map(warehouses.map((warehouse) => [warehouse.id.toString(), warehouse]))
   for (const snapshot of snapshots) {
     const warehouse = snapshot.warehouse_id == null ? null : warehouseById.get(snapshot.warehouse_id.toString())
-    const status = snapshot.output_category
-    if (!warehouse || (status !== 'RM' && status !== 'FG')) continue
+    if (!warehouse) continue
+    const status = productionStockStatus(snapshot.output_category)
+    if (status !== 'RM' && status !== 'FG') continue
     const qty = toNumber(snapshot._sum.qty_in) - toNumber(snapshot._sum.qty_out)
     const value = toNumber(snapshot._sum.value_in) - toNumber(snapshot._sum.value_out)
     if (Math.abs(qty) <= 0.000001) continue

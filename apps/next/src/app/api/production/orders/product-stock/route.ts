@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requireAnyPermission } from '@/lib/server/auth-context'
 import { productionProductStock, ProductionOrderError } from '@/lib/server/production-orders'
 
 export const runtime = 'nodejs'
@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'production.orders.view')
+    requireAnyPermission(context, ['production.orders.view', 'stock.ledger.view'])
     const url = new URL(request.url)
     const branchCode = url.searchParams.get('branchCode') ?? ''
     const productCode = url.searchParams.get('productCode') ?? ''

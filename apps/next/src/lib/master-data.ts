@@ -367,6 +367,20 @@ export async function listMasterDataRecords(apiPath: string): Promise<MasterData
   return readJson(response, masterDataRecordListSchema)
 }
 
+const supplierOptionsSchema = z.object({
+  bankNames: masterDataRecordListSchema,
+  branches: masterDataRecordListSchema,
+  paymentMethods: masterDataRecordListSchema,
+  salespersons: masterDataRecordListSchema,
+})
+
+export type SupplierOptions = z.infer<typeof supplierOptionsSchema>
+
+export async function loadSupplierOptions(apiPath: string): Promise<SupplierOptions> {
+  const response = await fetch(apiPath, { cache: 'no-store' })
+  return readJson(response, supplierOptionsSchema)
+}
+
 export async function saveMasterDataRecord(apiPath: string, values: MasterDataFormValues): Promise<MasterDataRecord> {
   const response = await fetch(apiPath, {
     method: 'POST',

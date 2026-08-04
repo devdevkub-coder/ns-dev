@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { permissionCodesForPath, permissionForPath } from './navigation'
 import { REPORT_PAGE_PERMISSIONS } from './report-permissions'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from './finance-debt-permissions'
+import { SUPPLIER_PAGE_PERMISSIONS } from './supplier-page-permissions'
+import { MASTER_DATA_PAGE_PERMISSIONS } from './master-data-page-permissions'
 
 describe('Dashboard & Reports page permissions', () => {
   it('maps each main page to its own view permission', () => {
@@ -70,5 +72,22 @@ describe('Transaction Ledger page permissions', () => {
   it('uses an independent permission for the page and API', () => {
     expect(permissionCodesForPath('/admin/transaction-ledger')).toEqual([FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger])
     expect(permissionCodesForPath('/api/admin/transaction-ledger')).toEqual([FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger])
+  })
+})
+
+describe('Supplier page permissions', () => {
+  it('uses the supplier page permission for its options API', () => {
+    expect(permissionForPath('/master-data/suppliers')).toBe(SUPPLIER_PAGE_PERMISSIONS.view)
+    expect(permissionForPath('/api/master-data/suppliers/options')).toBe(SUPPLIER_PAGE_PERMISSIONS.view)
+    expect(permissionForPath('/api/master-data/customers/options')).toBe(MASTER_DATA_PAGE_PERMISSIONS.customers.view)
+    expect(permissionForPath('/api/master-data/products/options')).toBe(MASTER_DATA_PAGE_PERMISSIONS.products.view)
+    expect(permissionForPath('/api/master-data/impurities')).toBe(MASTER_DATA_PAGE_PERMISSIONS.impurities.view)
+    expect(permissionForPath('/api/master-data/impurities/IMP-001')).toBe(MASTER_DATA_PAGE_PERMISSIONS.impurities.status)
+    expect(permissionForPath('/api/master-data/salespersons')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.view)
+    expect(permissionForPath('/api/master-data/salespersons/SA001')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.update)
+    expect(permissionForPath('/api/master-data/salespersons/SA001/status')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.status)
+    expect(permissionForPath('/api/daily/bill-swap-history')).toBe('purchase.bills.view')
+    expect(permissionForPath('/api/purchase/payments/cancel')).toBe('purchase.bills.pay')
+    expect(permissionForPath('/api/purchase/payments/cancel-approved')).toBe('purchase.bills.pay')
   })
 })

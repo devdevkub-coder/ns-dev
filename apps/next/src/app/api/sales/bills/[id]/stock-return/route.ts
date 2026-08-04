@@ -29,7 +29,7 @@ function scopedSalesBillWhere(allowedBranchIds: bigint[] | null) {
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'finance.cash.view')
+    requirePermission(auth, 'sales.bills.update')
 
     const { id } = await context.params
     const billRef = decodeURIComponent(id)

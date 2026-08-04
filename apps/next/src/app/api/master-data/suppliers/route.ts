@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
+import { SUPPLIER_PAGE_PERMISSIONS } from '@/lib/supplier-page-permissions'
 import { supplierFormSchema, throwSupplierBankAccountValidationError, type SupplierPaymentMethodRecord } from '@/lib/supplier'
 import { mapPrismaSupplier, supplierBankAccountRows, toSupplierWriteInput } from '@/lib/domain/supplier'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -224,7 +225,7 @@ async function syncSupplierBranches(
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.suppliers.view')
+    requirePermission(context, SUPPLIER_PAGE_PERMISSIONS.view)
 
     const { active, all, direction, marketScope, page, pageSize, q, salesId, sort, sortColumn, supplierType } = parseListParams(request)
     const resolvedSalesperson = salesId ? await findActiveSalespersonReferenceByCodeOrId(salesId) : null
@@ -286,7 +287,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.suppliers.create')
+    requirePermission(context, SUPPLIER_PAGE_PERMISSIONS.create)
 
     const body = await request.json()
     const values = supplierFormSchema.parse(body)

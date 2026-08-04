@@ -3,6 +3,7 @@ import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso } from '@/lib/server/master-data'
 import { invalidateSalespersonReferenceCache } from '@/lib/server/reference-master-cache'
+import { MASTER_DATA_PAGE_PERMISSIONS } from '@/lib/master-data-page-permissions'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -72,7 +73,7 @@ async function getNextCode() {
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.reference.view')
+    requirePermission(context, MASTER_DATA_PAGE_PERMISSIONS.salespersons.view)
 
     const rows = await prisma.salespersons.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }] })
     return masterDataListJson(rows.map(mapSalesperson))
@@ -85,9 +86,13 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.reference.manage')
-
     const values = parseMasterDataForm(await request.json())
+    requirePermission(
+      context,
+      values.id
+        ? MASTER_DATA_PAGE_PERMISSIONS.salespersons.update
+        : MASTER_DATA_PAGE_PERMISSIONS.salespersons.create,
+    )
     const existing = values.id
       ? await prisma.salespersons.findFirst({
         select: { id: true },

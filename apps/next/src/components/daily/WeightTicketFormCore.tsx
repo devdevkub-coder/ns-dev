@@ -100,6 +100,8 @@ type WtoStockOptionsState = Record<string, {
 }>
 
 const ADDED_IMPURITY_NOTE = 'หักสิ่งเจือปนเพิ่มเติม'
+const MAX_WEIGHT_TICKET_UPLOAD_BYTES = 4 * 1024 * 1024
+const MAX_WEIGHT_TICKET_IMAGE_DIMENSION = 2400
 
 export type WeightTicketDeletionLine = Pick<
   WeightTicketLine,
@@ -468,8 +470,9 @@ function createAttachmentPreview(fileName: string): AttachmentPreview {
 }
 
 async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPreview> {
+  const uploadFile = await prepareWeightTicketImageFile(file)
   const body = new FormData()
-  body.set('file', file)
+  body.set('file', uploadFile)
   const response = await fetch('/api/daily/weight-tickets/attachments', { body, method: 'POST' })
   const payload = await response.json().catch(() => ({})) as {
     error?: string
@@ -478,13 +481,51 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
     url?: string
   }
   if (!response.ok || !payload.fileName || !payload.storageKey || !payload.url) {
-    throw new Error(payload.error || `อัปโหลดไฟล์ ${file.name} ไม่สำเร็จ`)
+    const statusHint = response.status === 413
+      ? 'ไฟล์มีขนาดใหญ่เกินกว่าที่ระบบรับได้'
+      : `เซิร์ฟเวอร์ตอบกลับ ${response.status || 'ไม่ทราบสถานะ'}`
+    throw new Error(payload.error || `อัปโหลดไฟล์ ${file.name} ไม่สำเร็จ (${statusHint})`)
   }
   return {
     fileName: payload.fileName,
     id: makeFileId(),
     rawValue: encodeStoredImageReference(payload.fileName, payload.url, payload.storageKey),
     url: payload.url,
+  }
+}
+
+async function prepareWeightTicketImageFile(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error(`ไฟล์ ${file.name} ไม่ใช่รูปภาพที่รองรับ (JPG, PNG หรือ WebP)`)
+  }
+  if (file.size <= MAX_WEIGHT_TICKET_UPLOAD_BYTES && file.type !== 'image/png') return file
+
+  let bitmap: ImageBitmap
+  try {
+    bitmap = await createImageBitmap(file)
+  } catch {
+    throw new Error(`ไม่สามารถอ่านรูป ${file.name} ได้ กรุณาเลือกรูป JPG, PNG หรือ WebP ใหม่`)
+  }
+
+  try {
+    const scale = Math.min(1, MAX_WEIGHT_TICKET_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height))
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error(`ไม่สามารถเตรียมรูป ${file.name} สำหรับอัปโหลดได้`)
+    context.drawImage(bitmap, 0, 0, width, height)
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
+    if (!blob) throw new Error(`ไม่สามารถบีบอัดรูป ${file.name} สำหรับอัปโหลดได้`)
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, {
+      lastModified: file.lastModified,
+      type: 'image/jpeg',
+    })
+  } finally {
+    bitmap.close()
   }
 }
 
@@ -745,6 +786,7 @@ export function WeightTicketFormCore({
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingTicket, setIsLoadingTicket] = useState(Boolean(editingTicketId))
   const [loadError, setLoadError] = useState('')
+  const [attachmentError, setAttachmentError] = useState('')
   const [mergeNotice, setMergeNotice] = useState('')
   const [previewImage, setPreviewImage] = useState<AttachmentPreview | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
@@ -1624,22 +1666,38 @@ export function WeightTicketFormCore({
 
   async function appendLineImages(lineId: string, files: FileList | null) {
     if (!files?.length) return
-    try {
-      const nextFiles = await Promise.all(Array.from(files).map(createAttachmentPreviewFromFile))
+    setAttachmentError('')
+    const results = await Promise.allSettled(Array.from(files).map(createAttachmentPreviewFromFile))
+    const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+    const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปสินค้าไม่สำเร็จ')] : [])
+    if (nextFiles.length > 0) {
       updateLine(lineId, (line) => ({ ...line, imageFiles: [...getLineImages(line), ...nextFiles] }))
       markTouched(`line-${lineId}-images`)
-    } catch (caught) {
-      setLoadError(getErrorMessage(caught, 'อัปโหลดรูปสินค้าไม่สำเร็จ'))
+    }
+    if (failures.length > 0) {
+      setAttachmentError(
+        nextFiles.length > 0
+          ? `อัปโหลดรูปสินค้าได้ ${nextFiles.length} รูป แต่ไม่สำเร็จ ${failures.length} รูป: ${failures[0]}`
+          : failures[0],
+      )
     }
   }
 
   async function appendVehicleImages(files: FileList | null) {
     if (!files?.length) return
-    try {
-      const nextFiles = await Promise.all(Array.from(files).map(createAttachmentPreviewFromFile))
+    setAttachmentError('')
+    const results = await Promise.allSettled(Array.from(files).map(createAttachmentPreviewFromFile))
+    const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+    const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปรถไม่สำเร็จ')] : [])
+    if (nextFiles.length > 0) {
       setForm((current) => ({ ...current, vehicleImageFiles: [...current.vehicleImageFiles, ...nextFiles] }))
-    } catch (caught) {
-      setLoadError(getErrorMessage(caught, 'อัปโหลดรูปรถไม่สำเร็จ'))
+    }
+    if (failures.length > 0) {
+      setAttachmentError(
+        nextFiles.length > 0
+          ? `อัปโหลดรูปรถได้ ${nextFiles.length} รูป แต่ไม่สำเร็จ ${failures.length} รูป: ${failures[0]}`
+          : failures[0],
+      )
     }
   }
 
@@ -1874,8 +1932,14 @@ export function WeightTicketFormCore({
       )}
 
       {loadError ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div role="alert" aria-live="assertive" className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {loadError}
+        </div>
+      ) : null}
+      {attachmentError ? (
+        <div role="alert" aria-live="assertive" className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+          <span>{attachmentError}</span>
         </div>
       ) : null}
       {mergeNotice ? (

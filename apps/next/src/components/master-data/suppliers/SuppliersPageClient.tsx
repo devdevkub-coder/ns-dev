@@ -30,7 +30,8 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
 import { formatAccountNoDisplay, formatPhoneDisplay, sanitizeAccountNoInput, sanitizePhoneInput } from '@/lib/format'
-import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
+import { loadSupplierOptions, type MasterDataRecord, type SupplierOptions } from '@/lib/master-data'
+import { SUPPLIER_OPTIONS_API_PATH } from '@/lib/supplier-page-permissions'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
 type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'bankName' | 'accountNo' | 'salesName' | 'active'
@@ -251,6 +252,7 @@ export function SuppliersPageClient() {
   const [branches, setBranches] = useState<MasterDataRecord[]>([])
   const [bankNames, setBankNames] = useState<MasterDataRecord[]>([])
   const [paymentMethods, setPaymentMethods] = useState<MasterDataRecord[]>([])
+  const [supplierOptionsLoaded, setSupplierOptionsLoaded] = useState(false)
   const [copiedAccountKey, setCopiedAccountKey] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
@@ -262,16 +264,29 @@ export function SuppliersPageClient() {
   const { requestDiscard } = useUnsavedChangesGuard(formDirty)
   const { requestConfirmation } = useActionConfirmation()
 
+  function applySupplierOptions(options: SupplierOptions) {
+    setSalespersons(options.salespersons.filter((salesperson) => salesperson.active))
+    setBranches(options.branches.filter((branch) => branch.active))
+    setBankNames(options.bankNames.filter((bankName) => bankName.active))
+    setPaymentMethods(options.paymentMethods.filter((paymentMethod) => paymentMethod.active))
+    setSupplierOptionsLoaded(true)
+  }
+
+  async function loadSupplierOptionsData() {
+    if (supplierOptionsLoaded) return
+    applySupplierOptions(await loadSupplierOptions(SUPPLIER_OPTIONS_API_PATH))
+  }
+
   const loadData = useCallback(async () => {
     setError(null)
     setIsLoading(true)
     try {
-      const [result, salespersonRows] = await Promise.all([
+      const [result, options] = await Promise.all([
         listSuppliers({ all: true }),
-        listMasterDataRecords('/api/master-data/salespersons'),
+        loadSupplierOptions(SUPPLIER_OPTIONS_API_PATH),
       ])
       setSuppliers(result.rows)
-      setSalespersons(salespersonRows.filter((salesperson) => salesperson.active))
+      applySupplierOptions(options)
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลผู้ขายไม่ได้'))
     } finally {
@@ -329,7 +344,8 @@ export function SuppliersPageClient() {
   async function openCreateForm() {
     setSelectedSupplier(null)
     try {
-      await Promise.all([loadAddressData(), loadBankNames(), loadBranches(), loadPaymentMethods()])
+      await loadAddressData()
+      if (!supplierOptionsLoaded) await loadSupplierOptionsData()
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
@@ -340,7 +356,8 @@ export function SuppliersPageClient() {
   async function openEditForm(supplier: Supplier) {
     setSelectedSupplier(supplier)
     try {
-      await Promise.all([loadAddressData(), loadBankNames(), loadBranches(), loadPaymentMethods()])
+      await loadAddressData()
+      if (!supplierOptionsLoaded) await loadSupplierOptionsData()
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
@@ -348,23 +365,6 @@ export function SuppliersPageClient() {
     setFormOpen(true)
   }
 
-  async function loadBankNames() {
-    if (bankNames.length) return
-    const rows = await listMasterDataRecords('/api/master-data/bank-names')
-    setBankNames(rows.filter((bankName) => bankName.active))
-  }
-
-  async function loadBranches() {
-    if (branches.length) return
-    const rows = await listMasterDataRecords('/api/master-data/branches')
-    setBranches(rows.filter((branch) => branch.active))
-  }
-
-  async function loadPaymentMethods() {
-    if (paymentMethods.length) return
-    const rows = await listMasterDataRecords('/api/master-data/payment-methods')
-    setPaymentMethods(rows.filter((paymentMethod) => paymentMethod.active))
-  }
 
   async function handleSubmit(values: SupplierFormValues) {
     setIsSaving(true)

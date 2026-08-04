@@ -58,6 +58,7 @@ product master used by WTI/WTO/PB/SB/stock/production with storage thumbnail key
 
 - `GET/POST /api/master-data/products`
 - `PATCH /api/master-data/products/[id]`
+- `GET /api/master-data/products/options` ใช้ `master.products.view` สำหรับประเภทและหน่วยสินค้าที่ฟอร์มสินค้าต้องใช้
 - `GET/POST /api/master-data/products; GET/PATCH /api/master-data/products/[id]; export/import APIs exist`
 
 ### Data Contract
@@ -89,7 +90,7 @@ product master used by WTI/WTO/PB/SB/stock/production with storage thumbnail key
 
 ## Current Gap
 
-Current code is accepted baseline. Remaining work is to keep documentation in sync with future code changes and verify downstream transaction consumption when those transaction pages are proofed.
+Product options เป็น dependency ของหน้าสินค้า ไม่ใช่การเปิดหน้า master ประเภท/หน่วยสินค้าให้ผู้ใช้โดยอัตโนมัติ; จึงใช้ endpoint options ที่ตรวจด้วย `master.products.view` และตอบแบบ `private, no-store`.
 
 ## Implementation Checklist
 

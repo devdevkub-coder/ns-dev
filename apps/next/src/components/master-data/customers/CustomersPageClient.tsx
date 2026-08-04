@@ -250,7 +250,7 @@ export function CustomersPageClient() {
 
   async function loadBranches() {
     if (branches.length) return
-    const rows = await listMasterDataRecords('/api/master-data/branches')
+    const rows = await listMasterDataRecords('/api/master-data/customers/options')
     setBranches(rows.filter((branch) => branch.active))
   }
 
