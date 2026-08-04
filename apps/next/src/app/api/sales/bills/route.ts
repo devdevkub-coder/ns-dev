@@ -453,7 +453,11 @@ function salesItems(
       customerAdvanceId: values.customerAdvanceId,
       deliveryLineId: item.deliveryLineId,
       deliverySummaryId,
-      deliveryTicketDocNo: item.deliveryTicketDocNo,
+      // The form schema makes the display document number optional because the
+      // selected delivery ticket already identifies the WTO document. Keep the
+      // persisted stock-source reference complete when clients omit the
+      // duplicated display field.
+      deliveryTicketDocNo: item.deliveryTicketDocNo ?? item.deliveryTicketId,
       deliveryTicketId: item.deliveryTicketId,
       deductWeight: item.deductWeight,
       discount: item.discount,
