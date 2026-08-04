@@ -62,15 +62,15 @@ The coordinator role must not receive these as a workaround: `master.reference.v
 |---|---|---|---|
 | PERM-01 | `permissionForPath` for coordinator-visible pages | each page maps to its page-specific view permission | PASS |
 | PERM-02 | master options and Thai address mapping | customer/supplier-specific permissions; no generic reference fallback | PASS |
-| PERM-03 | coordinator role inventory on SIT | 5 active users, all-branch role, 0 branch rows, 49 permissions; forbidden list absent | PASS |
+| PERM-03 | coordinator role inventory on SIT | 5 active users, all-branch role, 0 branch rows, 59 permissions; forbidden list absent | PASS |
 | PERM-04 | WTI/WTO list capability response | `canOpenPurchaseBill`/`canOpenSalesBill` true for coordinator | PASS after SIT grant |
-| PERM-05 | WTI-based purchase bill POST | valid in-scope action is not rejected by `daily.weight_tickets.open_bill` | rerun required after deployed code |
-| PERM-06 | WTO-based sales bill POST | valid in-scope action is not rejected by `daily.weight_tickets.open_bill` | rerun required after deployed code |
+| PERM-05 | WTI-based purchase bill POST | valid in-scope action is not rejected by `daily.weight_tickets.open_bill` | PASS: Trading and STOCK create/update/cancel fixtures returned 2xx |
+| PERM-06 | WTO-based sales bill POST | valid in-scope action is not rejected by `daily.weight_tickets.open_bill` | PASS with full UI payload; omitted optional `deliveryTicketDocNo` needs runtime rerun after `7cb1cdbf` deployment |
 | PERM-07 | manual Trading sales bill | no WTI/WTO source means `open_bill` is not inferred | PASS |
-| PERM-08 | build baseline | lint, type-check, build and diff check pass | PASS; build rerun after final code change |
+| PERM-08 | build baseline | lint, type-check, build and diff check pass | PASS for local lint/type-check/diff check after final code change; build remains to rerun with the final commit |
 | UAT-01 | coordinator login and `/api/auth/me` on SIT | login and auth context 200; no Super Admin evidence | PASS: roles `[coordinator]`, 59 permissions after grant |
 | UAT-02 | coordinator menu and page APIs on SIT | visible pages match inventory; 400 validation is not called a permission failure | PASS after runtime fix: menu/session was coordinator-only; page APIs and dependencies were swept on SIT |
-| UAT-03 | full coordinator action matrix on SIT | every visible API action reaches its intended permission guard; valid happy paths must not return 403/400/404 | rerun after deployment; previous invalid-payload matrix is not acceptance evidence |
+| UAT-03 | full coordinator action matrix on SIT | every visible API action reaches its intended permission guard; valid happy paths must not return 403/400/404 | PASS for valid CRUD/status/confirm/cancel/open-bill/PO/import/export fixtures; 22 reads and 6 XLSX exports 2xx. `notify-line` is blocked by `NO_TARGETS_ROUTED` configuration. Omitted WTO display-doc field awaits runtime deployment rerun. |
 | UAT-04 | import and product-options regression | import guard accepts multipart input and rejects invalid file input with 400; product options must serialize successfully | PASS on rerun: all three import guards returned 400 for an invalid multipart field; `/api/master-data/products/options` returned 200 |
 
 ## Browser QA findings requiring follow-up
@@ -78,3 +78,9 @@ The coordinator role must not receive these as a workaround: `master.reference.v
 The coordinator smoke on SIT uses `watcharathat@9stepsdigital.com` and must confirm coordinator-only (`isAdmin=false`) after each auth refresh. A browser security checkpoint is not an application permission result. The acceptance rerun must use valid, reversible business fixtures: visible read/export APIs return 200; create/update/status/confirm/cancel/share/open-bill/PO/stock actions must complete with 2xx; validation 400, fake-id 404 and any 403 are failures when used on the happy path. Payment approval, payments, branches and warehouses remain hidden and are not evidence for this role. Product options must remain 200 after the BigInt serialization fix.
 
 The generic master-data client previously rendered create/edit/status controls before checking the action permission, so a direct page visit could show controls even when its backing API returned 403. The client now receives the same permission set used by the sidebar and gates those controls; product type/unit write actions now use resource-scoped `master.product_types.*` / `master.product_units.*` permissions, while salespersons use their page-specific actions. The API remains authoritative.
+
+## SIT browser rerun evidence — 2026-08-04
+
+The fresh browser session used only `watcharathat@9stepsdigital.com` with role `coordinator`; `/api/auth/me` returned `200`, `isAdmin=false`, 59 permissions, and no `master.reference.view`. The visible operational read sweep covered 22 APIs and returned 2xx. The six visible operational exports used the page contract `?format=xlsx` and returned `200` with XLSX content. Valid import fixtures for customers, products, and suppliers each reported one successful insert. Reversible master CRUD/status, WTI create/update/confirm/status, purchase/sales bill create/update/cancel, PO Buy/Sell create/update/cancel/short-close, and stock flow fixtures returned 2xx.
+
+The user-facing contract treats every valid 403/400/404 as failure. The remaining runtime follow-up is the valid Sales STOCK request that omits the duplicated optional `deliveryTicketDocNo`; commit `7cb1cdbf` defaults it from `deliveryTicketId`, but SIT deployment evidence still points to `faaa7d7d`, so this case is not marked PASS until the new deployment is observed and the fixture is rerun. `notify-line` returned `400 NO_TARGETS_ROUTED` because SIT has no configured recipient target; no notification was sent.

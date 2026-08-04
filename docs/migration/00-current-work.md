@@ -30,7 +30,8 @@ Immediate next task: ขอ/เปิด session SIT ของ `sorting_departme
 - Branch scope remains `all` until coordinator users receive deliberate branch assignments; current users have no branch-access rows.
 - Code changes now map product-type/product-unit writes to resource-scoped action permissions instead of `master.reference.manage`.
 - SIT migration applied/recorded: `20260804150000_grant_coordinator_visible_menu_actions.sql`. Postflight confirms the ten new coordinator grants and keeps both shared-reference permissions absent.
-- Coordinator valid-flow rerun is pending after the SIT deployment: use `watcharathat@9stepsdigital.com` (`coordinator`, `isAdmin=false`); any 403/400/404 on a valid visible-menu action is a failure. Previous malformed/fake-payload matrix is diagnostic only, not acceptance evidence.
+- Coordinator browser/API rerun used `watcharathat@9stepsdigital.com` (`coordinator`, `isAdmin=false`) on SIT. Auth 200, 59 permissions, no `master.reference.view`; 22 read APIs and 6 `?format=xlsx` exports returned 2xx with XLSX content. Valid master import, CRUD/status, WTI, PO Buy/Sell, purchase bill, sales bill, and stock fixtures passed in the same coordinator session; the LINE share action remains blocked only because SIT has no routed notification target.
+- Sales STOCK now normalizes an omitted optional `deliveryTicketDocNo` to the selected WTO document in commit `7cb1cdbf`; local lint, type-check, and diff check pass. The SIT GitHub `main` ref is at that commit, but the SIT deployment status still points to `faaa7d7d`, so the omitted-field runtime regression must be rerun after the new deployment before this batch is accepted.
 
 Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
 
@@ -38,7 +39,7 @@ Active batch: แก้ API อ่านประเภทสินค้า/ห
 
 Validation: focused permission tests, lint, type-check, build, `git diff --check`, SIT role postflight, and a fresh coordinator browser auth/API probe are required after this batch. The first DOM probe hit a Vercel Security Checkpoint after high request volume; do not classify that checkpoint as an app permission result.
 
-Immediate next task: deploy/push the focused change to SIT, then rerun valid reversible fixtures for every visible menu/API/action and record PASS/FAIL in the coordinator flow note; do not use a broad permission as a workaround and do not promote or test against Production.
+Immediate next task: verify SIT deployment of `7cb1cdbf`, then rerun Sales STOCK create/update/cancel without `deliveryTicketDocNo`; record PASS/FAIL in the coordinator flow note. Do not use a broad permission as a workaround and do not promote or test against Production.
 
 # Vercel UAT Deployment Dependency Fix 2026-08-02
 
