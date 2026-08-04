@@ -45,6 +45,7 @@ export async function recordAuthAuditEvent({ context, eventType, metadata = {}, 
       )
     `
   } catch (caught) {
-    console.warn('Failed to record auth audit event', caught)
+    console.error('Failed to record auth audit event', caught)
+    throw new Error('ไม่สามารถบันทึก auth audit event ได้', { cause: caught })
   }
 }

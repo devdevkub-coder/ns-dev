@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { parseInternalBigIntId } from '@/lib/business-code'
@@ -235,7 +236,7 @@ export async function POST(request: NextRequest) {
       const rows = []
       for (const row of preview.rows) {
         const assetId = parseInternalBigIntId(row.assetId)
-        if (!assetId) continue
+        if (!assetId) throw new Error(`ไม่พบรหัสทรัพย์สินที่ถูกต้องใน preview ค่าเสื่อม: ${row.assetId}`)
         const dep = await tx.depreciations.create({
           data: {
             accumulated: row.accumAfter,
@@ -249,7 +250,10 @@ export async function POST(request: NextRequest) {
             status: 'posted',
           },
         })
-        if (row.willFullyDepreciate) await tx.assets.update({ data: { asset_status: 'Fully Depreciated' }, where: { id: assetId } })
+        if (row.willFullyDepreciate) {
+          await tx.assets.update({ data: { asset_status: 'Fully Depreciated' }, where: { id: assetId } })
+          await tx.app_audit_logs.create({ data: { action: 'asset_status_changed', actor_auth_user_id: context.authUser.id, actor_app_user_id: context.appUser?.id ?? null, actor_display_name: context.appUser?.displayName, actor_username: context.appUser?.username, entity_id: assetId.toString(), entity_label: row.assetId, event_key: `asset-status-fully-depreciated:${randomUUID()}`, metadata: { assetId: assetId.toString(), status: 'Fully Depreciated' }, target_type: 'asset' } })
+        }
         rows.push(dep)
       }
       return rows
@@ -319,6 +323,7 @@ export async function PATCH(request: NextRequest) {
           where: { id: dep.asset_id },
           data: { asset_status: 'Active' }
         })
+        await tx.app_audit_logs.create({ data: { action: 'asset_status_changed', actor_auth_user_id: context.authUser.id, actor_app_user_id: context.appUser?.id ?? null, actor_display_name: context.appUser?.displayName, actor_username: context.appUser?.username, entity_id: dep.asset_id.toString(), event_key: `asset-status-active:${randomUUID()}`, metadata: { assetId: dep.asset_id.toString(), status: 'Active', reason }, target_type: 'asset' } })
       }
     })
 

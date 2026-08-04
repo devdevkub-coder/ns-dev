@@ -1390,7 +1390,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     }
     void loadOptions()
     return () => { cancelled = true }
-  }, [])
+  }, [row?.branchCode])
 
   useEffect(() => {
     if (!row) return

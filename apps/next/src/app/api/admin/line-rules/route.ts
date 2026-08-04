@@ -4,6 +4,7 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { currentActor } from '@/lib/server/daily'
 import { lineRuleConditionsValidationError, resolveLineTargetsForWeightTicket } from '@/lib/server/line-notification-routing'
 import { findScopedWeightTicket, getWeightTicketUsageCounts, mapWeightTicketRow, type WeightTicketRow } from '@/lib/server/weight-tickets'
 
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const values = ruleSchema.parse(body)
+    const actor = currentActor(auth)
     const referenceError = await validateRuleReferences(values)
     if (referenceError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: referenceError }, { status: 400 })
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
         template_id: values.templateId ? BigInt(values.templateId) : null,
         stop_after_match: values.stopAfterMatch,
         conditions: values.conditions as Prisma.InputJsonValue,
-        created_by: auth.appUser?.email || 'admin'
+        created_by: actor
       }
     })
 
@@ -119,6 +121,7 @@ export async function PATCH(request: Request) {
   try {
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'system.settings.manage')
+    const actor = currentActor(auth)
 
     const body = await request.json()
     const { id, action, ...fields } = body
@@ -128,7 +131,7 @@ export async function PATCH(request: Request) {
       if (!documentNo) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่ระบุเลขที่เอกสารสำหรับทดสอบ' }, { status: 400 })
       }
-      const ticket = await findScopedWeightTicket(documentNo, [])
+      const ticket = await findScopedWeightTicket(documentNo, null)
       if (!ticket) {
         return NextResponse.json({ code: 'NOT_FOUND', error: `ไม่พบเอกสารใบชั่งเลขที่ ${documentNo}` }, { status: 404 })
       }
@@ -169,7 +172,7 @@ export async function PATCH(request: Request) {
         template_id: parsedFields.templateId === undefined ? undefined : (parsedFields.templateId ? BigInt(parsedFields.templateId) : null),
         stop_after_match: parsedFields.stopAfterMatch,
         conditions: parsedFields.conditions as Prisma.InputJsonValue | undefined,
-        updated_by: auth.appUser?.email || 'admin',
+        updated_by: actor,
         updated_at: new Date()
       }
     })

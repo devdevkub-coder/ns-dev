@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Calculator, ChevronDown, Download, ExternalLink, LockKeyhole, Plus, RefreshCw, Save, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
@@ -530,20 +530,20 @@ export function SalesPlanPageClient() {
   const analysisResize = useResizableColumns('main.sales-plan.analysis.v1', salesPlanAnalysisColumns)
   const remainingResize = useResizableColumns('main.sales-plan.remaining.v2', salesPlanRemainingColumns)
 
-  function setLmeBaseline(nextLmeForm: LmeConfig) {
+  const setLmeBaseline = useCallback((nextLmeForm: LmeConfig) => {
     const nextBaseline = JSON.stringify(nextLmeForm)
     lmeFormBaselineRef.current = nextBaseline
     lmeFormIsDirtyRef.current = false
     setLmeForm(nextLmeForm)
     setLmeFormBaseline(nextBaseline)
-  }
+  }, [])
 
   function setLmeDraft(nextLmeForm: LmeConfig) {
     lmeFormIsDirtyRef.current = lmeFormBaselineRef.current !== null && JSON.stringify(nextLmeForm) !== lmeFormBaselineRef.current
     setLmeForm(nextLmeForm)
   }
 
-  const loadSalesPlan = async (targetMonth?: string, targetBranchCode?: string, resetLmeBaseline = false) => {
+  const loadSalesPlan = useCallback(async (targetMonth?: string, targetBranchCode?: string, resetLmeBaseline = false) => {
     setError(null)
     setIsLoading(true)
     try {
@@ -565,11 +565,11 @@ export function SalesPlanPageClient() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [data, month, planBranchCode, setLmeBaseline])
 
   useEffect(() => {
     void loadSalesPlan()
-  }, [])
+  }, [loadSalesPlan])
 
   useEffect(() => {
     const desktopQuery = window.matchMedia('(min-width: 1024px)')
@@ -583,7 +583,7 @@ export function SalesPlanPageClient() {
     if (!month) return
     if (month === data?.filters.month) return
     void loadSalesPlan(month)
-  }, [data?.filters.month, month])
+  }, [data?.filters.month, loadSalesPlan, month])
 
   const productOptions = useMemo(() => (data?.planProductOptions ?? [])
     .map((row) => ({
