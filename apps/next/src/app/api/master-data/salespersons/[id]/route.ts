@@ -3,13 +3,14 @@ import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, type MasterDataRouteProps, updateMasterDataStatusSchema, toIso } from '@/lib/server/master-data'
 import { invalidateSalespersonReferenceCache } from '@/lib/server/reference-master-cache'
+import { MASTER_DATA_PAGE_PERMISSIONS } from '@/lib/master-data-page-permissions'
 
 export const runtime = 'nodejs'
 
 export async function PATCH(request: Request, { params }: MasterDataRouteProps) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.reference.manage')
+    requirePermission(context, MASTER_DATA_PAGE_PERMISSIONS.salespersons.status)
 
     const { id } = await params
     const values = updateMasterDataStatusSchema.parse(await request.json())

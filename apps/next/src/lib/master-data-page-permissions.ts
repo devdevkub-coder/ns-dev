@@ -11,4 +11,16 @@ export const MASTER_DATA_PAGE_PERMISSIONS = {
   products: {
     view: 'master.products.view',
   },
+  productTypes: {
+    view: 'master.product_types.view',
+  },
+  productUnits: {
+    view: 'master.product_units.view',
+  },
+  salespersons: {
+    view: 'master.salespersons.view',
+    create: 'master.salespersons.create',
+    update: 'master.salespersons.update',
+    status: 'master.salespersons.status',
+  },
 } as const

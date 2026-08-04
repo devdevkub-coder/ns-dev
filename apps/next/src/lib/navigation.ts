@@ -74,12 +74,15 @@ const exactPathPermissions: Record<string, string> = {
   '/api/admin/transaction-ledger': FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger,
   '/api/admin/users': 'system.users.view',
   '/api/daily/payment-approval': 'daily.payment_approval.view',
+  '/api/daily/bill-swap-history': 'purchase.bills.view',
   '/api/daily/expenses': 'daily.expenses.view',
   '/api/daily/petty-advances': 'daily.petty_advances.view',
   '/api/daily/petty-advances/returns': 'daily.petty_advances.return',
   '/api/purchase/bills': 'purchase.bills.view',
   '/api/purchase/po-buy': PO_BUY_PERMISSIONS.view,
   '/api/purchase/advance-payments': 'purchase.advance_payments.view',
+  '/api/purchase/payments/cancel': 'purchase.bills.pay',
+  '/api/purchase/payments/cancel-approved': 'purchase.bills.pay',
   '/api/purchase/bills/options': 'purchase.bills.view',
   '/api/purchase/payment-history': FINANCE_DEBT_PAGE_PERMISSIONS.payments,
   '/api/purchase/payments': FINANCE_DEBT_PAGE_PERMISSIONS.payments,
@@ -129,8 +132,9 @@ const exactPathPermissions: Record<string, string> = {
   '/api/master-data/products': MASTER_DATA_PAGE_PERMISSIONS.products.view,
   '/api/master-data/products/options': MASTER_DATA_PAGE_PERMISSIONS.products.view,
   '/api/master-data/impurities': MASTER_DATA_PAGE_PERMISSIONS.impurities.view,
-  '/api/master-data/product-types': 'master.product_types.view',
-  '/api/master-data/product-units': 'master.product_units.view',
+  '/api/master-data/product-types': MASTER_DATA_PAGE_PERMISSIONS.productTypes.view,
+  '/api/master-data/product-units': MASTER_DATA_PAGE_PERMISSIONS.productUnits.view,
+  '/api/master-data/salespersons': MASTER_DATA_PAGE_PERMISSIONS.salespersons.view,
   '/api/master-data/products/export': 'master.products.export',
   '/api/master-data/suppliers': SUPPLIER_PAGE_PERMISSIONS.view,
   '/api/master-data/suppliers/export': SUPPLIER_PAGE_PERMISSIONS.export,
@@ -214,6 +218,7 @@ const prefixPathPermissions: Array<[string, string]> = [
   ['/api/master-data/customers/', 'master.customers.update'],
   ['/api/master-data/products/', 'master.products.update'],
   ['/api/master-data/impurities/', MASTER_DATA_PAGE_PERMISSIONS.impurities.status],
+  ['/api/master-data/salespersons/', MASTER_DATA_PAGE_PERMISSIONS.salespersons.update],
   ['/api/master-data/suppliers/', SUPPLIER_PAGE_PERMISSIONS.update],
   ['/api/master-data/vat-settings/', 'system.settings.manage'],
   ['/api/master-data/wht-settings/', 'system.settings.manage'],
@@ -274,6 +279,10 @@ export function permissionForPath(pathname: string) {
 
   if (normalizedPath.startsWith('/api/master-data/suppliers/') && normalizedPath.endsWith('/status')) {
     return SUPPLIER_PAGE_PERMISSIONS.status
+  }
+
+  if (normalizedPath.startsWith('/api/master-data/salespersons/') && normalizedPath.endsWith('/status')) {
+    return MASTER_DATA_PAGE_PERMISSIONS.salespersons.status
   }
 
   return prefixPathPermissions.find(([prefix]) => normalizedPath === prefix.slice(0, -1) || normalizedPath.startsWith(prefix))?.[1] ?? null

@@ -1,5 +1,14 @@
 # Coordinator Page/API Permission Alignment — 2026-08-04
 
+## Active implementation batch
+
+- Align the coordinator role and dependent APIs on the current SIT baseline.
+- Keep the change focused on operational permissions; do not grant bill-opening, finance, payment, approval, or broad shared-reference access.
+- Branch scope remains `all` until coordinator users receive deliberate branch assignments; current users have no branch-access rows.
+- Code validation passed: focused permission tests 8/8, lint, type-check, build, and `git diff --check`.
+- SIT migration applied/recorded: `20260804110000_align_coordinator_operational_permissions.sql`. Postflight found the required seven grants and none of the forbidden grants.
+- Push/deploy is not requested in this batch.
+
 Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
 
 Active batch: แยก customer/product options endpoint ตาม permission ของหน้า, ปรับ impurity API ให้ใช้ view/create/update/status ของรายการสิ่งเจือปน, และให้ stock product preview รองรับ `stock.ledger.view` หรือ `production.orders.view`.

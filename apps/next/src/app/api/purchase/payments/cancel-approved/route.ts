@@ -19,7 +19,7 @@ const cancelApprovedSchema = z.object({
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'purchase.bills.pay')
 
     const payload = cancelApprovedSchema.parse(await request.json())
     const actor = currentActor(context)
