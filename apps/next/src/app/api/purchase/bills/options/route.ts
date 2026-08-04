@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const startedAt = performance.now()
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'purchase.bills.view')
     const scope = new URL(request.url).searchParams.get('scope') ?? 'full'
     const allowedBranchCodes = getBranchCodeIntersection(context)
     const payload = scope === 'reference'
