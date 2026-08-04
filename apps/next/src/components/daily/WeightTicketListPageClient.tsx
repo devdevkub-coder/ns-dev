@@ -551,6 +551,21 @@ export function WeightTicketListPageClient() {
             <span>ส่งออก Excel</span>
           </a>
         </Button>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
+          {statusOptions.map((option) => (
+            <SegmentMulti
+              current={statusFilter}
+              key={`mobile-toolbar-${typeFilter}-${option.label}`}
+              label={option.label}
+              onClick={(values) => {
+                setStatusFilter(values as WeightTicketStatus[])
+                setPage(1)
+              }}
+              values={option.values}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Bottom Sheet Filter for Mobile */}
@@ -609,23 +624,6 @@ export function WeightTicketListPageClient() {
             />
           </div>
 
-          <div>
-            <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะเอกสาร</span>
-            <div className="flex flex-wrap gap-2">
-              {statusOptions.map((option) => (
-                <SegmentMulti
-                  current={statusFilter}
-                  key={`mobile-${typeFilter}-${option.label}`}
-                  label={option.label}
-                  onClick={(values) => {
-                    setStatusFilter(values as WeightTicketStatus[])
-                    setPage(1)
-                  }}
-                  values={option.values}
-                />
-              ))}
-            </div>
-          </div>
         </MobileFilterSheet>
       ) : null}
 

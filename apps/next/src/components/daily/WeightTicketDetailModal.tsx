@@ -279,15 +279,29 @@ export function WeightTicketDetailModal({
               </DialogTitle>
               <DialogDescription className="truncate text-slate-300">{ticket?.partyName ?? (isLoading ? 'กำลังโหลดข้อมูล' : '-')}</DialogDescription>
             </div>
-            <div className="flex max-w-[min(58vw,15rem)] justify-end gap-2 overflow-x-auto pb-0.5 sm:max-w-none sm:flex-wrap sm:overflow-visible sm:pb-0">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {ticket ? (
                 <>
                   {ticket.status === 'draft' ? (
                     <div className="flex items-center gap-3">
                       {ticket.type === 'WTO' ? <span className="text-xs text-current">ยังไม่จอง stock</span> : null}
-                      <Button disabled={isConfirming} type="button" className="h-10 shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 sm:h-9" onClick={() => void handleConfirmTicket()}>
+                      <Button
+                        aria-label={
+                          isConfirming
+                            ? 'กำลังยืนยัน'
+                            : ticket.type === 'WTI'
+                              ? 'ยืนยันรับของ'
+                              : 'ยืนยันส่งของ'
+                        }
+                        disabled={isConfirming}
+                        type="button"
+                        className="h-10 w-10 shrink-0 gap-0 bg-emerald-600 px-0 text-white hover:bg-emerald-700 sm:h-9 sm:w-auto sm:gap-2 sm:px-4"
+                        onClick={() => void handleConfirmTicket()}
+                      >
                         <CheckCircle2 className="size-4" />
-                        <span>{isConfirming ? 'กำลังยืนยัน...' : ticket.type === 'WTI' ? 'ยืนยันรับของ' : 'ยืนยันส่งของ'}</span>
+                        <span className="sr-only sm:not-sr-only">
+                          {isConfirming ? 'กำลังยืนยัน...' : ticket.type === 'WTI' ? 'ยืนยันรับของ' : 'ยืนยันส่งของ'}
+                        </span>
                       </Button>
                     </div>
                   ) : null}

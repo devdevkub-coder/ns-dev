@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import { MobileFilterSheet } from './MobileFilterSheet'
+import { Popover, PopoverContent } from './popover'
 
 describe('MobileFilterSheet', () => {
   it('uses the canonical 80dvh cap and a theme-stable dark scrim', () => {
@@ -136,6 +137,45 @@ describe('MobileFilterSheet', () => {
         document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Tab' }))
       })
       expect(document.activeElement).toBe(firstInput)
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment
+    }
+  })
+
+  it('keeps focus in a portalled popover opened from the sheet', async () => {
+    const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT
+    const container = document.createElement('div')
+    document.body.append(container)
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = true
+    const root = createRoot(container)
+
+    try {
+      await act(async () => {
+        root.render(
+          <MobileFilterSheet
+            footer={<button type="button">Apply filters</button>}
+            onClose={() => undefined}
+            title="Filters"
+          >
+            <Popover open>
+              <PopoverContent>
+                <button type="button">Select date</button>
+              </PopoverContent>
+            </Popover>
+          </MobileFilterSheet>,
+        )
+      })
+
+      const popupButton = document.body.querySelector<HTMLButtonElement>('[data-slot="popover-content"] button')
+      expect(popupButton).not.toBeNull()
+
+      await act(async () => {
+        popupButton?.focus()
+      })
+      expect(document.activeElement).toBe(popupButton)
     } finally {
       await act(async () => root.unmount())
       container.remove()

@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-19
+updated: 2026-08-04
 route: /daily/weight-ticket-list
 ---
 
@@ -71,6 +71,13 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 - Sales Bill detail/create should display the same WTO-prepared weighted average cost only as COGS/GP context for authorized users. Sales Bill must not be the place to edit or recalculate WTO cost snapshots.
 
 ## Current UI Behavior Summary
+
+### Mobile filter correction 2026-08-04
+
+- Date range selection remains part of the mobile filter sheet, but its shared calendar popover now renders above the sheet so the calendar can be seen and selected.
+- The calendar is rendered through a Radix portal outside the sheet DOM; the shared mobile focus trap treats that portalled calendar as part of the active filter surface, so focusing month controls or a day does not jump back to `ใช้ตัวกรอง`.
+- Mobile document-status controls are shown directly below `ส่งออก Excel` in the list toolbar instead of being hidden inside the filter sheet. The same `status` query values still drive the list and Excel export.
+- What is what: the sheet contains lower-frequency scope filters (`วันที่` and `สาขา`), while status is a frequent list-view choice placed beside the export action. Why it has to be like this: users can change the visible document lifecycle without reopening the sheet, and the export link continues to use the same active status/date/branch query contract.
 
 - Customer-approved design decision (2026-07-12): the current rendered `/daily/weight-ticket-list` page is the canonical full-page UX/UI reference for the active Next app, covering page hierarchy, Light/Dark color roles, modal/dialog/mobile-sheet composition, filter layout, table/action/status treatment, pagination, responsive behavior, and spacing. Other pages copy this visual/interaction system while keeping their own business fields, statuses, permissions, labels, and actions.
 - หน้า list แสดง WTI/WTO และส่ง context ประเภทเอกสารไปหน้า create/edit ให้ถูกต้อง
