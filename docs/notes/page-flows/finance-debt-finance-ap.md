@@ -6,7 +6,7 @@ tags:
   - finance-debt
   - accounts-payable
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-08-04
 route: /finance/ap
 ---
 
@@ -152,6 +152,12 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Why it has to be like this: period-based navigation preserves its source range, while the Financial Dashboard's as-of outstanding KPI intentionally sends an empty `from` plus `to=asOf`; the client must preserve that empty lower bound so older open bills are not dropped by a current-month default.
 - Authorization: bills, branch options, supplier options and returned supplier-branch mappings use the same effective finance branch intersection. Unknown/inactive explicit branches return `404`; existing branches outside scope return `403`; an empty mapped scope returns no branch data.
 - Aging cutoff: `today` is normalized to the Bangkok business date before comparison with the accepted Purchase Bill base date, preventing the 00:00–06:59 Bangkok window from reporting one day behind.
+
+## Compact Filter Layout 2026-08-04
+
+- What is what: the desktop AP filter card keeps search, supplier, aging bucket and branch in its first compact row; status, bill-date range, clear action and Excel export remain in the second row. Filter controls remain `h-9`, while the export action remains `h-10`.
+- Why it has to be like this: supplier, aging and branch define the primary AP data scope and should be visible together without the aging selector consuming a full row. Status/date and actions remain grouped separately so the card matches the shared two-row list-filter convention and leaves more space for payable data.
+- Preserved boundary: filter state, query parameters, API requests, export scope, pagination, permissions and the existing mobile filter interaction do not change. AP still has no channel filter because purchase channel is not a real source in this flow.
 
 ## Implementation Checklist
 
