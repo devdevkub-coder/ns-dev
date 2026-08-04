@@ -35,8 +35,20 @@ export function MobileFilterSheet({
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousBodyOverflow = document.body.style.overflow
+    const isSheetOwnedFloatingContent = (element: Element) => {
+      const floatingContent = element.closest<HTMLElement>(floatingContentSelector)
+      if (!floatingContent) return false
+
+      const content = floatingContent.matches('[data-slot="popover-content"]')
+        ? floatingContent
+        : floatingContent.querySelector<HTMLElement>('[data-slot="popover-content"]')
+      if (!content?.id) return false
+
+      return Array.from(sheetRef.current?.querySelectorAll<HTMLElement>('[aria-controls]') ?? [])
+        .some((trigger) => trigger.getAttribute('aria-controls') === content.id)
+    }
     const isWithinManagedSurface = (element: Element | null) => Boolean(
-      element && (sheetRef.current?.contains(element) || element.closest(floatingContentSelector)),
+      element && (sheetRef.current?.contains(element) || isSheetOwnedFloatingContent(element)),
     )
     const getFocusableElements = () => Array.from(document.querySelectorAll<HTMLElement>(focusableSelector))
       .filter((element) => isWithinManagedSurface(element))
@@ -78,15 +90,26 @@ export function MobileFilterSheet({
       if (isWithinManagedSurface(focusTarget)) return
       focusFirstElement()
     }
+    const blockUnmanagedFloatingInteraction = (event: Event) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (!target?.closest(floatingContentSelector) || isWithinManagedSurface(target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      focusFirstElement()
+    }
 
     document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', handleKeyDown)
     document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('pointerdown', blockUnmanagedFloatingInteraction, true)
+    document.addEventListener('click', blockUnmanagedFloatingInteraction, true)
     focusFirstElement()
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('pointerdown', blockUnmanagedFloatingInteraction, true)
+      document.removeEventListener('click', blockUnmanagedFloatingInteraction, true)
       document.body.style.overflow = previousBodyOverflow
       if (previousFocus?.isConnected) previousFocus.focus()
     }

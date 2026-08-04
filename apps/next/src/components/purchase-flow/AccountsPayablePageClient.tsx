@@ -331,7 +331,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
       {/* Filters Toolbar */}
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
-        <div className="hidden space-y-3 lg:block">
+        <div className="hidden space-y-3 2xl:block">
           <div className="flex flex-wrap items-center gap-2">
             <input autoComplete="off" className="h-9 min-w-[220px] flex-1 rounded-md border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 2xl:min-w-[260px]" placeholder="ค้นหาเลข PB / ผู้ขาย / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
 
@@ -393,7 +393,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
         </div>
 
         {/* Mobile View (Collapsible Filters) */}
-        <div className="block lg:hidden space-y-2.5">
+        <div className="block space-y-2.5 2xl:hidden">
           <div className="flex flex-wrap gap-2">
             <button
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${

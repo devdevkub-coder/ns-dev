@@ -25,6 +25,9 @@ describe('AR/AP aging filter layout', () => {
 
     expect(clientSource).toContain(heroTitle)
     expect(clientSource).toContain('bg-gradient-to-r')
+    expect(filterBlock).toContain('hidden space-y-3 2xl:block')
+    expect(clientSource).toContain('block space-y-2.5 2xl:hidden')
+    expect(filterBlock).not.toContain('hidden space-y-3 lg:block')
     expect(filterBlock).toContain('flex flex-wrap items-center gap-2')
     expect(filterBlock).toContain(`inputId="${branchInputId}"`)
     expect(filterBlock).toContain('placeholder="ทุกสาขา"')

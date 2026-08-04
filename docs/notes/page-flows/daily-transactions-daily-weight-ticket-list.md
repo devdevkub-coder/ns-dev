@@ -75,7 +75,7 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 ### Mobile filter correction 2026-08-04
 
 - Date range selection remains part of the mobile filter sheet, but its shared calendar popover now renders above the sheet so the calendar can be seen and selected.
-- The calendar is rendered through a Radix portal outside the sheet DOM; the shared mobile focus trap treats that portalled calendar as part of the active filter surface, so focusing month controls or a day does not jump back to `ใช้ตัวกรอง`.
+- The calendar is rendered through a Radix portal outside the sheet DOM; the shared mobile focus trap treats only a portalled calendar whose trigger belongs to the active sheet as part of that filter surface. Month/day focus stays usable while unrelated external popovers remain outside the modal focus and pointer boundary.
 - Mobile document-status controls are shown directly below `ส่งออก Excel` in the list toolbar instead of being hidden inside the filter sheet. The same `status` query values still drive the list and Excel export.
 - What is what: the sheet contains lower-frequency scope filters (`วันที่` and `สาขา`), while status is a frequent list-view choice placed beside the export action. Why it has to be like this: users can change the visible document lifecycle without reopening the sheet, and the export link continues to use the same active status/date/branch query contract.
 
