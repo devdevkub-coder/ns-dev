@@ -333,3 +333,8 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
 - [ ] Filter/validate WTI Supplier and WTO Customer selectors by branch mapping
 - [ ] Update this file and canonical reference if contract changes
+# Department access boundary checkpoint — 2026-08-04
+
+What is what: WTI/WTO list visibility and lifecycle actions are shared operational work for the sorting and production departments. The API returns `canOpenPurchaseBill` / `canOpenSalesBill` only from `daily.weight_tickets.open_bill`; the list action menu renders the handoff links only when those server flags are true.
+
+Why it has to be like this: opening a Purchase/Sales Bill changes the business boundary from an operational weight ticket to an accounting document. The two department roles therefore keep view/create/update/confirm/cancel/share for WTI/WTO but receive no open-bill permission and no Purchase/Sales Bill permission. The target bill pages and APIs remain independently guarded as defense in depth.

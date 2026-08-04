@@ -113,7 +113,7 @@ const exactPathPermissions: Record<string, string> = {
   '/api/owner-daily': REPORT_PAGE_PERMISSIONS.ownerDaily,
   '/api/production/orders': 'production.orders.view',
   '/api/production/orders/options': 'production.orders.view',
-  '/api/production/orders/product-stock': 'stock.ledger.view',
+  '/api/production/orders/product-stock': 'production.orders.view',
   '/api/production/dashboard': 'production.operations.view',
   '/api/production/production-cost-report': 'production.reports.view',
   '/api/production/report': 'production.reports.view',

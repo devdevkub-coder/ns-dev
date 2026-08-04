@@ -1,3 +1,19 @@
+# Department Role Access Boundary — 2026-08-04
+
+## Active implementation batch
+
+- ตรวจและจำกัด `sorting_department` / `production_department` บน SIT ให้เห็นและทำเฉพาะ WTI/WTO และงาน production ของฝ่ายผลิตตาม permission action.
+- ห้ามทั้งสอง role เปิดบิลจาก WTI/WTO (`daily.weight_tickets.open_bill`) หรือเข้าถึง/สร้าง/แก้ Purchase Bill และ Sales Bill.
+- ถอน `stock.ledger.view` จากทั้งสอง role; `GET /api/production/orders/product-stock` ใช้ `production.orders.view` ที่ central proxy และยังคง route guard แบบ OR เพื่อรองรับ warehouse.
+- บังคับ production role ให้มี dashboard landing grant และตรวจ action ยกเลิกผลผลิตด้วย `production.orders.reverse`.
+- ไม่เขียนทับ direct user overrides; SIT preflight พบ forbidden override ของสอง role เป็นศูนย์. ไม่ใช้ Super Admin และไม่แตะ Production.
+
+Expected write areas: navigation/API tests, production output reverse guard, role-scope migration, and the related WTI/production flow notes.
+
+Required validation: focused positive/negative UI permission contracts, API guard tests, workspace lint/type-check/build, `git diff --check`, SIT migration postflight, and SIT browser smoke with non-admin department accounts.
+
+Immediate next task: apply/record the role-scope migration on SIT only, run postflight and browser smoke, then commit and push to `sit-origin/main`.
+
 # Coordinator Page/API Permission Alignment — 2026-08-04
 
 ## Active implementation batch

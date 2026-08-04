@@ -13,7 +13,7 @@ type ProductionOutputVoidRouteContext = {
 export async function POST(request: Request, context: ProductionOutputVoidRouteContext) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'production.orders.output')
+    requirePermission(auth, 'production.orders.reverse')
     const { docNo, outputDocNo } = await context.params
     await assertProductionOrderBranchAccess(docNo, getBranchCodeIntersection(auth))
     const values = voidProductionOutputSchema.parse(await request.json())
