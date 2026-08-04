@@ -3,19 +3,20 @@
 ## Active implementation batch
 
 - Align the coordinator role and dependent APIs on the current SIT baseline.
+- Fix the product-type/product-unit read API to use each page's specific view permission.
 - Keep the change focused on operational permissions; do not grant bill-opening, finance, payment, approval, or broad shared-reference access.
 - Branch scope remains `all` until coordinator users receive deliberate branch assignments; current users have no branch-access rows.
-- Code validation passed: focused permission tests 8/8, lint, type-check, build, and `git diff --check`.
+- Code validation passed for the prior permission batch and the API read-permission fix.
 - SIT migration applied/recorded: `20260804110000_align_coordinator_operational_permissions.sql`. Postflight found the required seven grants and none of the forbidden grants.
-- Push/deploy is not requested in this batch.
+- Push SIT is requested; Production is not in scope for this batch.
 
 Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
 
-Active batch: แยก customer/product options endpoint ตาม permission ของหน้า, ปรับ impurity API ให้ใช้ view/create/update/status ของรายการสิ่งเจือปน, และให้ stock product preview รองรับ `stock.ledger.view` หรือ `production.orders.view`.
+Active batch: แก้ API อ่านประเภทสินค้าและหน่วยสินค้าให้ตรงกับ permission เฉพาะหน้า; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
 
-Validation: permission tests 9/9, workspace lint, type-check, production build และ `git diff --check` ผ่าน. ยังไม่ได้ commit, push SIT หรือ deploy.
+Validation: focused permission tests 9/9, lint, type-check และ `git diff --check` ผ่าน; ยังไม่ได้ commit, push SIT หรือ deploy.
 
-Immediate next task: review diff แล้วจึงค่อย commit/push SIT เมื่อได้รับคำสั่ง.
+Immediate next task: commit and push this focused permission fix to `sit-origin/main`, then verify the remote commit.
 
 # Vercel UAT Deployment Dependency Fix 2026-08-02
 
