@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { decodeStoredImageAsset, formatWeight, isPreviewableStoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
 type PreviewImage = { contextTitle?: string; fileName: string; url: string }
@@ -759,8 +760,14 @@ export function WeightTicketProductBreakdownTable({
                 ) : null}
               </div>
 
-              {/* Sections: Real Lot, Impurities, Purchases */}
-              <div className="space-y-4 pl-3 border-l-2 border-slate-200">
+              <details className="group overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600 [&::-webkit-details-marker]:hidden">
+                  <span>ดูรายละเอียดรายการ</span>
+                  <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="space-y-4 border-t border-slate-100 p-3">
+                  {/* Sections: Real Lot, Impurities, Purchases */}
+                  <div className="space-y-4 pl-3 border-l-2 border-slate-200">
                 {/* Real lot lines */}
                 {group.realLotLines.length > 0 && (
                   <div className="space-y-3">
@@ -853,33 +860,35 @@ export function WeightTicketProductBreakdownTable({
                     ))}
                   </div>
                 )}
-              </div>
+                  </div>
 
-              {/* Billed & Remaining Columns */}
-              {showBillingColumns && (
-                <div className="grid grid-cols-2 gap-3 text-sm pt-2.5 border-t border-slate-200/60">
-                  <div>
-                    <span className="text-slate-500 font-medium">ออกบิลแล้ว:</span>{' '}
-                    <span className="font-semibold text-blue-700 tabular-nums">{formatWeight(group.summary.billedWeight)} กก.</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 font-medium">คงเหลือ:</span>{' '}
-                    <span className="font-semibold text-emerald-700 tabular-nums">{formatWeight(group.summary.remainingWeight)} กก.</span>
-                  </div>
-                  {targetDocNos.length > 0 && (
-                    <div className="col-span-2 text-sm mt-1.5">
-                      <span className="text-slate-500 font-semibold">เอกสารปลายทาง:</span>{' '}
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {targetDocNos.map((docNo) => (
-                          <span className="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700 shadow-sm" key={docNo}>
-                            {docNo}
-                          </span>
-                        ))}
+                  {/* Billed & Remaining Columns */}
+                  {showBillingColumns && (
+                    <div className="grid grid-cols-2 gap-3 text-sm pt-2.5 border-t border-slate-200/60">
+                      <div>
+                        <span className="text-slate-500 font-medium">ออกบิลแล้ว:</span>{' '}
+                        <span className="font-semibold text-blue-700 tabular-nums">{formatWeight(group.summary.billedWeight)} กก.</span>
                       </div>
+                      <div>
+                        <span className="text-slate-500 font-medium">คงเหลือ:</span>{' '}
+                        <span className="font-semibold text-emerald-700 tabular-nums">{formatWeight(group.summary.remainingWeight)} กก.</span>
+                      </div>
+                      {targetDocNos.length > 0 && (
+                        <div className="col-span-2 text-sm mt-1.5">
+                          <span className="text-slate-500 font-semibold">เอกสารปลายทาง:</span>{' '}
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {targetDocNos.map((docNo) => (
+                              <span className="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700 shadow-sm" key={docNo}>
+                                {docNo}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+              </details>
             </div>
           )
         })}

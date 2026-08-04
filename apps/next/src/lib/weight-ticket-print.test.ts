@@ -250,6 +250,10 @@ describe('weight ticket print HTML', () => {
     }))
     const mobileHtml = html.slice(html.indexOf('</table>'))
 
+    expect(mobileHtml).toContain('ดูรายละเอียดรายการ')
+    expect(mobileHtml).toContain('<details class="group')
+    expect(mobileHtml).not.toContain('<details open')
+
     expect(tableRowCells(html, 'เต๋าที่ 1').slice(0, 6)).toEqual([
       'เต๋าที่ 1', 'Lot 1', '205.00', '2.00', '0.00', '203.00',
     ])

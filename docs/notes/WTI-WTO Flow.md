@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-07-23
+updated: 2026-08-04
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
@@ -544,6 +544,8 @@ route หลัก: `/daily/weight-ticket-list`
 - branch filter ต้องใช้ shared branch combobox ตาม design baseline
 
 ## Detail / Timeline Flow
+
+บน mobile ให้แสดง product summary และยอดน้ำหนักที่จำเป็นก่อน โดยซ่อน raw lot, สิ่งเจือปน, รายการซื้อเพิ่ม และยอดอ้างอิงปลายทางไว้ในส่วน `ดูรายละเอียดรายการ` ที่ปิดไว้ตั้งต้น ผู้ใช้กดเปิดดูได้เมื่อจำเป็น; การยุบนี้เปลี่ยนเฉพาะการแสดงผลและไม่เปลี่ยน raw lines, product summary, น้ำหนัก หรือข้อมูลรูปภาพ
 
 detail ของ WTI/WTO ต้องตอบได้ 4 เรื่องพร้อมกัน:
 
