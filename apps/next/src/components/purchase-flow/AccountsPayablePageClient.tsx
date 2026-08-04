@@ -331,11 +331,11 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
       {/* Filters Toolbar */}
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
-        <div className="hidden lg:block space-y-3">
+        <div className="hidden space-y-2 lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลข PB / ผู้ขาย / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
             
-            <div className="min-w-[260px]">
+            <div className="w-[15rem] shrink-0">
               <SearchCombobox
                 hideLabel
                 inputClassName="h-9 text-sm rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
@@ -351,7 +351,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               />
             </div>
             
-            <Select className="h-9 px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
+            <Select className="h-9 w-[10rem] shrink-0 px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
               <option value="">ทุกอายุหนี้</option>
               <option value="Current">วันนี้/อนาคต</option>
               <option value="1-30">1-30 วัน</option>
@@ -359,12 +359,11 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               <option value="61-90">61-90 วัน</option>
               <option value=">90">&gt;90 วัน</option>
             </Select>
-            
+
+            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-[11rem] shrink-0" controlSize="filter" inputId="accounts-payable-branch-filter" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-[12rem]" controlSize="filter" inputId="accounts-payable-branch-filter" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
-            
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">สถานะ:</span>
               {['', ...(data?.filters.statuses ?? [])].map((item) => {
@@ -389,7 +388,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
             <DatePickerInput className="h-9 w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
             
             {hasFilters && (
-              <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-normal text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>✕ ล้าง</button>
+              <button className="h-9 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 transition-colors hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>✕ ล้าง</button>
             )}
             
             <div className="ml-auto flex flex-wrap items-center gap-2">

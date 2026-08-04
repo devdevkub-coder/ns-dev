@@ -6,7 +6,7 @@ tags:
   - finance-debt
   - accounts-receivable
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-08-04
 route: /finance/ar
 ---
 
@@ -147,6 +147,12 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Why it has to be like this: period-based navigation preserves its source range, while the Financial Dashboard's as-of outstanding KPI intentionally sends an empty `from` plus `to=asOf`; the client must preserve that empty lower bound so older open bills are not dropped by a current-month default.
 - Authorization: bills, branch options, customer options and returned customer-branch mappings use the same effective finance branch intersection. Unknown/inactive explicit branches return `404`; existing branches outside scope return `403`; an empty mapped scope returns no branch data.
 - Aging cutoff: `today` is normalized to the Bangkok business date before comparison with due dates, preventing the 00:00–06:59 Bangkok window from reporting one day behind.
+
+## Compact Filter Layout 2026-08-04
+
+- What is what: the desktop AR filter card keeps search, customer, sales channel, aging bucket and branch in its first compact row; status, bill-date range, clear action and Excel export remain in the second row. Filter controls remain `h-9`, while the export action remains `h-10`.
+- Why it has to be like this: customer, channel, aging and branch define the primary AR data scope and should be visible together without each select consuming a full row. Status/date and actions remain grouped separately so the card matches the shared two-row list-filter convention and leaves more space for the receivable data.
+- Preserved boundary: filter state, query parameters, API requests, export scope, pagination, permissions and the existing mobile filter interaction do not change.
 
 ## Implementation Checklist
 
