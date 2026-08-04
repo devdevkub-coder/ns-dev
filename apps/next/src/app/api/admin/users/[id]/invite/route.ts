@@ -4,6 +4,7 @@ import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { authEmailErrorResponse } from '@/lib/server/auth-email-errors'
+import { currentActor } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { getSupabaseAdminClient, getSupabasePublicServerClient } from '@/lib/server/supabase-admin'
 
@@ -49,6 +50,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'system.users.credentials_manage')
+    const actor = currentActor(context)
 
     const { id: rawId } = routeParamsSchema.parse(await params)
     const id = parseAppUserId(rawId)
@@ -99,7 +101,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
         await prisma.app_users.update({
           data: {
             auth_user_id: authUserId,
-            updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
+            updated_by: actor,
           },
           where: { id: appUser.id },
         })
@@ -122,7 +124,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       await prisma.app_users.update({
         data: {
           password_link_sent_at: sentAt,
-            updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
+            updated_by: actor,
         },
         where: { id: appUser.id },
       })
@@ -154,7 +156,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       await prisma.app_users.update({
         data: {
           invitation_sent_at: new Date(),
-            updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
+            updated_by: actor,
         },
         where: { id: appUser.id },
       })
@@ -190,7 +192,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       data: {
         ...(data.user?.id ? { auth_user_id: data.user.id } : {}),
         invitation_sent_at: new Date(),
-            updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
+            updated_by: actor,
       },
       where: { id: appUser.id },
     })

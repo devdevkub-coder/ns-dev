@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * QA Script: ทดสอบฟอนต์ไทยของ @react-pdf/renderer
  *

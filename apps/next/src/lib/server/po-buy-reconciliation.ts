@@ -52,13 +52,21 @@ function calculateVatAmount(subtotal: number, hasVat: boolean, vatRatePercent: n
   return roundMoney(subtotal * vatRatePercent / 100)
 }
 
-function jsonNumber(value: unknown) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+function jsonNumber(value: unknown, field = 'ตัวเลข') {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error(`ข้อมูล ${field} ไม่ใช่ตัวเลขที่ถูกต้อง`)
+    return value
+  }
   if (typeof value === 'string') {
     const parsed = Number(value.replace(/,/g, ''))
-    return Number.isFinite(parsed) ? parsed : 0
+    if (!Number.isFinite(parsed)) throw new Error(`ข้อมูล ${field} ไม่ใช่ตัวเลขที่ถูกต้อง`)
+    return parsed
   }
-  return toNumber(value as { toNumber: () => number } | null | undefined)
+  if (value && typeof value === 'object' && 'toNumber' in value && typeof value.toNumber === 'function') {
+    const parsed = value.toNumber()
+    if (Number.isFinite(parsed)) return parsed
+  }
+  throw new Error(`ข้อมูล ${field} ขาดหายหรือไม่ใช่ตัวเลขที่ถูกต้อง`)
 }
 
 function canonicalItemProductIdKey(item: Record<string, unknown>, row: PoBuyRow) {
@@ -97,18 +105,20 @@ function normalizePoItems(row: PoBuyRow) {
       }))
   }
 
+  const productId = stringifyBusinessValue(row.product_id)
+  if (!productId) throw new Error(`PO Buy ${row.doc_no} ไม่มีสินค้าในข้อมูลเดิมสำหรับ reconcile`)
   return [{
     productId: '',
-    productIdKey: stringifyBusinessValue(row.product_id),
-    productName: '-',
-    qty: jsonNumber(row.qty),
+    productIdKey: productId,
+    productName: productId,
+    qty: jsonNumber(row.qty, `จำนวนของ PO Buy ${row.doc_no}`),
     raw: {
       productId: '',
-      productName: '-',
-      qty: jsonNumber(row.qty),
-      unitPrice: jsonNumber(row.unit_price),
+      productName: productId,
+      qty: jsonNumber(row.qty, `จำนวนของ PO Buy ${row.doc_no}`),
+      unitPrice: jsonNumber(row.unit_price, `ราคาของ PO Buy ${row.doc_no}`),
     },
-    unitPrice: jsonNumber(row.unit_price),
+    unitPrice: jsonNumber(row.unit_price, `ราคาของ PO Buy ${row.doc_no}`),
   }]
 }
 
@@ -357,7 +367,8 @@ export async function reconcilePoBuys(
     const totalQty = normalizedItems.reduce((sum, item) => sum + item.qty, 0)
     const subtotal = roundMoney(normalizedItems.reduce((sum, item) => sum + item.qty * item.unitPrice, 0))
     const hasVat = Boolean(row.has_vat)
-    const vatRatePercent = toNumber(row.vat_rate_percent) || 7
+    const vatRatePercent = hasVat ? jsonNumber(row.vat_rate_percent, `อัตรา VAT ของ PO Buy ${row.doc_no}`) : 0
+    if (vatRatePercent < 0 || vatRatePercent > 100) throw new Error(`อัตรา VAT ของ PO Buy ${row.doc_no} ไม่อยู่ในช่วงที่ถูกต้อง`)
     const vatAmount = calculateVatAmount(subtotal, hasVat, vatRatePercent)
     const totalAmount = roundMoney(subtotal + vatAmount)
     const allocated = allocationsByPo.get(row.id) ?? { amount: 0, qtyByProduct: new Map<string, number>() }

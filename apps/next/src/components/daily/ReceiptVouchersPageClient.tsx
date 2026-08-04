@@ -404,7 +404,7 @@ export function ReceiptVouchersPageClient() {
         }
         return sortDirection === 'asc' ? comparison : -comparison
       })
-  }, [branchFilter, dateFrom, dateTo, rows, search, sortKey, sortDirection, statusFilter])
+  }, [dateFrom, dateTo, rows, search, sortKey, sortDirection, statusFilter])
 
   const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => supplierOptions.map((supplier) => ({
     description: supplier.taxId ? `เลขประจำตัวผู้เสียภาษี ${supplier.taxId}` : supplier.address,

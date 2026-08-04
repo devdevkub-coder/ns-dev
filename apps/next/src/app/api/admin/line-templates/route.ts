@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { currentActor } from '@/lib/server/daily'
 import { buildFlexMessageFromTemplate } from '@/lib/server/line-notification-routing'
 import { findScopedWeightTicket, getWeightTicketUsageCounts, mapWeightTicketRow, type WeightTicketRow } from '@/lib/server/weight-tickets'
 
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const values = templateSchema.parse(body)
+    const actor = currentActor(auth)
 
     if (values.isDefaultWti) {
       await prisma.line_message_templates.updateMany({
@@ -67,7 +69,7 @@ export async function POST(request: Request) {
         is_default_wto: values.isDefaultWto,
         is_active: values.isActive,
         config: values.config,
-        created_by: auth.appUser?.email || 'admin'
+        created_by: actor
       }
     })
 
@@ -85,6 +87,7 @@ export async function PATCH(request: Request) {
   try {
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'system.settings.manage')
+    const actor = currentActor(auth)
 
     const body = await request.json()
     const { id, action, ...fields } = body
@@ -108,7 +111,7 @@ export async function PATCH(request: Request) {
       if (!documentNo) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่ระบุเลขที่เอกสาร' }, { status: 400 })
       }
-      const ticket = await findScopedWeightTicket(documentNo, [])
+      const ticket = await findScopedWeightTicket(documentNo, null)
       if (!ticket) {
         return NextResponse.json({ code: 'NOT_FOUND', error: `ไม่พบเอกสารใบชั่งเลขที่ ${documentNo}` }, { status: 404 })
       }
@@ -160,7 +163,7 @@ export async function PATCH(request: Request) {
         is_default_wto: parsedFields.isDefaultWto,
         is_active: parsedFields.isActive,
         config: parsedFields.config,
-        updated_by: auth.appUser?.email || 'admin',
+        updated_by: actor,
         updated_at: new Date()
       }
     })

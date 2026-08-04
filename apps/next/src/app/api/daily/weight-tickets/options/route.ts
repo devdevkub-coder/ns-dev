@@ -19,7 +19,7 @@ export async function GET() {
     requirePermission(context, 'daily.weight_tickets.view')
 
     const scopedBranchIds = branchScopeIds(context)
-    const branches = scopedBranchIds.length ? await listActiveBranchesByCodes(scopedBranchIds) : await listActiveBranches()
+    const branches = scopedBranchIds === null ? await listActiveBranches() : await listActiveBranchesByCodes(scopedBranchIds)
     const branchCodes = branches.map((branch) => branch.code)
     const [suppliers, customers, impurities] = await Promise.all([
       listActiveSupplierBranchOptionsByBranchCodes(branchCodes),

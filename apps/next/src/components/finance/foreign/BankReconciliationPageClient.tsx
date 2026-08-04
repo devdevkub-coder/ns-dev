@@ -150,7 +150,7 @@ export function BankReconciliationPageClient() {
       if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
     }
-  }, [accountId, query])
+  }, [query])
 
   useEffect(() => {
     void loadData()

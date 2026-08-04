@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Calculator, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -71,7 +71,7 @@ export function SalesPlanAnalysisDashboard() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
-  const load = async (targetMonth = month) => {
+  const load = useCallback(async (targetMonth = month) => {
     setIsLoading(true)
     setError('')
     try {
@@ -83,11 +83,11 @@ export function SalesPlanAnalysisDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [month])
 
   useEffect(() => {
     void load('2026-07')
-  }, [])
+  }, [load])
 
   const productOptions = useMemo(() => Array.from(new Map(
     (data?.productAnalysis ?? [])

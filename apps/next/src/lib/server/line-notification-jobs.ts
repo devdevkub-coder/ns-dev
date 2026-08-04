@@ -36,7 +36,7 @@ export function checkFontsAvailability(): { available: boolean; triedPaths: stri
 }
 
 async function loadWeightTicket(documentNo: string) {
-  const ticket = await findScopedWeightTicket(documentNo, [])
+  const ticket = await findScopedWeightTicket(documentNo, null)
   if (!ticket) return null
   const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
   return {
@@ -100,6 +100,7 @@ export async function enqueueNotificationJob(documentNo: string, options: Enqueu
 }
 
 async function enqueueNotificationSource(source: LineNotificationSource, options: EnqueueOptions) {
+  if (!options.requestedBy.trim()) throw new Error('ต้องระบุผู้ขอส่ง LINE notification')
   const loaded = await loadNotificationSource(source)
   if (!loaded) {
     throw new Error(sourceNotFoundMessage(source))
@@ -165,7 +166,7 @@ async function enqueueNotificationSource(source: LineNotificationSource, options
           custom_message: options.customMessage || null,
           status: 'pending',
           priority: 100,
-          requested_by: options.requestedBy || 'system',
+          requested_by: options.requestedBy.trim(),
           next_retry_at: new Date()
         }
       })
@@ -272,7 +273,8 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
     const appUrlConfig = await prisma.system_settings.findUnique({
       where: { key: 'NEXT_PUBLIC_APP_URL' }
     })
-    const appUrl = appUrlConfig?.value || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = appUrlConfig?.value?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim()
+    if (!appUrl) throw new Error('ยังไม่ได้ตั้งค่า NEXT_PUBLIC_APP_URL สำหรับสร้างลิงก์แจ้งเตือน')
 
     type NotificationDispatchResult = {
       error?: string
@@ -284,6 +286,8 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
 
     let result: NotificationDispatchResult
     if (job.source_type === 'weight_ticket') {
+      const requestedBy = job.requested_by?.trim()
+      if (!requestedBy) throw new Error(`งานแจ้งเตือน ${job.id.toString()} ไม่มีผู้ขอส่งรายการ`)
       const fonts = checkFontsAvailability()
       if (!fonts.available) {
         throw new Error(`ไม่พบไฟล์ฟอนต์ภาษาไทยสำหรับสร้างเอกสาร PDF (Tried paths: ${fonts.triedPaths.join(', ')})`)
@@ -292,7 +296,7 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
         force: true, // We bypass log check inside notifyWeightTicketLine because we control it here
         targetId: job.target_id,
         customMessage: job.custom_message || undefined,
-        requestedBy: job.requested_by || 'system',
+        requestedBy,
         origin: appUrl,
         scopedBranchIds: [],
         retryKey: String(job.retry_key)

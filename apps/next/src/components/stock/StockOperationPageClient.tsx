@@ -2138,14 +2138,15 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
 }
 
 function StatusConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StatusConvertFormValues) => Promise<boolean>; reference: Payload['reference'] }) {
+  const { onDirtyChange } = props
   const [values, setValues] = useState<StatusConvertFormValues>({ sourceBranchId: '', targetBranchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '', targetWarehouseId: '' })
   const [formBaseline, setFormBaseline] = useState(() => statusConvertFormSafetySnapshot(values))
   const isFormDirty = statusConvertFormSafetySnapshot(values) !== formBaseline
 
   useEffect(() => {
-    props.onDirtyChange(isFormDirty)
-    return () => props.onDirtyChange(false)
-  }, [isFormDirty, props.onDirtyChange])
+    onDirtyChange(isFormDirty)
+    return () => onDirtyChange(false)
+  }, [isFormDirty, onDirtyChange])
 
   async function submit() {
     if (await props.onSubmit(values)) setFormBaseline(statusConvertFormSafetySnapshot(values))
@@ -2410,6 +2411,7 @@ export function hasManualAllocationData(manualAllocations: StockConvertFormValue
 }
 
 function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StockConvertFormValues) => Promise<boolean>; reference: Payload['reference']; requestConfirmation: ReturnType<typeof useActionConfirmation>['requestConfirmation'] }) {
+  const { onDirtyChange } = props
   const [values, setValues] = useState<StockConvertFormValues>({
     allocationMethod: 'FIFO',
     branchId: '',
@@ -2433,9 +2435,9 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
   const isFormDirty = stockConvertFormSafetySnapshot(values) !== formBaseline
 
   useEffect(() => {
-    props.onDirtyChange(isFormDirty)
-    return () => props.onDirtyChange(false)
-  }, [isFormDirty, props.onDirtyChange])
+    onDirtyChange(isFormDirty)
+    return () => onDirtyChange(false)
+  }, [isFormDirty, onDirtyChange])
 
   async function submit() {
     if (await props.onSubmit(values)) setFormBaseline(stockConvertFormSafetySnapshot(values))
@@ -2651,14 +2653,15 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
 }
 
 function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StockAdjustFormValues) => Promise<boolean>; reference: Payload['reference'] }) {
+  const { onDirtyChange } = props
   const [values, setValues] = useState<StockAdjustFormValues>({ branchId: '', countedQty: 0, date: todayDateInput(), docNo: null, lotNo: null, productId: '', reason: stockAdjustReasonOptions[0], remark: null, status: 'RM', systemQty: 0, warehouseId: '' })
   const [formBaseline, setFormBaseline] = useState(() => stockAdjustFormSafetySnapshot(values))
   const isFormDirty = stockAdjustFormSafetySnapshot(values) !== formBaseline
 
   useEffect(() => {
-    props.onDirtyChange(isFormDirty)
-    return () => props.onDirtyChange(false)
-  }, [isFormDirty, props.onDirtyChange])
+    onDirtyChange(isFormDirty)
+    return () => onDirtyChange(false)
+  }, [isFormDirty, onDirtyChange])
 
   async function submit() {
     if (await props.onSubmit(values)) setFormBaseline(stockAdjustFormSafetySnapshot(values))
