@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { Download } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -171,8 +172,9 @@ export function FcdLedgerPageClient() {
         </button>
       ) : null}
       {accountId ? (
-        <a className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50" href={`/api/finance/foreign/fcd-ledger?${query ? `${query}&` : ''}format=xlsx`}>
-          Export Excel
+        <a className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-sm hover:bg-emerald-700" href={`/api/finance/foreign/fcd-ledger?${query ? `${query}&` : ''}format=xlsx`}>
+          <Download aria-hidden="true" className="size-4" />
+          ส่งออก Excel
         </a>
       ) : null}
     </>
@@ -223,9 +225,9 @@ export function FcdLedgerPageClient() {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead align="center" label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
               <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-              <ResizableTableHead label="เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เอกสาร')} />
+              <ResizableTableHead align="center" label="เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เอกสาร')} />
               <ResizableTableHead label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
               <ResizableTableHead align="right" label="FCD เข้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignIn" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignIn', 'FCD เข้า')} />
               <ResizableTableHead align="right" label="FCD ออก" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignOut" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignOut', 'FCD ออก')} />
@@ -241,9 +243,9 @@ export function FcdLedgerPageClient() {
             {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fcdColumns.length}>ยังไม่มีรายการเดินบัญชี FCD</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr id={`entry-${row.id}`} key={row.id} className="transition-colors hover:bg-slate-50">
-                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatFcdDate(row.date)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatFcdDate(row.date)}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.type}</td>
-                <td className="min-w-0 truncate px-3 py-3 font-mono text-xs text-blue-600">{row.refNo}</td>
+                <td className="whitespace-nowrap min-w-0 truncate px-3 py-3 text-center font-mono text-xs text-blue-600">{row.refNo}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.description || '-'}</td>
                 <MoneyCell tone="in" value={row.foreignIn} />
                 <MoneyCell tone="out" value={row.foreignOut} />
@@ -275,14 +277,14 @@ export function FcdLedgerPageClient() {
               className="space-y-2 rounded-xl border border-slate-100 bg-white p-4 text-xs shadow-sm"
             >
               <div className="flex justify-between items-start">
-                <span className="font-mono text-slate-500 text-xs">{formatFcdDate(row.date)}</span>
-                <span className="rounded-md bg-indigo-100 px-1.5 py-0.5 text-xs font-bold text-indigo-700">
+                <span className="whitespace-nowrap font-mono text-slate-500 text-xs">{formatFcdDate(row.date)}</span>
+                <span className="whitespace-nowrap rounded-md bg-indigo-100 px-1.5 py-0.5 text-xs font-bold text-indigo-700">
                   {row.type}
                 </span>
               </div>
               
               <div className="flex justify-between">
-                <span className="font-mono text-blue-600 font-semibold">Ref: {row.refNo}</span>
+                <span className="whitespace-nowrap font-mono text-blue-600 font-semibold">Ref: {row.refNo}</span>
                 {row.fxRate ? <span className="text-slate-400">Rate: {formatMoney(row.fxRate)}</span> : null}
               </div>
               

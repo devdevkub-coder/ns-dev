@@ -5,7 +5,7 @@ tags:
   - menu
   - dual-costing
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-08-02
 route: /dual-costing/deal-margin
 ---
 
@@ -127,6 +127,7 @@ Read-only. No mutation.
 
 - Current API/page is implemented and protected by `finance.cash.view`.
 - Current route uses `trading_deals` as accepted read baseline and supports XLSX export.
+- Desktop filter toolbar keeps date/channel/clear controls together and the real Excel action at the far right. It intentionally has no empty secondary action row because this page has no segmented/status filter.
 
 ## Current Gap
 

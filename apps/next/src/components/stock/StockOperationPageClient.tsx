@@ -985,9 +985,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" value={fromDateFilter} onChange={setFromDateFilter} />
+                      <DatePickerInput className="h-9 flex-1" value={fromDateFilter} onChange={setFromDateFilter} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" value={toDateFilter} onChange={setToDateFilter} />
+                      <DatePickerInput className="h-9 flex-1" value={toDateFilter} onChange={setToDateFilter} />
                     </div>
                   </div>
                 </>
@@ -1026,9 +1026,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" value={statusFromDateFilter} onChange={setStatusFromDateFilter} />
+                      <DatePickerInput className="h-9 flex-1" value={statusFromDateFilter} onChange={setStatusFromDateFilter} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" value={statusToDateFilter} onChange={setStatusToDateFilter} />
+                      <DatePickerInput className="h-9 flex-1" value={statusToDateFilter} onChange={setStatusToDateFilter} />
                     </div>
                   </div>
                 </>
@@ -1348,13 +1348,13 @@ function OperationTable({
                 }}
               >
                 <div className="mb-2 flex items-start justify-between">
-                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <span className="whitespace-nowrap font-bold text-slate-800">{refNo}</span>
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${adjustType === 'LOSS' ? 'bg-red-100 text-red-700' : adjustType === 'GAIN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                     <span className={`size-1.5 rounded-full ${adjustType === 'LOSS' ? 'bg-red-500' : adjustType === 'GAIN' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                     {adjustType === 'LOSS' ? 'นับขาด' : adjustType === 'GAIN' ? 'นับเกิน' : '-'}
                   </span>
                 </div>
-                <div className="text-xs text-slate-500">{formatDateTime(row.createdAt)}</div>
+                <div className="whitespace-nowrap text-xs text-slate-500">{formatDateTime(row.createdAt)}</div>
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold">สินค้า:</span> {formatCell(row.productName)}</div>
                   <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchWarehouse)}</div>
@@ -1403,13 +1403,13 @@ function OperationTable({
             return (
               <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
                 <div className="mb-2 flex items-start justify-between">
-                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <span className="whitespace-nowrap font-bold text-slate-800">{refNo}</span>
                   <div className="flex gap-1.5">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${sourceTypeColor}`}>{displayConvertLabel(CONVERT_SOURCE_TYPE_LABELS, sourceType)}</span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor}`}>{displayConvertLabel(CONVERT_STATUS_LABELS, status || 'posted')}</span>
                   </div>
                 </div>
-                <div className="text-xs text-slate-500">{formatDateDisplay(date)}</div>
+                <div className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(date)}</div>
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold text-red-600">สินค้าออก:</span> {formatCell(row.sourceProduct)}</div>
                   <div><span className="font-semibold text-emerald-700">สินค้าเข้า:</span> {formatCell(row.targetProduct)}</div>
@@ -1449,10 +1449,10 @@ function OperationTable({
             return (
               <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
                 <div className="mb-2 flex items-start justify-between">
-                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <span className="whitespace-nowrap font-bold text-slate-800">{refNo}</span>
                   <StatusText status={status} />
                 </div>
-                <div className="text-xs text-slate-500">{formatDateDisplay(date)}</div>
+                <div className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(date)}</div>
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold">สินค้า:</span> <b>{formatCell(row.productCode)}</b> - {formatCell(row.productName)}</div>
                   <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchName)} / {formatCell(row.warehouseName)} → {formatCell(row.targetWarehouseName)}</div>
@@ -1475,7 +1475,7 @@ function OperationTable({
                   </div>
                   <div>
                     <div className="text-slate-400">ผู้ทำ / วันที่สร้างรายการ</div>
-                    <div className="font-semibold text-slate-600">{formatCell(row.createdBy)} ({formatDateTime(row.createdAt)})</div>
+                    <div className="font-semibold text-slate-600">{formatCell(row.createdBy)} <span className="whitespace-nowrap">({formatDateTime(row.createdAt)})</span></div>
                   </div>
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
@@ -1570,54 +1570,54 @@ function StatusText({ status }: { status: string }) {
 
 function columnsFor(mode: Mode): OperationColumn[] {
   if (mode === 'status-convert') return [
-    { key: 'date', label: 'วันที่เอกสาร', sortable: true },
-    { key: 'refNo', label: 'เลขที่', sortable: true },
-    { key: 'productDisplay', label: 'สินค้า', sortable: true },
-    { key: 'locationDisplay', label: 'สาขา/คลัง', sortable: true },
+    { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'refNo', label: 'เลขที่', cellClassName: 'text-center whitespace-nowrap font-mono', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'productDisplay', label: 'สินค้า', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'locationDisplay', label: 'สาขา/คลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
     { key: 'qty', label: 'จำนวน (กก.)', cellClassName: 'text-right font-semibold text-purple-700 tabular-nums', headerClassName: 'text-right', sortable: true },
     { key: 'unitCost', label: 'ต้นทุน (บาท/กก.)', cellClassName: 'text-right text-slate-600 tabular-nums', headerClassName: 'text-right', sortable: true },
     { key: 'value', label: 'มูลค่า', cellClassName: 'text-right text-slate-600 tabular-nums', headerClassName: 'text-right', sortable: true },
-    { key: 'statusFlow', label: 'เปลี่ยนสถานะ', cellClassName: 'text-center', headerClassName: 'text-center', sortable: true },
-    { key: 'note', label: 'เหตุผล', sortable: true },
-    { key: 'status', label: 'สถานะ', cellClassName: 'text-center', headerClassName: 'text-center', sortable: true },
-    { key: 'createdBy', label: 'ผู้ทำรายการ', sortable: true },
-    { key: 'createdAt', label: 'วันที่สร้างรายการ', sortable: true },
-    { key: 'action', label: 'จัดการ', cellClassName: 'text-center', headerClassName: 'text-center' },
+    { key: 'statusFlow', label: 'เปลี่ยนสถานะ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'note', label: 'เหตุผล', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'createdBy', label: 'ผู้ทำรายการ', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'createdAt', label: 'วันที่สร้างรายการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'action', label: 'จัดการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap' },
   ]
   if (mode === 'convert') return [
     { key: 'sourceType', label: 'วิธีจัดสรร', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
-    { key: 'refNo', label: 'เลขที่ / อ้างอิง', cellClassName: 'whitespace-nowrap text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'whitespace-nowrap text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'branchWarehouse', label: 'สาขา / คลัง', cellClassName: 'whitespace-nowrap text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'sourceProduct', label: 'สินค้าออก', cellClassName: 'text-right', headerClassName: 'text-right', sortable: true },
+    { key: 'refNo', label: 'เลขที่ / อ้างอิง', cellClassName: 'whitespace-nowrap text-center font-mono', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'whitespace-nowrap text-center', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'branchWarehouse', label: 'สาขา / คลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'sourceProduct', label: 'สินค้าออก', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
     { key: 'sourceQty', label: 'จำนวนออก', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums text-red-700', headerClassName: 'text-right', sortable: true },
     { key: 'unitCost', label: 'ต้นทุน/กก. ออก', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
-    { key: 'targetProduct', label: 'สินค้าเข้า', cellClassName: 'text-right', headerClassName: 'text-right', sortable: true },
+    { key: 'targetProduct', label: 'สินค้าเข้า', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
     { key: 'targetQty', label: 'จำนวนเข้า', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums text-emerald-700', headerClassName: 'text-right', sortable: true },
     { key: 'targetUnitCost', label: 'ต้นทุน/กก. เข้า', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
     { key: 'lossQty', label: 'สูญเสีย', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
-    { key: 'costStatus', label: 'สถานะต้นทุน', cellClassName: 'text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'status', label: 'สถานะ', cellClassName: 'text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'action', label: 'จัดการ', cellClassName: 'text-right', headerClassName: 'text-right' },
+    { key: 'costStatus', label: 'สถานะต้นทุน', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'action', label: 'จัดการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap' },
   ]
   if (mode === 'adjust') return [
-    { key: 'docNo', label: 'เลขที่เอกสาร', sortable: true },
-    { key: 'date', label: 'วันที่เอกสาร', sortable: true },
-    { key: 'branchWarehouse', label: 'สาขา/คลัง', sortable: true },
-    { key: 'productName', label: 'สินค้า', sortable: true },
-    { key: 'outputCategory', label: 'ประเภทคลัง', sortable: true },
-    { key: 'systemQty', label: 'ยอดในระบบ', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono text-amber-700', headerClassName: 'text-right', sortable: true },
-    { key: 'readyQty', label: 'พร้อมใช้', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'text-right', sortable: true },
-    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'diffQty', label: 'ส่วนต่าง', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'adjustType', label: 'ประเภท', sortable: true },
-    { key: 'unitPricePerKg', label: 'ราคา/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'totalValue', label: 'มูลค่ารวม (บาท)', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'reason', label: 'เหตุผล', sortable: true },
-    { key: 'createdAt', label: 'วันที่สร้างรายการ', sortable: true },
-    { key: 'updatedBy', label: 'แก้ไขโดย', sortable: true },
-    { key: 'action', label: 'จัดการ', cellClassName: 'text-center', headerClassName: 'text-center' },
+    { key: 'docNo', label: 'เลขที่เอกสาร', cellClassName: 'text-center whitespace-nowrap font-mono', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'branchWarehouse', label: 'สาขา/คลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'productName', label: 'สินค้า', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'outputCategory', label: 'ประเภทคลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'systemQty', label: 'ยอดในระบบ', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono tabular-nums text-amber-700', headerClassName: 'text-right', sortable: true },
+    { key: 'readyQty', label: 'พร้อมใช้', cellClassName: 'text-right font-mono tabular-nums text-emerald-700', headerClassName: 'text-right', sortable: true },
+    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'diffQty', label: 'ส่วนต่าง', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'adjustType', label: 'ประเภท', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'unitPricePerKg', label: 'ราคา/กก.', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'totalValue', label: 'มูลค่ารวม (บาท)', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'reason', label: 'เหตุผล', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'createdAt', label: 'วันที่สร้างรายการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'updatedBy', label: 'แก้ไขโดย', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'action', label: 'จัดการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap' },
   ]
   return []
 }
@@ -1936,7 +1936,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                   <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                     <div>
                       <div className="text-xs text-slate-500">Cost Pool ต้นทาง</div>
-                      <div className="mt-0.5 font-semibold text-slate-800">{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
+                      <div className="mt-0.5 whitespace-nowrap text-center font-mono font-semibold text-slate-800">{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
                       <div className="text-xs text-slate-400">Pool {line.sourcePoolId ?? '-'}{line.sourceLotNo ? ` · ล็อต ${line.sourceLotNo}` : ''}</div>
                     </div>
                     <div>
@@ -1983,10 +1983,10 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                 </colgroup>
                 <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                   <tr>
-                    <ResizableTableHead label="ลำดับ" resizeProps={columnResize.getResizeHandleProps('line', 'ลำดับ')} />
-                    <ResizableTableHead label="Cost Pool ต้นทาง" resizeProps={columnResize.getResizeHandleProps('sourcePool', 'Cost Pool ต้นทาง')} />
+                    <ResizableTableHead align="right" label="ลำดับ" resizeProps={columnResize.getResizeHandleProps('line', 'ลำดับ')} />
+                    <ResizableTableHead align="center" label="Cost Pool ต้นทาง" resizeProps={columnResize.getResizeHandleProps('sourcePool', 'Cost Pool ต้นทาง')} />
                     <ResizableTableHead label="สินค้าต้นทาง" resizeProps={columnResize.getResizeHandleProps('sourceProduct', 'สินค้าต้นทาง')} />
-                    <ResizableTableHead label="Cost Pool ปลายทาง" resizeProps={columnResize.getResizeHandleProps('targetPool', 'Cost Pool ปลายทาง')} />
+                    <ResizableTableHead align="center" label="Cost Pool ปลายทาง" resizeProps={columnResize.getResizeHandleProps('targetPool', 'Cost Pool ปลายทาง')} />
                     <ResizableTableHead label="สินค้าปลายทาง" resizeProps={columnResize.getResizeHandleProps('targetProduct', 'สินค้าปลายทาง')} />
                     <ResizableTableHead align="right" label="จำนวน" resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวน')} />
                     <ResizableTableHead align="right" label="ต้นทุน/กก." resizeProps={columnResize.getResizeHandleProps('unitCost', 'ต้นทุน/กก.')} />
@@ -1997,20 +1997,20 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                 <tbody className="divide-y divide-slate-200">
                   {detail.lines.map((line) => (
                     <tr key={`${line.lineNo}-${line.sourcePoolId ?? 'source'}`} className="transition-colors hover:bg-slate-50">
-                      <td className="overflow-hidden truncate px-3 py-3 align-top font-mono text-slate-700">{line.lineNo}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 align-top text-slate-700">
-                        <div>{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
+                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono tabular-nums text-slate-700">{line.lineNo}</td>
+                      <td className="overflow-hidden truncate whitespace-nowrap px-3 py-3 text-center align-top text-slate-700">
+                        <div className="font-mono">{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
                         <div className="mt-0.5 text-xs text-slate-400">Pool {line.sourcePoolId ?? '-'}{line.sourceLotNo ? ` · ล็อต ${line.sourceLotNo}` : ''}</div>
                       </td>
                       <td className="overflow-hidden truncate px-3 py-3 align-top text-slate-700">{line.sourceProduct}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 align-top text-slate-700">
+                      <td className="overflow-hidden truncate whitespace-nowrap px-3 py-3 text-center align-top text-slate-700">
                         <div>Pool {line.targetPoolId ?? '-'}</div>
                         <div className="mt-0.5 text-xs text-slate-400">{displayConvertLabel(CONVERT_POOL_STATUS_LABELS, line.targetPoolStatus ?? '')}{line.targetLotNo ? ` · ล็อต ${line.targetLotNo}` : ''}</div>
                       </td>
                       <td className="overflow-hidden truncate px-3 py-3 align-top text-slate-700">{line.targetProduct}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono text-slate-700">{formatMoney(line.qty)}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono text-slate-700">{formatMoney(line.unitCost)}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono text-slate-700">{formatMoney(line.totalCost)}</td>
+                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono tabular-nums text-slate-700">{formatMoney(line.qty)}</td>
+                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono tabular-nums text-slate-700">{formatMoney(line.unitCost)}</td>
+                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono tabular-nums text-slate-700">{formatMoney(line.totalCost)}</td>
                       <td className="overflow-hidden truncate px-3 py-3 text-center align-top">
                         <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${line.allocationStatus === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
                           {displayConvertLabel(CONVERT_ALLOCATION_STATUS_LABELS, line.allocationStatus)}
@@ -2066,10 +2066,10 @@ function Field(props: { disabled?: boolean; label: string; onChange: (value: str
     <label className="block text-xs font-semibold text-slate-600" data-manual-required={props.label.trim().endsWith('*') ? 'true' : undefined}>
       {props.label}
       {props.type === 'date' ? (
-        <DatePickerInput className="mt-1 h-9 w-full font-normal" value={props.value} onChange={props.onChange} />
+        <DatePickerInput className="mt-1 h-10 w-full font-normal" value={props.value} onChange={props.onChange} />
       ) : (
         <input
-          className={`mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed ${isNumberField ? '[appearance:textfield] text-right tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''}`}
+          className={`mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed ${isNumberField ? '[appearance:textfield] text-right tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''}`}
           disabled={props.disabled}
           inputMode={isNumberField ? 'decimal' : undefined}
           min={isNumberField ? 0 : undefined}
@@ -2138,14 +2138,15 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
 }
 
 function StatusConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StatusConvertFormValues) => Promise<boolean>; reference: Payload['reference'] }) {
+  const { onDirtyChange } = props
   const [values, setValues] = useState<StatusConvertFormValues>({ sourceBranchId: '', targetBranchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '', targetWarehouseId: '' })
   const [formBaseline, setFormBaseline] = useState(() => statusConvertFormSafetySnapshot(values))
   const isFormDirty = statusConvertFormSafetySnapshot(values) !== formBaseline
 
   useEffect(() => {
-    props.onDirtyChange(isFormDirty)
-    return () => props.onDirtyChange(false)
-  }, [isFormDirty, props.onDirtyChange])
+    onDirtyChange(isFormDirty)
+    return () => onDirtyChange(false)
+  }, [isFormDirty, onDirtyChange])
 
   async function submit() {
     if (await props.onSubmit(values)) setFormBaseline(statusConvertFormSafetySnapshot(values))
@@ -2342,7 +2343,7 @@ function CostPoolPreview({
           <table className="ns-table w-full text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                <th className="p-2 text-left">Source</th>
+                <th className="p-2 text-center whitespace-nowrap">Source</th>
                 <th className="p-2 text-right">Available</th>
                 <th className="p-2 text-right">฿/กก.</th>
                 <th className="p-2 text-right">ตัด</th>
@@ -2351,15 +2352,15 @@ function CostPoolPreview({
             <tbody>
               {entries.map((entry) => (
                 <tr key={entry.id} className="border-t border-slate-100">
-                  <td className="p-3">
-                    <div className="font-semibold text-slate-700">{entry.sourceRefNo ?? entry.sourceType}</div>
+                  <td className="whitespace-nowrap p-3 text-center">
+                    <div className="whitespace-nowrap font-mono font-semibold text-slate-700">{entry.sourceRefNo ?? entry.sourceType}</div>
                     <div className="text-slate-500">{entry.date}{entry.lotNo ? ` · Lot ${entry.lotNo}` : ''}</div>
                   </td>
-                  <td className="p-3 text-right font-mono">{formatMoney(entry.availableQty)}</td>
-                  <td className="p-3 text-right font-mono">{formatMoney(entry.unitCost)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(entry.availableQty)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(entry.unitCost)}</td>
                   <td className="p-3 text-right">
                     <input
-                      className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right font-mono"
+                      className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right font-mono tabular-nums"
                       min="0"
                       step="0.001"
                       type="number"
@@ -2378,7 +2379,7 @@ function CostPoolPreview({
           <table className="ns-table w-full text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                <th className="p-2 text-left">Source</th>
+                <th className="p-2 text-center whitespace-nowrap">Source</th>
                 <th className="p-2 text-right">ตัด</th>
                 <th className="p-2 text-right">฿/กก.</th>
                 <th className="p-2 text-right">มูลค่า</th>
@@ -2387,13 +2388,13 @@ function CostPoolPreview({
             <tbody>
               {previewRows.map((line) => (
                 <tr key={line.entry.id} className="border-t border-slate-100">
-                  <td className="p-3">
-                    <div className="font-semibold text-slate-700">{line.entry.sourceRefNo ?? line.entry.sourceType}</div>
+                  <td className="whitespace-nowrap p-3 text-center">
+                    <div className="whitespace-nowrap font-mono font-semibold text-slate-700">{line.entry.sourceRefNo ?? line.entry.sourceType}</div>
                     <div className="text-slate-500">{line.entry.date}{line.entry.lotNo ? ` · Lot ${line.entry.lotNo}` : ''}</div>
                   </td>
-                  <td className="p-3 text-right font-mono">{formatMoney(line.qty)}</td>
-                  <td className="p-3 text-right font-mono">{formatMoney(line.entry.unitCost)}</td>
-                  <td className="p-3 text-right font-mono">{formatMoney(line.qty * line.entry.unitCost)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(line.qty)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(line.entry.unitCost)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(line.qty * line.entry.unitCost)}</td>
                 </tr>
               ))}
               {!previewRows.length ? <tr><td className="p-3 text-center text-slate-400" colSpan={4}>เลือกสินค้า/สาขา/คลังและน้ำหนักเพื่อ preview Cost Pool</td></tr> : null}
@@ -2410,6 +2411,7 @@ export function hasManualAllocationData(manualAllocations: StockConvertFormValue
 }
 
 function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StockConvertFormValues) => Promise<boolean>; reference: Payload['reference']; requestConfirmation: ReturnType<typeof useActionConfirmation>['requestConfirmation'] }) {
+  const { onDirtyChange } = props
   const [values, setValues] = useState<StockConvertFormValues>({
     allocationMethod: 'FIFO',
     branchId: '',
@@ -2433,9 +2435,9 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
   const isFormDirty = stockConvertFormSafetySnapshot(values) !== formBaseline
 
   useEffect(() => {
-    props.onDirtyChange(isFormDirty)
-    return () => props.onDirtyChange(false)
-  }, [isFormDirty, props.onDirtyChange])
+    onDirtyChange(isFormDirty)
+    return () => onDirtyChange(false)
+  }, [isFormDirty, onDirtyChange])
 
   async function submit() {
     if (await props.onSubmit(values)) setFormBaseline(stockConvertFormSafetySnapshot(values))
@@ -2651,14 +2653,15 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
 }
 
 function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StockAdjustFormValues) => Promise<boolean>; reference: Payload['reference'] }) {
+  const { onDirtyChange } = props
   const [values, setValues] = useState<StockAdjustFormValues>({ branchId: '', countedQty: 0, date: todayDateInput(), docNo: null, lotNo: null, productId: '', reason: stockAdjustReasonOptions[0], remark: null, status: 'RM', systemQty: 0, warehouseId: '' })
   const [formBaseline, setFormBaseline] = useState(() => stockAdjustFormSafetySnapshot(values))
   const isFormDirty = stockAdjustFormSafetySnapshot(values) !== formBaseline
 
   useEffect(() => {
-    props.onDirtyChange(isFormDirty)
-    return () => props.onDirtyChange(false)
-  }, [isFormDirty, props.onDirtyChange])
+    onDirtyChange(isFormDirty)
+    return () => onDirtyChange(false)
+  }, [isFormDirty, onDirtyChange])
 
   async function submit() {
     if (await props.onSubmit(values)) setFormBaseline(stockAdjustFormSafetySnapshot(values))

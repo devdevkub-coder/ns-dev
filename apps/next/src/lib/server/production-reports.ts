@@ -2,6 +2,7 @@ import type { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveBranchesByCodes, listActiveProductionMachines } from '@/lib/server/reference-master-cache'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 
 export type ProductionReportFilters = {
@@ -11,6 +12,11 @@ export type ProductionReportFilters = {
   dateTo?: string
   machineId?: string
   status?: string
+}
+
+export type ProductionReportFilterOptions = {
+  branches: Array<{ id: string; name: string }>
+  machines: Array<{ id: string; name: string }>
 }
 
 export type ProductionOrderMetric = {
@@ -99,6 +105,27 @@ export function productionWhere(filters: ProductionReportFilters, branchId?: big
       },
     } : {}),
     ...(!filters.status || filters.status !== 'Cancelled' ? { NOT: { status: 'Cancelled' } } : {}),
+  }
+}
+
+export async function loadProductionReportFilterOptions(allowedBranchCodes: string[] | null): Promise<ProductionReportFilterOptions> {
+  const branches = allowedBranchCodes === null
+    ? await listActiveBranches()
+    : await listActiveBranchesByCodes(allowedBranchCodes)
+  const machines = allowedBranchCodes === null
+    ? await listActiveProductionMachines()
+    : await prisma.production_machines.findMany({
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        select: { id: true, name: true },
+        where: {
+          active: true,
+          OR: [{ branch_id: null }, { branch_id: { in: branches.map((branch) => branch.id) } }],
+        },
+      })
+
+  return {
+    branches: branches.map((branch) => ({ id: branch.code, name: branch.name })),
+    machines: machines.map((machine) => ({ id: machine.id.toString(), name: machine.name })),
   }
 }
 

@@ -473,6 +473,14 @@ Tasks:
 - [x] Add CSV export buttons on report pages where legacy had export: production report, cost report, yield/loss report.
 - [x] Keep report/dashboard pages read-only; no stock/cost mutation is performed in this batch.
 
+## 2026-07-27 `/production/report` design correction
+
+- Restored applied branch, machine, date, and lifecycle-status filters from the report client through `GET /api/production/report` and its XLSX export; the route now passes authenticated branch scope into the shared read model and returns only scope-appropriate filter options.
+- Kept cancelled orders out of every report result, including stale explicit queries, and removed `Cancelled` from the selectable report filters; no `Closed` state was added.
+- Rebuilt the report-only mobile filter as a compact search/scope/export toolbar with draft-only `MobileFilterSheet`, then added loading and shared pagination to WIP and product-summary tabs.
+- Updated report tables to center identifiers/dates/text/status and right-align quantities, money, and percentages; KPI density now remains readable at the desktop width where six cards previously collapsed.
+- Focused Vitest `2/2`, targeted and workspace ESLint (zero errors; six unrelated existing warnings), workspace type-check, and the 4 GB-heap production build all passed. `verify:production-report` reconciled 24 report rows and seven product-summary rows. Live browser QA at desktop and 390px mobile passed: no selectable `Cancelled`, draft-only clear/apply/Escape behavior, responsive WIP/product-summary tabs, no mobile document overflow, and no console errors.
+
 ## Open Decisions
 
 - Current UI places `production_output_categories` under production setup route `/production/output-categories`; decide later if it should also appear under master data.

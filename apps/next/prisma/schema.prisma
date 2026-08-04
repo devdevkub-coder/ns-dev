@@ -1352,6 +1352,7 @@ model stock_cost_pool_entries {
   updated_by                                                                                            String?
   stock_cost_pool_allocations_stock_cost_pool_allocations_source_pool_entry_idTostock_cost_pool_entries stock_cost_pool_allocations[] @relation("stock_cost_pool_allocations_source_pool_entry_idTostock_cost_pool_entries")
   stock_cost_pool_allocations_stock_cost_pool_allocations_target_pool_entry_idTostock_cost_pool_entries stock_cost_pool_allocations[] @relation("stock_cost_pool_allocations_target_pool_entry_idTostock_cost_pool_entries")
+  trading_allocation_facts                                                                              trading_allocation_facts[]
   branches                                                                                              branches?                     @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   products                                                                                              products                      @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   grade_adjustments                                                                                     grade_adjustments?            @relation(fields: [regrade_adjustment_id], references: [id], onUpdate: NoAction)
@@ -4565,7 +4566,10 @@ model trading_allocation_facts {
   created_by             String?
   updated_by             String?
   trading_cost_source_id BigInt?
+  cost_pool_entry_id     BigInt?
+  target_ref_id          String?
   customers              customers?            @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
+  stock_cost_pool_entries stock_cost_pool_entries? @relation(fields: [cost_pool_entry_id], references: [id], onUpdate: NoAction, onDelete: Restrict)
   products               products?             @relation(fields: [product_id], references: [id], onUpdate: NoAction)
   purchase_bills         purchase_bills?       @relation(fields: [purchase_bill_id], references: [id], onUpdate: NoAction)
   sales_bills            sales_bills?          @relation(fields: [sales_bill_id], references: [id], onUpdate: NoAction)
@@ -4582,6 +4586,8 @@ model trading_allocation_facts {
   @@index([sales_doc_no], map: "idx_trading_allocation_facts_sales_doc", where: raw("(sales_doc_no IS NOT NULL)"))
   @@index([source_doc_no], map: "idx_trading_allocation_facts_source_doc", where: raw("(source_doc_no IS NOT NULL)"))
   @@index([supplier_id, date(sort: Desc), id(sort: Desc)], map: "idx_trading_allocation_facts_supplier_date", where: raw("((status = 'active'::text) AND (supplier_id IS NOT NULL))"))
+  @@index([cost_pool_entry_id], map: "idx_trading_allocation_facts_cost_pool_entry", where: raw("(cost_pool_entry_id IS NOT NULL)"))
+  @@index([target_ref_id], map: "idx_trading_allocation_facts_target_ref", where: raw("(target_ref_id IS NOT NULL)"))
   @@schema("public")
 }
 

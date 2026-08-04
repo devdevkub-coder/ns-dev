@@ -119,6 +119,11 @@ Branch-scope enforcement now exists for `/api/sales/po-sell`: list/export/option
 - What is what: คอลัมน์ `จัดการ` บน desktop ต้องสงวนความกว้างขั้นต่ำสำหรับ valid action set สูงสุด 4 ปุ่ม (`แก้ไข`, `พิมพ์`, `ปิดส่งไม่ครบ`, `ยกเลิก`) และคอลัมน์ `อัปเดตล่าสุด` ตัดข้อความทั้งชื่อผู้แก้ไขกับ timestamp ภายในความกว้างของ column พร้อม `title` สำหรับอ่านข้อความเต็ม
 - Why it has to be like this: ปุ่ม action ต้องคงบรรทัดเดียวและไม่ถูกข้อความ audit ที่ยาวล้ำมาทับ; ตารางยังใช้ internal horizontal scroll เมื่อผลรวมความกว้างเกิน viewport โดยไม่เปลี่ยน mobile cards, action eligibility, API, permission หรือ business lifecycle
 
+## 2026-07-31 VAT form presentation checkpoint
+
+- What is what: the existing `hasVat` checkbox is presented as compact `คิด VAT <rate>%` control beside the neutral total summary. On narrow screens the VAT control, note, and summary stack in action order.
+- Why it has to be like this: PO Sell uses the same calculation decision as PO Buy, so the visual treatment must be the same. This is presentation only; `hasVat`, current VAT amount/total calculation, API payload, permissions, and PO Sell allocation lifecycle are unchanged.
+
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow

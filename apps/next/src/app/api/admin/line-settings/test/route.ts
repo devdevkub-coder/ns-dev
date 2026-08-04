@@ -31,22 +31,8 @@ export async function POST(request: Request) {
       finalToken = config?.value || ''
     }
 
-    let finalTargetId = targetId
-    if (!finalTargetId) {
-      // Fallback to the latest registered group
-      const latestGroup = await prisma.line_groups.findFirst({
-        orderBy: { updated_at: 'desc' },
-      })
-      if (latestGroup) {
-        finalTargetId = latestGroup.group_id
-      } else {
-        // Fallback to default target settings in DB
-        const config = await prisma.system_settings.findUnique({
-          where: { key: 'LINE_DEFAULT_TARGET_ID' },
-        })
-        finalTargetId = config?.value || ''
-      }
-    }
+    const finalTargetId = targetId?.trim() || ''
+    if (!finalTargetId) throw new Error('ต้องระบุ Target ID โดยตรงสำหรับการทดสอบ เพื่อป้องกันการส่งไปผิดกลุ่ม LINE')
 
     if (documentNo) {
       const actor = currentActor(context)

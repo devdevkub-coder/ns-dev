@@ -32,7 +32,10 @@ export type CostAllocationLedgerRow = {
   allocatedBy: string
   allocatedQty: number
   allocatedRevenue: number
+  canReallocate: boolean
+  canReverse: boolean
   costPerKg: number
+  costPoolLotNo: string | null
   costPoolNo: string
   date: string
   dealId: string
@@ -47,9 +50,10 @@ export type CostAllocationLedgerRow = {
   saleQty: number
   sourceNo: string
   status: 'approved' | 'reversed'
-  targetGroupKey: string
-  targetSourceType: 'po-sell' | 'spot-sell'
-  targetType: 'PO_SELL' | 'SPOT_SELL'
+  targetLineNo: number | null
+  targetRefId: string | null
+  targetSourceType: 'po-sell' | 'production' | 'spot-sell'
+  targetType: 'PO_SELL' | 'PRODUCTION' | 'SPOT_SELL'
   totalCost: number
 }
 
@@ -115,6 +119,10 @@ function itemUnitPrice(item: JsonItem) {
 
 function isCancelled(status?: string | null) {
   return ['cancelled', 'void', 'reversed', 'short closed'].includes((status ?? '').toLowerCase())
+}
+
+function isAllocatableProductionStatus(status?: string | null) {
+  return ['open', 'in production', 'partially completed'].includes((status ?? 'Open').trim().toLowerCase())
 }
 
 function isDualCostingGroup(group?: string | null) {
@@ -184,7 +192,7 @@ export async function buildDualCostingManagement() {
       }
     }),
     prisma.trading_allocation_facts.findMany({
-      where: { status: 'active' },
+      include: { stock_cost_pool_entries: true },
       take: 10000,
     })
   ])
@@ -192,6 +200,14 @@ export async function buildDualCostingManagement() {
   const productById = new Map(products.map((product) => [String(product.id), { ...product, code: product.code }]))
   const productByCode = new Map(Array.from(productById.values()).map((product) => [product.code, product]))
   const matchIdByDealId = buildDualCostingMatchIdMap(tradingDeals)
+  const allocationFactsByDealId = new Map<string, typeof tradingAllocationFacts>()
+  tradingAllocationFacts.forEach((fact) => {
+    if (!fact.trading_deal_id) return
+    const facts = allocationFactsByDealId.get(fact.trading_deal_id.toString()) ?? []
+    facts.push(fact)
+    allocationFactsByDealId.set(fact.trading_deal_id.toString(), facts)
+  })
+  const productionOrderDocNos = new Set(productionOrders.map((order) => order.doc_no))
   const salesBillDocNoToSalesBillId = new Map<string, bigint>()
   salesBills.forEach((bill) => {
     salesBillDocNoToSalesBillId.set(bill.doc_no, bill.id)
@@ -213,6 +229,9 @@ export async function buildDualCostingManagement() {
 
   const matchedBySaleProduct = new Map<string, { cost: number; qty: number; revenue: number }>()
   const matchedQtyByPoSellProduct = new Map<string, number>() // key: `${po_sell_id}|${product_id}`
+  const matchedQtyByPoSellTarget = new Map<string, number>() // key: persisted `po_sell_id-line_id`
+  const poSellIdsWithExactTargetFacts = new Set<string>()
+  const matchedQtyByProductionProduct = new Map<string, number>() // key: `${production_doc_no}|${product_id}`
 
   // Process active allocation facts first
   tradingAllocationFacts.forEach((fact) => {
@@ -231,7 +250,9 @@ export async function buildDualCostingManagement() {
     if (!resolvedPoSellId && fact.sales_doc_no) {
       resolvedPoSellId = poSellDocNoToPoSellId.get(fact.sales_doc_no) ?? null
     }
-    const inBranchScope = (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
+    const isProductionTarget = Boolean(fact.sales_doc_no && productionOrderDocNos.has(fact.sales_doc_no))
+    const inBranchScope = isProductionTarget
+      || (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
       || (resolvedPoSellId && allowedPoSellIds.has(resolvedPoSellId.toString()))
     if (!inBranchScope) return
 
@@ -247,6 +268,15 @@ export async function buildDualCostingManagement() {
     if (resolvedPoSellId) {
       const key = `${resolvedPoSellId}|${fact.product_id}`
       matchedQtyByPoSellProduct.set(key, (matchedQtyByPoSellProduct.get(key) ?? 0) + toNumber(fact.qty))
+    }
+    if (fact.target_ref_id) {
+      matchedQtyByPoSellTarget.set(fact.target_ref_id, (matchedQtyByPoSellTarget.get(fact.target_ref_id) ?? 0) + toNumber(fact.qty))
+      const poSellId = fact.target_ref_id.match(/^(\d+)-/)?.[1]
+      if (poSellId) poSellIdsWithExactTargetFacts.add(poSellId)
+    }
+    if (isProductionTarget && fact.sales_doc_no) {
+      const key = `${fact.sales_doc_no}|${fact.product_id}`
+      matchedQtyByProductionProduct.set(key, (matchedQtyByProductionProduct.get(key) ?? 0) + toNumber(fact.qty))
     }
   })
 
@@ -276,7 +306,9 @@ export async function buildDualCostingManagement() {
     if (!resolvedPoSellId && deal.sales_bill_no) {
       resolvedPoSellId = poSellDocNoToPoSellId.get(deal.sales_bill_no) ?? null
     }
-    const inBranchScope = (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
+    const isProductionTarget = Boolean(deal.sales_bill_no && productionOrderDocNos.has(deal.sales_bill_no))
+    const inBranchScope = isProductionTarget
+      || (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
       || (resolvedPoSellId && allowedPoSellIds.has(resolvedPoSellId.toString()))
     if (!inBranchScope) return
 
@@ -292,6 +324,10 @@ export async function buildDualCostingManagement() {
     if (resolvedPoSellId) {
       const key = `${resolvedPoSellId}|${deal.product_id}`
       matchedQtyByPoSellProduct.set(key, (matchedQtyByPoSellProduct.get(key) ?? 0) + toNumber(deal.matched_qty))
+    }
+    if (isProductionTarget && deal.sales_bill_no) {
+      const key = `${deal.sales_bill_no}|${deal.product_id}`
+      matchedQtyByProductionProduct.set(key, (matchedQtyByProductionProduct.get(key) ?? 0) + toNumber(deal.matched_qty))
     }
   })
 
@@ -447,7 +483,10 @@ export async function buildDualCostingManagement() {
 
       let matchedQty = 0
       if (productIdBigInt) {
-        matchedQty = matchedQtyByPoSellProduct.get(`${po.id}|${productIdBigInt}`) ?? 0
+        matchedQty = matchedQtyByPoSellTarget.get(`${po.id.toString()}-${item.lineId}`)
+          ?? (poSellIdsWithExactTargetFacts.has(po.id.toString())
+            ? 0
+            : matchedQtyByPoSellProduct.get(`${po.id}|${productIdBigInt}`) ?? 0)
       }
 
       const allocatedQty = Math.min(qty, matchedQty)
@@ -480,6 +519,7 @@ export async function buildDualCostingManagement() {
   productionOrders.forEach((order) => {
     const product = order.products
     if (!product || !isDualCostingGroup(product.metal_group)) return
+    if (!isAllocatableProductionStatus(order.status)) return
 
     const inputQty = order.production_inputs.reduce((sum, input) => sum + toNumber(input.qty), 0)
     const inputCost = order.production_inputs.reduce((sum, input) => sum + toNumber(input.total_cost), 0)
@@ -488,12 +528,13 @@ export async function buildDualCostingManagement() {
     if (qty <= 0) return
 
     const unitPrice = inputQty > 0 ? inputCost / inputQty : 0
-    const allocatedQty = 0
-    const remainingQty = qty
+    const allocatedQty = Math.min(qty, matchedQtyByProductionProduct.get(`${order.doc_no}|${product.id}`) ?? 0)
+    const remainingQty = Math.max(0, qty - allocatedQty)
+    if (remainingQty <= 0.001) return
 
     waitingProductionRows.push({
       allocatedQty,
-      allocationStatus: 'pending_allocation',
+      allocationStatus: allocatedQty > 0 ? 'partially_allocated' : 'pending_allocation',
       branchName: '-',
       customerName: '-',
       date: order.production_inputs.length > 0 ? toDateOnly(order.production_inputs[0].date) : toDateOnly(order.date),
@@ -511,11 +552,7 @@ export async function buildDualCostingManagement() {
     })
   })
 
-  const ledgerRows: CostAllocationLedgerRow[] = tradingDeals.flatMap((deal, index) => {
-    const qty = toNumber(deal.matched_qty)
-    const totalCost = toNumber(deal.matched_purchase_amount)
-    const allocatedRevenue = toNumber(deal.matched_sales_amount)
-    const grossProfit = allocatedRevenue - totalCost
+  const ledgerRowsWithPoolIdentity = tradingDeals.flatMap((deal) => {
     let resolvedPoSellId: bigint | null = deal.sales_bills?.po_sell_id ?? null
     if (!resolvedPoSellId && deal.sales_bill_id) {
       resolvedPoSellId = salesBillIdToPoSellId.get(deal.sales_bill_id) ?? null
@@ -529,45 +566,91 @@ export async function buildDualCostingManagement() {
         }
       }
     }
-    const inBranchScope = (deal.sales_bill_id && allowedSalesBillIds.has(deal.sales_bill_id.toString()))
+    const facts = allocationFactsByDealId.get(deal.id.toString()) ?? []
+    const targetRefId = facts.find((fact) => fact.target_ref_id)?.target_ref_id ?? null
+    const targetPoSellId = targetRefId?.match(/^(\d+)-/)?.[1]
+    if (targetPoSellId) {
+      resolvedPoSellId = BigInt(targetPoSellId)
+    }
+    const saleDocNo = deal.sales_bill_no ?? deal.sales_bills?.doc_no ?? deal.customers?.name ?? '-'
+    const isProductionTarget = productionOrderDocNos.has(saleDocNo)
+    const inBranchScope = isProductionTarget
+      || (deal.sales_bill_id && allowedSalesBillIds.has(deal.sales_bill_id.toString()))
       || (resolvedPoSellId && allowedPoSellIds.has(resolvedPoSellId.toString()))
     if (!inBranchScope) return []
-    const targetType = resolvedPoSellId ? 'PO_SELL' : 'SPOT_SELL'
+    const targetType: CostAllocationLedgerRow['targetType'] = isProductionTarget
+      ? 'PRODUCTION'
+      : resolvedPoSellId
+        ? 'PO_SELL'
+        : 'SPOT_SELL'
+    const targetSourceType: CostAllocationLedgerRow['targetSourceType'] = isProductionTarget ? 'production' : resolvedPoSellId ? 'po-sell' : 'spot-sell'
     const product = deal.products ?? (deal.product_id != null ? productById.get(String(deal.product_id)) : null)
-    const saleDocNo = deal.sales_bill_no ?? deal.sales_bills?.doc_no ?? deal.customers?.name ?? '-'
-    const sourceNo = deal.purchase_bill_no ?? deal.purchase_bills?.doc_no ?? deal.suppliers?.name ?? '-'
     const productCode = product?.code ?? '-'
-    const allocatedAt = deal.created_at?.toISOString() ?? toDateOnly(deal.date)
     const matchId = matchIdByDealId.get(String(deal.id)) ?? deal.deal_no
-    const targetGroupKey = resolvedPoSellId
-      ? `PO_SELL:${resolvedPoSellId.toString()}:${productCode}`
-      : `SPOT_SELL:${deal.sales_bill_id?.toString() ?? saleDocNo}:${productCode}`
-    return [{
-      allocatedAt,
-      allocatedBy: deal.created_by ?? '-',
-      allocatedQty: qty,
-      allocatedRevenue,
-      costPerKg: qty > 0 ? totalCost / qty : 0,
-      costPoolNo: deal.purchase_bill_no ?? deal.purchase_bills?.doc_no ?? '-',
-      date: toDateOnly(deal.date),
-      dealId: deal.id.toString(),
-      gpPct: pct(grossProfit, allocatedRevenue),
-      grossProfit,
-      id: `${matchId}:${saleDocNo}:${sourceNo}:${productCode}:${allocatedAt}:${deal.status ?? '-'}:${index}`,
-      matchId,
-      productCategory: product?.metal_group ?? '-',
-      productId: product?.code ?? '',
-      productName: product?.name ?? '-',
-      saleDocNo,
-      saleQty: qty,
-      sourceNo,
-      status: isCancelled(deal.status) ? 'reversed' : 'approved',
-      targetGroupKey,
-      targetSourceType: resolvedPoSellId ? 'po-sell' : 'spot-sell',
-      targetType,
-      totalCost,
-    }]
+    const rows = facts.length ? facts : [null]
+    return rows.map((fact, index) => {
+      const allocatedQty = fact ? toNumber(fact.qty) : toNumber(deal.matched_qty)
+      const totalCost = fact ? toNumber(fact.matched_cogs) : toNumber(deal.matched_purchase_amount)
+      const allocatedRevenue = fact ? toNumber(fact.sales_amount) : toNumber(deal.matched_sales_amount)
+      const grossProfit = allocatedRevenue - totalCost
+      const costPool = fact?.stock_cost_pool_entries ?? null
+      const sourceNo = fact?.source_doc_no ?? deal.purchase_bill_no ?? deal.purchase_bills?.doc_no ?? deal.suppliers?.name ?? '-'
+      const allocatedAt = fact?.created_at?.toISOString() ?? deal.created_at?.toISOString() ?? toDateOnly(deal.date)
+      const status: CostAllocationLedgerRow['status'] = isCancelled(deal.status) || (fact != null && fact.status !== 'active') ? 'reversed' : 'approved'
+      return {
+        allocatedAt,
+        allocatedBy: fact?.created_by ?? deal.created_by ?? '-',
+        allocatedQty,
+        allocatedRevenue,
+        canReallocate: false,
+        canReverse: false,
+        costPerKg: allocatedQty > 0 ? totalCost / allocatedQty : 0,
+        costPoolLotNo: costPool?.lot_no ?? null,
+        costPoolNo: costPool?.pool_key ?? sourceNo,
+        date: toDateOnly(fact?.date ?? deal.date),
+        dealId: deal.id.toString(),
+        gpPct: pct(grossProfit, allocatedRevenue),
+        grossProfit,
+        hasExactCostPool: costPool != null,
+        id: fact ? `fact-${fact.id.toString()}` : `deal-${deal.id.toString()}-${index}`,
+        matchId,
+        productCategory: product?.metal_group ?? '-',
+        productId: product?.code ?? '',
+        productName: product?.name ?? '-',
+        saleDocNo,
+        saleQty: allocatedQty,
+        sourceNo,
+        status,
+        targetLineNo: fact?.sales_line_no ?? null,
+        targetRefId: fact?.target_ref_id ?? null,
+        targetSourceType,
+        targetType,
+        totalCost,
+      }
+    })
   })
+
+  const ledgerRowsByMatch = new Map<string, typeof ledgerRowsWithPoolIdentity>()
+  ledgerRowsWithPoolIdentity.forEach((row) => {
+    const rows = ledgerRowsByMatch.get(row.matchId) ?? []
+    rows.push(row)
+    ledgerRowsByMatch.set(row.matchId, rows)
+  })
+  ledgerRowsByMatch.forEach((rows) => {
+    const canReverse = rows.every((row) => row.status === 'approved' && row.hasExactCostPool && row.targetType !== 'PRODUCTION')
+    const canReallocate = canReverse && rows.every((row) => (
+      row.targetSourceType === 'spot-sell'
+        ? row.targetLineNo != null
+        : row.targetSourceType === 'po-sell'
+          ? row.targetRefId != null
+          : false
+    ))
+    rows.forEach((row) => {
+      row.canReallocate = canReallocate
+      row.canReverse = canReverse
+    })
+  })
+  const ledgerRows: CostAllocationLedgerRow[] = ledgerRowsWithPoolIdentity.map(({ hasExactCostPool: _hasExactCostPool, ...row }) => row)
 
   const activeLedgerRows = ledgerRows.filter((row) => row.status === 'approved')
   const byCategory = new Map<string, { allocatedQty: number; cost: number; gp: number; pendingQty: number; pendingRevenue: number; revenue: number; rows: number }>()

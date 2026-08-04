@@ -221,9 +221,13 @@ export function getBranchCodeIntersection(
     }
     return null
   }
+  if (context.roles.some((role) => role.branchScope.trim().toLowerCase() === 'all')) {
+    if (requestedBranchCode && requestedBranchCode !== 'all') return [requestedBranchCode]
+    return null
+  }
   const allowedCodes = context.appUser?.branchIds ?? []
   if (!allowedCodes.length) {
-    return requestedBranchCode && requestedBranchCode !== 'all' ? [requestedBranchCode] : null
+    return []
   }
   if (requestedBranchCode && requestedBranchCode !== 'all') {
     if (allowedCodes.includes(requestedBranchCode)) {

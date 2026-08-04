@@ -862,7 +862,7 @@ export function AdvancePaymentsPageClient() {
 
           <div className="space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm" data-ns-field-scope="filter">
             <div className="flex flex-wrap items-center gap-2">
-              <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหา ADV / ใบชั่งใหญ่ / ผู้ขาย / ทะเบียน..." type="search" value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} />
+              <Input className="h-9 min-w-[260px] flex-1 rounded-md" placeholder="ค้นหา ADV / ใบชั่งใหญ่ / ผู้ขาย / ทะเบียน..." type="search" value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} />
 
               {/* Mobile Filter Button */}
               <button
@@ -875,9 +875,9 @@ export function AdvancePaymentsPageClient() {
 
               <div className="hidden md:flex flex-wrap items-center gap-2">
                 <label className="text-xs text-slate-500">วันที่:</label>
-                <DatePickerInput ariaLabel="จากวันที่" id="advance-payments-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                <DatePickerInput ariaLabel="จากวันที่" className="h-9" id="advance-payments-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
                 <span className="text-slate-400">→</span>
-                <DatePickerInput ariaLabel="ถึงวันที่" id="advance-payments-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                <DatePickerInput ariaLabel="ถึงวันที่" className="h-9" id="advance-payments-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
               </div>
 
               {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
@@ -907,7 +907,7 @@ export function AdvancePaymentsPageClient() {
               ))}
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <ExportButton href={exportHref} />
-                <Button className="h-9" size="sm" type="button" onClick={openForm}><Plus className="mr-1 h-4 w-4" />สร้าง</Button>
+                <Button className="h-10" type="button" onClick={openForm}><Plus className="size-4" />สร้าง</Button>
               </div>
             </div>
           </div>
@@ -955,9 +955,9 @@ export function AdvancePaymentsPageClient() {
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" ariaLabel="จากวันที่มือถือ" id="advance-payments-mobile-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                      <DatePickerInput className="h-9 flex-1" ariaLabel="จากวันที่มือถือ" id="advance-payments-mobile-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" ariaLabel="ถึงวันที่มือถือ" id="advance-payments-mobile-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                      <DatePickerInput className="h-9 flex-1" ariaLabel="ถึงวันที่มือถือ" id="advance-payments-mobile-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
                     </div>
                   </div>
 
@@ -1018,18 +1018,18 @@ export function AdvancePaymentsPageClient() {
                 onClick={() => void loadDetail(row.id)}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                  <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
                   <StatusDot status={row.status} label={row.statusLabel} />
                 </div>
                 <div className="flex justify-between items-center text-xs text-slate-500 mb-3">
                   <span className="font-semibold text-slate-700">{row.supplierName}</span>
-                  <span>วันที่: {row.advanceDate}</span>
+                  <span className="text-center whitespace-nowrap">วันที่: {row.advanceDate}</span>
                 </div>
                 <div className="text-xs text-slate-500 space-y-1 mb-3">
                   {row.productName ? <div>สินค้า: <span className="font-semibold text-slate-700">{row.productName}</span></div> : null}
                   <div>ประเภท: <span className="font-semibold text-slate-700">{row.advanceTypeLabel}</span></div>
-                  {row.invoiceNo ? <div>Invoice: <span className="font-semibold text-slate-700">{row.invoiceNo}</span></div> : null}
-                  {row.largeScaleDocNo ? <div>ใบชั่งใหญ่: <span className="font-semibold text-slate-700">{row.largeScaleDocNo}</span></div> : null}
+                  {row.invoiceNo ? <div>Invoice: <span className="text-center font-mono font-semibold text-slate-700 whitespace-nowrap">{row.invoiceNo}</span></div> : null}
+                  {row.largeScaleDocNo ? <div>ใบชั่งใหญ่: <span className="text-center font-mono font-semibold text-slate-700 whitespace-nowrap">{row.largeScaleDocNo}</span></div> : null}
                   {row.plateNo ? <div>ทะเบียนรถ: <span className="font-semibold text-slate-700">{row.plateNo}</span></div> : null}
                 </div>
                 <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
@@ -1073,18 +1073,18 @@ export function AdvancePaymentsPageClient() {
               </colgroup>
               <thead className="border-b border-slate-200 bg-slate-100 text-slate-700">
                 <tr>
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('advanceDate', 'วันที่')} sortKey="advanceDate" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('advanceDate', 'วันที่')} sortKey="advanceDate" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} className="ns-table-textual-column" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('largeScaleDocNo', 'อ้างอิง')} sortKey="largeScaleDocNo" onSort={changeSort} />
-                  <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('plateNo', 'ทะเบียนรถ')} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('largeScaleDocNo', 'อ้างอิง')} sortKey="largeScaleDocNo" onSort={changeSort} />
+                  <ResizableTableHead align="center" label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('plateNo', 'ทะเบียนรถ')} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} className="ns-table-textual-column" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} sortKey="netWeight" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดรวมมัดจำ" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดรวมมัดจำ')} sortKey="amount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ฐานที่ใช้หักบิล" resizeProps={columnResize.getResizeHandleProps('subtotalAmount', 'ฐานที่ใช้หักบิล')} sortKey="subtotalAmount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ฐานคงเหลือใช้หักบิล" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'ฐานคงเหลือใช้หักบิล')} sortKey="remainingAmount" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                  <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                  <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1092,12 +1092,12 @@ export function AdvancePaymentsPageClient() {
                 {!isLoading && (data?.rows ?? []).length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มีรายการจ่ายเงินล่วงหน้า</td></tr> : null}
                 {!isLoading && (data?.rows ?? []).map((row) => (
                   <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => void loadDetail(row.id)}>
-                    <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.docNo}</td>
-                    <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.advanceDate}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-mono font-medium text-slate-700">{row.docNo}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-medium text-slate-700">{row.advanceDate}</td>
                     <td className="ns-table-textual-column p-3 font-medium text-slate-700">{row.supplierName}</td>
-                    <td className="p-3 font-medium text-slate-700">{row.invoiceNo || row.largeScaleDocNo || '-'}</td>
-                    <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.plateNo || '-'}</td>
-                    <td className="p-3 font-medium text-slate-700">{row.productName || '-'}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-mono font-medium text-slate-700">{row.invoiceNo || row.largeScaleDocNo || '-'}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-medium text-slate-700">{row.plateNo || '-'}</td>
+                    <td className="ns-table-textual-column p-3 text-left font-medium text-slate-700">{row.productName || '-'}</td>
                     <TableNumberCell value={formatMoney(row.netWeight)} />
                     <td className="p-3 text-right tabular-nums">
                       <p>{formatMoney(row.totalAmount)}</p>
@@ -1105,8 +1105,8 @@ export function AdvancePaymentsPageClient() {
                     </td>
                     <TableNumberCell value={formatMoney(row.subtotalAmount)} />
                     <TableNumberCell tone="amber" value={formatMoney(row.remainingAmount)} />
-                    <td className="p-3"><StatusDot status={row.status} label={row.statusLabel} /></td>
-                    <td className="p-3 text-right">
+                    <td className="whitespace-nowrap p-3 text-center"><StatusDot status={row.status} label={row.statusLabel} /></td>
+                    <td className="p-3 text-center">
                       <TableActionButton menu={(
                         <>
                           <TableActionMenuItem onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
@@ -1379,7 +1379,7 @@ function AdvancePaymentSortHeader({
   sortKey,
 }: {
   activeKey: AdvancePaymentSortKey
-  align?: 'left' | 'right'
+  align?: 'center' | 'left' | 'right'
   className?: string
   direction: AdvancePaymentSortDirection
   label: string

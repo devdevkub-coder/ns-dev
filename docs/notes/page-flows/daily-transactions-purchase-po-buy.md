@@ -101,6 +101,11 @@ close-short, allocation log, timeline/detail/print parity และ PO aging ย
 
 VAT runtime as of 2026-06-12 is implemented for create/edit/list/detail/export/reconcile; print template still needs explicit visual parity review if the printed POB layout is changed later.
 
+## 2026-07-31 VAT form presentation checkpoint
+
+- What is what: the existing `hasVat` checkbox is presented as compact `คิด VAT <rate>%` control beside a neutral total summary. The note is grouped beneath the control, and narrow screens stack the control, note, and total instead of stretching the VAT control.
+- Why it has to be like this: VAT is a calculation setting, so it must be visible next to the totals without becoming a large empty card. This is presentation only; `hasVat`, `EXCLUDE` VAT calculation, rate snapshot, API payload, permissions, and downstream allocation behavior are unchanged.
+
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow

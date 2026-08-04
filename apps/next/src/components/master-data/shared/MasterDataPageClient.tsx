@@ -681,14 +681,14 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                     </div>
                     <div>
                       <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทบัญชี</span>
-                      <Select className="h-10 w-full text-sm" value={accountGroupFilter} onChange={(event) => setAccountGroupFilter(event.target.value)}>
+                      <Select className="h-9 w-full text-sm" value={accountGroupFilter} onChange={(event) => setAccountGroupFilter(event.target.value)}>
                         <option value="">ทุกประเภทบัญชี</option>
                         {accountGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </Select>
                     </div>
                     <div>
                       <span className="mb-1 block text-xs font-semibold text-slate-600">FCD</span>
-                      <Select className="h-10 w-full text-sm" value={fcdFilter} onChange={(event) => setFcdFilter(event.target.value as 'all' | 'fcd' | 'non-fcd')}>
+                      <Select className="h-9 w-full text-sm" value={fcdFilter} onChange={(event) => setFcdFilter(event.target.value as 'all' | 'fcd' | 'non-fcd')}>
                         <option value="all">ทั้งหมด</option>
                         <option value="fcd">บัญชี FCD</option>
                         <option value="non-fcd">ไม่ใช่บัญชี FCD</option>
@@ -696,7 +696,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                     </div>
                     <div>
                       <span className="mb-1 block text-xs font-semibold text-slate-600">สกุลเงิน</span>
-                      <Select className="h-10 w-full text-sm" value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value)}>
+                      <Select className="h-9 w-full text-sm" value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value)}>
                         <option value="">ทุกสกุลเงิน</option>
                         {currencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </Select>

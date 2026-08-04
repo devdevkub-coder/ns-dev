@@ -51,6 +51,16 @@ export function buildDualCostingMatchIdMap<T extends DealRef>(deals: T[]) {
 
   orderedDeals.forEach((deal) => {
     const storedMatchId = deal.deal_no?.trim() ?? ''
+    if (!isDualCostingMatchId(storedMatchId)) return
+
+    const separatorIndex = storedMatchId.lastIndexOf('-')
+    const prefix = storedMatchId.slice(0, separatorIndex)
+    const sequence = Number(storedMatchId.slice(separatorIndex + 1))
+    counters.set(prefix, Math.max(counters.get(prefix) ?? 0, sequence))
+  })
+
+  orderedDeals.forEach((deal) => {
+    const storedMatchId = deal.deal_no?.trim() ?? ''
     if (isDualCostingMatchId(storedMatchId)) {
       matchIdByDealId.set(String(deal.id), storedMatchId)
       return

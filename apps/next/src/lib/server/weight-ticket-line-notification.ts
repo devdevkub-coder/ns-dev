@@ -175,21 +175,14 @@ function formatTime(date: Date): string {
 
 
 async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketName: string) {
-  if (process.env.MOCK_PDF_UPLOAD === 'true') {
+  if (process.env.NODE_ENV === 'test' && process.env.MOCK_PDF_UPLOAD === 'true') {
     return {
-      pdfUrl: `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-test-ticket.pdf`,
+      pdfUrl: `https://test.invalid/storage/${bucketName}/dummy-test-ticket.pdf`,
       storageKey: 'dummy-test-ticket.pdf'
     }
   }
   const supabase = getSupabaseAdminClient()
   if (!supabase) {
-    if (process.env.NODE_ENV === 'development' || process.env.MOCK_PDF_UPLOAD_FALLBACK === 'true') {
-      console.warn('[uploadPdf] SUPABASE_SERVICE_ROLE_KEY missing, falling back to dummy url in development')
-      return {
-        pdfUrl: `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-test-ticket.pdf`,
-        storageKey: 'dummy-test-ticket.pdf'
-      }
-    }
     throw new Error('ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY สำหรับอัปโหลด PDF')
   }
   const storageKey = `${safeStorageSegment(ticket.documentNo)}/${Date.now()}-${safeStorageSegment(ticket.documentNo)}.pdf`
@@ -198,13 +191,6 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
     upsert: true,
   })
   if (error) {
-    if (process.env.MOCK_PDF_UPLOAD_FALLBACK === 'true') {
-      console.warn('[uploadPdf] upload failed, falling back to dummy url due to RLS/credentials:', error.message)
-      return {
-        pdfUrl: `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-test-ticket.pdf`,
-        storageKey: 'dummy-test-ticket.pdf'
-      }
-    }
     throw new Error(`อัปโหลด PDF ไป Supabase Storage ไม่สำเร็จ: ${error.message}`)
   }
   const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
@@ -212,14 +198,11 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
 }
 
 async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, pageIdx: number, bucketName: string) {
-  if (process.env.MOCK_PDF_UPLOAD === 'true') {
-    return `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-album-${pageIdx + 1}.jpg`
+  if (process.env.NODE_ENV === 'test' && process.env.MOCK_PDF_UPLOAD === 'true') {
+    return `https://test.invalid/storage/${bucketName}/dummy-album-${pageIdx + 1}.jpg`
   }
   const supabase = getSupabaseAdminClient()
   if (!supabase) {
-    if (process.env.NODE_ENV === 'development' || process.env.MOCK_PDF_UPLOAD_FALLBACK === 'true') {
-      return `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-album-${pageIdx + 1}.jpg`
-    }
     throw new Error('ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY สำหรับอัปโหลดรูปภาพอัลบั้ม')
   }
   const storageKey = `${safeStorageSegment(ticket.documentNo)}/album/finish-${Date.now()}-${pageIdx + 1}.jpg`
@@ -228,10 +211,6 @@ async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, page
     upsert: true,
   })
   if (error) {
-    if (process.env.MOCK_PDF_UPLOAD_FALLBACK === 'true') {
-      console.warn('[uploadAlbumImage] upload failed, falling back to dummy url:', error.message)
-      return `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-album-${pageIdx + 1}.jpg`
-    }
     throw new Error(`อัปโหลดรูปภาพอัลบั้มไป Supabase Storage ไม่สำเร็จ: ${error.message}`)
   }
   const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)

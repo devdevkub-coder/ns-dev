@@ -2076,7 +2076,7 @@ export async function POST(request: Request) {
         }
         const sourceLine = sourceBill.purchase_bill_items.find((line) => line.line_no === source.lineNo)
         if (!sourceLine) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบรายการต้นทุน ${source.docNo}:${source.lineNo}` }, { status: 400 })
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบรายการ ${source.docNo}:${source.lineNo}` }, { status: 400 })
         }
         const productId = parsedProductIds[index]
         if (sourceLine.product_id != null && productId != null && sourceLine.product_id !== productId) {

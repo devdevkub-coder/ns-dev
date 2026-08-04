@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -216,18 +217,16 @@ export function DealMarginPageClient() {
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-slate-500">วันที่เอกสาร:</span>
-            <DatePickerInput id="deal-margin-from" value={fromDate} onChange={setFromDate} />
+            <DatePickerInput className="h-9" id="deal-margin-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput id="deal-margin-to" value={toDate} onChange={setToDate} />
+            <DatePickerInput className="h-9" id="deal-margin-to" value={toDate} onChange={setToDate} />
             <Select className="w-auto min-w-[180px] h-9 border-slate-300" value={channel} onChange={(event) => setChannel(event.target.value)}>
               <option value="all">ทุกช่องทาง</option>
               {(data?.filters.channels ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
             </Select>
             {hasActiveFilters ? <Button size="sm" type="button" variant="secondary" className="h-9 rounded-md" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
-          </div>
-          <div className="mt-2 flex justify-end border-t border-slate-100 pt-2">
-            <Button asChild size="sm" variant="export" className="h-9 rounded-md px-3 text-xs font-normal focus-visible:ring-slate-100">
-              <a href={exportHref}>ส่งออก Excel</a>
+            <Button asChild variant="export" className="ml-auto h-10 gap-2 text-sm font-normal">
+              <a href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
             </Button>
           </div>
         </div>
@@ -244,8 +243,8 @@ export function DealMarginPageClient() {
             >
               ตัวกรอง{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
-            <Button asChild size="sm" variant="export" className="h-10 rounded-md shrink-0">
-              <a href={exportHref}>ส่งออก Excel</a>
+            <Button asChild variant="export" className="h-10 shrink-0 gap-2">
+              <a href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
             </Button>
           </div>
 
@@ -254,11 +253,11 @@ export function DealMarginPageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500 font-semibold">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                 </label>
                 <label className="text-xs text-slate-500 font-semibold">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                 </label>
               </div>
               <label className="text-xs text-slate-500 font-semibold">
@@ -302,8 +301,8 @@ export function DealMarginPageClient() {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="เลขที่ PO Sell" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ PO Sell')} />
-              <ResizableTableHead label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+              <ResizableTableHead align="center" label="เลขที่ PO Sell" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ PO Sell')} />
+              <ResizableTableHead align="center" label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
               <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
               <ResizableTableHead label="ช่องทาง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="channel" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('channel', 'ช่องทาง')} />
               <ResizableTableHead label="สินค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="product" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
@@ -315,7 +314,7 @@ export function DealMarginPageClient() {
               <ResizableTableHead align="right" label="ต้นทุนที่จับคู่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchedCost" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchedCost', 'ต้นทุนที่จับคู่')} />
               <ResizableTableHead align="right" label="กำไรดีล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="margin" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('margin', 'กำไรดีล')} />
               <ResizableTableHead align="right" label="อัตรากำไร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="marginPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPct', 'อัตรากำไร')} />
-              <ResizableTableHead align="right" label="สถานะการจับคู่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="statusMatch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('statusMatch', 'สถานะการจับคู่')} />
+              <ResizableTableHead align="center" label="สถานะการจับคู่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="statusMatch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('statusMatch', 'สถานะการจับคู่')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -323,8 +322,8 @@ export function DealMarginPageClient() {
             {!isLoading && rows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={dealMarginColumns.length}>ยังไม่มี PO Sell</td></tr> : null}
             {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
-                <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{row.docNo}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.date)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900">{row.docNo}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(row.date)}</td>
                 <td className="px-3 py-3 font-medium text-slate-900">{row.customer}</td>
                 <td className="px-3 py-3 text-slate-600">{row.channel}</td>
                 <td className="px-3 py-3 text-slate-700">{row.product}</td>
@@ -336,7 +335,7 @@ export function DealMarginPageClient() {
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(row.matchedCost)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.margin)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums ${row.marginPct >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{row.marginPct.toFixed(2)}%</td>
-                <td className="px-3 py-3 text-right"><MatchStatusBadge status={row.statusMatch} /></td>
+                <td className="whitespace-nowrap px-3 py-3 text-center"><MatchStatusBadge status={row.statusMatch} /></td>
               </tr>
             ))}
           </tbody>
@@ -356,8 +355,8 @@ export function DealMarginPageClient() {
           <div key={row.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
             <div className="flex justify-between items-start">
               <div>
-                <div className="font-mono text-xs font-bold text-slate-800">{row.docNo}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{formatDateDisplay(row.date)}</div>
+                <div className="whitespace-nowrap font-mono text-xs font-bold text-slate-800">{row.docNo}</div>
+                <div className="mt-0.5 whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
               </div>
               <MatchStatusBadge status={row.statusMatch} />
             </div>

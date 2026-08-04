@@ -294,7 +294,7 @@ function SortableHead({
   resizeProps,
   sortKey,
 }: {
-  align: 'left' | 'right'
+  align: 'center' | 'left' | 'right'
   className?: string
   currentKey: ApprovalSortKey
   direction: ApprovalSortDirection
@@ -698,7 +698,7 @@ export function PaymentApprovalPageClient() {
               <div className="col-span-12 md:col-span-6">
                 <label className="block text-xs text-slate-600">
                   {row.sourceType === 'petty_advance_return' ? 'บัญชีรับคืนของบริษัท' : 'ช่องทางจ่าย / บัญชีปลายทาง'}
-                  <Select className="mt-1 h-9" value={split.destinationId} onChange={(event) => updateSplit(split.id, { destinationId: event.target.value })}>
+                  <Select className="mt-1 h-10" value={split.destinationId} onChange={(event) => updateSplit(split.id, { destinationId: event.target.value })}>
                     <option value="">เลือกช่องทางจ่าย</option>
                     {destinationOptions.map((option) => (
                       <option key={option.id} value={option.id}>
@@ -712,7 +712,7 @@ export function PaymentApprovalPageClient() {
                 <label className="block text-xs text-slate-600">
                   ยอดอนุมัติ
                   <Input
-                    className="mt-1 h-9 text-right"
+                    className="mt-1 h-10 text-right"
                     inputMode="decimal"
                     type="text"
                     value={inputDrafts[split.id] ?? formatDecimalWithGrouping(split.amount)}
@@ -780,12 +780,12 @@ export function PaymentApprovalPageClient() {
         {/* Desktop Filters (Hidden on Mobile) */}
         <div className="hidden space-y-3 border-b border-slate-100 p-4 lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <BranchSelectCombobox branches={data.branches} className="w-[12rem]" controlSize="filter" inputId="payment-approval-branch-filter" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => setBranchFilter(value ?? '')} />
             <label className="text-xs text-slate-500">วันที่:</label>
-            <DatePickerInput id="payment-approval-date-from" value={dateFrom} onChange={setDateFrom} />
+            <DatePickerInput className="h-9" id="payment-approval-date-from" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput id="payment-approval-date-to" value={dateTo} onChange={setDateTo} />
+            <DatePickerInput className="h-9" id="payment-approval-date-to" value={dateTo} onChange={setDateTo} />
             {hasCustomFilters ? <Button className="h-9" size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -878,9 +878,9 @@ export function PaymentApprovalPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                 </div>
               </div>
 
@@ -931,9 +931,9 @@ export function PaymentApprovalPageClient() {
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : null}
-                <span className="font-bold text-slate-800 text-sm">{row.docNo}<span className="ml-2 text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</span></span>
+                <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}<span className="ml-2 text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</span></span>
               </div>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
             </div>
 
             <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -988,9 +988,9 @@ export function PaymentApprovalPageClient() {
                       onClick={(e) => e.stopPropagation()}
                   />
                   ) : null}
-                <span className="font-bold text-slate-800 text-sm">{row.docNo}<span className="ml-2 text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</span></span>
+                <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}<span className="ml-2 text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</span></span>
                 </div>
-                <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
               </div>
 
               <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -998,16 +998,16 @@ export function PaymentApprovalPageClient() {
                   <span className="font-semibold text-slate-500">{isPettyReturn ? 'ผู้คืนเงิน: ' : 'ผู้รับเงิน: '}</span>
                   <span className="text-slate-800">{row.payee}</span>
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-center text-xs text-slate-500 whitespace-nowrap">
                   อ้างอิง: {row.sourceDocNo} ({isPettyReturn ? 'เงินสำรองจ่าย / กู้กรรมการ' : 'ค่าใช้จ่าย'})
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-center text-xs text-slate-500 whitespace-nowrap">
                   {isPettyReturn ? 'หมายเหตุ: ' : 'รายละเอียด / อ้างอิง: '}{row.refDocNo || '-'}
                 </div>
                 {row.dueDate ? (
                   <div className="text-xs">
                     <span className="text-slate-500">ครบกำหนด: </span>
-                    <span className={overdue ? 'text-red-600 font-semibold' : 'text-slate-700'}>
+                    <span className={overdue ? 'text-center text-red-600 font-semibold whitespace-nowrap' : 'text-center text-slate-700 whitespace-nowrap'}>
                       {formatDateDisplay(row.dueDate)}
                       {overdue ? ' (เลยกำหนด)' : ''}
                     </span>
@@ -1033,7 +1033,7 @@ export function PaymentApprovalPageClient() {
 
         {!isLoading && totalRows === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
-            {tab === 'ap' ? 'ไม่มีรายการต้นทุน / ผู้ขายรออนุมัติ' : tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : tab === 'pettyReturn' ? 'ไม่มีรายการคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการรออนุมัติ' : 'ไม่มีค่าใช้จ่ายค้างจ่าย'}
+            {tab === 'ap' ? 'ไม่มีรายการรออนุมัติ' : tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : tab === 'pettyReturn' ? 'ไม่มีรายการคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการรออนุมัติ' : 'ไม่มีค่าใช้จ่ายค้างจ่าย'}
           </div>
         ) : null}
       </div>
@@ -1062,9 +1062,9 @@ export function PaymentApprovalPageClient() {
                       />
                     ) : null}
                   </th>
-                  <SortableHead align="left" className="ns-leading-business-column" currentKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร / PMA" resizeProps={apColumnResize.getResizeHandleProps('docNo', 'เลขที่เอกสาร / PMA')} sortKey="docNo" onSort={changeSort} />
-                  <ResizableTableHead label="เอกสารต้นทาง" resizeProps={apColumnResize.getResizeHandleProps('sourceDocNo', 'เอกสารต้นทาง')} />
-                  <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="วันที่เอกสาร" resizeProps={apColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} sortKey="date" onSort={changeSort} />
+                  <SortableHead align="center" currentKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร / PMA" resizeProps={apColumnResize.getResizeHandleProps('docNo', 'เลขที่เอกสาร / PMA')} sortKey="docNo" onSort={changeSort} />
+                  <ResizableTableHead align="center" label="เอกสารต้นทาง" resizeProps={apColumnResize.getResizeHandleProps('sourceDocNo', 'เอกสารต้นทาง')} />
+                  <SortableHead align="center" currentKey={sortKey} direction={sortDirection} label="วันที่เอกสาร" resizeProps={apColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} sortKey="date" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ผู้ขาย" resizeProps={apColumnResize.getResizeHandleProps('partyName', 'ผู้ขาย')} sortKey="partyName" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ช่องทางจ่าย / ปลายทาง" resizeProps={apColumnResize.getResizeHandleProps('bankAccount', 'ช่องทางจ่าย / ปลายทาง')} sortKey="bankAccount" onSort={changeSort} />
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label="ยอดตั้งต้น" resizeProps={apColumnResize.getResizeHandleProps('totalAmount', 'ยอดตั้งต้น')} sortKey="totalAmount" onSort={changeSort} />
@@ -1083,7 +1083,7 @@ export function PaymentApprovalPageClient() {
                       className={`cursor-pointer ${isVoided ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'}`}
                       onClick={() => openDetail({ row, tab: 'ap' })}
                     >
-                      <TableCell className="w-10 text-center py-2 px-1" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="w-10 whitespace-nowrap text-center py-2 px-1" onClick={(e) => e.stopPropagation()}>
                         {isPrintable(row) ? (
                           <input
                             aria-label={`เลือกพิมพ์ใบอนุมัติ ${row.docNo}`}
@@ -1094,13 +1094,13 @@ export function PaymentApprovalPageClient() {
                           />
                         ) : null}
                       </TableCell>
-                      <TableCell className="ns-leading-business-column text-sm font-semibold text-slate-700">
-                        <div className="whitespace-nowrap">{row.docNo}</div>
+                      <TableCell className="ns-leading-business-column whitespace-nowrap text-center font-mono text-sm font-semibold text-slate-700">
+                        <div>{row.docNo}</div>
                         <div className="text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</div>
                         <div className="text-xs text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
                       </TableCell>
-                      <TableCell className="text-sm font-semibold text-slate-700">
-                        <div className="whitespace-nowrap">{row.sourceDocNo}</div>
+                      <TableCell className="whitespace-nowrap text-center font-mono text-sm font-semibold text-slate-700">
+                        <div>{row.sourceDocNo}</div>
                         {row.sourceType === 'advance_payment' ? null : (
                           <div className="text-xs text-slate-500">{paymentApprovalSourcePresentation(row).desktopSublabel}</div>
                         )}
@@ -1108,7 +1108,7 @@ export function PaymentApprovalPageClient() {
                           <div className="text-xs font-normal text-slate-500">{advanceMetaLabel(row)}</div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-sm font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">{row.supplierName}</TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">
                         {row.approvalStatus === 'approved'
@@ -1130,7 +1130,7 @@ export function PaymentApprovalPageClient() {
                 {!isLoading && totalRows === 0 ? (
                   <TableRow>
                     <TableCell className="p-8 text-center text-slate-500" colSpan={paymentApprovalApColumnCount}>
-                      {tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : 'ไม่มีรายการต้นทุน / ผู้ขายรออนุมัติ'}
+                      {tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : 'ไม่มีรายการรออนุมัติ'}
                     </TableCell>
                   </TableRow>
                 ) : null}
@@ -1159,11 +1159,11 @@ export function PaymentApprovalPageClient() {
                       />
                     ) : null}
                   </th>
-                  <SortableHead align="left" className="ns-leading-business-column" currentKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร / PMA" resizeProps={expenseColumnResize.getResizeHandleProps('docNo', 'เลขที่เอกสาร / PMA')} sortKey="docNo" onSort={changeSort} />
-                  <ResizableTableHead label="เอกสารต้นทาง" resizeProps={expenseColumnResize.getResizeHandleProps('sourceDocNo', 'เอกสารต้นทาง')} />
-                  <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label={tab === 'pettyReturn' ? 'วันที่คืน' : 'ครบกำหนด'} resizeProps={expenseColumnResize.getResizeHandleProps('dueDate', tab === 'pettyReturn' ? 'วันที่คืน' : 'ครบกำหนด')} sortKey="dueDate" onSort={changeSort} />
+                  <SortableHead align="center" currentKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร / PMA" resizeProps={expenseColumnResize.getResizeHandleProps('docNo', 'เลขที่เอกสาร / PMA')} sortKey="docNo" onSort={changeSort} />
+                  <ResizableTableHead align="center" label="เอกสารต้นทาง" resizeProps={expenseColumnResize.getResizeHandleProps('sourceDocNo', 'เอกสารต้นทาง')} />
+                  <SortableHead align="center" currentKey={sortKey} direction={sortDirection} label={tab === 'pettyReturn' ? 'วันที่คืน' : 'ครบกำหนด'} resizeProps={expenseColumnResize.getResizeHandleProps('dueDate', tab === 'pettyReturn' ? 'วันที่คืน' : 'ครบกำหนด')} sortKey="dueDate" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label={tab === 'pettyReturn' ? 'ผู้คืนเงิน' : 'ผู้รับเงิน'} resizeProps={expenseColumnResize.getResizeHandleProps('partyName', tab === 'pettyReturn' ? 'ผู้คืนเงิน' : 'ผู้รับเงิน')} sortKey="partyName" onSort={changeSort} />
-                  <ResizableTableHead label={tab === 'pettyReturn' ? 'หมายเหตุ' : 'รายละเอียด / อ้างอิง'} resizeProps={expenseColumnResize.getResizeHandleProps('refDocNo', tab === 'pettyReturn' ? 'หมายเหตุ' : 'รายละเอียด / อ้างอิง')} />
+                  <ResizableTableHead align={tab === 'pettyReturn' ? 'left' : 'center'} label={tab === 'pettyReturn' ? 'หมายเหตุ' : 'รายละเอียด / อ้างอิง'} resizeProps={expenseColumnResize.getResizeHandleProps('refDocNo', tab === 'pettyReturn' ? 'หมายเหตุ' : 'รายละเอียด / อ้างอิง')} />
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label={tab === 'pettyReturn' ? 'ยอดคืน' : 'ยอดค่าใช้จ่าย'} resizeProps={expenseColumnResize.getResizeHandleProps('totalAmount', tab === 'pettyReturn' ? 'ยอดคืน' : 'ยอดค่าใช้จ่าย')} sortKey="totalAmount" onSort={changeSort} />
                   <ResizableTableHead align="center" label="สถานะอนุมัติ" resizeProps={expenseColumnResize.getResizeHandleProps('status', 'สถานะอนุมัติ')} />
                 </tr>
@@ -1180,7 +1180,7 @@ export function PaymentApprovalPageClient() {
                       className={`cursor-pointer ${isVoided ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'}`}
                       onClick={() => openDetail({ row, tab: isPettyReturn ? 'pettyReturn' : 'expense' })}
                     >
-                      <TableCell className="w-10 text-center py-2 px-1" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="w-10 whitespace-nowrap text-center py-2 px-1" onClick={(e) => e.stopPropagation()}>
                         {isPrintable(row) ? (
                           <input
                             aria-label={`เลือกพิมพ์ใบอนุมัติ ${row.docNo}`}
@@ -1191,18 +1191,18 @@ export function PaymentApprovalPageClient() {
                           />
                         ) : null}
                       </TableCell>
-                      <TableCell className="ns-leading-business-column text-sm font-semibold text-slate-700">
-                        <div className="whitespace-nowrap">{row.docNo}</div>
+                      <TableCell className="ns-leading-business-column whitespace-nowrap text-center font-mono text-sm font-semibold text-slate-700">
+                        <div>{row.docNo}</div>
                         <div className="text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</div>
                         <div className="text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
                       </TableCell>
-                      <TableCell className="text-sm font-semibold text-slate-700">
-                        <div className="whitespace-nowrap">{row.sourceDocNo}</div>
+                      <TableCell className="whitespace-nowrap text-center font-mono text-sm font-semibold text-slate-700">
+                        <div>{row.sourceDocNo}</div>
                         <div className="text-slate-500">{isPettyReturn ? 'คืนเงินสำรองจ่าย' : 'ค่าใช้จ่าย'}</div>
                       </TableCell>
-                      <TableCell className="text-sm font-semibold text-slate-700">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm font-semibold text-slate-700">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">{row.payee}</TableCell>
-                      <TableCell className="text-sm font-semibold text-slate-700">{row.refDocNo ? <div className="text-slate-700">{row.refDocNo}</div> : <span className="text-slate-300">-</span>}</TableCell>
+                      <TableCell className={tab === 'pettyReturn' ? 'text-sm font-semibold text-slate-700' : 'whitespace-nowrap text-center font-mono text-sm font-semibold text-slate-700'}>{row.refDocNo ? <div className="text-slate-700">{row.refDocNo}</div> : <span className="text-slate-300">-</span>}</TableCell>
                       <TableCell className="text-right pr-4 text-sm font-semibold text-red-700 tabular-nums">{formatMoney(row.totalAmount)}</TableCell>
                       <TableCell className="text-center text-sm">
                         <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold ${approvalStatusTone(row.approvalStatus)}`}>

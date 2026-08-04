@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
@@ -159,7 +160,7 @@ export function CashPositionPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-        <DatePickerInput ariaLabel="ณ วันที่" className="w-36" value={asOf} onChange={setAsOf} />
+        <DatePickerInput ariaLabel="ณ วันที่" className="h-9 w-36" value={asOf} onChange={setAsOf} />
         <BranchSelectCombobox allOptionLabel="ทุกสาขาที่มีสิทธิ์" branches={data?.filters.branches ?? []} className="w-[12rem]" controlSize="filter" includeAllOption inputId="cash-position-branch-filter" label="" placeholder="ทุกสาขาที่มีสิทธิ์" value={branchId === 'ALL' ? null : branchId} onChange={(value) => setBranchId(value ?? 'ALL')} />
         <Select aria-label="กลุ่มบัญชี" className="h-9 w-40 text-sm" value={accountGroup} onChange={(event) => setAccountGroup(event.target.value)}>
           <option value="ALL">ทุกบัญชีเงิน</option>
@@ -167,7 +168,7 @@ export function CashPositionPageClient() {
           <option value="bank">บัญชีธนาคาร</option>
           <option value="fcd">บัญชี FCD</option>
         </Select>
-        <button className="ml-auto inline-flex h-9 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={exportXlsx}>Export Excel</button>
+        <button className="ml-auto inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700" type="button" onClick={exportXlsx}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</button>
       </div>
 
       <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
@@ -257,12 +258,12 @@ export function CashPositionPageClient() {
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" sortKey="code" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="รหัส" sortKey="code" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อบัญชี" sortKey="name" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบัญชี')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" sortKey="type" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ธนาคาร" sortKey="bankName" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('bankName', 'ธนาคาร')} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขบัญชี" sortKey="accountNo" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('accountNo', 'เลขบัญชี')} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="สกุล" sortKey="currency" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขบัญชี" sortKey="accountNo" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('accountNo', 'เลขบัญชี')} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สกุล" sortKey="currency" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="วงเงิน OD" sortKey="odLimit" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('odLimit', 'วงเงิน OD')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="ยอดคงเหลือ" sortKey="balance" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('balance', 'ยอดคงเหลือ')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="center" label="ดูรายการ" sortKey="source" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('source', 'ดูรายการ')} />
@@ -279,7 +280,7 @@ export function CashPositionPageClient() {
             {!isLoading &&
               sortedAccounts.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 truncate" title={row.code}>{row.code}</td>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-center font-mono text-xs text-slate-500 truncate" title={row.code}>{row.code}</td>
                   <td className="px-4 py-3.5 font-medium text-slate-900 truncate" title={row.name}>{row.name}</td>
                   <td className="px-4 py-3.5 truncate">
                     <span className={`rounded-md px-2 py-0.5 text-xs ${typeClass(row.type)}`}>
@@ -287,10 +288,10 @@ export function CashPositionPageClient() {
                     </span>
                   </td>
                   <td className="px-4 py-3.5 text-slate-600 truncate" title={row.bankName}>{row.bankName || '-'}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 truncate" title={row.accountNo}>{row.accountNo || '-'}</td>
-                  <td className="px-4 py-3.5 text-slate-600 truncate" title={row.currency}>{row.currency}</td>
-                  <td className="px-4 py-3.5 text-right font-mono text-slate-700">{row.odLimit ? formatMoney(row.odLimit) : '-'}</td>
-                  <td className={`px-4 py-3.5 text-right font-bold font-mono ${row.balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-center font-mono text-xs text-slate-500 truncate" title={row.accountNo}>{row.accountNo || '-'}</td>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-center text-slate-600 truncate" title={row.currency}>{row.currency}</td>
+                  <td className="px-4 py-3.5 text-right tabular-nums font-mono text-slate-700">{row.odLimit ? formatMoney(row.odLimit) : '-'}</td>
+                  <td className={`px-4 py-3.5 text-right tabular-nums font-bold font-mono ${row.balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                     {formatMoney(row.balance)}
                   </td>
                   <td className="px-4 py-3.5 text-center">

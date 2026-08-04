@@ -186,15 +186,15 @@ export default async function PaymentApprovalDetailPage({ params }: PageProps) {
           <table className="ns-table w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
               <tr>
-                <th className="p-2 text-left">PMT</th>
+                <th className="p-2 text-center whitespace-nowrap">PMT</th>
                 <th className="p-2 text-right">ยอดจัดสรร</th>
               </tr>
             </thead>
             <tbody>
               {allocations.map((allocation) => (
                 <tr key={allocation.allocation_key} className="border-t">
-                  <td className="p-2 font-mono text-slate-800">{allocation.payment_doc_no}</td>
-                  <td className="p-2 text-right font-medium">{money(toNumber(allocation.allocated_amount))}</td>
+                  <td className="p-2 text-center font-mono text-slate-800 whitespace-nowrap">{allocation.payment_doc_no}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{money(toNumber(allocation.allocated_amount))}</td>
                 </tr>
               ))}
               {allocations.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={2}>ยังไม่มี PMT allocation</td></tr> : null}

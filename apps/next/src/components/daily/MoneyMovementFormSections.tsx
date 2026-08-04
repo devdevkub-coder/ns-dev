@@ -515,7 +515,7 @@ export function PaymentLinesSection({
                   </datalist>
                   {lineBill ? (
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                      <span>เอกสารต้นทาง: <span className="font-medium text-slate-700">{lineBill.sourceDocNo || lineBill.docNo}</span></span>
+                      <span>เอกสารต้นทาง: <span className="whitespace-nowrap font-mono font-medium text-slate-700">{lineBill.sourceDocNo || lineBill.docNo}</span></span>
                       <span>ช่องทางรับเงิน: <span className="font-medium text-slate-700">{approvalPaymentMethod}</span></span>
                       <span>บัญชีรับเงิน: <span className="font-medium text-slate-700">{destinationAccount}</span></span>
                     </div>

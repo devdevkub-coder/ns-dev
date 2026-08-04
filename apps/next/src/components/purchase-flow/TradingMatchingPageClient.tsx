@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -234,7 +235,7 @@ export function TradingMatchingPageClient() {
           <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-normal text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={() => void loadData()}>รีเฟรช</button>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
-          <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-xs transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-0" href={exportHref}>ส่งออก Excel</a>
+          <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-xs transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-0" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
           <div className="flex flex-wrap gap-2">
             {allocationLinks.map((item) => (
               <Link key={item.href} className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 shadow-xs transition-colors hover:bg-slate-50 focus:outline-none focus:ring-0" href={item.href}>
@@ -281,10 +282,10 @@ export function TradingMatchingPageClient() {
                 <article key={row.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <button className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" type="button" onClick={() => setSelectedDeal(row)}>
                     <div className="flex justify-between gap-3 border-b border-slate-100 pb-2 mb-2">
-                      <span className="font-bold text-slate-800 text-sm">{row.salesBillNo || '-'}</span>
-                      <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
+                      <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.salesBillNo || '-'}</span>
+                      <span className="text-center text-xs font-semibold text-slate-400 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
                     </div>
-                    <div className="text-xs text-slate-400 font-semibold">ต้นทุนจาก: <span className="font-mono text-slate-600 font-bold">{row.purchaseBillNo || '-'}</span></div>
+                    <div className="text-xs text-slate-400 font-semibold">ต้นทุนจาก: <span className="text-center font-mono font-bold text-slate-600 whitespace-nowrap">{row.purchaseBillNo || '-'}</span></div>
                     <div className="mt-1 text-xs text-slate-605 font-semibold">{row.supplierName} &rarr; {row.customerName}</div>
                     <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-xs">
                       <Amount label="ต้นทุน" tone="red" value={row.matchedPurchaseAmount} />
@@ -317,9 +318,9 @@ export function TradingMatchingPageClient() {
                 </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
                   <tr>
-                    <ResizableTableHead label="บิลขาย" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="salesBillNo" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('salesBillNo', 'บิลขาย')} />
-                    <ResizableTableHead label="วันที่" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="date" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-                    <ResizableTableHead label="บิลซื้อ/ต้นทุน" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="purchaseBillNo" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('purchaseBillNo', 'บิลซื้อ/ต้นทุน')} />
+                    <ResizableTableHead align="center" label="บิลขาย" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="salesBillNo" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('salesBillNo', 'บิลขาย')} />
+                    <ResizableTableHead align="center" label="วันที่" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="date" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+                    <ResizableTableHead align="center" label="บิลซื้อ/ต้นทุน" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="purchaseBillNo" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('purchaseBillNo', 'บิลซื้อ/ต้นทุน')} />
                     <ResizableTableHead label="ผู้ขาย" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="supplierName" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} />
                     <ResizableTableHead label="ลูกค้า" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="customerName" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
                     <ResizableTableHead label="สินค้า" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="productName" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
@@ -328,7 +329,7 @@ export function TradingMatchingPageClient() {
                     <ResizableTableHead align="right" label="ยอดขาย" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="matchedSalesAmount" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('matchedSalesAmount', 'ยอดขาย')} />
                     <ResizableTableHead align="right" label="GP คาดการณ์" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="grossProfit" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('grossProfit', 'GP คาดการณ์')} />
                     <ResizableTableHead align="right" label="GP%" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="grossProfitPct" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('grossProfitPct', 'GP%')} />
-                    <ResizableTableHead label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -336,17 +337,17 @@ export function TradingMatchingPageClient() {
                   {!isLoading && !error && filteredDeals.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={12}>ยังไม่มีรายการจัดสรรตามเงื่อนไขที่ค้นหา</td></tr> : null}
                   {!isLoading && pagedFilteredDeals.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
-                      <td className="p-2.5 font-mono font-semibold text-slate-800 overflow-hidden truncate">{row.salesBillNo || '-'}</td>
-                      <td className="p-2.5 text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
-                      <td className="p-2.5 font-mono text-slate-600 font-medium overflow-hidden truncate">{row.purchaseBillNo || '-'}</td>
+                      <td className="whitespace-nowrap p-2.5 text-center font-mono font-semibold text-slate-800 overflow-hidden truncate">{row.salesBillNo || '-'}</td>
+                      <td className="whitespace-nowrap p-2.5 text-center text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                      <td className="whitespace-nowrap p-2.5 text-center font-mono text-slate-600 font-medium overflow-hidden truncate">{row.purchaseBillNo || '-'}</td>
                       <td className="p-2.5 text-slate-700 font-medium overflow-hidden truncate">{row.supplierName}</td>
                       <td className="p-2.5 text-slate-700 font-medium overflow-hidden truncate">{row.customerName}</td>
                       <td className="p-2.5 text-slate-700 font-medium overflow-hidden truncate">{row.productName}</td>
-                      <td className="p-2.5 text-right font-medium overflow-hidden truncate">{formatMoney(row.matchedQty)}</td>
-                      <td className="p-2.5 text-right text-red-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedPurchaseAmount)}</td>
-                      <td className="p-2.5 text-right text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedSalesAmount)}</td>
-                      <td className={`p-2.5 text-right font-bold overflow-hidden truncate ${row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</td>
-                      <td className="p-2.5 text-right font-medium text-slate-505 overflow-hidden truncate">{row.grossProfitPct.toFixed(2)}%</td>
+                      <td className="p-2.5 text-right font-medium tabular-nums overflow-hidden truncate">{formatMoney(row.matchedQty)}</td>
+                      <td className="p-2.5 text-right text-red-700 font-semibold tabular-nums overflow-hidden truncate">{formatMoney(row.matchedPurchaseAmount)}</td>
+                      <td className="p-2.5 text-right text-emerald-700 font-semibold tabular-nums overflow-hidden truncate">{formatMoney(row.matchedSalesAmount)}</td>
+                      <td className={`p-2.5 text-right font-bold tabular-nums overflow-hidden truncate ${row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</td>
+                      <td className="p-2.5 text-right font-medium text-slate-505 tabular-nums overflow-hidden truncate">{row.grossProfitPct.toFixed(2)}%</td>
                       <td className="whitespace-nowrap p-2.5 text-center overflow-hidden truncate">
                         <TableActionButton label="รายละเอียด" menu={<TableActionMenuItem onSelect={() => setSelectedDeal(row)}>รายละเอียด</TableActionMenuItem>} />
                       </td>
@@ -435,8 +436,8 @@ function RemainingPurchaseTable({
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead label="บิลซื้อ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'บิลซื้อ')} />
-              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead align="center" label="บิลซื้อ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'บิลซื้อ')} />
+              <ResizableTableHead align="center" label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
               <ResizableTableHead label="ผู้ขาย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="supplierName" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} />
               <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalAmount" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('totalAmount', 'มูลค่า')} />
               <ResizableTableHead align="right" label="จับคู่แล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchedAmount" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('matchedAmount', 'จับคู่แล้ว')} />
@@ -446,12 +447,12 @@ function RemainingPurchaseTable({
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
-                <td className="p-2.5 font-mono font-medium overflow-hidden truncate">{row.docNo}</td>
-                <td className="p-2.5 text-slate-505 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                <td className="whitespace-nowrap p-2.5 text-center font-mono font-medium overflow-hidden truncate">{row.docNo}</td>
+                <td className="whitespace-nowrap p-2.5 text-center text-slate-505 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
                 <td className="p-2.5 text-slate-800 font-medium overflow-hidden truncate">{row.supplierName}</td>
-                <td className="p-2.5 text-right font-medium overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
-                <td className="p-2.5 text-right text-slate-500 font-medium overflow-hidden truncate">{formatMoney(row.matchedAmount)}</td>
-                <td className="p-2.5 text-right font-bold text-amber-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
+                <td className="p-2.5 text-right font-medium tabular-nums overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
+                <td className="p-2.5 text-right text-slate-500 font-medium tabular-nums overflow-hidden truncate">{formatMoney(row.matchedAmount)}</td>
+                <td className="p-2.5 text-right font-bold text-amber-700 tabular-nums overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
               </tr>
             ))}
             {rows.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={6}>ไม่มีต้นทุนซื้อมาขายไปคงเหลือ</td></tr> : null}

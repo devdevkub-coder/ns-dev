@@ -75,18 +75,18 @@ export function PostingRulesTable({ rows }: { rows: readonly RuleGroup[] }) {
           <thead className="bg-slate-100">
             <tr>
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="กลุ่มงาน" resizeProps={columnResize.getResizeHandleProps('group', 'กลุ่มงาน')} sortKey="group" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="แหล่งข้อมูลตัวอย่าง" resizeProps={columnResize.getResizeHandleProps('source', 'แหล่งข้อมูลตัวอย่าง')} sortKey="source" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ประเด็นการผูกบัญชี" resizeProps={columnResize.getResizeHandleProps('concern', 'ประเด็นการผูกบัญชี')} sortKey="concern" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ความพร้อม" resizeProps={columnResize.getResizeHandleProps('readiness', 'ความพร้อม')} sortKey="readiness" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="left" className="ns-table-textual-column" direction={sortDirection} label="แหล่งข้อมูลตัวอย่าง" resizeProps={columnResize.getResizeHandleProps('source', 'แหล่งข้อมูลตัวอย่าง')} sortKey="source" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="left" className="ns-table-textual-column" direction={sortDirection} label="ประเด็นการผูกบัญชี" resizeProps={columnResize.getResizeHandleProps('concern', 'ประเด็นการผูกบัญชี')} sortKey="concern" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="ความพร้อม" resizeProps={columnResize.getResizeHandleProps('readiness', 'ความพร้อม')} sortKey="readiness" onSort={handleSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
             {sortedRows.map((rule) => (
               <tr key={rule.group} className="transition-colors hover:bg-slate-50">
                 <td className="whitespace-nowrap p-3 align-top font-semibold text-slate-900">{rule.group}</td>
-                <td className="min-w-0 p-3 align-top text-right text-slate-700"><span className="block break-words">{rule.source}</span></td>
-                <td className="min-w-0 p-3 align-top text-right text-slate-700"><span className="block break-words">{rule.concern}</span></td>
-                <td className="p-3 align-top text-right">
+                <td className="ns-table-textual-column min-w-0 p-3 align-top text-left text-slate-700"><span className="block break-words">{rule.source}</span></td>
+                <td className="ns-table-textual-column min-w-0 p-3 align-top text-left text-slate-700"><span className="block break-words">{rule.concern}</span></td>
+                <td className="whitespace-nowrap p-3 align-top text-center">
                   <span className="inline-flex"><RuleStatusBadge>{rule.readiness}</RuleStatusBadge></span>
                 </td>
               </tr>

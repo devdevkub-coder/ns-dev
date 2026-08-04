@@ -3,6 +3,7 @@ import { fcdConversionPostSchema, fcdConversionReverseSchema } from '@/lib/finan
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { requireFinanceActor } from '@/lib/server/finance-actor'
 import { postFcdConversion, reverseFcdConversion } from '@/lib/server/fcd-conversion-posting'
 import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import { FCD_ACTION_PERMISSION } from '@/lib/server/fcd-action-permissions'
@@ -24,12 +25,6 @@ function accountLabel(account: { accountNo: string | null; name: string }) {
 function assertBranchAccess(context: Awaited<ReturnType<typeof getCurrentAuthContext>>, branchCode: string) {
   const allowed = getBranchCodeIntersection(context, branchCode)
   if (allowed !== null && allowed.length === 0) throw new AuthContextError('ไม่มีสิทธิ์ใช้งานสาขานี้', 403)
-}
-
-function requiredActor(context: Awaited<ReturnType<typeof getCurrentAuthContext>>) {
-  const actor = context.appUser?.email?.trim() || context.authUser.email?.trim()
-  if (!actor) throw new Error('ไม่พบผู้ใช้งานสำหรับบันทึกรายการแลกเงิน FCD')
-  return actor
 }
 
 export async function GET(request: Request) {
@@ -114,7 +109,7 @@ export async function POST(request: Request) {
     if (!branch) return noStore({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือไม่ active' }, { status: 400 })
     const result = await prisma.$transaction((tx) => postFcdConversion(tx, {
       ...values,
-      actor: requiredActor(context),
+      actor: requireFinanceActor(context),
       branchId: branch.id,
     }), { isolationLevel: 'Serializable' })
     return noStore({ docNo: result.docNo, realizedFxDifference: result.realizedFxDifference.toFixed(2) }, { status: 201 })
@@ -134,7 +129,7 @@ export async function PATCH(request: Request) {
     const branch = await prisma.branches.findUnique({ select: { code: true }, where: { id: original.branch_id } })
     if (!branch) throw new Error('รายการแลกเงิน FCD ไม่มีสาขาที่ใช้งานได้')
     assertBranchAccess(context, branch.code)
-    const result = await prisma.$transaction((tx) => reverseFcdConversion(tx, { ...values, actor: requiredActor(context) }), { isolationLevel: 'Serializable' })
+    const result = await prisma.$transaction((tx) => reverseFcdConversion(tx, { ...values, actor: requireFinanceActor(context) }), { isolationLevel: 'Serializable' })
     return noStore({ docNo: result.docNo })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

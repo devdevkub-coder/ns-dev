@@ -23,7 +23,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       },
       where: {
         doc_no: ticketRef,
-        ...(scopedBranchIds.length ? { branches: { code: { in: scopedBranchIds } } } : {}),
+        ...(scopedBranchIds !== null ? { branches: { code: { in: scopedBranchIds } } } : {}),
       },
     })
     if (!ticket) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบส่งของ' }, { status: 404 })

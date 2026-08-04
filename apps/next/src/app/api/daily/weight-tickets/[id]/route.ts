@@ -90,12 +90,13 @@ const ticketInclude = {
   },
 } as const
 
-async function findScopedTicket(documentNo: string, scopedBranchIds: string[]) {
+async function findScopedTicket(documentNo: string, scopedBranchIds: string[] | null) {
+  if (scopedBranchIds !== null && !scopedBranchIds.length) return null
   return prisma.weight_tickets.findFirst({
     include: ticketInclude,
     where: {
       doc_no: documentNo,
-      ...(scopedBranchIds.length ? { branches: { code: { in: scopedBranchIds } } } : {}),
+      ...(scopedBranchIds !== null ? { branches: { code: { in: scopedBranchIds } } } : {}),
     },
   })
 }
@@ -161,7 +162,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     ]).filter(Boolean))]
     const impurityIds = [...new Set(parsedImpurityIds.filter((value): value is bigint => value != null))]
     const [scopedBranches, branch, supplier, customer, products, impurities] = await Promise.all([
-      findActiveBranchReferencesByCodes(scopedBranchIds),
+      scopedBranchIds === null ? Promise.resolve([]) : findActiveBranchReferencesByCodes(scopedBranchIds),
       prisma.branches.findFirst({
         select: { code: true, id: true, name: true },
         where: {
@@ -181,7 +182,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         : Promise.resolve([]),
     ])
 
-    if (!branch || (scopedBranchIds.length && !scopedBranches.some((item) => item.id === branch.id))) {
+    if (!branch || (scopedBranchIds !== null && !scopedBranches.some((item) => item.id === branch.id))) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
     }
     try {

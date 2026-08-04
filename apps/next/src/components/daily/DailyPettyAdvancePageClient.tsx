@@ -636,7 +636,7 @@ export function DailyPettyAdvancePageClient() {
                   <SearchCombobox
                      error={fieldErrors.recipientId ?? fieldErrors.recipientName}
                      errorKey="recipientId"
-                     inputClassName="h-9 text-sm"
+                     inputClassName="h-10 text-sm"
                      inputId="petty-advance-recipient"
                      label="ผู้จ่าย *"
                      options={recipientOptions}
@@ -738,14 +738,14 @@ export function DailyPettyAdvancePageClient() {
             onClick={() => setDetailRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+              <span className="whitespace-nowrap font-bold text-slate-800 text-sm">{row.docNo}</span>
               <StatusBadge status={row.status} />
             </div>
             <div className="flex justify-between items-center text-xs text-slate-500 mb-3">
               <span className={row.type === 'DIRECTOR_LOAN' ? 'text-purple-700 font-semibold' : 'text-amber-700 font-semibold'}>
                 {typeLabel(row.type)}
               </span>
-              <span>วันที่จ่าย: {formatDateDisplay(row.date)}</span>
+              <span className="whitespace-nowrap">วันที่จ่าย: {formatDateDisplay(row.date)}</span>
             </div>
             <div className="text-sm font-semibold text-slate-700 mb-3">
               {row.recipientName}
@@ -800,8 +800,8 @@ export function DailyPettyAdvancePageClient() {
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่จ่าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} />
+              <ResizableTableHead align="center" label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead align="center" label="วันที่จ่าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} />
               <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
               <ResizableTableHead label="ผู้รับเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="recipientName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('recipientName', 'ผู้รับเงิน')} />
               <ResizableTableHead align="right" label="ยอดยืม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดยืม')} />
@@ -809,15 +809,15 @@ export function DailyPettyAdvancePageClient() {
               <ResizableTableHead align="right" label="คืนแล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="returned" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('returned', 'คืนแล้ว')} />
               <ResizableTableHead align="right" label="คงค้าง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="remaining" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('remaining', 'คงค้าง')} />
               <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs font-semibold">
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setDetailRow(row)}>
-                <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                <td className="p-2">{formatDateDisplay(row.date)}</td>
+                <td className="whitespace-nowrap p-2 text-center font-mono text-xs">{row.docNo}</td>
+                <td className="whitespace-nowrap p-2 text-center">{formatDateDisplay(row.date)}</td>
                 <td className="p-2"><span className={row.type === 'DIRECTOR_LOAN' ? 'text-purple-700' : 'text-amber-700'}>{typeLabel(row.type)}</span></td>
                 <td className="p-2 font-medium">{row.recipientName}</td>
                 <td className="p-2 pr-4 text-right tabular-nums">{formatMoney(row.amount)}</td>
@@ -825,7 +825,7 @@ export function DailyPettyAdvancePageClient() {
                 <td className="p-2 pr-4 text-right text-emerald-700 tabular-nums">{formatMoney(row.returned)}</td>
                 <td className={`p-2 pr-4 text-right font-bold tabular-nums ${row.remaining > 1 ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(row.remaining)}</td>
                 <td className="p-2 text-center"><StatusBadge status={row.status} /></td>
-                <td className="whitespace-nowrap p-2 text-right">
+                <td className="whitespace-nowrap p-2 text-center">
                   <TableActionButton
                     menu={(
                       <>
@@ -910,7 +910,7 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
                 <table className="ns-table w-full text-xs">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
-                      <th className="p-2 text-left">วันที่</th>
+                      <th className="p-2 text-center">วันที่</th>
                       <th className="p-2 text-right">จำนวน</th>
                       <th className="p-2 text-left">บัญชีรับ</th>
                       <th className="p-2 text-left">หมายเหตุ</th>
@@ -919,7 +919,7 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
                   <tbody>
                     {returns.map((entry) => (
                       <tr key={entry.id} className="border-t border-slate-100">
-                        <td className="p-2 font-mono">{entry.date}</td>
+                        <td className="whitespace-nowrap p-2 text-center font-mono">{entry.date}</td>
                         <td className="p-2 text-right font-bold text-emerald-700 tabular-nums">{formatMoney(entry.amount)}</td>
                         <td className="p-2 text-slate-700">{entry.accountName}</td>
                         <td className="p-2 text-slate-600">{entry.notes || '-'}</td>
@@ -983,8 +983,8 @@ function TextField(props: { error?: string; fieldName?: string; label: string; o
     <label className="block" data-field={props.fieldName}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{props.required ? <span className="ml-1 text-red-600">*</span> : null}</span>
       {props.type === 'date'
-        ? <DatePickerInput ariaInvalid={Boolean(props.error)} className={`h-9 w-full ${props.error ? 'border-red-400 bg-red-50' : ''}`} readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
-        : <input aria-invalid={Boolean(props.error)} className={`h-9 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-900'}`} readOnly={props.readOnly} required={props.required} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
+        ? <DatePickerInput ariaInvalid={Boolean(props.error)} className={`h-10 w-full ${props.error ? 'border-red-400 bg-red-50' : ''}`} readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
+        : <input aria-invalid={Boolean(props.error)} className={`h-10 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-900'}`} readOnly={props.readOnly} required={props.required} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )
@@ -998,7 +998,7 @@ function MoneyField(props: { error?: string; fieldName?: string; label: string; 
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{props.required ? <span className="ml-1 text-red-600">*</span> : null}</span>
       <input
         aria-invalid={Boolean(props.error)}
-        className={`h-9 w-full rounded-md border bg-white px-3 text-right text-sm tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'}`}
+        className={`h-10 w-full rounded-md border bg-white px-3 text-right text-sm tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'}`}
         inputMode="decimal"
         placeholder="0.00"
         required={props.required}

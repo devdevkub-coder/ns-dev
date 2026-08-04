@@ -139,7 +139,7 @@ export function FinancialDashboardPageClient() {
             <label className="block text-xs font-semibold text-slate-600" htmlFor="financial-dashboard-as-of-mobile">ณ วันที่</label>
             <DatePickerInput
               ariaLabel="ณ วันที่"
-              className="w-full text-sm"
+              className="h-9 w-full text-sm"
               id="financial-dashboard-as-of-mobile"
               readOnly
               required

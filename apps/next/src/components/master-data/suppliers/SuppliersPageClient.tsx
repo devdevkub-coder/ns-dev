@@ -610,12 +610,12 @@ export function SuppliersPageClient() {
                 }}
               />
             </label>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
-              <Download aria-hidden="true" className="h-4 w-4" />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
+              <Download aria-hidden="true" className="size-4" />
               <span className="text-xs sm:text-sm">{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
             </button>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none" type="button" onClick={() => void openCreateForm()}>
-              <Plus aria-hidden="true" className="h-4 w-4" />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none" type="button" onClick={() => void openCreateForm()}>
+              <Plus aria-hidden="true" className="size-4" />
               เพิ่มรายการ
             </button>
           </div>
@@ -747,8 +747,8 @@ export function SuppliersPageClient() {
                       }}
                     />
                   </label>
-                  <button className="flex-1 inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => { void handleExport(); setShowMobileFilters(false); }}>
-                    <Download aria-hidden="true" className="h-4 w-4" />
+                  <button className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => { void handleExport(); setShowMobileFilters(false); }}>
+                    <Download aria-hidden="true" className="size-4" />
                     <span>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
                   </button>
                 </div>
@@ -813,14 +813,14 @@ export function SuppliersPageClient() {
                 </colgroup>
                 <TableHeader>
                   <tr>
-                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อบริษัท/ร้านค้า" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบริษัท/ร้านค้า')} sortKey="name" onSort={setSort} />
-                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="โทร" resizeProps={columnResize.getResizeHandleProps('phone', 'โทร')} sortKey="phone" onSort={setSort} />
                     <ResizableTableHead direction={sortDirection} label="สาขาที่ใช้ได้" resizeProps={columnResize.getResizeHandleProps('branches', 'สาขาที่ใช้ได้')} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ธนาคารรับเงิน" resizeProps={columnResize.getResizeHandleProps('bankName', 'ธนาคารรับเงิน')} sortKey="bankName" onSort={setSort} />
-                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่บัญชีรับเงิน" resizeProps={columnResize.getResizeHandleProps('accountNo', 'เลขที่บัญชีรับเงิน')} sortKey="accountNo" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขที่บัญชีรับเงิน" resizeProps={columnResize.getResizeHandleProps('accountNo', 'เลขที่บัญชีรับเงิน')} sortKey="accountNo" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้ดูแล" resizeProps={columnResize.getResizeHandleProps('salesName', 'ผู้ดูแล')} sortKey="salesName" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={setSort} />
                     <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
@@ -843,9 +843,9 @@ export function SuppliersPageClient() {
                           }
                         }}
                       >
-                        <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{supplier.code}</TableCell>
+                        <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{supplier.code}</TableCell>
                         <TableCell className="truncate text-xs font-semibold text-slate-800" title={supplier.name}>{supplier.name}</TableCell>
-                        <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{displayValue(supplier.taxId)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{displayValue(supplier.taxId)}</TableCell>
                         <TableCell className="text-xs font-semibold text-slate-700">{displayValue(supplier.type)}</TableCell>
                         <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{displayValue(formatPhoneDisplay(supplier.phone))}</TableCell>
                         <TableCell className="truncate text-xs font-semibold text-slate-700" title={supplier.branchNames.join(', ') || undefined}>
@@ -860,13 +860,13 @@ export function SuppliersPageClient() {
                             </div>
                           ) : '-'}
                         </TableCell>
-                        <TableCell className="align-top font-mono text-xs font-semibold text-slate-700">
+                        <TableCell className="whitespace-nowrap text-center align-top font-mono text-xs font-semibold text-slate-700">
                           {receivingLines.length ? (
                             <div className="space-y-1">
                               {receivingLines.map((line, index) => {
                                 const accountKey = `${supplier.id}-account-${index}`
                                 return (
-                                  <div key={accountKey} className="flex min-h-5 items-center gap-2 leading-5">
+                                  <div key={accountKey} className="flex min-h-5 items-center justify-center gap-2 leading-5">
                                     <span className="truncate">{line.accountNo}</span>
                                     {line.rawAccountNo ? (
                                       <CopyAccountButton

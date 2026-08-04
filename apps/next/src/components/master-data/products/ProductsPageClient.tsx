@@ -481,12 +481,12 @@ export function ProductsPageClient() {
                 }}
               />
             </label>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
-              <Download aria-hidden="true" className="h-4 w-4" />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
+              <Download aria-hidden="true" className="size-4" />
               <span className="text-xs sm:text-sm">{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
             </button>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none" type="button" onClick={openCreateForm}>
-              <Plus aria-hidden="true" className="h-4 w-4" />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none" type="button" onClick={openCreateForm}>
+              <Plus aria-hidden="true" className="size-4" />
               เพิ่มสินค้า
             </button>
           </div>
@@ -598,8 +598,8 @@ export function ProductsPageClient() {
                       }}
                     />
                   </label>
-                  <button className="flex-1 inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => { void handleExport(); setShowMobileFilters(false); }}>
-                    <Download aria-hidden="true" className="h-4 w-4" />
+                  <button className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => { void handleExport(); setShowMobileFilters(false); }}>
+                    <Download aria-hidden="true" className="size-4" />
                     <span>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
                   </button>
                 </div>
@@ -677,7 +677,7 @@ export function ProductsPageClient() {
                 </colgroup>
                 <TableHeader>
                   <tr>
-                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อสินค้า" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อสินค้า')} sortKey="name" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="หน่วย" resizeProps={columnResize.getResizeHandleProps('unit', 'หน่วย')} sortKey="unit" onSort={setSort} />
@@ -700,7 +700,7 @@ export function ProductsPageClient() {
                         }
                       }}
                     >
-                      <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{product.code}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{product.code}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-800" title={product.name}>{product.name}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{displayValue(product.type)}</TableCell>
                       <TableCell className="text-center text-xs font-semibold text-slate-700">{displayValue(product.unit)}</TableCell>

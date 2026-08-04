@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { NextResponse, type NextRequest } from 'next/server'
 import { Prisma } from '../../../../../generated/prisma/client'
 import { parseInternalBigIntId } from '@/lib/business-code'
@@ -320,7 +321,11 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const id = idValue(body.id)
     if (body.action !== 'deactivate' || !id) return NextResponse.json({ error: 'invalid action' }, { status: 400 })
-    await prisma.assets.update({ data: { asset_status: 'Inactive', notes: nullableText(body.reason) ?? undefined }, where: { id } })
+    const actor = currentActor(context)
+    await prisma.$transaction(async (tx) => {
+      await tx.assets.update({ data: { asset_status: 'Inactive', notes: nullableText(body.reason) ?? undefined }, where: { id } })
+      await tx.app_audit_logs.create({ data: { action: 'asset_deactivated', actor_auth_user_id: context.authUser.id, actor_app_user_id: context.appUser?.id ?? null, actor_display_name: context.appUser?.displayName, actor_username: context.appUser?.username, entity_id: id.toString(), event_key: `asset-deactivated:${randomUUID()}`, metadata: { reason: nullableText(body.reason) }, target_type: 'asset' } })
+    })
     return NextResponse.json({ ok: true, payload: await payload() })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

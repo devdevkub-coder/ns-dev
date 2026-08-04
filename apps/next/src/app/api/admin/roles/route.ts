@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'มีหน้าที่งานชื่อนี้อยู่แล้ว' }, { status: 409 })
     }
 
-    const actor = context.appUser?.email ?? context.authUser.email ?? 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     const role = await prisma.$transaction(async (tx) => {
       const created = await tx.app_roles.create({
         data: {

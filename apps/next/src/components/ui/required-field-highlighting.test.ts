@@ -79,6 +79,15 @@ describe('manual-entry field highlighting contract', () => {
     expect(weightTicketForm).toMatch(/<div className="relative" data-ns-field-scope="filter">[\s\S]*?<Search[\s\S]*?<Input/)
   })
 
+  it('keeps shared dual-costing filter cards in the filter highlight scope', () => {
+    const dualCostingPageShell = source('../dual-costing/DualCostingPageShell.tsx')
+    const filterCard = dualCostingPageShell.match(
+      /export function DualCostingFilterCard[\s\S]*?(?=\nexport function DualCostingPanel)/,
+    )?.[0]
+
+    expect(filterCard).toContain('<div data-ns-field-scope="filter"')
+  })
+
   it('marks the shared searchable, branch, and select field families from their required labels', () => {
     const searchCombobox = source('./SearchCombobox.tsx')
     const select = source('./Select.tsx')

@@ -143,7 +143,7 @@ export async function POST(request: Request) {
     const impurityIds = [...new Set(parsedImpurityIds.filter((value): value is bigint => value != null))]
 
     const [scopedBranches, branch, supplier, customer, products, impurities] = await Promise.all([
-      findActiveBranchReferencesByCodes(scopedBranchIds),
+      scopedBranchIds === null ? Promise.resolve([]) : findActiveBranchReferencesByCodes(scopedBranchIds),
       prisma.branches.findFirst({
         select: { code: true, id: true, name: true },
         where: {
@@ -169,7 +169,7 @@ export async function POST(request: Request) {
         : Promise.resolve([]),
     ])
 
-    if (!branch || (scopedBranchIds.length && !scopedBranches.some((item) => item.id === branch.id))) {
+    if (!branch || (scopedBranchIds !== null && !scopedBranches.some((item) => item.id === branch.id))) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
     }
     try {

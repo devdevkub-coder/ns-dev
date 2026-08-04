@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Download } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -317,17 +318,18 @@ export function ReportsIndexPageClient() {
 
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <DatePickerInput className="w-[130px] border-slate-100" onChange={setFromDate} value={fromDate} />
-          <DatePickerInput className="w-[130px] border-slate-100" onChange={setToDate} value={toDate} />
+          <DatePickerInput className="h-9 w-[130px] border-slate-100" onChange={setFromDate} value={fromDate} />
+          <DatePickerInput className="h-9 w-[130px] border-slate-100" onChange={setToDate} value={toDate} />
           <span className="text-xs font-medium text-slate-400">เว้นว่างเพื่อดูทุกช่วงเวลา</span>
         </div>
         <div className="mt-2 flex justify-end">
           <button
-            className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none"
             disabled={loading}
             onClick={exportActiveTab}
             type="button"
           >
+            <Download aria-hidden="true" className="size-4" />
             ส่งออก Excel
           </button>
         </div>
@@ -379,7 +381,7 @@ export function ReportsIndexPageClient() {
               ) : sortedRows.length ? sortedRows.map((row) => (
                 <tr className="hover:bg-slate-50/30 transition-colors" key={row.name}>
                   {columns.map((column) => (
-                    <td className={`p-3 ${column.key === 'name' ? 'font-semibold text-slate-900' : `text-right font-mono font-bold ${column.tone === 'amount' ? 'text-blue-600' : column.tone === 'cost' ? 'text-red-600' : column.tone === 'profit' ? 'text-emerald-600' : 'text-slate-800'}`}`} key={column.key}>
+                    <td className={`p-3 ${column.key === 'name' ? 'font-semibold text-slate-900' : `whitespace-nowrap text-right font-mono font-bold tabular-nums ${column.tone === 'amount' ? 'text-blue-600' : column.tone === 'cost' ? 'text-red-600' : column.tone === 'profit' ? 'text-emerald-600' : 'text-slate-800'}`}`} key={column.key}>
                       {rowValue(row, column)}
                     </td>
                   ))}
@@ -392,7 +394,7 @@ export function ReportsIndexPageClient() {
               <tfoot className="border-t border-slate-100 bg-slate-50/50 font-bold text-slate-900">
                 <tr>
                   {columns.map((column) => (
-                    <td className={`p-3 font-bold ${column.key === 'name' ? 'text-left' : 'text-right font-mono'}`} key={column.key}>
+                    <td className={`p-3 font-bold ${column.key === 'name' ? 'text-left' : 'whitespace-nowrap text-right font-mono tabular-nums'}`} key={column.key}>
                       {column.key === 'name' ? 'รวม' : column.key === 'count' ? numberFormat(summary.count) : column.key === 'weight' ? numberFormat(summary.weight, 2) : column.key === 'amount' ? currency(summary.amount) : column.key === 'cost' ? currency(summary.cost) : column.key === 'profit' ? currency(summary.profit) : ''}
                     </td>
                   ))}
@@ -504,20 +506,22 @@ export function ReportsIndexPageClient() {
                   <col key={column.key} style={catalogColumnResize.getColumnStyle(column.key)} />
                 ))}
               </colgroup>
-              <thead className="bg-slate-100 [&>tr>th:nth-child(2)]:!text-right [&>tr>th:nth-child(2)>button]:!justify-end">
+              <thead className="bg-slate-100">
                 <tr>
                   <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="รายงาน" resizeProps={catalogColumnResize.getResizeHandleProps('report', 'รายงาน')} sortKey="report" onSort={changeCatalogSort} />
-                  <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="หมวด" resizeProps={catalogColumnResize.getResizeHandleProps('owner', 'หมวด')} sortKey="owner" onSort={changeCatalogSort} />                  <ResizableTableHead align="right" label="เปิด" resizeProps={catalogColumnResize.getResizeHandleProps('action', 'เปิด')} />
+                  <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="หมวด" resizeProps={catalogColumnResize.getResizeHandleProps('owner', 'หมวด')} sortKey="owner" onSort={changeCatalogSort} />
+                  <ResizableTableHead align="center" label="เปิด" resizeProps={catalogColumnResize.getResizeHandleProps('action', 'เปิด')} />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 [&>tr>td:nth-child(2)]:text-right">
+              <tbody className="divide-y divide-slate-100">
                 {sortedFiltered.map((report) => (
                   <tr className="hover:bg-slate-50/30 transition-colors" key={report.href}>
                     <td className="p-3">
                       <div className="font-semibold text-slate-900">{report.label}</div>
                       <div className="font-mono text-xs text-slate-400 mt-0.5">{report.href}</div>
                     </td>
-                    <td className="p-3 text-slate-600 font-medium">{report.owner}</td>                    <td className="p-3 text-right">
+                    <td className="p-3 text-slate-600 font-medium">{report.owner}</td>
+                    <td className="p-3 text-center">
                       <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-normal text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
                         เปิดรายงาน
                       </Link>
@@ -540,7 +544,8 @@ export function ReportsIndexPageClient() {
                     <div className="font-bold text-slate-900 text-sm">{report.label}</div>
                     <div className="font-mono text-xs text-slate-400 mt-0.5">{report.href}</div>
                   </div>
-                </div>                <div className="flex justify-between items-center text-xs">
+                </div>
+                <div className="flex justify-between items-center text-xs">
                   <span className="font-semibold text-slate-500">หมวด: {report.owner}</span>
                   <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-normal text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
                     เปิดรายงาน

@@ -1,5 +1,11 @@
 # 10 Environment Status
 
+### Trading Allocation Fact Schema Parity 2026-08-01
+
+- Applied and recorded existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the verified non-pooling PostgreSQL connection. Dev-target already had the same migration, columns, FK, and indexes.
+- Preflight confirmed SIT had neither migration history nor the two columns, `trading_allocation_facts` contained `0` rows, and `stock_cost_pool_entries` contained `403` rows. The migration added nullable `cost_pool_entry_id bigint` and `target_ref_id text`, the restrictive Cost Pool FK, and both partial indexes without backfilling or changing business rows.
+- Postflight confirmed both columns, the FK, both indexes, and migration history. Authenticated runtime smoke returned HTTP 200 for Customer Tracking, Product Tracking, Allocation Ledger, Trading Matching, and Trading Dashboard; this closes the former Dev/SIT difference recorded below without adding a runtime fallback.
+
 ### Customer Receipt Payment Method Simplification 2026-07-31
 
 - Migration `20260731130000_limit_active_payment_methods_to_cash_and_bank_transfer.sql` is prepared to retain only the configured active `cash` and `bank` methods: `PM-001` and `PM-002`. It deactivates cheque, PromptPay, FCD transfer, and international transfer master rows without changing historical receipt snapshots.
@@ -22,7 +28,7 @@
 
 - Applied and recorded `20260730190000_reconcile_legacy_product_image_names_schema.sql` in dev-target and SIT. It verifies that any remaining `public.products.image_names` values are empty before dropping the legacy column; Dev had the column with zero legacy values, while SIT already had no column. Postflight confirms the column is absent in both environments.
 - Repaired SIT migration history through Supabase CLI using its non-pooling connection: `20260608094500` is now recorded as `add_product_image_names`, and `20260725100000` is now recorded as `add_user_profile_image_storage`, matching Dev. The old pooler URL cannot run this CLI repair because it reuses prepared statements.
-- The remaining intentional Dev/SIT difference is `20260727110000_add_trading_allocation_fact_cost_pool_entry`: it remains Dev-only, with its two `trading_allocation_facts` columns and related FK/index absent from SIT by the explicit decision not to promote that Trading change in this batch.
+- The former intentional Dev/SIT difference for `20260727110000_add_trading_allocation_fact_cost_pool_entry` was closed on 2026-08-01 after Customer Tracking and Allocation Ledger exposed the shared Prisma schema drift at runtime.
 
 ### FCD Account Currency Opening-Balance Retirement 2026-07-30
 

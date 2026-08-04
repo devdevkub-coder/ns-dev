@@ -141,3 +141,8 @@ When a user chooses `เปิดบิลซื้อ` from a WTI row, `/purcha
 ## 2026-07-23 Purchase list center-alignment checkpoint
 
 The `/purchase/bills` desktop list now centers every visible header/body column except `ยอดรวม` and `ค้างชำระ`, which stay right-aligned as monetary facts. What is what: this changes only the Purchase Bill list table geometry; `ยอดรวม` remains the bill total and `ค้างชำระ` remains the payable balance used by Payment Flow. Why it has to be like this: the requested office scanning pattern groups document identifiers, dates, supplier, status, source docs, payment docs, updater, and actions around the column center while preserving right alignment for money comparison. This does not change calculations, filters, APIs, permissions, database schema, or DB state.
+
+## 2026-07-31 VAT form presentation checkpoint
+
+- What is what: the existing `hasVat` decision uses compact `คิด VAT <rate>%` wording in the left workflow column, with the total summary in a neutral side panel. On mobile, these areas stack in reading order.
+- Why it has to be like this: the calculation choice must remain close to discount/ADV decisions and the payable summary without changing the Stock-source lock, `vatType`, VAT/ADV calculation, API payload, supplier/payment flow, or ledger side effects.

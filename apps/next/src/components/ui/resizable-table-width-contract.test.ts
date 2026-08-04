@@ -27,6 +27,13 @@ describe('resizable table width contract', () => {
     expect(css).not.toMatch(/\.dark table\.ns-table :where\(th\)\s*\{[^}]*border-color:/)
   })
 
+  it('keeps raw table header alignment consistent with semantic utility classes', async () => {
+    const css = await readFile(globalsCssPath, 'utf8')
+
+    expect(css).toContain('th:is(.text-left, [data-column-align="left"])')
+    expect(css).toContain('th:is(.text-right, .tabular-nums, [data-column-align="right"])')
+  })
+
   it('recognizes index-based and key-based width exceptions', () => {
     expect(widthExceptionPattern.test("index === columns.length - 1 ? undefined : getColumnStyle(column.key)")).toBe(true)
     expect(widthExceptionPattern.test("column.key === '__action' ? { minWidth: column.minWidth } : getColumnStyle(column.key)")).toBe(true)

@@ -868,9 +868,9 @@ export function PoBuyPageClient() {
             onChange={(value) => setBranchFilter(value ?? '')}
           />
           <label className="text-xs text-slate-500">วันที่:</label>
-          <DatePickerInput id="po-buy-date-from" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput className="h-9" id="po-buy-date-from" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput id="po-buy-date-to" value={toDate} onChange={setToDate} />
+          <DatePickerInput className="h-9" id="po-buy-date-to" value={toDate} onChange={setToDate} />
           {hasFilters ? <UiButton size="xs" type="button" variant="secondary" onClick={resetFilters}>✕ ล้าง</UiButton> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -994,9 +994,9 @@ export function PoBuyPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="h-9 flex-1" value={fromDate} onChange={setFromDate} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="h-9 flex-1" value={toDate} onChange={setToDate} />
                 </div>
               </div>
 
@@ -1056,8 +1056,8 @@ export function PoBuyPageClient() {
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
+              <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
             </div>
             
             <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -1124,18 +1124,18 @@ export function PoBuyPageClient() {
           <TableHeader>
             <tr>
               <ResizableTableHead align="center" label={<input aria-label="เลือก PO ทั้งหมดในตาราง" checked={allVisibleSelected} disabled={rows.length === 0} type="checkbox" onChange={toggleVisibleSelection} />} resizeProps={columnResize.getResizeHandleProps('checkbox', 'เลือก')} />
-              <PoBuySortHeader activeKey={sortKey} className="ns-leading-business-column" direction={sortDirection} label="เลขที่ PO ซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ PO ซื้อ')} sortKey="docNo" onSort={changeSort} />
-              <PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="วันที่สร้างเอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้างเอกสาร')} sortKey="date" onSort={changeSort} />
+              <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่ PO ซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ PO ซื้อ')} sortKey="docNo" onSort={changeSort} />
+              <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่สร้างเอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้างเอกสาร')} sortKey="date" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} className="ns-leading-business-column [&>button]:justify-start [&>button]:text-left [&>div]:justify-start [&>div]:text-left" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="รายการสินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'รายการสินค้า')} sortKey="productName" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="จำนวนรวม" resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} sortKey="qty" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="มูลค่ารวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'มูลค่ารวม')} sortKey="totalAmount" onSort={changeSort} />
               <PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รอรับรวม" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'รอรับรวม')} sortKey="remainingQty" onSort={changeSort} />
-              <PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="วันที่กำหนดส่ง" resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่กำหนดส่ง')} sortKey="expectedDelivery" onSort={changeSort} />
+              <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่กำหนดส่ง" resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่กำหนดส่ง')} sortKey="expectedDelivery" onSort={changeSort} />
               <ResizableTableHead align="center" label="หมายเหตุ" resizeProps={columnResize.getResizeHandleProps('note', 'หมายเหตุ')} />
               <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-              <PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัพเดตล่าสุด')} sortKey="updatedAt" onSort={changeSort} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัพเดตล่าสุด')} sortKey="updatedAt" onSort={changeSort} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody>
@@ -1144,8 +1144,8 @@ export function PoBuyPageClient() {
             {!isLoading && pageRows.map((row, index) => (
               <TableRow key={row.id} className={`cursor-pointer border-slate-100 hover:bg-slate-50 ${index % 2 === 1 ? 'bg-slate-50/40' : ''}`} onClick={() => setSelectedRow(row)}>
                 <TableCell className="text-center"><input aria-label={`เลือก ${row.docNo}`} checked={selectedPoIds.includes(row.id)} type="checkbox" onChange={() => toggleRowSelection(row.id)} onClick={(event) => event.stopPropagation()} /></TableCell>
-                <TableCell className="ns-leading-business-column whitespace-nowrap font-mono">{row.docNo}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="whitespace-nowrap text-center font-mono">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.date)}</TableCell>
                 <TableCell className="w-36">
                   <div className="w-full text-left">{row.supplierName}</div>
                 </TableCell>
@@ -1155,7 +1155,7 @@ export function PoBuyPageClient() {
                 <TableNumberCell value={formatMoney(row.qty)} />
                 <TableNumberCell strong value={formatMoney(row.totalAmount)} />
                 <TableNumberCell tone="amber" value={formatMoney(row.remainingQty)} />
-                <TableCell className="whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
+                <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.expectedDelivery)}</TableCell>
                 <TableCell className="text-center"><PoBuyNoteIndicator note={row.notes} poNo={row.docNo} /></TableCell>
                 <TableCell className="w-28 whitespace-nowrap text-center">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadge(row.status)}`}>
@@ -1163,8 +1163,8 @@ export function PoBuyPageClient() {
                     {poBuyStatusLabel(row.status)}
                   </span>
                 </TableCell>
-                <TableCell className="w-28 whitespace-nowrap text-xs text-slate-600"><div className="truncate">{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-xs text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></TableCell>
-                <TableCell className="whitespace-nowrap text-right">
+                <TableCell className="w-28 whitespace-nowrap text-center text-xs text-slate-600"><div className="truncate">{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-xs text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></TableCell>
+                <TableCell className="whitespace-nowrap text-center">
                   <TableActionButton menu={(
                     <>
                       {data?.capabilities.update && row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
@@ -1554,7 +1554,7 @@ function SupplierSearchCombobox({
       error={error}
       inputId="po-buy-supplier-search"
       label="ผู้ขาย *"
-      inputClassName="!h-9 px-2 py-1.5"
+      inputClassName="!h-10 px-2 py-1.5"
       options={options.map((supplier) => ({
         id: supplier.id,
         label: optionLabel(supplier),
@@ -1734,7 +1734,7 @@ function PoBuyFormModal({
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="col-span-2 sm:col-span-1" data-field-invalid={errors.branchId ? 'true' : undefined}>
               <label className="mb-1 block text-xs">สาขา <span className="text-red-600">*</span></label>
-              <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+              <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-10 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                 <option disabled value="">เลือกสาขา</option>
                 {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </UiSelect>
@@ -1753,7 +1753,7 @@ function PoBuyFormModal({
             </div>
             <div className="col-span-2 lg:col-span-1">
               <label className="mb-1 block text-xs">วันส่งมอบ <span className="text-red-600">*</span></label>
-              <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-9 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+              <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-10 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
               {fieldError('expectedDelivery')}
             </div>
           </div>
@@ -1789,42 +1789,41 @@ function PoBuyFormModal({
                         <MoneyPatternInput error={Boolean(errors[`items.${index}.unitPrice`])} required value={item.unitPrice} onChange={(value) => onUpdateItem(index, 'unitPrice', value)} />
                         {fieldError(`items.${index}.unitPrice`)}
                       </TableCell>
-                      <TableCell className="bg-blue-50 p-1 px-2 text-right font-bold text-blue-700">{formatMoney(item.qty * item.unitPrice)}</TableCell>
+                      <TableCell className="bg-blue-50 p-1 px-2 text-right font-bold tabular-nums text-blue-700">{formatMoney(item.qty * item.unitPrice)}</TableCell>
                       <TableCell className="p-1 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500 hover:text-red-700 outline-none" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
                 <tfoot className="bg-slate-50 font-bold border-t border-slate-100">
-                  <tr><td className="p-2 text-right">รวม {formTotals.lineCount} รายการ</td><td className="p-2 text-right">{formatMoney(formTotals.totalQty)}</td><td /><td className="p-2 text-right text-base text-blue-700">{formatMoney(formTotals.subtotal)}</td><td /></tr>
+                  <tr><td className="p-2 text-right">รวม {formTotals.lineCount} รายการ</td><td className="p-2 text-right tabular-nums">{formatMoney(formTotals.totalQty)}</td><td /><td className="p-2 text-right text-base tabular-nums text-blue-700">{formatMoney(formTotals.subtotal)}</td><td /></tr>
                 </tfoot>
               </Table>
             </div>
             {fieldError('items')}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 lg:col-span-1">
-              <label className={`flex h-full items-center gap-3 rounded-xl border p-3 cursor-pointer ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-300 bg-white'}`}>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-3">
+              <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-2 px-3 py-2.5 transition-colors ${form.hasVat ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                 <input
                   checked={form.hasVat}
                   className="size-5"
                   type="checkbox"
                   onChange={(event) => onUpdate('hasVat', event.target.checked)}
                 />
-                <span className="font-bold text-slate-700">มี VAT</span>
+                <span className="font-semibold text-slate-700">คิด VAT {formatMoney(formTotals.vatRatePercent)}%</span>
               </label>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
+                <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" rows={2} value={form.notes} onChange={(event) => onUpdate('notes', event.target.value)} />
+                {fieldError('notes')}
+              </div>
             </div>
-            <div className="col-span-2 lg:col-span-1 rounded-md border border-slate-100 bg-slate-50 p-3">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <SummaryLine label="ยอดก่อน VAT" value={formatMoney(formTotals.subtotal)} />
               <SummaryLine label={`VAT ${formatMoney(formTotals.vatRatePercent)}%`} value={formatMoney(formTotals.vatAmount)} />
-              <SummaryLine label="ยอดรวม" strong value={formatMoney(formTotals.totalCost)} />
+              <SummaryLine label="ยอดรวมสุทธิ" strong value={formatMoney(formTotals.totalCost)} />
             </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs">หมายเหตุ</label>
-            <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" rows={2} value={form.notes} onChange={(event) => onUpdate('notes', event.target.value)} />
-            {fieldError('notes')}
           </div>
         </div>
       </DialogContent>
@@ -1991,9 +1990,9 @@ function PoBuyDetailModal({
                   {row.items.map((item, index) => (
                     <TableRow key={`${item.productId}-${index}`}>
                       <TableCell>{item.productName || '-'}</TableCell>
-                      <TableCell className="text-right">{formatMoney(item.qty)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(item.remainingQty)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(item.unitPrice)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatMoney(item.qty)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatMoney(item.remainingQty)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatMoney(item.unitPrice)}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>

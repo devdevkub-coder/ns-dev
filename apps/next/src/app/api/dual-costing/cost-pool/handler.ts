@@ -4,6 +4,7 @@ import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
+import { getCostPoolAvailableQty, getCostPoolStatus } from '@/lib/server/dual-costing-allocation-contract'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -46,10 +47,11 @@ function jsonNumber(value: unknown) {
   return toNumber(value as { toNumber: () => number } | null | undefined)
 }
 
-function statusFromQty(qty: number, usedQty: number): CostPoolRow['status'] {
-  if (qty <= 0 || usedQty >= qty - 0.001) return 'Fully'
-  if (usedQty > 0) return 'Partial'
-  return 'Available'
+function statusFromQty(qty: number, allocatedQty: number, releasedQty: number): CostPoolRow['status'] {
+  const status = getCostPoolStatus(qty, allocatedQty, releasedQty)
+  if (status === 'Available') return 'Available'
+  if (status === 'Partially Used') return 'Partial'
+  return 'Fully'
 }
 
 function readSnapshot(snapshot: unknown) {
@@ -94,13 +96,6 @@ function costTypeFromSourceType(sourceType: CostPoolRow['sourceType']): CostPool
   return 'Production'
 }
 
-function defaultCounterparty(sourceType: CostPoolRow['sourceType']) {
-  if (sourceType === 'Production') return 'Production Output'
-  if (sourceType === 'Grade Adjustment') return 'Regrade / Conversion'
-  if (sourceType === 'Opening_Purchase' || sourceType === 'Opening_PO' || sourceType === 'Opening_Regrade') return 'Opening Cost Pool'
-  return 'Purchase Receipt'
-}
-
 function sortRows(rows: CostPoolRow[], sort: string | null) {
   const nextRows = [...rows]
   const incomingAsc = (left: CostPoolRow, right: CostPoolRow) =>
@@ -121,7 +116,7 @@ async function buildWorkbook(rows: CostPoolRow[]) {
     Branch: row.branchName,
     CostPoolId: row.costPoolId,
     CostType: row.costType,
-    Counterparty: row.counterparty,
+    ผู้ขาย: row.counterparty,
     Date: row.date,
     OriginalQty: row.qty,
     Product: row.productName,
@@ -143,6 +138,7 @@ async function buildWorkbook(rows: CostPoolRow[]) {
 function xlsxResponse(body: Buffer, filename: string) {
   return new Response(new Uint8Array(body), {
     headers: {
+      'Cache-Control': 'private, no-store',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     },
@@ -202,6 +198,7 @@ export async function getCostPoolRowsData(options: {
         source_ref_type: true,
         source_type: true,
         status: true,
+        released_qty: true,
         unit_cost: true,
       },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
@@ -294,19 +291,21 @@ export async function getCostPoolRowsData(options: {
     if (!sourceTypeValue) return
     if (!isCostPoolEligibleProduct(entry.products.metal_group)) return
     const qty = jsonNumber(entry.original_qty)
-    const usedQty = Math.max(0, jsonNumber(entry.allocated_qty))
+    const allocatedQty = Math.max(0, jsonNumber(entry.allocated_qty))
+    const releasedQty = Math.max(0, jsonNumber(entry.released_qty))
+    const usedQty = allocatedQty + releasedQty
     const unitCost = jsonNumber(entry.unit_cost)
     if (qty <= 0 || unitCost <= 0) return
     const productCode = requireBusinessCode(entry.products.code, `สินค้า ${entry.products.id}`)
-    const availableQty = Math.max(0, qty - usedQty)
+    const availableQty = getCostPoolAvailableQty(qty, allocatedQty, releasedQty)
     const costTypeValue = costTypeFromSourceType(sourceTypeValue)
     const resolvedSourceNo = purchaseMeta?.sourceNo || entry.source_ref_no || entry.pool_key
     const purchaseBillSupplier = (entry.source_ref_no ? purchaseBillSupplierByDocNo.get(entry.source_ref_no.trim()) : '')
       || ''
     const poBuySupplier = resolvedSourceNo ? poBuySupplierByDocNo.get(resolvedSourceNo.trim()) || '' : ''
     const counterparty = sourceTypeValue === 'PO_Buy' || sourceTypeValue === 'Spot_Buy'
-      ? poBuySupplier || purchaseBillSupplier || defaultCounterparty(sourceTypeValue)
-      : defaultCounterparty(sourceTypeValue)
+      ? poBuySupplier || purchaseBillSupplier || '—'
+      : '—'
     rows.push({
       availableQty,
       availableValue: availableQty * unitCost,
@@ -322,7 +321,7 @@ export async function getCostPoolRowsData(options: {
       sourceLineId: entry.source_line_id ?? stringifyBusinessValue(entry.id),
       sourceNo: resolvedSourceNo,
       sourceType: sourceTypeValue,
-      status: statusFromQty(qty, usedQty),
+      status: statusFromQty(qty, allocatedQty, releasedQty),
       totalCost: jsonNumber(entry.original_value) || qty * unitCost,
       unitCost,
       usedQty,
@@ -407,7 +406,7 @@ export async function GET(request: Request) {
         usedQty: filteredRows.reduce((sum, row) => sum + row.usedQty, 0),
       },
       summaryByCostType,
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด Cost Pool ไม่ได้', 500)

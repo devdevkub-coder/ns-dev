@@ -28,4 +28,20 @@ describe('ResizableTableHead alignment', () => {
     expect(html).toContain('p-2 pr-3')
     expect(html.indexOf('aria-hidden="true"')).toBeLessThan(html.indexOf('ยอดรวม'))
   })
+
+  it('centers explicitly centered non-numeric headers', () => {
+    const html = renderToStaticMarkup(
+      <table>
+        <thead>
+          <tr>
+            <ResizableTableHead align="center" label="สถานะ" />
+          </tr>
+        </thead>
+      </table>,
+    )
+
+    expect(html).toContain('data-column-align="center"')
+    expect(html).toContain('justify-center')
+    expect(html).toContain('text-center')
+  })
 })

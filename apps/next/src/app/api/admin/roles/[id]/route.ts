@@ -64,7 +64,7 @@ export async function PATCH(request: Request, { params }: RoleRouteProps) {
     })
     if (duplicate) return NextResponse.json({ error: 'มีหน้าที่งานชื่อนี้อยู่แล้ว' }, { status: 409 })
 
-    const actor = context.appUser?.email ?? context.authUser.email ?? 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     await prisma.$transaction(async (tx) => {
       await tx.app_roles.update({
         data: {

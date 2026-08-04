@@ -701,6 +701,7 @@ export function CustomerAdvanceForm() {
         <div className="flex flex-wrap items-end gap-2">
           <Field className="min-w-[260px] flex-1" label="ค้นหา">
             <Input
+              className="h-9"
               placeholder="ค้นหา CADV, ลูกค้า, Invoice หรือ Contract"
               type="search"
               value={query}
@@ -712,6 +713,7 @@ export function CustomerAdvanceForm() {
           </Field>
           <Field className="w-full sm:w-[180px]" label="สาขา">
             <Select
+              className="h-9"
               disabled={!data}
               value={branchFilter}
               onChange={(event) => {
@@ -729,6 +731,7 @@ export function CustomerAdvanceForm() {
             <span className="text-xs text-slate-500">วันที่:</span>
             <DatePickerInput
               ariaLabel="วันที่เริ่มต้น"
+              className="h-9"
               id="customer-advance-date-from"
               value={dateFrom}
               onChange={(value) => {
@@ -739,6 +742,7 @@ export function CustomerAdvanceForm() {
             <span className="text-slate-400">→</span>
             <DatePickerInput
               ariaLabel="วันที่สิ้นสุด"
+              className="h-9"
               id="customer-advance-date-to"
               value={dateTo}
               onChange={(value) => {
@@ -805,19 +809,19 @@ export function CustomerAdvanceForm() {
                 </colgroup>
                 <thead className="border-b border-slate-200 bg-slate-100 text-slate-700">
                   <tr>
-                    <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่ CADV" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ CADV')} sortKey="docNo" onSort={changeSort} />
-                    <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('documentDate', 'วันที่เอกสาร')} sortKey="documentDate" onSort={changeSort} />
+                    <CustomerAdvanceSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่ CADV" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ CADV')} sortKey="docNo" onSort={changeSort} />
+                    <CustomerAdvanceSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('documentDate', 'วันที่เอกสาร')} sortKey="documentDate" onSort={changeSort} />
                     <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} />
                     <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={changeSort} />
-                    <ResizableTableHead label="Invoice / Contract" resizeProps={columnResize.getResizeHandleProps('reference', 'Invoice / Contract')} />
+                    <ResizableTableHead align="center" label="Invoice / Contract" resizeProps={columnResize.getResizeHandleProps('reference', 'Invoice / Contract')} />
                     <ResizableTableHead align="right" label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('totalNetWeight', 'น้ำหนักสุทธิ')} />
                     <CustomerAdvanceSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดที่ต้องรับ" resizeProps={columnResize.getResizeHandleProps('targetAmount', 'ยอดที่ต้องรับ')} sortKey="targetAmount" onSort={changeSort} />
                     <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('receivedAmount', 'รับแล้ว')} />
                     <ResizableTableHead align="right" label="คงค้างรับ" resizeProps={columnResize.getResizeHandleProps('remainingReceiptAmount', 'คงค้างรับ')} />
                     <ResizableTableHead align="right" label="ฐานที่ใช้หักบิล" resizeProps={columnResize.getResizeHandleProps('usableCreditAmount', 'ฐานที่ใช้หักบิล')} />
                     <CustomerAdvanceSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ฐานคงเหลือใช้หักบิล" resizeProps={columnResize.getResizeHandleProps('availableAmount', 'ฐานคงเหลือใช้หักบิล')} sortKey="availableAmount" onSort={changeSort} />
-                    <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                    <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+                    <CustomerAdvanceSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </thead>
                 <tbody>
@@ -838,17 +842,17 @@ export function CustomerAdvanceForm() {
                         }
                       }}
                     >
-                      <td className="p-3 font-medium text-slate-900 whitespace-nowrap">
+                      <td className="whitespace-nowrap p-3 text-center font-mono font-medium text-slate-900">
                         {row.docNo}
                         {row.docNo === lastCreatedDocNo ? <span className="ml-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">ล่าสุด</span> : null}
                       </td>
-                      <td className="p-3 whitespace-nowrap">{formatDateDisplay(row.documentDate)}</td>
+                      <td className="whitespace-nowrap p-3 text-center">{formatDateDisplay(row.documentDate)}</td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">{row.branchName}</td>
                       <td className="p-3">
                         <p className="font-medium text-slate-900">{row.customerName}</p>
                         <p className="text-xs text-slate-500">{row.customerCode}</p>
                       </td>
-                      <td className="p-3 text-slate-600">
+                      <td className="whitespace-nowrap p-3 text-center font-mono text-slate-600">
                         <p>{row.invoiceNo || '-'}</p>
                         <p className="text-xs">{row.contractNo || '-'}</p>
                       </td>
@@ -902,7 +906,7 @@ function CustomerAdvanceSortHeader({
   sortKey,
 }: {
   activeKey: CustomerAdvanceSortKey
-  align?: 'left' | 'right'
+  align?: 'center' | 'left' | 'right'
   direction: CustomerAdvanceSortDirection
   label: string
   onSort: (key: CustomerAdvanceSortKey) => void

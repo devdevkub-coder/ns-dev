@@ -472,7 +472,7 @@ function TextField({
   return (
     <label className={className} data-field-invalid={error ? 'true' : undefined} data-manual-required={required ? 'true' : undefined}>
       <span className="mb-1 block text-xs font-bold text-slate-700">{labelText}{required ? <span className="ml-1 text-red-600">*</span> : null}</span>
-      <input aria-invalid={Boolean(error)} className={`w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0 ${error ? 'border-red-400 bg-red-50' : ''}`} inputMode={inputMode} placeholder={placeholder} required={required} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
+      <input aria-invalid={Boolean(error)} className={`h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0 ${error ? 'border-red-400 bg-red-50' : ''}`} inputMode={inputMode} placeholder={placeholder} required={required} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </label>
   )

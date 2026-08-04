@@ -246,3 +246,11 @@ Local route smoke:
 - Keep source document links business-facing: customer/supplier/product code, PB/SB/receipt/payment doc numbers.
 - Implement the latest requirement as a UI/API slice per page: first add detail payload/source links, then add Customer/Supplier/Product-specific decision filters and table columns.
 - Do not add runtime fallback for malformed legacy item JSON; fix source data or migration if product/customer/supplier references cannot resolve.
+
+## 2026-08-01 Detail Table Consistency Checkpoint
+
+- What is what: Customer, Supplier, and Product Tracking detail tables remain read-only drilldowns over the existing Tracking APIs; purchase, sales, payment, production, allocation, and monthly rows keep their current business sources and ordering.
+- Why it has to be this way: the date, document, status, descriptive, and numeric columns now use semantic metadata instead of guessing alignment from column position. Dates and document numbers stay on one line, document numbers use mono text, numeric values stay right-aligned with tabular numerals, and header/body alignment stays matched across every detail section.
+- Product Tracking `รายการขาย` now uses the same date/document geometry as `รายการซื้อ`, so a value such as `08/07/2026` no longer breaks into several lines when the sales table has more columns.
+- This checkpoint changes presentation only. Tracking filters, formulas, exports, API behavior, permissions, database schema, and DB state are unchanged.
+- Final project-wide closeout used a complete static runtime-table inventory plus representative Desktop/Mobile Codex Browser checks. `/tracking/product` rendered successfully but its current-period result was empty, so the Product Detail `รายการซื้อ` / `รายการขาย` populated state could not be reopened in this pass; the non-wrapping date/document geometry is covered by final source inspection and focused table-contract tests. No alternate browser was used after the Codex Browser session became unavailable.
