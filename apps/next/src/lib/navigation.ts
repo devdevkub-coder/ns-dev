@@ -129,6 +129,7 @@ const exactPathPermissions: Record<string, string> = {
   '/api/master-data/customers/options': MASTER_DATA_PAGE_PERMISSIONS.customers.view,
   '/api/master-data/customers/export': 'master.customers.export',
   '/api/master-data/customers/import': 'master.customers.create',
+  '/api/master-data/thai-address': MASTER_DATA_PAGE_PERMISSIONS.customers.view,
   '/api/master-data/products': MASTER_DATA_PAGE_PERMISSIONS.products.view,
   '/api/master-data/products/options': MASTER_DATA_PAGE_PERMISSIONS.products.view,
   '/api/master-data/impurities': MASTER_DATA_PAGE_PERMISSIONS.impurities.view,
@@ -298,6 +299,9 @@ export function permissionCodesForPath(pathname: string) {
   const normalizedPath = pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname
   if (normalizedPath === '/api/daily/expenses') {
     return ['daily.expenses.view', REPORT_PAGE_PERMISSIONS.expenseDashboard]
+  }
+  if (normalizedPath === '/api/master-data/thai-address') {
+    return [MASTER_DATA_PAGE_PERMISSIONS.customers.view, SUPPLIER_PAGE_PERMISSIONS.view]
   }
 
   const requiredPermission = permissionForPath(pathname)

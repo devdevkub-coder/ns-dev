@@ -4,6 +4,9 @@
 
 - Align the coordinator role and dependent APIs on the current SIT baseline.
 - Fix the product-type/product-unit read API to use each page's specific view permission.
+- Map the shared Thai-address lookup API to the customer/supplier page permissions instead of the broad reference fallback.
+- Require `master.customers.update` when the customer form saves an existing record; keep create and update actions separate.
+- Grant coordinator export permissions for customers, products, and suppliers only.
 - Keep the change focused on operational permissions; do not grant bill-opening, finance, payment, approval, or broad shared-reference access.
 - Branch scope remains `all` until coordinator users receive deliberate branch assignments; current users have no branch-access rows.
 - Code validation passed for the prior permission batch and the API read-permission fix.
@@ -12,11 +15,11 @@
 
 Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
 
-Active batch: แก้ API อ่านประเภทสินค้าและหน่วยสินค้าให้ตรงกับ permission เฉพาะหน้า; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
+Active batch: แก้ API อ่านประเภทสินค้า/หน่วยสินค้าและ Thai address lookup ให้ตรงกับ permission เฉพาะหน้า; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
 
-Validation: focused permission tests 9/9, lint, type-check และ `git diff --check` ผ่าน; ยังไม่ได้ commit, push SIT หรือ deploy.
+Validation: focused permission tests 9/9, lint, type-check, build, `git diff --check`, and SIT postflight for the three export grants passed.
 
-Immediate next task: commit and push this focused permission fix to `sit-origin/main`, then verify the remote commit.
+Immediate next task: commit and push the coordinator permission alignment batch to `sit-origin/main`, then verify the remote commit and deployed runtime.
 
 # Vercel UAT Deployment Dependency Fix 2026-08-02
 
