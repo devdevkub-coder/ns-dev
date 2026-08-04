@@ -30,13 +30,13 @@ Immediate next task: ขอ/เปิด session SIT ของ `sorting_departme
 - Branch scope remains `all` until coordinator users receive deliberate branch assignments; current users have no branch-access rows.
 - Code validation passed for the focused permission tests `14/14`, lint, type-check, build, and `git diff --check`.
 - SIT migration applied/recorded: `20260804110000_align_coordinator_operational_permissions.sql`. Postflight found the required seven grants and none of the forbidden grants.
-- Coordinator full SIT action matrix passed with `watcharathat@9stepsdigital.com` (`coordinator`, `isAdmin=false`, 49 permissions); no Super Admin and no Production. Granted actions reached validation/not-found boundaries, stock-source bill opening and payment/approval/out-of-scope APIs returned expected 403, and product-options now returns 200 after the BigInt serialization fix in `c2147e23`.
+- Coordinator full SIT action matrix rerun passed with `watcharathat@9stepsdigital.com` (`coordinator`, `isAdmin=false`, 49 permissions); 96 checks had no unexpected result (40x 200, 30x 400, 12x 404, 14x expected 403). No Super Admin and no Production. Product-options remains 200 after the BigInt serialization fix in `c2147e23`.
 
 Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
 
 Active batch: แก้ API อ่านประเภทสินค้า/หน่วยสินค้าและ Thai address lookup ให้ตรงกับ permission เฉพาะหน้า, บังคับ open-bill API boundary, และซ่อน action ของ master-data ที่ role ไม่มีสิทธิ์; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
 
-Validation: focused permission tests 14/14, full coordinator SIT API/action matrix, product-options regression, lint, type-check, build, `git diff --check`, SIT role postflight, and coordinator browser auth/API probe passed. The first DOM probe hit a Vercel Security Checkpoint after high request volume; final evidence used the same authenticated browser request context and did not classify that checkpoint as an app permission failure.
+Validation: focused permission tests 26/26, full coordinator SIT API/action matrix rerun (96 checks, no unexpected result), product-options regression, lint, type-check, build, `git diff --check`, SIT role postflight, and coordinator browser auth/API probe passed. The first DOM probe hit a Vercel Security Checkpoint after high request volume; final evidence used the same authenticated browser request context and did not classify that checkpoint as an app permission failure.
 
 Immediate next task: keep the coordinator action matrix and API inventory as the handoff baseline; do not use a broad permission as a workaround and do not promote or test against Production.
 
