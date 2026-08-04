@@ -52,10 +52,18 @@ export function LoginPageClient() {
     let mounted = true
 
     void (async () => {
-      const session = await getSessionSafely(supabase).catch(() => null)
+      const session = await getSessionSafely(supabase).catch(async () => {
+        // Clear a stale refresh-token session before allowing a fresh login.
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+        return null
+      })
       if (!mounted || !session) return
 
-      await supabase.auth.refreshSession().catch(() => undefined)
+      const { error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+        return
+      }
       const completion = await completeBrowserLoginSession({
         fetchImpl: fetch,
         signOut: () => supabase.auth.signOut({ scope: 'local' }),
@@ -96,6 +104,9 @@ export function LoginPageClient() {
     setIsLoading(true)
 
     try {
+      // Avoid a stale local session racing with password authentication.
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: parsed.data.email,
         password: parsed.data.password,
