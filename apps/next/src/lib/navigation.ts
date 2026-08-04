@@ -305,6 +305,12 @@ export function permissionCodesForPath(pathname: string) {
   if (normalizedPath === '/api/master-data/thai-address') {
     return [MASTER_DATA_PAGE_PERMISSIONS.customers.view, SUPPLIER_PAGE_PERMISSIONS.view]
   }
+  if (normalizedPath.startsWith('/api/master-data/product-types/')) {
+    return ['master.product_types.status']
+  }
+  if (normalizedPath.startsWith('/api/master-data/product-units/')) {
+    return ['master.product_units.status']
+  }
 
   const requiredPermission = permissionForPath(pathname)
   return requiredPermission ? [requiredPermission] : []
