@@ -50,8 +50,10 @@ export function normalizeDate(value: string) {
   return new Date(`${value}T00:00:00.000Z`)
 }
 
-export function currentActor(context: { appUser: { email: string | null } | null; authUser: { email?: string } }) {
-  return context.appUser?.email ?? context.authUser.email ?? '-'
+export function currentActor(context: { appUser: { email: string | null } | null; authUser: { email?: string | null; id?: string } }) {
+  const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id?.trim()
+  if (!actor) throw new Error('ไม่พบผู้ใช้งานสำหรับบันทึกรายการ')
+  return actor
 }
 
 type DailyDocNoTable = 'bank_statement' | 'customer_advances' | 'customer_receipts' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers'

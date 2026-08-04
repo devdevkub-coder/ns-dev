@@ -303,14 +303,16 @@ export async function appendPoBuyAllocationLogs(
 export async function reconcilePoBuys(
   tx: DbClient,
   poBuyIds: bigint[],
-  options?: {
-    actor?: string | null
+  options: {
+    actor: string
     statusMetaByPoId?: Map<bigint, Prisma.InputJsonValue>
     statusNoteByPoId?: Map<bigint, string>
   },
 ) {
   const uniquePoIds = [...new Set(poBuyIds)]
   if (uniquePoIds.length === 0) return
+  const actor = options.actor.trim()
+  if (!actor) throw new Error('ไม่พบผู้ใช้งานสำหรับกระทบยอด PO Buy')
 
   const [poRows, allocations] = await Promise.all([
     tx.po_buys.findMany({ where: { id: { in: uniquePoIds } } }),
@@ -384,7 +386,7 @@ export async function reconcilePoBuys(
         subtotal,
         total_amount: totalAmount,
         updated_at: new Date(),
-        updated_by: options?.actor ?? row.updated_by ?? row.created_by ?? null,
+        updated_by: actor,
         vat_amount: vatAmount,
         vat_rate_percent: vatRatePercent,
         vat_type: hasVat ? 'EXCLUDE' : 'NONE',
@@ -393,7 +395,7 @@ export async function reconcilePoBuys(
       where: { id: row.id },
     })
     await syncPoBuyCostPoolEntries(tx, {
-      actor: options?.actor ?? row.updated_by ?? row.created_by ?? 'system',
+      actor,
       poBuyId: row.id,
     })
 
@@ -405,7 +407,7 @@ export async function reconcilePoBuys(
           reason: typeof meta === 'object' && meta !== null && 'reason' in meta ? String((meta as Record<string, unknown>).reason ?? '') : null,
           toStatus: nextStatus,
         }),
-        createdBy: options?.actor ?? row.updated_by ?? row.created_by ?? null,
+        createdBy: actor,
         fromStatus: currentStatus,
         meta: meta ?? {
           allocatedAmount: allocated.amount,

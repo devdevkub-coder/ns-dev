@@ -49,7 +49,7 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
       return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 })
     }
 
-    const actor = context.appUser?.email ?? context.authUser.email ?? 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     const activatedAt = values.active ? new Date() : null
     const accountStatus = values.active ? 'active' : 'disabled'
     const replacesPendingInvitation = values.active && existing.account_status === 'pending' && Boolean(existing.auth_user_id)

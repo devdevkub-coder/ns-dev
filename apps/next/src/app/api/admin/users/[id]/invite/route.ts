@@ -99,7 +99,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
         await prisma.app_users.update({
           data: {
             auth_user_id: authUserId,
-            updated_by: context.appUser?.email ?? context.authUser.email ?? 'system',
+            updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
           },
           where: { id: appUser.id },
         })
@@ -122,7 +122,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       await prisma.app_users.update({
         data: {
           password_link_sent_at: sentAt,
-          updated_by: context.appUser?.email ?? context.authUser.email ?? 'system',
+            updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
         },
         where: { id: appUser.id },
       })
@@ -154,7 +154,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       await prisma.app_users.update({
         data: {
           invitation_sent_at: new Date(),
-          updated_by: context.appUser?.email ?? context.authUser.email ?? 'system',
+            updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
         },
         where: { id: appUser.id },
       })
@@ -190,7 +190,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       data: {
         ...(data.user?.id ? { auth_user_id: data.user.id } : {}),
         invitation_sent_at: new Date(),
-        updated_by: context.appUser?.email ?? context.authUser.email ?? 'system',
+            updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
       },
       where: { id: appUser.id },
     })
