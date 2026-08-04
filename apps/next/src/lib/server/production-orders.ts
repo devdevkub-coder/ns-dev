@@ -523,6 +523,13 @@ async function stockSnapshot(tx: DbClient, input: {
   return { qty, unitCost: qty > 0 ? value / qty : 0, value }
 }
 
+export function productionStockReceiptCost(input: { outputQty: number; productionCost: number }) {
+  return {
+    totalCost: input.productionCost,
+    unitCost: input.outputQty > 0 ? input.productionCost / input.outputQty : 0,
+  }
+}
+
 async function lockProductionOrder(tx: Prisma.TransactionClient, orderId: bigint) {
   await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`production.order.${orderId.toString()}`}))`
 }
@@ -945,14 +952,9 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
         status: line.categoryCode,
         warehouseId: destinationWarehouse.id,
       })
-      const destinationStock = await stockSnapshot(tx, {
-        branchId: order.branch_id,
-        productId: product.id,
-        status: line.categoryCode,
-        warehouseId: destinationWarehouse.id,
-      })
-      const stockReceiptUnitCost = destinationStock.unitCost
-      const stockReceiptTotalCost = line.netQty * stockReceiptUnitCost
+      const stockReceiptCost = productionStockReceiptCost({ outputQty: line.netQty, productionCost: lineCost })
+      const stockReceiptUnitCost = stockReceiptCost.unitCost
+      const stockReceiptTotalCost = stockReceiptCost.totalCost
       outputQty += line.netQty
       outputValue += lineCost
       stockReceiptValue += stockReceiptTotalCost
