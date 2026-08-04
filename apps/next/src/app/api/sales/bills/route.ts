@@ -9,7 +9,7 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-referen
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
-import { requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
+import { PURCHASE_BILL_ACTIVE_STATUSES, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import { derivePoSellFulfillmentStatus, isInactivePoSellStatus, PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
@@ -1402,7 +1402,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
       take: 500,
       where: {
         ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
-        status: { in: [SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
         transaction_mode: 'TRADING',
       },
     }),
@@ -1968,7 +1968,7 @@ export async function POST(request: Request) {
         where: {
           branch_id: branch.id,
           doc_no: { in: sourceDocNos },
-          status: { in: [SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED] },
+          status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
           transaction_mode: 'TRADING',
         },
       })
