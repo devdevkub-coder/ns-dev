@@ -38,7 +38,7 @@ Active batch: แก้ API อ่านประเภทสินค้า/ห
 
 Validation: focused permission tests 14/14, lint, type-check, build, `git diff --check`, SIT role postflight, and coordinator browser auth/API probe passed. Full browser closure remains blocked by the products/options 500 and needs a broader page-route sweep after that runtime issue is resolved.
 
-Immediate next task: commit and push the coordinator permission alignment batch to `sit-origin/main`, then verify the remote commit and deployed runtime.
+Immediate next task: verify the pushed SIT runtime, then rerun the broader coordinator page/API sweep after the separate `/api/master-data/products/options` `500 SERVER_ERROR` is resolved; do not use a broad permission as a workaround.
 
 # Vercel UAT Deployment Dependency Fix 2026-08-02
 
