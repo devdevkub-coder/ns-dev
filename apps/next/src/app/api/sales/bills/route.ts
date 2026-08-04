@@ -3511,11 +3511,19 @@ export async function PATCH(request: Request) {
         for (const [index, item] of items.entries()) {
           const activeLine = activeLineByLineNo.get(item.lineNo)
           if (!activeLine) continue
+          const provisionalCogsAmount = activeLine.cogs_amount == null ? null : toNumber(activeLine.cogs_amount)
           await tx.sales_bill_lines.update({
             data: {
+              cogs_amount: provisionalCogsAmount == null ? null : new Prisma.Decimal(provisionalCogsAmount),
               deduct_weight: item.deductWeight,
               discount_amount: item.discount,
               gross_weight: item.grossWeight,
+              gross_profit: provisionalCogsAmount == null
+                ? null
+                : new Prisma.Decimal(calculateSalesLineProfit({
+                    cogsAmount: provisionalCogsAmount.toFixed(2),
+                    lineAmount: roundMoney(item.amount).toFixed(2),
+                  })),
               line_amount: item.amount,
               meta: {
                 deliveryLineId: item.deliveryLineId ?? null,
