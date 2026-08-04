@@ -90,4 +90,12 @@ describe('Supplier page permissions', () => {
     expect(permissionForPath('/api/purchase/payments/cancel')).toBe('purchase.bills.pay')
     expect(permissionForPath('/api/purchase/payments/cancel-approved')).toBe('purchase.bills.pay')
   })
+
+  it('allows customer and supplier forms to share the Thai address lookup API', () => {
+    expect(permissionForPath('/api/master-data/thai-address')).toBe(MASTER_DATA_PAGE_PERMISSIONS.customers.view)
+    expect(permissionCodesForPath('/api/master-data/thai-address')).toEqual([
+      MASTER_DATA_PAGE_PERMISSIONS.customers.view,
+      SUPPLIER_PAGE_PERMISSIONS.view,
+    ])
+  })
 })
