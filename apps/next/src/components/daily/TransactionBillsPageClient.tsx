@@ -3740,8 +3740,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       </div>
 
       {showForm && mode === 'purchase' ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClosePurchaseForm() }}>
-          <div className="mx-auto my-4 flex max-h-[94vh] w-full max-w-[1280px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-ns-field-scope="entry">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-2" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClosePurchaseForm() }}>
+          <div className="mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-ns-field-scope="entry">
             <div data-ns-dialog-header className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div className="min-w-0">
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
@@ -3751,7 +3751,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white outline-none hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={requestClosePurchaseForm}>ยกเลิก</button>
               </div>
             </div>
-            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
+            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
               {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
               <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="amber">1</StepBadge>ประเภทบิล</h4>
@@ -4047,7 +4047,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   )
                 ) : (
                   <div className="rounded-md lg:overflow-x-auto lg:border lg:border-slate-200/60">
-                    <table className="ns-table block w-full text-sm lg:min-w-[1180px] lg:table lg:table-fixed">
+                    <table className="ns-table block w-full text-sm lg:min-w-[1200px] lg:table lg:table-fixed">
                       <colgroup className="hidden lg:table-column-group">
                         <col className="w-[210px]" />
                         <col className="w-[150px]" />
@@ -4058,7 +4058,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         <col className="w-[110px]" />
                         <col className="w-[110px]" />
                         <col className="w-[116px]" />
-                        <col className="w-[46px]" />
+                        <col className="w-[64px]" />
                       </colgroup>
                       <thead className="hidden border-b border-slate-100 bg-slate-50 text-xs font-medium text-slate-600 lg:table-header-group">
                         <tr>
@@ -4171,7 +4171,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                             <td className="col-span-2 flex items-end justify-end lg:table-cell lg:p-2 lg:text-center">
                               <button
                                 aria-label={`ลบรายการสินค้า ${index + 1}`}
-                                className="h-10 w-full rounded-md px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40 lg:w-auto"
+                                className="h-10 w-full whitespace-nowrap rounded-md px-2 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40 lg:w-auto"
                                 disabled={form.items.length <= 1}
                                 type="button"
                                 onClick={() => removeItem(index)}
