@@ -2,6 +2,7 @@ import type { WeightTicketRecord } from '@/lib/weight-tickets'
 import { prisma } from '@/lib/server/prisma'
 
 type WeightTicketSyncAction = 'cancel' | 'create' | 'update'
+const GOOGLE_SHEETS_SYNC_TIMEOUT_MS = 5_000
 
 export async function syncWeightTicketToGoogleSheets(action: WeightTicketSyncAction, ticket: WeightTicketRecord & { pdfUrl?: string }) {
   try {
@@ -29,6 +30,7 @@ export async function syncWeightTicketToGoogleSheets(action: WeightTicketSyncAct
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(GOOGLE_SHEETS_SYNC_TIMEOUT_MS),
     }).then((res) => {
       if (!res.ok) {
         console.error('[google-sheets-sync] failed to sync to google sheets:', res.status, res.statusText)
