@@ -250,7 +250,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
           <DatePickerInput className="h-9 w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
         </div>
         <div className="mt-2 hidden justify-end lg:flex">
-          <button className="flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>
+          <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>
             <Download aria-hidden="true" className="size-4" />
             <span>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
           </button>
@@ -282,11 +282,12 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
               ตัวกรอง
             </button>
             <button
-              className="inline-flex h-9 shrink-0 items-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
               disabled={isExporting}
               type="button"
               onClick={() => void exportXlsx()}
             >
+              <Download aria-hidden="true" className="size-4" />
               {isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}
             </button>
           </div>
@@ -518,10 +519,10 @@ function DetailTable({
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="center" direction={tableSortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="center" direction={tableSortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={changeSort} />
               <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'อ้างอิง')} sortKey="refNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="center" direction={tableSortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'อ้างอิง')} sortKey="refNo" onSort={changeSort} />
               <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="📥 เข้า (THB)" resizeProps={columnResize.getResizeHandleProps('amountIn', '📥 เข้า (THB)')} sortKey="amountIn" onSort={changeSort} />
               <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="📤 ออก (THB)" resizeProps={columnResize.getResizeHandleProps('amountOut', '📤 ออก (THB)')} sortKey="amountOut" onSort={changeSort} />
               <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="💰 คงเหลือ (THB)" resizeProps={columnResize.getResizeHandleProps('runningBalance', '💰 คงเหลือ (THB)')} sortKey="runningBalance" onSort={changeSort} />
@@ -542,19 +543,19 @@ function DetailTable({
               const odRemaining = Math.max(0, odLimit - odUsed)
               return (
                 <tr key={row.id} className="border-t border-slate-100 transition hover:bg-yellow-50">
-                  <td className="px-4 py-3.5 font-mono text-xs overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
-                  <td className="px-4 py-3.5 text-xs overflow-hidden truncate"><span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">{row.type || row.refType || '-'}</span></td>
+                  <td className="px-4 py-3.5 text-center font-mono text-xs whitespace-nowrap">{formatDateDisplay(row.date)}</td>
+                  <td className="px-4 py-3.5 text-center text-xs whitespace-nowrap"><span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">{row.type || row.refType || '-'}</span></td>
                   <td className="p-2 text-xs overflow-hidden truncate">{row.description || row.note || '-'}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-blue-600 overflow-hidden truncate">
+                  <td className="px-4 py-3.5 text-center font-mono text-xs text-blue-600 whitespace-nowrap">
                     <button className="underline-offset-2 hover:underline" type="button" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>
                   </td>
-                  <td className={`bg-emerald-50/30 p-2 text-right font-mono overflow-hidden truncate ${row.amountIn > 0 ? 'font-bold text-emerald-700' : 'text-slate-300'}`}>{row.amountIn ? formatMoney(row.amountIn) : '-'}</td>
-                  <td className={`bg-rose-50/30 p-2 text-right font-mono overflow-hidden truncate ${row.amountOut > 0 ? 'font-bold text-rose-700' : 'text-slate-300'}`}>{row.amountOut ? formatMoney(row.amountOut) : '-'}</td>
-                  <td className={`bg-blue-50/30 p-2 text-right font-mono font-bold overflow-hidden truncate ${runningBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>{formatMoney(runningBalance)}</td>
+                  <td className={`bg-emerald-50/30 p-2 text-right font-mono whitespace-nowrap tabular-nums ${row.amountIn > 0 ? 'font-bold text-emerald-700' : 'text-slate-300'}`}>{row.amountIn ? formatMoney(row.amountIn) : '-'}</td>
+                  <td className={`bg-rose-50/30 p-2 text-right font-mono whitespace-nowrap tabular-nums ${row.amountOut > 0 ? 'font-bold text-rose-700' : 'text-slate-300'}`}>{row.amountOut ? formatMoney(row.amountOut) : '-'}</td>
+                  <td className={`bg-blue-50/30 p-2 text-right font-mono font-bold whitespace-nowrap tabular-nums ${runningBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>{formatMoney(runningBalance)}</td>
                   {hasOd && (
                     <>
-                      <td className="bg-amber-50/30 p-2 text-right font-mono text-amber-700 font-semibold overflow-hidden truncate">{formatMoney(odUsed)}</td>
-                      <td className="bg-emerald-50/30 p-2 text-right font-mono text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(odRemaining)}</td>
+                      <td className="bg-amber-50/30 p-2 text-right font-mono text-amber-700 font-semibold whitespace-nowrap tabular-nums">{formatMoney(odUsed)}</td>
+                      <td className="bg-emerald-50/30 p-2 text-right font-mono text-emerald-700 font-semibold whitespace-nowrap tabular-nums">{formatMoney(odRemaining)}</td>
                     </>
                   )}
                 </tr>
@@ -582,7 +583,7 @@ function DetailTable({
               className="space-y-2 rounded-xl border border-slate-100 bg-white p-3.5 text-sm shadow-sm"
             >
               <div className="flex justify-between items-start">
-                <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
+                <span className="whitespace-nowrap font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
                 <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">
                   {row.type || row.refType || '-'}
                 </span>
@@ -591,7 +592,7 @@ function DetailTable({
               <div className="text-slate-700 font-medium line-clamp-2">{row.description || row.note || '-'}</div>
               
               <div className="font-mono text-xs text-slate-600">
-                อ้างอิง: <button type="button" className="font-semibold text-blue-600 underline" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>
+                อ้างอิง: <button type="button" className="whitespace-nowrap font-semibold text-blue-600 underline" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>
               </div>
 
               <div className={`grid ${hasOd ? 'grid-cols-5' : 'grid-cols-3'} gap-2 pt-2 border-t border-slate-100/60 mt-1 text-right text-xs`}>

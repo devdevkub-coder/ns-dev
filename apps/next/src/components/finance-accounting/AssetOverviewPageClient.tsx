@@ -325,8 +325,8 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
           <thead className="bg-slate-100">
             <tr>
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="บัญชี" resizeProps={columnResize.getResizeHandleProps('name', 'บัญชี')} sortKey="name" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สกุลเงิน" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุลเงิน')} sortKey="currency" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="left" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สกุลเงิน" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุลเงิน')} sortKey="currency" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ยอดคงเหลือ" resizeProps={columnResize.getResizeHandleProps('balance', 'ยอดคงเหลือ')} sortKey="balance" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="เทียบบาท (THB)" resizeProps={columnResize.getResizeHandleProps('thbEquivalent', 'เทียบบาท')} sortKey="thbEquivalent" onSort={changeSort} />
             </tr>
@@ -335,8 +335,8 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
             {sortedRows.map((row, index) => (
               <tr key={`${row.name}-${index}`} className="hover:bg-slate-50/50 transition-colors">
                 <td className="px-3 py-3 font-medium text-slate-900">{text(row.name)}</td>
-                <td className="px-3 py-3 text-right text-slate-500">{text(row.type)}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right text-slate-500">{text(row.currency)}</td>
+                <td className="px-3 py-3 text-left text-slate-500">{text(row.type)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-500">{text(row.currency)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{money(row.balance)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-emerald-600">{money(row.thbEquivalent)}</td>
               </tr>

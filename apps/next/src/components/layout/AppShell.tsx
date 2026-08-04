@@ -90,7 +90,7 @@ export function AppShell({ children }: AppShellProps) {
   const [menuSearchFocused, setMenuSearchFocused] = useState(false)
   const [titleOverride, setTitleOverride] = useState<string | null>(null)
   const lastActivityPathRef = useRef<string | null>(null)
-  const title = titleOverride ?? pageTitleForPath(pathname)
+  const title = pageTitleForPath(pathname, titleOverride)
   const breadcrumbs = breadcrumbsForPath(pathname)
   const renderedBreadcrumbs = breadcrumbLabelOverride && breadcrumbs.length > 0
     ? breadcrumbs.map((breadcrumb, index) => (index === breadcrumbs.length - 1 ? { ...breadcrumb, label: breadcrumbLabelOverride } : breadcrumb))

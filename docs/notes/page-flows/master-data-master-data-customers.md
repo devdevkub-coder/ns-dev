@@ -61,6 +61,7 @@ customer master used by POS/WTO/SB/RCP/AR
 ### Current API
 
 - `GET/POST /api/master-data/customers`
+- `GET /api/master-data/customers/options` ใช้ `master.customers.view` และคืนเฉพาะสาขาที่อยู่ใน branch scope ของผู้ใช้สำหรับฟอร์มลูกค้า
 - `GET/POST /api/master-data/customers; status/export/import APIs exist`
 
 ### Data Contract
@@ -98,7 +99,7 @@ customer master used by POS/WTO/SB/RCP/AR
 
 ## Current Gap
 
-Current code is accepted baseline. Remaining work is to keep documentation in sync with future code changes and verify downstream transaction consumption when those transaction pages are proofed.
+Customer options ต้องตรวจด้วยสิทธิ์ของหน้าลูกค้าเอง เพราะการใช้ master branch endpoint โดยตรงจะทำให้ผู้ใช้ต้องได้สิทธิ์ master สาขาเกินความจำเป็น; endpoint ใหม่ยังคงกรอง branch scope ก่อนส่งข้อมูล.
 
 ## Implementation Checklist
 

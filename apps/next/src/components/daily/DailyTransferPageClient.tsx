@@ -349,9 +349,9 @@ export function DailyTransferPageClient() {
 
             {/* Desktop Filters */}
             <div className="hidden lg:flex flex-wrap items-center gap-2">
-              <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
+              <DatePickerInput className="h-9 w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
+              <DatePickerInput className="h-9 w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
               <Select className="h-9 w-auto" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
                 <option value="">ทุกบัญชีต้นทาง</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
@@ -460,9 +460,9 @@ export function DailyTransferPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
                 </div>
               </div>
 
@@ -636,8 +636,8 @@ export function DailyTransferPageClient() {
             onClick={() => openDetail(row)}
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
+              <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
             </div>
             <div className="text-xs text-slate-600 mb-3 flex items-center gap-1.5 flex-wrap">
               <span className="font-semibold text-red-600">{row.fromAccountName}</span>
@@ -680,15 +680,15 @@ export function DailyTransferPageClient() {
           <TableHeader>
             <tr>
               <ResizableTableHead label="ลำดับ" resizeProps={columnResize.getResizeHandleProps('index', 'ลำดับ')} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่ TRF" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ TRF')} sortKey="docNo" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่โอน" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่โอน')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขที่ TRF" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ TRF')} sortKey="docNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="วันที่โอน" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่โอน')} sortKey="date" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชีต้นทาง" resizeProps={columnResize.getResizeHandleProps('from', 'บัญชีต้นทาง')} sortKey="from" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชีปลายทาง" resizeProps={columnResize.getResizeHandleProps('to', 'บัญชีปลายทาง')} sortKey="to" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="ยอดโอน" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดโอน')} sortKey="amount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="ค่าธรรมเนียม" resizeProps={columnResize.getResizeHandleProps('fee', 'ค่าธรรมเนียม')} sortKey="fee" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้ทำรายการ" resizeProps={columnResize.getResizeHandleProps('byPerson', 'ผู้ทำรายการ')} sortKey="byPerson" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="หมายเหตุ" resizeProps={columnResize.getResizeHandleProps('notes', 'หมายเหตุ')} sortKey="notes" onSort={changeSort} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
@@ -707,15 +707,15 @@ export function DailyTransferPageClient() {
                 }}
               >
                 <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-500 font-mono text-left">{(currentPage - 1) * pageSize + index + 1}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
                 <TableCell className="text-xs font-semibold text-red-600">{row.fromAccountName}</TableCell>
                 <TableCell className="text-xs font-semibold text-emerald-700">{row.toAccountName}</TableCell>
                 <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
                 <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
                 <TableCell className="text-xs font-semibold text-slate-700">{row.byPerson || '-'}</TableCell>
                 <TableCell className="text-xs font-semibold text-slate-700 truncate max-w-[200px]" title={row.notes ?? ''}>{row.notes || '-'}</TableCell>
-                <TableCell className="whitespace-nowrap text-right">
+                <TableCell className="whitespace-nowrap text-center">
                   <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>} />
                 </TableCell>
               </TableRow>
@@ -793,7 +793,7 @@ function MoneyField(props: {
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
       <Input
         aria-invalid={Boolean(props.error)}
-        className={`mt-1.5 h-9 text-right tabular-nums ${props.error ? 'border-red-400 bg-red-50' : ''}`}
+        className={`mt-1.5 h-10 text-right tabular-nums ${props.error ? 'border-red-400 bg-red-50' : ''}`}
         inputMode="decimal"
         required={props.required}
         type="text"

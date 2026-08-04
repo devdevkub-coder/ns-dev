@@ -212,14 +212,32 @@ const saveUserResultSchema = z.object({
 })
 
 type TabKey = 'users' | 'roles'
-type RolesViewTab = 'roles' | 'permissions'
+type RolesViewTab = 'roles' | 'permissions' | 'master-data'
 type AdminUser = AdminUsersPayload['users'][number]
 type AdminRole = AdminUsersPayload['roles'][number]
 type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'department' | 'email' | 'lastLoginAt' | 'name' | 'roles'
-type RoleColumnKey = 'active' | 'branchScope' | 'description' | 'name' | 'permissionCount' | 'type' | 'users'
+type RoleColumnKey = 'action' | 'active' | 'branchScope' | 'description' | 'name' | 'permissionCount' | 'type' | 'users'
 type SortDirection = 'asc' | 'desc'
 type UserStatusFilter = 'all' | 'active' | 'disabled' | 'pending'
 type BranchAccessMode = 'all' | 'selected'
+
+const permissionActionLabels: Record<string, string> = {
+  create: 'สร้าง',
+  delete: 'ลบ',
+  export: 'ส่งออก',
+  manage: 'จัดการ',
+  status: 'เปิด/ปิด',
+  update: 'แก้ไข',
+  view: 'ดู',
+}
+
+const masterResourceLabels: Record<string, string> = {
+  accounts: 'บัญชีเงินบริษัท',
+  customers: 'ลูกค้า',
+  products: 'สินค้า',
+  reference: 'ข้อมูลหลักอื่น ๆ',
+  suppliers: 'ผู้ขาย',
+}
 
 type AdminUsersPageClientProps = {
   mode?: TabKey
@@ -272,6 +290,7 @@ const roleColumns: Array<ResizableColumnDefinition<RoleColumnKey>> = [
   { key: 'permissionCount', defaultWidth: 125, minWidth: 105 },
   { key: 'users', defaultWidth: 115, minWidth: 95 },
   { key: 'active', defaultWidth: 120, minWidth: 95 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const emptyUserForm: UserFormState = {
@@ -403,7 +422,8 @@ function getRoleSortValue(role: AdminRole, key: RoleColumnKey, roleUserCounts: M
   if (key === 'branchScope') return branchScopeText(role.branchScope)
   if (key === 'permissionCount') return role.permissionIds.length
   if (key === 'users') return roleUserCounts.get(role.id) ?? 0
-  return role.active ? 1 : 0
+  if (key === 'active') return role.active ? 1 : 0
+  return ''
 }
 
 export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
@@ -586,8 +606,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       .flatMap((role) => role.permissionIds),
   ), [data?.roles, form.roleIds])
 
-  const employeeRoles = useMemo(() => (
-    (data?.roles ?? []).filter((role) => role.active && role.isEmployeeRole)
+  const assignableRoles = useMemo(() => (
+    (data?.roles ?? []).filter((role) => role.active)
   ), [data?.roles])
   const roleFilterOptions = useMemo(() => [
     { id: 'all', label: 'ทุกหน้าที่งาน' },
@@ -634,6 +654,20 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     return Array.from(groups.entries())
   }, [data?.permissions])
 
+  const masterPermissionGroups = useMemo(() => {
+    const groups = new Map<string, AdminUsersPayload['permissions']>()
+    for (const permission of data?.permissions ?? []) {
+      if (permission.module !== 'master') continue
+      const current = groups.get(permission.resource) ?? []
+      current.push(permission)
+      groups.set(permission.resource, current)
+    }
+    return Array.from(groups.entries()).sort(([left], [right]) => {
+      const leftLabel = masterResourceLabels[left] ?? left
+      const rightLabel = masterResourceLabels[right] ?? right
+      return leftLabel.localeCompare(rightLabel, 'th')
+    })
+  }, [data?.permissions])
   const permissionsBySidebar = useMemo(() => sidebarPermissionSections(data?.permissions ?? []), [data?.permissions])
   const sidebarPermissionIds = useMemo(() => new Set(
     permissionsBySidebar.flatMap((section) => section.pages.flatMap((page) => page.actions.map((permission) => permission.id))),
@@ -786,7 +820,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     const sent = await sendUserPasswordLink(activationUser)
     if (sent) setActivationUser(null)
   }
-
   function openCredentialDialog(user: AdminUser) {
     if (user.accountStatus !== 'active') return
     setTemporaryPasswordResult(null)
@@ -1472,24 +1505,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     className="flex w-full items-start gap-3 rounded-md border border-blue-300 bg-blue-50 p-4 text-left hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:hover:bg-blue-950/70"
                     disabled={actionUserId === activationUser.id}
                     type="button"
-                    onClick={() => void sendActivationPasswordLink()}
-                  >
-                    <Mail aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-700 dark:text-blue-300" />
-                    <span>
-                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">ส่งลิงก์ตั้งรหัสผ่าน</span>
-                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">แนะนำ · ผู้ใช้ตั้งรหัสผ่านเองจากอีเมล</span>
-                    </span>
-                  </button>
-                  <button
-                    className="flex w-full items-start gap-3 rounded-md border border-slate-300 bg-white p-4 text-left hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700"
-                    disabled={actionUserId === activationUser.id}
-                    type="button"
                     onClick={() => void createTemporaryPassword()}
                   >
-                    <KeyRound aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-slate-700 dark:text-slate-200" />
+                    <KeyRound aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-700 dark:text-blue-300" />
                     <span>
-                      <span className="block text-sm font-semibold">สร้างรหัสผ่านชั่วคราว</span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">แสดงให้ Admin ครั้งเดียว และบังคับเปลี่ยนหลัง Login</span>
+                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">สร้างรหัสผ่านชั่วคราว</span>
+                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">แสดงให้ Admin ครั้งเดียว</span>
                     </span>
                   </button>
                   <p className="rounded-md bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
@@ -1500,7 +1521,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     type="button"
                     onClick={() => setActivationUser(null)}
                   >
-                    ไว้ภายหลัง
+                    ปิด
                   </button>
                 </div>
               )}
@@ -1685,9 +1706,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="mb-2 text-sm font-medium text-slate-700">หน้าที่งาน <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
+                    <div className="mb-1 text-sm font-medium text-slate-700">หน้าที่งาน / Role <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
+                    <div className="mb-2 text-xs text-slate-500">ดึงจาก Role ที่ใช้งานอยู่ในหน้า Roles &amp; Permissions และใช้สิทธิ์ของ Role นี้เป็นสิทธิ์ตั้งต้น</div>
                     <div className="space-y-2">
-                      {employeeRoles.map((role) => (
+                      {assignableRoles.map((role) => (
                         <label key={role.id} className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                           <input
                             checked={form.roleIds.includes(role.id)}
@@ -1706,11 +1728,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                           </span>
                         </label>
                       ))}
-                      {employeeRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีหน้าที่งานที่ใช้งานได้</p> : null}
+                      {assignableRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มี Role ที่ใช้งานได้</p> : null}
                     </div>
                   </div>
 
-                  {!isUsersPage ? <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
+                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1">
                       <div className="text-xs font-bold uppercase tracking-wider text-slate-500">สิทธิ์รายหน้า</div>
                       <div className="text-xs text-slate-500">ตามหน้าที่งาน / อนุญาตเพิ่ม / ปิดสิทธิ์</div>
@@ -1745,7 +1767,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </div>
                       ))}
                     </div>
-                  </div> : null}
+                  </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
                     <div className="mb-3 border-b border-slate-100 pb-2">
@@ -1828,7 +1850,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 <div className="grid gap-4 text-sm md:grid-cols-[minmax(0,1fr)_220px]">
                   <label className="text-sm font-medium text-slate-700">
                     ชื่อหน้าที่งาน *
-                    <input aria-invalid={Boolean(roleFormError && !roleForm.name.trim())} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-slate-500" required value={roleForm.name} onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} />
+                    <input aria-invalid={Boolean(roleFormError && !roleForm.name.trim())} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-slate-500" required value={roleForm.name} onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} />
                   </label>
                   <label className="text-sm font-medium text-slate-700">
                     ขอบเขตสาขา
@@ -1931,12 +1953,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 </colgroup>
                 <thead className="bg-slate-100">
                   <tr>
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ชื่อ" resizeProps={userColumnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="left" direction={userSortDirection} label="ชื่อ" resizeProps={userColumnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ข้อมูลติดต่อ" resizeProps={userColumnResize.getResizeHandleProps('contact', 'ข้อมูลติดต่อ')} sortKey="contact" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="อีเมล" resizeProps={userColumnResize.getResizeHandleProps('email', 'อีเมล')} sortKey="email" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ฝ่าย" resizeProps={userColumnResize.getResizeHandleProps('department', 'ฝ่าย')} sortKey="department" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="หน้าที่งาน" resizeProps={userColumnResize.getResizeHandleProps('roles', 'หน้าที่งาน')} sortKey="roles" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="สาขา" resizeProps={userColumnResize.getResizeHandleProps('branches', 'สาขา')} sortKey="branches" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="left" direction={userSortDirection} label="ฝ่าย" resizeProps={userColumnResize.getResizeHandleProps('department', 'ฝ่าย')} sortKey="department" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="left" direction={userSortDirection} label="หน้าที่งาน" resizeProps={userColumnResize.getResizeHandleProps('roles', 'หน้าที่งาน')} sortKey="roles" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="left" direction={userSortDirection} label="สาขา" resizeProps={userColumnResize.getResizeHandleProps('branches', 'สาขา')} sortKey="branches" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="สถานะ" resizeProps={userColumnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="เข้าสู่ระบบล่าสุด" resizeProps={userColumnResize.getResizeHandleProps('lastLoginAt', 'เข้าสู่ระบบล่าสุด')} sortKey="lastLoginAt" onSort={handleUserSort} />
                     <ResizableTableHead align="center" label="จัดการ" resizeProps={userColumnResize.getResizeHandleProps('action', 'จัดการ')} />
@@ -1956,8 +1978,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         }
                       }}
                     >
-                      <td className="p-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className="p-3 text-left">
+                        <div className="flex items-center justify-start gap-2">
                           {user.profileImageUrl ? (
                             <Image alt="" className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200" height={36} src={user.profileImageUrl} unoptimized width={36} />
                           ) : (
@@ -1968,17 +1990,17 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 text-center text-slate-600">
+                      <td className="whitespace-nowrap p-3 text-center text-slate-600">
                         {user.contactPhone || '-'}
                       </td>
                       <td className="p-3 text-center text-slate-600">{user.email || '-'}</td>
-                      <td className="p-3 text-center text-slate-700">{user.department?.name || '-'}</td>
-                      <td className="p-3 text-center text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
-                      <td className="p-3 text-center text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
+                      <td className="p-3 text-left text-slate-700">{user.department?.name || '-'}</td>
+                      <td className="p-3 text-left text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
+                      <td className="p-3 text-left text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
                       <td className="p-3 text-center">
                         <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => requestUserStatusUpdate(user, checked)} />
                       </td>
-                      <td className="p-3 text-center text-slate-600">
+                      <td className="whitespace-nowrap p-3 text-center text-slate-600">
                         <div>{formatDateParts(user.lastLoginAt).date}</div>
                         {formatDateParts(user.lastLoginAt).time ? <div className="text-xs text-slate-400">{formatDateParts(user.lastLoginAt).time}</div> : null}
                       </td>
@@ -2044,7 +2066,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     <div className="col-span-2 border-t border-slate-50 pt-2">
                       <div>
                         <span className="text-slate-400 block text-xs uppercase">Login ล่าสุด</span>
-                        <span className="text-slate-600 text-xs">{formatDate(user.lastLoginAt)}</span>
+                        <span className="text-center text-xs text-slate-600 whitespace-nowrap">{formatDate(user.lastLoginAt)}</span>
                       </div>
                     </div>
                     <div className="col-span-2 w-full">{renderUserActions(user, true)}</div>
@@ -2060,7 +2082,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
         {/* Tab 2: Roles */}
         {!isLoading && currentTab === 'roles' ? <div className="border-b border-slate-200 px-4 pt-3">
-          <Tabs value={rolesViewTab} onValueChange={(value) => setRolesViewTab(value as RolesViewTab)}><TabsList variant="line"><TabsTrigger value="roles" variant="line">Role ตามฝ่าย</TabsTrigger><TabsTrigger value="permissions" variant="line">สิทธิ์รายหน้า</TabsTrigger></TabsList></Tabs>
+          <Tabs value={rolesViewTab} onValueChange={(value) => setRolesViewTab(value as RolesViewTab)}><TabsList variant="line"><TabsTrigger value="roles" variant="line">Role ตามฝ่าย</TabsTrigger><TabsTrigger value="permissions" variant="line">สิทธิ์รายหน้า</TabsTrigger><TabsTrigger value="master-data" variant="line">สิทธิ์ข้อมูลหลัก</TabsTrigger></TabsList></Tabs>
         </div> : null}
         {!isLoading && currentTab === 'roles' && rolesViewTab === 'permissions' ? (
           <div className="space-y-4 p-4">
@@ -2088,6 +2110,55 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             <div className="flex justify-end gap-2"><button className="h-9 rounded-md border border-slate-300 px-4 text-sm" disabled={isSavingMatrix} type="button" onClick={() => selectPermissionSubject(permissionSubjectType, permissionSubjectId)}>ยกเลิก</button><button className="h-9 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={!permissionSubjectId || isSavingMatrix} type="button" onClick={() => void savePermissionMatrix()}>{isSavingMatrix ? 'กำลังบันทึก...' : 'บันทึกสิทธิ์'}</button></div>
           </div>
         ) : null}
+        {!isLoading && currentTab === 'roles' && rolesViewTab === 'master-data' ? (
+          <div className="space-y-4 p-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+              <span className="text-sm font-semibold text-slate-700">กำหนดสิทธิ์ข้อมูลหลักให้</span>
+              <div className="flex rounded-md border border-slate-300 bg-white p-0.5">
+                <button className={`rounded px-3 py-1.5 text-sm ${permissionSubjectType === 'role' ? 'bg-slate-800 text-white' : 'text-slate-600'}`} type="button" onClick={() => selectPermissionSubject('role', '')}>Role</button>
+                <button className={`rounded px-3 py-1.5 text-sm ${permissionSubjectType === 'user' ? 'bg-slate-800 text-white' : 'text-slate-600'}`} type="button" onClick={() => selectPermissionSubject('user', '')}>ผู้ใช้รายบุคคล</button>
+              </div>
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 w-[15rem]"
+                inputId="admin-master-permission-subject"
+                label={permissionSubjectType === 'role' ? 'Role' : 'ผู้ใช้'}
+                options={permissionSubjectOptions}
+                placeholder={`เลือก${permissionSubjectType === 'role' ? ' Role' : 'ผู้ใช้'}`}
+                value={permissionSubjectId}
+                onChange={(subjectId) => selectPermissionSubject(permissionSubjectType, subjectId)}
+              />
+              {selectedMatrixUser?.department ? <span className="text-xs text-slate-500">ฝ่าย: {selectedMatrixUser.department.name}</span> : null}
+            </div>
+            <div className="overflow-x-auto rounded-md border border-slate-200">
+              <table className="ns-table min-w-full text-sm">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="p-3 text-left">หัวข้อข้อมูลหลัก</th>
+                    {matrixActions.map((action) => <th key={action} className="p-3 text-center whitespace-nowrap">{permissionActionLabels[action] ?? action}</th>)}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {masterPermissionGroups.map(([resource, permissions]) => (
+                    <tr key={resource}>
+                      <td className="p-3">
+                        <div className="font-medium text-slate-800">{masterResourceLabels[resource] ?? resource}</div>
+                        <div className="font-mono text-xs text-slate-400">master.{resource}</div>
+                      </td>
+                      {matrixActions.map((action) => {
+                        const permission = permissions.find((item) => item.action === action)
+                        return <td key={action} className="p-3 text-center">{permission ? <input aria-label={`${masterResourceLabels[resource] ?? resource} ${permissionActionLabels[action] ?? action}`} checked={matrixPermissionIds.includes(permission.id)} disabled={!permissionSubjectId} type="checkbox" onChange={() => toggleMatrixPermission(permission.id)} /> : '-'}</td>
+                      })}
+                    </tr>
+                  ))}
+                  {masterPermissionGroups.length === 0 ? <tr><td className="p-8 text-center text-sm text-slate-500" colSpan={matrixActions.length + 1}>ยังไม่มี permission ข้อมูลหลักใน catalog</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-slate-500">สิทธิ์ที่เลือกจะบันทึกตาม Role หรือผู้ใช้ที่เลือก โดยไม่รวมสิทธิ์จากหัวข้ออื่นเข้าด้วยกัน</p>
+            <div className="flex justify-end gap-2"><button className="h-9 rounded-md border border-slate-300 px-4 text-sm" type="button" onClick={() => selectPermissionSubject(permissionSubjectType, permissionSubjectId)}>ยกเลิก</button><button className="h-9 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={!permissionSubjectId || isSavingMatrix} type="button" onClick={() => void savePermissionMatrix()}>{isSavingMatrix ? 'กำลังบันทึก...' : 'บันทึกสิทธิ์ข้อมูลหลัก'}</button></div>
+          </div>
+        ) : null}
         {!isLoading && currentTab === 'roles' && rolesViewTab === 'roles' ? (
           <>
             {/* Desktop Table View (Hidden on Mobile) */}
@@ -2100,38 +2171,42 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 </colgroup>
                 <thead className="bg-slate-100">
                   <tr>
-                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="หน้าที่งาน" resizeProps={roleColumnResize.getResizeHandleProps('name', 'หน้าที่งาน')} sortKey="name" onSort={handleRoleSort} />
-                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="รายละเอียด" resizeProps={roleColumnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={handleRoleSort} />
-                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="ประเภท" resizeProps={roleColumnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={handleRoleSort} />
-                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="สาขา" resizeProps={roleColumnResize.getResizeHandleProps('branchScope', 'สาขา')} sortKey="branchScope" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="left" direction={roleSortDirection} label="หน้าที่งาน" resizeProps={roleColumnResize.getResizeHandleProps('name', 'หน้าที่งาน')} sortKey="name" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="left" direction={roleSortDirection} label="รายละเอียด" resizeProps={roleColumnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="ประเภท" resizeProps={roleColumnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="left" direction={roleSortDirection} label="สาขา" resizeProps={roleColumnResize.getResizeHandleProps('branchScope', 'สาขา')} sortKey="branchScope" onSort={handleRoleSort} />
                     <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="right" direction={roleSortDirection} label="จำนวนสิทธิ์" resizeProps={roleColumnResize.getResizeHandleProps('permissionCount', 'จำนวนสิทธิ์')} sortKey="permissionCount" onSort={handleRoleSort} />
                     <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="right" direction={roleSortDirection} label="ผู้ใช้" resizeProps={roleColumnResize.getResizeHandleProps('users', 'ผู้ใช้')} sortKey="users" onSort={handleRoleSort} />
                     <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="สถานะ" resizeProps={roleColumnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={handleRoleSort} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={roleColumnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {departmentRoles.map((role) => (
                     <tr key={role.id} className="align-top hover:bg-slate-50">
                       <td className="p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="font-bold text-slate-900">{role.name}</div>
-                          <button className="text-xs font-semibold text-blue-700 hover:underline" type="button" onClick={() => openEditRole(role)}>แก้ไข</button>
-                        </div>
+                        <div className="font-bold text-slate-900">{role.name}</div>
                         <div className="mt-0.5 font-mono text-xs text-slate-500">{role.code}</div>
                       </td>
                       <td className="max-w-[280px] p-3 text-slate-600 leading-normal">{role.description || '-'}</td>
-                      <td className="p-3">
+                      <td className="p-3 text-center">
                         <span className={`rounded px-2 py-0.5 text-xs font-bold ${role.isSystem ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
                           {role.isSystem ? 'SYSTEM' : 'CUSTOM'}
                         </span>
                       </td>
                       <td className="p-3 text-slate-700">{branchScopeText(role.branchScope)}</td>
-                      <td className="p-3 text-right font-bold text-slate-800">{role.permissionIds.length}</td>
-                      <td className="p-3 text-right font-bold text-slate-800">{roleUserCounts.get(role.id) ?? 0}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-800">{role.permissionIds.length}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-800">{roleUserCounts.get(role.id) ?? 0}</td>
                       <td className="p-3 text-center">
                         <span className={`rounded px-2.5 py-0.5 text-xs font-bold ${role.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
                           {role.active ? 'ใช้งาน' : 'ปิด'}
                         </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <TableActionButton
+                          aria-label={`จัดการ ${role.name}`}
+                          menu={<TableActionMenuItem onSelect={() => openEditRole(role)}>แก้ไข</TableActionMenuItem>}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -2180,6 +2255,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </div>
                   </div>
                   <TableActionButton
+                    aria-label={`จัดการ ${role.name}`}
                     mobileLabel
                     menu={<TableActionMenuItem onSelect={() => openEditRole(role)}>แก้ไข</TableActionMenuItem>}
                   />

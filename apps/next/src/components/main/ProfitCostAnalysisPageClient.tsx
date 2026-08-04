@@ -91,7 +91,7 @@ const defaultDimensionSort: Record<Exclude<Tab, 'alerts' | 'products'>, Dimensio
 }
 
 const productColumns: Array<ResizableColumnDefinition<ProductColumnKey> & { align?: 'center' | 'left' | 'right'; label: string }> = [
-  { key: 'code', label: 'รหัสสินค้า', defaultWidth: 120, minWidth: 100 },
+  { key: 'code', label: 'รหัสสินค้า', defaultWidth: 120, minWidth: 100, align: 'center' },
   { key: 'name', label: 'สินค้า', defaultWidth: 220, minWidth: 160 },
   { key: 'metalGroup', label: 'หมวดโลหะ', defaultWidth: 120, minWidth: 100 },
   { key: 'buyQty', label: 'ซื้อ (กก.)', defaultWidth: 115, minWidth: 100, align: 'right' },
@@ -534,11 +534,11 @@ export function ProfitCostAnalysisPageClient() {
       <TablePager page={page} pageSize={pageSize} totalRows={totalRows} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1) }} />
       <div>
         {activeTab === 'products' ? <ProductTable rows={data?.rows.products ?? []} onSelect={setSelectedProduct} sortDirection={productSortDirection} sortKey={productSortKey} onSort={(key, direction) => { setProductSortKey(key); setProductSortDirection(direction); setPage(1) }} /> : null}
-        {activeTab === 'suppliers' ? <SimpleTable tableKey="suppliers" rows={(data?.rows.suppliers ?? []).map((row) => [row.name, money(row.qty), money(row.amount), money(row.paid), money(row.payable), String(row.billCount)])} headers={['ผู้ขาย', 'กก.', 'ซื้อ', 'จ่ายแล้ว', 'ค้างจ่าย', 'บิล']} sortKeys={['name', 'qty', 'amount', 'paid', 'payable', 'billCount']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
-        {activeTab === 'customers' ? <SimpleTable tableKey="customers" rows={(data?.rows.customers ?? []).map((row) => [row.name, money(row.qty), money(row.amount), money(row.gp), `${pct(row.gpPct)}%`, money(row.receivable)])} headers={['ลูกค้า', 'กก.', 'ขาย', 'GP', 'GP %', 'ค้างรับ']} sortKeys={['name', 'qty', 'amount', 'gp', 'gp', 'receivable']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
-        {activeTab === 'channels' ? <SimpleTable tableKey="channels" rows={(data?.rows.channels ?? []).map((row) => [row.group, row.name, money(row.qty), money(row.amount), money(row.gp), String(row.billCount)])} headers={['กลุ่ม', 'ช่องทาง', 'กก.', 'ยอด', 'GP', 'บิล']} sortKeys={['group', 'name', 'qty', 'amount', 'gp', 'billCount']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
-        {activeTab === 'trend' ? <SimpleTable tableKey="trend" rows={(data?.rows.trend ?? []).map((row) => [formatDateDisplay(row.date), money(row.buyAmount), money(row.revenue), money(row.cogs), money(row.gp), money(row.sellQty)])} headers={['วันที่', 'ซื้อ', 'ขาย', 'COGS', 'GP', 'ขาย กก.']} sortKeys={['date', 'amount', 'amount', 'gp', 'gp', 'qty']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
-        {activeTab === 'alerts' ? <SimpleTable tableKey="alerts" rows={(data?.alerts ?? []).map((row) => [row.severity, row.type, row.label, money(row.amount)])} headers={['ระดับ', 'ประเภท', 'รายการ', 'ค่า']} /> : null}
+        {activeTab === 'suppliers' ? <SimpleTable alignments={['left', 'right', 'right', 'right', 'right', 'right']} tableKey="suppliers" rows={(data?.rows.suppliers ?? []).map((row) => [row.name, money(row.qty), money(row.amount), money(row.paid), money(row.payable), String(row.billCount)])} headers={['ผู้ขาย', 'กก.', 'ซื้อ', 'จ่ายแล้ว', 'ค้างจ่าย', 'บิล']} sortKeys={['name', 'qty', 'amount', 'paid', 'payable', 'billCount']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
+        {activeTab === 'customers' ? <SimpleTable alignments={['left', 'right', 'right', 'right', 'right', 'right']} tableKey="customers" rows={(data?.rows.customers ?? []).map((row) => [row.name, money(row.qty), money(row.amount), money(row.gp), `${pct(row.gpPct)}%`, money(row.receivable)])} headers={['ลูกค้า', 'กก.', 'ขาย', 'GP', 'GP %', 'ค้างรับ']} sortKeys={['name', 'qty', 'amount', 'gp', 'gp', 'receivable']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
+        {activeTab === 'channels' ? <SimpleTable alignments={['left', 'left', 'right', 'right', 'right', 'right']} tableKey="channels" rows={(data?.rows.channels ?? []).map((row) => [row.group, row.name, money(row.qty), money(row.amount), money(row.gp), String(row.billCount)])} headers={['กลุ่ม', 'ช่องทาง', 'กก.', 'ยอด', 'GP', 'บิล']} sortKeys={['group', 'name', 'qty', 'amount', 'gp', 'billCount']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
+        {activeTab === 'trend' ? <SimpleTable alignments={['center', 'right', 'right', 'right', 'right', 'right']} tableKey="trend" rows={(data?.rows.trend ?? []).map((row) => [formatDateDisplay(row.date), money(row.buyAmount), money(row.revenue), money(row.cogs), money(row.gp), money(row.sellQty)])} headers={['วันที่', 'ซื้อ', 'ขาย', 'COGS', 'GP', 'ขาย กก.']} sortKeys={['date', 'amount', 'amount', 'gp', 'gp', 'qty']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
+        {activeTab === 'alerts' ? <SimpleTable alignments={['center', 'left', 'left', 'right']} tableKey="alerts" rows={(data?.alerts ?? []).map((row) => [row.severity, row.type, row.label, money(row.amount)])} headers={['ระดับ', 'ประเภท', 'รายการ', 'ค่า']} /> : null}
       </div>
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
@@ -725,8 +725,8 @@ function ProductTable({ onSelect, onSort, rows, sortDirection, sortKey }: {
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => <tr key={row.id} className="cursor-pointer transition-colors hover:bg-slate-50" onClick={() => onSelect(row)}>
               {productColumns.map((column) => (
-                <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : 'text-left'} ${column.key === 'gp' ? row.gp >= 0 ? 'font-medium text-emerald-700' : 'font-medium text-red-700' : column.key === 'stockValue' ? 'font-medium text-slate-800' : column.key === 'name' ? 'font-medium text-slate-800' : 'text-slate-700'}`}>
-                  <div className={column.align === 'right' ? 'whitespace-nowrap' : 'truncate'} title={String(formatProductCell(row, column.key))}>{formatProductCell(row, column.key)}</div>
+                <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : column.align === 'center' ? 'text-center font-mono' : 'text-left'} ${column.key === 'gp' ? row.gp >= 0 ? 'font-medium text-emerald-700' : 'font-medium text-red-700' : column.key === 'stockValue' ? 'font-medium text-slate-800' : column.key === 'name' ? 'font-medium text-slate-800' : 'text-slate-700'}`}>
+                  <div className={column.align === 'left' || !column.align ? 'truncate' : 'whitespace-nowrap'} title={String(formatProductCell(row, column.key))}>{formatProductCell(row, column.key)}</div>
                 </td>
               ))}
             </tr>)}
@@ -793,7 +793,7 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
           <div className="hidden sm:block overflow-x-auto">
             <table className="ns-table w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 text-xs"><tr>{['เอกสาร', 'จำนวน', 'มูลค่า', 'COGS', 'GP'].map((header, index) => <th key={header} className={`p-2 font-semibold ${index === 0 ? 'text-left' : 'text-right'}`}>{header}</th>)}</tr></thead>
-              <tbody>{lines.map((line) => <tr key={line[0]} className="border-t border-slate-100">{line.map((cell, index) => <td key={`${line[0]}-${index}`} className={`p-3 ${index > 0 ? 'text-right font-mono' : 'font-bold text-slate-700'}`}>{cell}</td>)}</tr>)}</tbody>
+              <tbody>{lines.map((line) => <tr key={line[0]} className="border-t border-slate-100">{line.map((cell, index) => <td key={`${line[0]}-${index}`} className={`p-3 ${index > 0 ? 'text-right font-mono tabular-nums' : 'font-bold text-slate-700'}`}>{cell}</td>)}</tr>)}</tbody>
             </table>
           </div>
           
@@ -817,7 +817,8 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
   )
 }
 
-function SimpleTable({ headers, onSort, rows, sortDirection, sortKey, sortKeys, tableKey }: {
+function SimpleTable({ alignments, headers, onSort, rows, sortDirection, sortKey, sortKeys, tableKey }: {
+  alignments?: Array<'center' | 'left' | 'right'>
   headers: string[]
   onSort?: (key: DimensionSortKey, direction: SortDirection) => void
   rows: string[][]
@@ -832,9 +833,9 @@ function SimpleTable({ headers, onSort, rows, sortDirection, sortKey, sortKeys, 
       label: header,
       defaultWidth: index === 0 ? 180 : 120,
       minWidth: index === 0 ? 130 : 95,
-      align: index === 0 ? 'left' : 'right',
+      align: alignments?.[index] ?? 'left',
     }))
-  }, [headers])
+  }, [alignments, headers])
   const columnResize = useResizableColumns(`main.profit-cost-analysis.${tableKey}.v1`, columns)
   function changeSort(key: DimensionSortKey) {
     if (!onSort) return
@@ -874,7 +875,7 @@ function SimpleTable({ headers, onSort, rows, sortDirection, sortKey, sortKeys, 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row, index) => <tr key={`${row[0]}-${index}`} className="transition-colors hover:bg-slate-50">{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex > 1 ? 'text-right font-mono whitespace-nowrap tabular-nums' : 'min-w-0 overflow-hidden font-normal text-slate-700'}`}><div className={cellIndex <= 1 ? "truncate" : ""} title={cellIndex <= 1 ? cell : undefined}>{cell}</div></td>)}</tr>)}
+            {rows.map((row, index) => <tr key={`${row[0]}-${index}`} className="transition-colors hover:bg-slate-50">{row.map((cell, cellIndex) => { const align = columns[cellIndex]?.align ?? 'left'; return <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${align === 'right' ? 'text-right font-mono whitespace-nowrap tabular-nums' : align === 'center' ? 'text-center whitespace-nowrap text-slate-700' : 'min-w-0 overflow-hidden font-normal text-slate-700'}`}><div className={align === 'left' ? 'truncate' : ''} title={align === 'left' ? cell : undefined}>{cell}</div></td>})}</tr>)}
             {rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
         </table>
@@ -884,7 +885,7 @@ function SimpleTable({ headers, onSort, rows, sortDirection, sortKey, sortKeys, 
       <div className="block lg:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[500px] overflow-y-auto">
         {rows.map((row, index) => (
           <div key={index} className="mb-2 flex flex-col gap-2 rounded-xl border border-slate-100 bg-white p-3 text-xs shadow-sm">
-            <div className="font-bold text-slate-800">{row[0]}</div>
+            <div className={`font-bold text-slate-800 ${tableKey === 'trend' ? 'whitespace-nowrap' : ''}`}>{row[0]}</div>
             {row.length > 2 ? (
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-2 py-1.5 text-slate-600">
                 {row.slice(1, -1).map((cell, cellIndex) => (

@@ -211,6 +211,12 @@ export function requirePermission(context: AppAuthContext, permissionCode: strin
   }
 }
 
+export function requireAnyPermission(context: AppAuthContext, permissionCodes: readonly string[]) {
+  if (!context.isAdmin && !permissionCodes.some((permissionCode) => context.permissionCodes.has(permissionCode))) {
+    throw new AuthContextError('ไม่มีสิทธิ์ใช้งานส่วนนี้', 403)
+  }
+}
+
 export function getBranchCodeIntersection(
   context: AppAuthContext,
   requestedBranchCode?: string | null
@@ -221,9 +227,13 @@ export function getBranchCodeIntersection(
     }
     return null
   }
+  if (context.roles.some((role) => role.branchScope.trim().toLowerCase() === 'all')) {
+    if (requestedBranchCode && requestedBranchCode !== 'all') return [requestedBranchCode]
+    return null
+  }
   const allowedCodes = context.appUser?.branchIds ?? []
   if (!allowedCodes.length) {
-    return requestedBranchCode && requestedBranchCode !== 'all' ? [requestedBranchCode] : null
+    return []
   }
   if (requestedBranchCode && requestedBranchCode !== 'all') {
     if (allowedCodes.includes(requestedBranchCode)) {

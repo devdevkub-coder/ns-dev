@@ -515,10 +515,10 @@ export function WeightTicketDetailModal({
                   <table className="ns-table hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
                     <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
                       <tr>
-                        <th className="px-3 py-3 text-left">เวลา</th>
-                        <th className="px-3 py-3 text-left">เหตุการณ์</th>
+                        <th className="px-3 py-3 text-center">เวลา</th>
+                        <th className="px-3 py-3 text-center">เหตุการณ์</th>
                         <th className="px-3 py-3 text-left">สินค้า</th>
-                        <th className="px-3 py-3 text-left">เอกสารปลายทาง</th>
+                        <th className="px-3 py-3 text-center">เอกสารปลายทาง</th>
                         <th className="px-3 py-3 text-right">น้ำหนักสุทธิ</th>
                         <th className="px-3 py-3 text-right">คงเหลือหลังรายการ</th>
                         <th className="px-3 py-3 text-left">ผู้ทำรายการ/หมายเหตุ</th>
@@ -533,15 +533,15 @@ export function WeightTicketDetailModal({
                         </tr>
                       ) : ticket.usageTimeline.map((event) => (
                         <tr key={event.id}>
-                          <td className="whitespace-nowrap px-3 py-3 text-slate-500">{formatDateTime(event.createdAt)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">{usageActionLabel(event.action)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-slate-500">{formatDateTime(event.createdAt)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-900">{usageActionLabel(event.action)}</td>
                           <td className="px-3 py-3">
                             <div className="font-medium text-slate-900">{event.productName}</div>
                             {event.productCode ? <div className="mt-0.5 text-xs text-slate-500">{event.productCode}</div> : null}
                           </td>
-                          <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">
                             {event.targetDocNo ? (
-                              <GuardedLink className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                              <GuardedLink className="font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                                 {event.targetDocNo}
                               </GuardedLink>
                             ) : (
@@ -572,7 +572,7 @@ export function WeightTicketDetailModal({
                         <div className="flex justify-between items-start gap-2">
                           <div>
                             <div className="font-bold text-slate-800 text-base">{usageActionLabel(event.action)}</div>
-                            <div className="text-sm text-slate-500 font-medium">{formatDateTime(event.createdAt)}</div>
+                            <div className="whitespace-nowrap text-sm text-slate-500 font-medium">{formatDateTime(event.createdAt)}</div>
                           </div>
                           <div className="text-right">
                             <span className={cn('text-sm font-bold block', usageWeightClass(event.action))}>
@@ -588,7 +588,7 @@ export function WeightTicketDetailModal({
                           {event.targetDocNo && (
                             <div>
                               <span className="font-semibold text-slate-500">เอกสารปลายทาง:</span>{' '}
-                              <GuardedLink className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                              <GuardedLink className="whitespace-nowrap font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                                 {event.targetDocNo}
                               </GuardedLink>
                               {event.targetLineNo ? ` (รายการ ${event.targetLineNo})` : ''}
@@ -655,7 +655,7 @@ export function WeightTicketDetailModal({
                           {targetDocNo || productName || allocatedNetWeight != null ? (
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
                               {targetDocNo ? (
-                                <GuardedLink className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(targetDocNo)}`}>
+                                <GuardedLink className="whitespace-nowrap font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(targetDocNo)}`}>
                                   {targetDocNo}
                                 </GuardedLink>
                               ) : null}

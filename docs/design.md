@@ -26,6 +26,7 @@
 - If the page is Thai-first, do not leave generic English labels in table headers, filters, empty states, or detail-section titles.
 - Baseline mappings for active list/report UI: `Code` -> `รหัส`, `Customer` -> `ลูกค้า`, `Supplier` -> `ผู้ขาย`, `Product` -> `สินค้า`, `Search Customer` -> `ค้นหาลูกค้า`, `Select Product` -> `เลือกสินค้า`.
 - Official page/module names such as `Customer Tracking 360°` may stay as product names, but the working labels around the table/filter must be Thai.
+- รายการย่อยในกลุ่มต้นทุนใช้คำว่า `รายการ` เท่านั้น ไม่ใช้ `รายการต้นทุน`, `ล็อต`, `ลอท` หรือ `Lot` ในข้อความที่ผู้ใช้เห็น.
 
 ## Page Description Banners
 
@@ -103,7 +104,7 @@ Hard consistency rule: button placement, button color, and button wording must m
 
 ### Customer-approved combined table + filter baseline
 
-`/stock/convert` is the strict combined reference for every active Next list page with a table, unless a business-flow override is documented and approved. It applies the shared rules together: keep search/select/clear controls in the top row; place compact real status/type filters as labelled segmented controls on the lower-left; place real page actions on the lower-right with normal button weight; and keep all controls inside one neutral filter card. The table keeps non-wrapping headers, `p-2` header density, `p-3` body density, and matching header/body alignment. Non-numeric identifiers, dates, labels, status, and action controls are centered; quantities, weights, prices, costs, amounts, and other numeric measures are right-aligned with tabular numerals. Status options must come only from that page's actual document lifecycle; never add generic states that the runtime cannot produce.
+`/stock/convert` is the strict combined reference for every active Next list page with a table, unless a business-flow override is documented and approved. It applies the shared rules together: keep search/select/clear controls in the top row; place compact real status/type filters as labelled segmented controls on the lower-left; place real page actions on the lower-right with normal button weight; and keep all controls inside one neutral filter card. The table keeps non-wrapping headers, `p-2` header density, `p-3` body density, and matching header/body alignment. Descriptive business text such as product, customer, supplier, and category names is left-aligned; non-numeric identifiers, dates, status, and action controls are centered; quantities, weights, prices, costs, amounts, and other numeric measures are right-aligned with tabular numerals. A page-specific flow may retain another explicitly approved alignment, but its header and body must still match. Status options must come only from that page's actual document lifecycle; never add generic states that the runtime cannot produce.
 
 Do not create a page-local variation of this table or filter layout. Reuse the shared components and classes so Light Mode, Dark Mode, pagination, table spacing, actions, and responsive filter behavior stay visually identical.
 
@@ -115,6 +116,8 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
 
 - filter shell wrapper: `rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm`
 - filter row gap: `gap-2`
+- **Single-line field height contract:** normal business-entry controls use `h-10` (40px): shared `Input`, `Select`, `SearchCombobox`, `Combobox` / `InputGroup`, and `DatePicker` / `DatePickerInput`. Filter controls use their explicit compact `h-9` (36px) variant/class only. This changes height only: keep the component's existing width class and responsive width behavior. Do not impose an absolute global height through CSS.
+- The contract does not apply to textarea/multiline fields, checkbox/radio/file inputs, hidden/submit/reset/image inputs, page/action buttons, segmented controls, or compact inline table editors. Those controls remain content- or action-specific.
 - search field:
   - min width: `min-w-[260px]`
   - height target: `h-9`
@@ -129,7 +132,7 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
   - height target: `h-9`
   - ใช้ขนาด visual เดียวกับ control row อื่น
 - page action button ใน filter row เช่น `+ สร้างรายการ`, `ส่งออก Excel`:
-  - height target: `h-9`
+  - height target: `h-10`, `text-sm` น้ำหนักปกติ เพื่อแยก primary page action ออกจาก filter control โดย filter control และปุ่มล้างตัวกรองยังคง `h-9`
 
 ### Segmented Filter
 
@@ -176,6 +179,9 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
 - page-size dropdown must use the shared `PageSizeDropdown` component everywhere. It is a single-value menu: do not show a checkbox/checkmark or selected-row state inside the menu; the trigger shows the current size. In dark mode all option labels use the same readable light foreground as branch/search dropdowns, with a selected surface only on hover/focus.
 - header cell padding baseline: `p-2` (8px on every side); shared `ResizableTableHead` keeps the same density with inner `p-2 pr-4` so the resize handle has room without making the header taller
 - table headers must stay on one line. Use enough column width and horizontal table overflow instead of wrapping header labels to a second line.
+- rendered document numbers, business dates, and timestamps in table body cells must also stay on one line. Use `font-mono whitespace-nowrap` for document numbers and `whitespace-nowrap` for dates/times; widen the column or keep horizontal overflow instead of splitting values such as `08/07/2026` across rows.
+- semantic alignment is based on the value, not its column position: descriptive product/customer/supplier/branch/warehouse/category text stays left-aligned and may wrap; document/reference/code, date/time, status, and action values are centered and non-wrapping; quantity, weight, price, cost, rate, percentage, and amount values are right-aligned with `tabular-nums` and remain on one line. Header and body alignment must match.
+- `table.ns-table` centrally keeps `.tabular-nums` body/footer cells on one line. Pages must still mark numeric measure cells with `tabular-nums`; do not rely on column order or `font-mono` alone to infer numeric meaning.
 - body cell padding baseline: `p-3` / `px-3 py-3` (12px on every side). This is the approved balanced density from `/production/orders` and is required for every active runtime table; do not compress ordinary rows to `p-2` / `py-2` or expand them to `py-3.5` / `py-4` without an approved override.
 - row height is content-driven, not fixed. A one-line row uses the `p-3` breathing room; a two-line business cell uses a primary line plus `text-xs mt-0.5` metadata and grows naturally. Do not add arbitrary `h-*` / `min-h-*` row sizing to imitate the screenshot.
 - row action trigger: every runtime table column labelled `จัดการ` must use the shared `TableActionButton` and show only the horizontal ellipsis (`...`) at the right edge of the row. At rest it must have no visible text, border, background, or shadow. Clicking any enabled trigger must open the same compact dropdown, including rows with only one action; do not execute that action directly from the ellipsis. The accepted dropdown uses a white surface, thin slate border, soft shadow, `min-width: 14rem`, compact `14px` normal-weight rows, a `16px` left icon, an equal `16px` trailing spacer, centered command text, and a subtle slate divider between commands. Destructive actions remain red. Do not place page-owned `พิมพ์` / `แชร์` / `แก้ไข` / `ยกเลิก` buttons side by side inside this column; put every command inside the ellipsis menu. Keep a descriptive accessible name (`aria-label`) and preserve each command's existing permission, disabled, confirmation, and business behavior.
@@ -185,6 +191,7 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
 - empty/loading state cell padding baseline: `p-8`
 - implementation class: raw JSX `<table>` in the active app must include `ns-table`; shared `Table` adds it automatically.
 - exclude print/PDF/HTML-string document tables only when that document has its own explicit print stylesheet.
+- repository guard: `apps/next/src/components/ui/runtime-table-contract.test.ts` scans real JSX table nodes, requires `ns-table`, and rejects date/time cells that can wrap. The only explicit runtime exception is a true hierarchical financial statement marked `data-ns-table-contract="financial-hierarchy"`; do not allowlist an entire mixed-use file because that can hide a new runtime table.
 
 ### KPI / Summary Cards Above Table
 
@@ -368,6 +375,7 @@ Reference pages:
 - Section and child-menu expand controls use the compact text triangle glyphs (`▾` / `▸`) used by the legacy sidebar.
 - The desktop compact rail hides labels only at `lg`, while the mobile full-screen menu keeps labels visible.
 - AppShell topbar uses the same fixed dark shell as the sidebar: `#0f172a` background, `#334155` divider, and high-contrast text/control colors in both light and dark application themes. The breadcrumb and main working surface remain theme-aware.
+- For every route registered in the sidebar, AppShell heading and breadcrumb labels derive from the sidebar label only; remove parenthetical helper text and normalize whitespace when displaying them. Document/detail routes that do not have a sidebar item may keep their contextual title and document number.
 
 ## Filter Pattern
 
@@ -384,6 +392,7 @@ filter shell มาตรฐานของ list page:
 Rules:
 - search ต้องมาก่อน filter อื่นและอยู่แถวเดียวกับ date/select/clear controls บน desktop/tablet
 - page action buttons ต้องไม่ปนกลางแถว control; วางชิดขวาในแถว segmented/status หรือ action row ถัดมา
+- ถ้าหน้า list/report ไม่มี segmented/status สำหรับแถวล่าง ห้ามสร้าง action row ว่าง: ให้รวม page action เป็นกลุ่ม `ml-auto` ชิดขวาของ toolbar แถวบนแทน
 - date range ใช้รูปแบบ from -> to
 - clear filter แสดงเมื่อมี active filter เท่านั้น
 - ถ้า filter อยู่ในบริบทเดียวกัน ให้รวมอยู่ card/block เดียว
@@ -466,6 +475,7 @@ The `/production/orders` screenshot remains supporting evidence for the same `p-
 - Tab-specific filters should only include fields users can see or understand from that tab. If a status is already summarized in a chart and the table does not display a status column, do not add a status filter to that table.
 - Every table tab should have at least the useful minimal filter set for that table, normally search plus the strongest grouping dimension such as category/product group. Do not leave one tab filterless while another tab has filters unless the tab is purely a fixed small summary.
 - sorting: กดที่ header โดยตรง
+- primary operational list/data grids must use the complete sortable/resizable pattern (`ResizableTableHead`, `useResizableColumns`, `colgroup`, fixed table layout, horizontal overflow, and width reset). Detail/document/form sub-tables may omit sort/resize when ordering is part of the document or task flow, but they still keep the shared `ns-table` density, non-wrapping header/date/document rules, and matching semantic header/body alignment.
 - sort header baseline: ใช้ปุ่มเต็มพื้นที่หัวคอลัมน์แบบ `/purchase/advance-payments` (`p-2 text-xs font-semibold text-slate-700`, hover `bg-slate-200`) ไม่ใช้กรอบมนหรือ active สีเข้มที่ดึงสายตาเกินไป
 - sortable header ใช้ caret สามเหลี่ยมทึบขึ้น/ลงซ้อนกันแบบ Ant Design เสมอ: highlight สีน้ำเงินเฉพาะ caret ของทิศทางที่กำลัง sort, อีกทิศเป็นสีเทา และชื่อหัวคอลัมน์คงสีปกติ. ห้ามแทนด้วยไอคอนทิศเดียวหรือทำทุกหัวคอลัมน์มีสี เพราะผู้ใช้ต้องเห็นได้ทันทีว่าตารางกำลังเรียงด้วยคอลัมน์ใด
 - empty state: ใช้ข้อความสั้นตรงไปตรงมา เช่น `ยังไม่มีรายการ`
@@ -579,7 +589,11 @@ rules:
 
 ## Column Rules
 
-### Canonical Runtime Table Alignment
+### Historical Runtime Table Alignment (Superseded)
+
+This historical rule is retained for audit only. Do not use it for new or updated pages. The active rule is the customer-approved combined table baseline above: left-align descriptive business text, center non-numeric identifiers, dates, statuses, and actions, right-align quantities and monetary values, and keep header and body alignment matched.
+
+<!-- Historical guidance retained below only as a record of the superseded 2026-07-12 convention.
 
 - ยึด `/stock/convert` เป็นตัวอย่างการจัดแนวคอลัมน์สำหรับตารางข้อมูล runtime ใน active Next app
 - คอลัมน์ข้อมูลจริงคอลัมน์แรกชิดซ้ายทั้งหัวตารางและข้อมูล
@@ -589,6 +603,8 @@ rules:
 - หัวตารางและข้อมูลของคอลัมน์เดียวกันต้องใช้ alignment เดียวกันเสมอ; ห้ามปน `left` / `center` / `right` ในชุดตารางเดียวกัน
 - badge สถานะและกลุ่มปุ่ม action ในคอลัมน์ชิดขวาต้องใช้ `justify-end`; sort indicator ต้องเรียงตาม alignment ของหัวตาราง
 - checkbox, expand, หรือ icon-only control ที่ไม่ใช่ข้อมูลธุรกิจ ไม่อยู่ในกติกาคอลัมน์ข้อมูลนี้
+
+-->
 
 ### Numeric
 
@@ -931,6 +947,10 @@ reference implementation ที่ใช้อ้างอิงได้ตอ�
 
 ## Change Log
 
+- 2026-08-02: Clarified the compact list/report exception: when a page has no segmented/status controls for a lower row, it must not render an otherwise empty action row. Keep the real page action in a right-aligned `ml-auto` group on the control toolbar instead.
+
+- 2026-08-01: Clarified the project-wide semantic table contract while closing the runtime-table rescan: descriptive business text is left-aligned, document/date/status/action columns are centered, numeric measures are right-aligned with tabular numerals, and header/body alignment plus non-wrapping document/date values must match across primary and detail runtime tables.
+
 - 2026-07-20: Extended the customer-confirmed yellow-field contract to every editable/searchable/date control across all active pages. Required and optional fields that users type into or select—including filters—stay pale yellow; automatic/calculated/read-only/disabled values, checkboxes, radios, and native file controls stay neutral; red validation and blue focus retain precedence. Explicit entry/filter scopes remain the preferred semantic markers, with a global editable-control fallback covering older active surfaces during migration.
 
 - 2026-07-19: Added the accepted semantic alignment exception for the seven #161 table surfaces: the specified party/name/date text columns are left-aligned with matching bodies, numeric columns remain right-aligned, and status/action/global CSS are unchanged.
@@ -947,7 +967,7 @@ reference implementation ที่ใช้อ้างอิงได้ตอ�
 
 - 2026-07-14: Replaced the final-column auto-stretch rule with the customer-approved balanced-width rule. Every resizable `<col>` now keeps its configured width, including the final column, so widescreen remainder is distributed across the table instead of becoming one large blank status/action cell while business names truncate.
 
-- 2026-07-12: Set `/stock/convert` as the canonical alignment template for active runtime data tables: the first logical data column is left-aligned; every remaining data column is right-aligned; header and body always match; status badges and action groups end-align. Do not mix left/center/right alignment inside one table without an explicitly documented non-data control exception.
+- 2026-07-12: Historical table-alignment baseline, superseded by the customer-approved 2026-07-24 combined-table rule above. Retained only for audit history; do not use it as current implementation guidance.
 
 - 2026-07-12: Set the current rendered `/daily/weight-ticket-list` page as the customer-approved canonical full-page UX/UI reference for layout hierarchy, Light/Dark colors, modal/dialog composition, filters, tables, actions, pagination, responsive behavior, and spacing. Business-specific content may differ, but visual deviations require explicit approval and a checkpoint note.
 

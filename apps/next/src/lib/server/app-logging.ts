@@ -166,7 +166,8 @@ export async function recordAuditLog({
       )
     `
   } catch (caught) {
-    console.warn('Failed to record audit log', caught)
+    console.error('Failed to record audit log', caught)
+    throw new Error('ไม่สามารถบันทึก audit log ได้', { cause: caught })
   }
 }
 

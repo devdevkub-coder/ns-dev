@@ -744,7 +744,7 @@ export function StockBalancePageClient() {
               value={branchId || null}
               onChange={(value) => setBranchId(value ?? '')}
             />
-            <button className="ml-auto inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm text-white outline-none transition-colors hover:bg-emerald-700 focus:ring-0" type="button" onClick={exportXlsx}>
+            <button className="ml-auto inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white outline-none transition-colors hover:bg-emerald-700 focus:ring-0" type="button" onClick={exportXlsx}>
               <Download className="size-4" aria-hidden="true" />
               ส่งออก Excel
             </button>
@@ -936,14 +936,14 @@ export function StockBalancePageClient() {
                       <div className="mb-2 text-xs font-bold text-amber-700">pending_out จาก WTO ที่ยัง active ({detailData?.holds.length ?? 0})</div>
                       <div className="max-h-36 overflow-auto rounded-md border border-slate-100">
                         <table className="ns-table w-full text-xs">
-                          <thead className="bg-amber-50 text-slate-600"><tr><th className="p-1.5 text-left">WTO</th><th className="p-1.5 text-left">ลูกค้า</th><th className="p-1.5 text-right">Qty</th><th className="p-1.5 text-left">Held</th></tr></thead>
+                          <thead className="bg-amber-50 text-slate-600"><tr><th className="p-1.5 text-center">WTO</th><th className="p-1.5 text-left">ลูกค้า</th><th className="p-1.5 text-right">Qty</th><th className="p-1.5 text-center">Held</th></tr></thead>
                           <tbody>
                             {detailData?.holds.map((hold) => (
                               <tr key={hold.pendingOutKey} className="border-t">
-                                <td className="p-1.5 font-mono">{hold.sourceDocNo}{hold.sourceLineNo ? ` #${hold.sourceLineNo}` : ''}</td>
+                                <td className="whitespace-nowrap p-1.5 text-center font-mono">{hold.sourceDocNo}{hold.sourceLineNo ? ` #${hold.sourceLineNo}` : ''}</td>
                                 <td className="p-1.5">{hold.customerCode ? `${hold.customerCode} · ` : ''}{hold.customerName}</td>
-                                <td className="p-1.5 text-right font-semibold text-amber-700">{formatMoney(hold.qty)}</td>
-                                <td className="p-1.5">{formatDateTime(hold.heldAt)}</td>
+                                <td className="p-1.5 text-right font-semibold tabular-nums text-amber-700">{formatMoney(hold.qty)}</td>
+                                <td className="whitespace-nowrap p-1.5 text-center">{formatDateTime(hold.heldAt)}</td>
                               </tr>
                             ))}
                             {!detailData?.holds.length ? <tr><td className="p-3 text-center text-slate-400" colSpan={4}>ไม่มี active pending_out ใน bucket นี้</td></tr> : null}
@@ -955,15 +955,15 @@ export function StockBalancePageClient() {
                       <div className="mb-2 text-xs font-bold text-slate-700">Movement ล่าสุด ({detailData?.ledgerRows.length ?? 0})</div>
                       <div className="max-h-36 overflow-auto rounded-md border border-slate-100">
                         <table className="ns-table w-full text-xs">
-                          <thead className="bg-slate-50 text-slate-600"><tr><th className="p-1.5 text-left">วันที่</th><th className="p-1.5 text-left">Ref</th><th className="p-1.5 text-right">เข้า</th><th className="p-1.5 text-right">ออก</th><th className="p-1.5 text-left">วันที่ทำ</th></tr></thead>
+                          <thead className="bg-slate-50 text-slate-600"><tr><th className="whitespace-nowrap p-1.5 text-center">วันที่</th><th className="whitespace-nowrap p-1.5 text-center">Ref</th><th className="p-1.5 text-right">เข้า</th><th className="p-1.5 text-right">ออก</th><th className="whitespace-nowrap p-1.5 text-center">วันที่ทำ</th></tr></thead>
                           <tbody>
                             {detailData?.ledgerRows.map((ledger) => (
                               <tr key={ledger.id} className="border-t">
-                                <td className="p-1.5">{ledger.date}</td>
-                                <td className="p-1.5 font-mono">{ledger.refType}:{ledger.refNo || '-'}</td>
-                                <td className="p-1.5 text-right text-emerald-700">{ledger.qtyIn ? formatMoney(ledger.qtyIn) : '-'}</td>
-                                <td className="p-1.5 text-right text-red-700">{ledger.qtyOut ? formatMoney(ledger.qtyOut) : '-'}</td>
-                                <td className="p-1.5">{formatDateTime(ledger.createdAt)}</td>
+                                <td className="whitespace-nowrap p-1.5 text-center">{ledger.date}</td>
+                                <td className="whitespace-nowrap p-1.5 text-center font-mono">{ledger.refType}:{ledger.refNo || '-'}</td>
+                                <td className="p-1.5 text-right tabular-nums text-emerald-700">{ledger.qtyIn ? formatMoney(ledger.qtyIn) : '-'}</td>
+                                <td className="p-1.5 text-right tabular-nums text-red-700">{ledger.qtyOut ? formatMoney(ledger.qtyOut) : '-'}</td>
+                                <td className="whitespace-nowrap p-1.5 text-center">{formatDateTime(ledger.createdAt)}</td>
                               </tr>
                             ))}
                             {!detailData?.ledgerRows.length ? <tr><td className="p-3 text-center text-slate-400" colSpan={5}>ไม่มี movement ใน bucket นี้</td></tr> : null}
@@ -1183,10 +1183,10 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
           <table className="ns-table w-full text-xs text-slate-750">
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200/60 text-slate-600 font-semibold z-10">
               <tr>
-                <th className="p-3 text-left">วันที่ล่าสุด</th>
+                <th className="p-3 text-center">วันที่ล่าสุด</th>
                 <th className="p-3 text-center">ประเภทคลัง</th>
                 <th className="p-3 text-left">สาขา</th>
-                <th className="p-3 text-left">Lot</th>
+                <th className="p-3 text-center">Lot</th>
                 <th className="p-3 text-right">คงเหลือ</th>
                 <th className="p-3 text-right">รอเข้า</th>
                 <th className="p-3 text-right">รอออก</th>
@@ -1209,15 +1209,15 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
                     }
                   }}
                 >
-                  <td className="p-3 text-slate-500">{row.lastDate}</td>
+                  <td className="whitespace-nowrap p-3 text-center text-slate-500">{row.lastDate}</td>
                   <td className="p-3 text-center"><StockStatusCell row={row} /></td>
                   <td className="p-3 text-slate-500">{row.branchName}</td>
-                  <td className="p-3 font-mono text-slate-600">{row.lotNo || '-'}</td>
+                  <td className="whitespace-nowrap p-3 text-center font-mono text-slate-600">{row.lotNo || '-'}</td>
                   <td className={`p-3 text-right tabular-nums ${row.qty < 0 ? 'text-red-650' : 'text-slate-800'}`}>{formatMoney(row.qty)}</td>
                   <td className="p-3 text-right text-slate-800 tabular-nums">{row.awaitingBillQty ? formatMoney(row.awaitingBillQty) : '-'}</td>
                   <td className="p-3 text-right text-amber-700 tabular-nums">{row.onHoldQty ? formatMoney(row.onHoldQty) : '-'}</td>
                   <td className="p-3 text-right text-emerald-700 tabular-nums">{formatMoney(row.readyQty)}</td>
-                  <td className="p-3 text-right font-mono text-slate-600">{formatMoney(row.value)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums text-slate-600">{formatMoney(row.value)}</td>
                 </tr>
               ))}
               {rows.length === 0 ? <tr><td className="py-6 text-center text-slate-400" colSpan={9}>ยังไม่มีรายการ</td></tr> : null}
@@ -1401,18 +1401,18 @@ function MatrixTable({
                     <div className="truncate font-bold" title={row.group}>{row.group}</div>
                     <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{row.products.length.toLocaleString('th-TH')} รายการสินค้า</div>
                   </td>
-                  <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100">{row.rmQty ? formatMoney(row.rmQty) : '-'}</td>
-                  <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{row.rmVal ? formatMoney(row.rmVal) : '-'}</td>
-                  <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{row.rmQty !== 0 ? `${formatMoney(row.rmVal / row.rmQty)} บ.` : '-'}</td>
-                  <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipQty ? formatMoney(row.wipQty) : '-'}</td>
-                  <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipVal ? formatMoney(row.wipVal) : '-'}</td>
-                  <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipQty !== 0 ? `${formatMoney(row.wipVal / row.wipQty)} บ.` : '-'}</td>
-                  <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgQty ? formatMoney(row.fgQty) : '-'}</td>
-                  <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgVal ? formatMoney(row.fgVal) : '-'}</td>
-                  <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgQty !== 0 ? `${formatMoney(row.fgVal / row.fgQty)} บ.` : '-'}</td>
-                  <td className="p-3 text-right">{formatMoney(matrixRowQty(row))}</td>
-                  <td className="p-3 text-right text-emerald-700">{formatMoney(matrixRowValue(row))}</td>
-                  <td className="p-3 text-right text-emerald-700">{matrixRowQty(row) !== 0 ? `${formatMoney(matrixRowValue(row) / matrixRowQty(row))} บ.` : '-'}</td>
+                  <td className="border-x border-slate-100 bg-blue-50/10 p-3 text-right tabular-nums text-blue-700">{row.rmQty ? formatMoney(row.rmQty) : '-'}</td>
+                  <td className="border-r border-slate-100 bg-blue-50/10 p-3 text-right tabular-nums text-blue-700">{row.rmVal ? formatMoney(row.rmVal) : '-'}</td>
+                  <td className="border-r border-slate-100 bg-blue-50/10 p-3 text-right tabular-nums text-blue-700">{row.rmQty !== 0 ? `${formatMoney(row.rmVal / row.rmQty)} บ.` : '-'}</td>
+                  <td className="border-r border-slate-100 bg-amber-50/10 p-3 text-right tabular-nums text-amber-700">{row.wipQty ? formatMoney(row.wipQty) : '-'}</td>
+                  <td className="border-r border-slate-100 bg-amber-50/10 p-3 text-right tabular-nums text-amber-700">{row.wipVal ? formatMoney(row.wipVal) : '-'}</td>
+                  <td className="border-r border-slate-100 bg-amber-50/10 p-3 text-right tabular-nums text-amber-700">{row.wipQty !== 0 ? `${formatMoney(row.wipVal / row.wipQty)} บ.` : '-'}</td>
+                  <td className="border-r border-slate-100 bg-emerald-50/10 p-3 text-right tabular-nums text-emerald-700">{row.fgQty ? formatMoney(row.fgQty) : '-'}</td>
+                  <td className="border-r border-slate-100 bg-emerald-50/10 p-3 text-right tabular-nums text-emerald-700">{row.fgVal ? formatMoney(row.fgVal) : '-'}</td>
+                  <td className="border-r border-slate-100 bg-emerald-50/10 p-3 text-right tabular-nums text-emerald-700">{row.fgQty !== 0 ? `${formatMoney(row.fgVal / row.fgQty)} บ.` : '-'}</td>
+                  <td className="p-3 text-right tabular-nums">{formatMoney(matrixRowQty(row))}</td>
+                  <td className="p-3 text-right tabular-nums text-emerald-700">{formatMoney(matrixRowValue(row))}</td>
+                  <td className="p-3 text-right tabular-nums text-emerald-700">{matrixRowQty(row) !== 0 ? `${formatMoney(matrixRowValue(row) / matrixRowQty(row))} บ.` : '-'}</td>
                 </tr>
                 {row.products.map((product) => (
                   <tr key={`${row.group}-${product.productId}`} className="hover:bg-slate-50/50 transition-colors">
@@ -1451,18 +1451,18 @@ function MatrixTable({
             <tfoot className="bg-slate-50 border-t border-slate-200/80 font-bold text-slate-800">
               <tr>
                 <td className="p-3 overflow-hidden truncate">รวมทั้งหมด ({totalMatrixRows} หมวด)</td>
-                <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('RM').qty)}</td>
-                <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('RM').value)}</td>
-                <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('RM').qty !== 0 ? `${formatMoney(valueFor('RM').value / valueFor('RM').qty)} บ.` : '-'}</td>
-                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('WIP').qty)}</td>
-                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('WIP').value)}</td>
-                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('WIP').qty !== 0 ? `${formatMoney(valueFor('WIP').value / valueFor('WIP').qty)} บ.` : '-'}</td>
-                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('FG').qty)}</td>
-                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('FG').value)}</td>
-                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('FG').qty !== 0 ? `${formatMoney(valueFor('FG').value / valueFor('FG').qty)} บ.` : '-'}</td>
-                <td className="p-3 text-right overflow-hidden truncate">{formatMoney(totalQty)}</td>
-                <td className="p-3 text-right text-emerald-700 overflow-hidden truncate">{formatMoney(totalValue)}</td>
-                <td className="p-3 text-right text-emerald-700 overflow-hidden truncate">{totalQty !== 0 ? `${formatMoney(totalValue / totalQty)} บ.` : '-'}</td>
+                <td className="border-x border-slate-100 bg-blue-50/10 p-3 text-right tabular-nums text-blue-700">{formatMoney(valueFor('RM').qty)}</td>
+                <td className="border-r border-slate-100 bg-blue-50/10 p-3 text-right tabular-nums text-blue-700">{formatMoney(valueFor('RM').value)}</td>
+                <td className="border-r border-slate-100 bg-blue-50/10 p-3 text-right tabular-nums text-blue-700">{valueFor('RM').qty !== 0 ? `${formatMoney(valueFor('RM').value / valueFor('RM').qty)} บ.` : '-'}</td>
+                <td className="border-r border-slate-100 bg-amber-50/10 p-3 text-right tabular-nums text-amber-700">{formatMoney(valueFor('WIP').qty)}</td>
+                <td className="border-r border-slate-100 bg-amber-50/10 p-3 text-right tabular-nums text-amber-700">{formatMoney(valueFor('WIP').value)}</td>
+                <td className="border-r border-slate-100 bg-amber-50/10 p-3 text-right tabular-nums text-amber-700">{valueFor('WIP').qty !== 0 ? `${formatMoney(valueFor('WIP').value / valueFor('WIP').qty)} บ.` : '-'}</td>
+                <td className="border-r border-slate-100 bg-emerald-50/10 p-3 text-right tabular-nums text-emerald-700">{formatMoney(valueFor('FG').qty)}</td>
+                <td className="border-r border-slate-100 bg-emerald-50/10 p-3 text-right tabular-nums text-emerald-700">{formatMoney(valueFor('FG').value)}</td>
+                <td className="border-r border-slate-100 bg-emerald-50/10 p-3 text-right tabular-nums text-emerald-700">{valueFor('FG').qty !== 0 ? `${formatMoney(valueFor('FG').value / valueFor('FG').qty)} บ.` : '-'}</td>
+                <td className="p-3 text-right tabular-nums">{formatMoney(totalQty)}</td>
+                <td className="p-3 text-right tabular-nums text-emerald-700">{formatMoney(totalValue)}</td>
+                <td className="p-3 text-right tabular-nums text-emerald-700">{totalQty !== 0 ? `${formatMoney(totalValue / totalQty)} บ.` : '-'}</td>
               </tr>
             </tfoot>
           ) : null}
@@ -1756,12 +1756,12 @@ function DetailTable({
                 <td className="p-3 text-slate-655 overflow-hidden truncate" title={row.branchName}>
                   {row.branchName}
                 </td>
-                <td className={`p-3 text-right overflow-hidden truncate ${row.qty < 0 ? 'text-red-655' : ''}`}>{formatMoney(row.qty)}</td>
-                <td className="p-3 text-right border-r border-slate-105 text-slate-800 overflow-hidden truncate">{row.awaitingBillQty ? formatMoney(row.awaitingBillQty) : '-'}</td>
-                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-105 overflow-hidden truncate">{row.onHoldQty ? formatMoney(row.onHoldQty) : '-'}</td>
-                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-105 overflow-hidden truncate">{formatMoney(row.readyQty)}</td>
-                <td className="p-3 text-right text-slate-505 font-mono overflow-hidden truncate">{formatMoney(row.avgCost)}</td>
-                <td className="p-3 text-right text-emerald-700 font-mono overflow-hidden truncate">{formatMoney(row.value)}</td>
+                <td className={`p-3 text-right tabular-nums ${row.qty < 0 ? 'text-red-655' : ''}`}>{formatMoney(row.qty)}</td>
+                <td className="border-r border-slate-105 p-3 text-right tabular-nums text-slate-800">{row.awaitingBillQty ? formatMoney(row.awaitingBillQty) : '-'}</td>
+                <td className="border-r border-slate-105 bg-amber-50/10 p-3 text-right tabular-nums text-amber-700">{row.onHoldQty ? formatMoney(row.onHoldQty) : '-'}</td>
+                <td className="border-r border-slate-105 bg-emerald-50/10 p-3 text-right tabular-nums text-emerald-700">{formatMoney(row.readyQty)}</td>
+                <td className="p-3 text-right font-mono tabular-nums text-slate-505">{formatMoney(row.avgCost)}</td>
+                <td className="p-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.value)}</td>
               </tr>
             ))}
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={10}>ไม่มีสต๊อก</td></tr> : null}
@@ -1770,12 +1770,12 @@ function DetailTable({
             <tfoot className="bg-slate-50 border-t border-slate-200/80 font-bold text-slate-800">
               <tr>
                 <td className="p-3 overflow-hidden truncate" colSpan={4}>รวมหน้านี้ ({rows.length} รายการ)</td>
-                <td className="p-3 text-right font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.qty, 0))}</td>
-                <td className="p-3 text-right border-r border-slate-100 font-mono text-slate-800 overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.awaitingBillQty, 0))}</td>
-                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.onHoldQty, 0))}</td>
-                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.readyQty, 0))}</td>
+                <td className="p-3 text-right font-mono tabular-nums">{formatMoney(rows.reduce((sum, row) => sum + row.qty, 0))}</td>
+                <td className="border-r border-slate-100 p-3 text-right font-mono tabular-nums text-slate-800">{formatMoney(rows.reduce((sum, row) => sum + row.awaitingBillQty, 0))}</td>
+                <td className="border-r border-slate-100 bg-amber-50/10 p-3 text-right font-mono tabular-nums text-amber-700">{formatMoney(rows.reduce((sum, row) => sum + row.onHoldQty, 0))}</td>
+                <td className="border-r border-slate-100 bg-emerald-50/10 p-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(rows.reduce((sum, row) => sum + row.readyQty, 0))}</td>
                 <td className="overflow-hidden truncate" />
-                <td className="p-3 text-right text-emerald-700 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.value, 0))}</td>
+                <td className="p-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(rows.reduce((sum, row) => sum + row.value, 0))}</td>
               </tr>
             </tfoot>
           ) : null}

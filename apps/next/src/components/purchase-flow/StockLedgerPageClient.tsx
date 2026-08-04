@@ -185,7 +185,7 @@ export function StockLedgerPageClient() {
           <div className="relative min-w-0 lg:col-span-5">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input 
-              className="h-10 w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-0"
+              className="h-9 w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-0"
               placeholder="ค้นหาเลขเอกสาร / ผู้ขาย/ผู้ซื้อ / ผู้ทำรายการ / สาขา / คลัง..."
               type="search" 
               value={search} 
@@ -195,9 +195,9 @@ export function StockLedgerPageClient() {
 
           <div className="flex min-w-0 items-center gap-2 lg:col-span-4">
             <span className="shrink-0 text-xs font-semibold text-slate-600">ช่วงเวลา</span>
-            <DatePickerInput className="h-10 w-full min-w-0 rounded-md border-slate-300 text-xs outline-none" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
+            <DatePickerInput className="h-9 w-full min-w-0 rounded-md border-slate-300 text-xs outline-none" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
             <span className="shrink-0 text-slate-400 font-medium">ถึง</span>
-            <DatePickerInput className="h-10 w-full min-w-0 rounded-md border-slate-300 text-xs outline-none" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
+            <DatePickerInput className="h-9 w-full min-w-0 rounded-md border-slate-300 text-xs outline-none" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
           </div>
           <label className="flex min-w-0 items-center gap-2 lg:col-span-3">
             <span className="shrink-0 text-xs font-semibold text-slate-600">สาขา</span>
@@ -210,7 +210,7 @@ export function StockLedgerPageClient() {
             <span className="mb-1.5 block text-xs font-semibold text-slate-600">สินค้า</span>
             <SearchCombobox
               hideLabel
-              inputClassName="h-10 text-sm rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
+              inputClassName="h-9 text-sm rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
               inputId="stock-ledger-product-filter"
               label="สินค้า"
               options={productOptions}
@@ -225,7 +225,7 @@ export function StockLedgerPageClient() {
 
           <label className="min-w-0 lg:col-span-3">
             <span className="mb-1.5 block text-xs font-semibold text-slate-600">ประเภท</span>
-          <Select className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={movementDirection} onChange={(event) => { setPage(1); setMovementDirection(event.target.value as '' | 'in' | 'out') }}>
+          <Select className="h-9 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={movementDirection} onChange={(event) => { setPage(1); setMovementDirection(event.target.value as '' | 'in' | 'out') }}>
               <option value="">ทุกประเภท</option>
               <option value="in">เข้า</option>
               <option value="out">ออก</option>
@@ -234,7 +234,7 @@ export function StockLedgerPageClient() {
 
           <label className="min-w-0 lg:col-span-3">
             <span className="mb-1.5 block text-xs font-semibold text-slate-600">ประเภทคลัง</span>
-          <Select className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={warehouseType} onChange={(event) => { setPage(1); setWarehouseType(event.target.value) }}>
+          <Select className="h-9 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={warehouseType} onChange={(event) => { setPage(1); setWarehouseType(event.target.value) }}>
               <option value="">ทุกประเภทคลัง</option>
               {warehouseTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </Select>
@@ -321,7 +321,7 @@ export function StockLedgerPageClient() {
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
                 <SearchCombobox
                   hideLabel
-                  inputClassName="h-10 text-sm"
+                  inputClassName="h-9 text-sm"
                   inputId="stock-ledger-product-search-mobile"
                   label="สินค้า"
                   options={productOptions}
@@ -359,11 +359,11 @@ export function StockLedgerPageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <span className="mb-1 block text-xs font-semibold text-slate-600">จากวันที่</span>
-                  <DatePickerInput className="w-full h-10 text-sm" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
+                  <DatePickerInput className="w-full h-9 text-sm" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
                 </div>
                 <div>
                   <span className="mb-1 block text-xs font-semibold text-slate-600">ถึงวันที่</span>
-                  <DatePickerInput className="w-full h-10 text-sm" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
+                  <DatePickerInput className="w-full h-9 text-sm" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
                 </div>
               </div>
         </MobileFilterSheet>
@@ -414,7 +414,7 @@ export function StockLedgerPageClient() {
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start">
-              <span className="font-bold text-slate-800 text-sm">{row.refNo || '-'}</span>
+              <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.refNo || '-'}</span>
               <LedgerTimestamp value={row.createdAt} />
             </div>
             
@@ -475,8 +475,8 @@ export function StockLedgerPageClient() {
           </colgroup>
           <thead className="border-b border-slate-100 bg-slate-100 text-slate-600">
             <tr>
-              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="วันเวลารายการ" resizeProps={columnResize.getResizeHandleProps('date', 'วันเวลารายการ')} sortKey="date" onSort={changeSort} />
-              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} sortKey="refNo" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันเวลารายการ" resizeProps={columnResize.getResizeHandleProps('date', 'วันเวลารายการ')} sortKey="date" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} sortKey="refNo" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="ผู้ทำรายการ" resizeProps={columnResize.getResizeHandleProps('createdBy', 'ผู้ทำรายการ')} sortKey="createdBy" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('movementType', 'ประเภท')} sortKey="movementType" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
@@ -504,8 +504,8 @@ export function StockLedgerPageClient() {
                   }
                 }}
               >
-                <td className="p-2 text-xs font-semibold text-slate-700 tabular-nums"><LedgerTimestamp value={row.createdAt} /></td>
-                <td className="truncate whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{row.refNo || '-'}</td>
+                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700 tabular-nums"><LedgerTimestamp value={row.createdAt} /></td>
+                <td className="truncate whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700 tabular-nums">{row.refNo || '-'}</td>
                 <td className="truncate p-2 text-xs font-semibold text-slate-700" title={row.createdBy}>{row.createdBy || '-'}</td>
                 <td className="p-2 overflow-hidden max-w-[170px]"><span className={`inline-block truncate max-w-full rounded-md px-2 py-0.5 text-xs font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`} title={stockMovementTypeLabel(row.movementType)}>{stockMovementTypeLabel(row.movementType)}</span></td>
                 <td className="p-2 text-xs font-semibold text-slate-700">
@@ -621,7 +621,7 @@ function StockLedgerSortHeader({
   sortKey,
 }: {
   activeKey: StockLedgerSortKey
-  align?: 'left' | 'right'
+  align?: 'center' | 'left' | 'right'
   direction: StockLedgerSortDirection
   label: string
   onSort: (key: StockLedgerSortKey) => void

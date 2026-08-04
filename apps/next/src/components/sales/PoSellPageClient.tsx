@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Printer } from 'lucide-react'
+import { Download, Plus, Printer } from 'lucide-react'
 import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from '@/lib/po-sell-print'
 import { Button as UiButton } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -748,7 +748,7 @@ export function PoSellPageClient() {
       {/* Desktop Toolbar (Hidden on Mobile) */}
       <div className="mb-4 hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
-          <input autoComplete="off" className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <BranchSelectCombobox
             branches={activeBranches}
             className="w-full sm:w-auto"
@@ -760,9 +760,9 @@ export function PoSellPageClient() {
             onChange={(value) => setBranchFilter(value ?? '')}
           />
           <label className="text-sm text-slate-500">วันที่สร้างรายการ:</label>
-          <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
+          <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
           {hasFilters ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={resetFilters}>✕ ล้าง</button> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -772,8 +772,8 @@ export function PoSellPageClient() {
             <MatchButton key={item.value} active={documentStatus === item.value} label={item.label} tone={documentStatusTone(item.value)} onClick={() => setDocumentStatus(item.value)} />
           ))}
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <a className="inline-flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700" href={exportHref}>ส่งออก Excel</a>
-            {data?.capabilities.create ? <button className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button> : null}
+            <a className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
+            {data?.capabilities.create ? <button className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}><Plus aria-hidden="true" className="size-4" />PO Sell ใหม่</button> : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -841,9 +841,9 @@ export function PoSellPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="h-9 flex-1" value={fromDate} onChange={setFromDate} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="h-9 flex-1" value={toDate} onChange={setToDate} />
                 </div>
               </div>
 
@@ -886,8 +886,8 @@ export function PoSellPageClient() {
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.createdAt)}</span>
+              <span className="whitespace-nowrap text-sm font-bold text-slate-800">{row.docNo}</span>
+              <span className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.createdAt)}</span>
             </div>
 
             <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -901,7 +901,7 @@ export function PoSellPageClient() {
               </div>
               <div>
                 <span className="font-semibold text-slate-500">วันที่ส่งมอบ: </span>
-                <span className="text-slate-800">{formatDateDisplay(row.expectedDelivery)}</span>
+                <span className="whitespace-nowrap text-slate-800">{formatDateDisplay(row.expectedDelivery)}</span>
               </div>
             </div>
 
@@ -950,9 +950,9 @@ export function PoSellPageClient() {
         </colgroup>
         <TableHeader>
           <tr>
-            <ResizableTableHead label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
-            <ResizableTableHead label="วันที่สร้าง" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} />
-            <ResizableTableHead label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
+            <ResizableTableHead align="center" label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
+            <ResizableTableHead align="center" label="วันที่สร้าง" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} />
+            <ResizableTableHead align="center" label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
             <ResizableTableHead className="ns-table-textual-column" label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
             <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
             <ResizableTableHead align="right" label="จำนวนรวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} />
@@ -963,8 +963,8 @@ export function PoSellPageClient() {
             <ResizableTableHead align="right" label="% Margin" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPct', '% Margin')} />
             <ResizableTableHead align="center" label="สถานะเอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="documentStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('documentStatus', 'สถานะเอกสาร')} />
             <ResizableTableHead align="center" label="สถานะจับคู่ต้นทุน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="matchStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchStatus', 'สถานะจับคู่ต้นทุน')} />
-            <ResizableTableHead label="อัปเดตล่าสุด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="updatedAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
-            <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+            <ResizableTableHead align="center" label="อัปเดตล่าสุด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="updatedAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
+            <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
           </tr>
         </TableHeader>
         <TableBody>
@@ -972,9 +972,9 @@ export function PoSellPageClient() {
           {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={poSellColumns.length}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
           {!isLoading && pageRows.map((row) => (
             <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
-              <TableCell className="whitespace-nowrap font-mono">{row.docNo}</TableCell>
-              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.createdAt)}</TableCell>
-              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
+              <TableCell className="whitespace-nowrap text-center font-mono">{row.docNo}</TableCell>
+              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.createdAt)}</TableCell>
+              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.expectedDelivery)}</TableCell>
               <TableCell className="ns-table-textual-column truncate">{row.customerName}</TableCell>
               <TableCell className="text-xs font-semibold text-slate-700">
                 <CollapsedList
@@ -989,13 +989,13 @@ export function PoSellPageClient() {
               <TableNumberCell tone="amber" value={formatMoney(row.remainingQty)} />
               <TableCell className={`text-right pr-4 font-bold tabular-nums ${row.margin < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(row.margin)}</TableCell>
               <TableCell className={`text-right pr-4 tabular-nums ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</TableCell>
-              <TableCell className="text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></TableCell>
-              <TableCell className="text-center"><StatusPill label={row.matchStatusLabel} tone="match" /></TableCell>
-              <TableCell className="overflow-hidden whitespace-nowrap text-xs text-slate-600">
+              <TableCell className="whitespace-nowrap text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></TableCell>
+              <TableCell className="whitespace-nowrap text-center"><StatusPill label={row.matchStatusLabel} tone="match" /></TableCell>
+              <TableCell className="overflow-hidden whitespace-nowrap text-center text-xs text-slate-600">
                 <div className="truncate font-semibold text-slate-700" title={row.updatedBy || '-'}>{row.updatedBy || '-'}</div>
                 <div className="truncate font-mono text-xs text-slate-400" title={formatTimestampDisplay(row.updatedAt)}>{formatTimestampDisplay(row.updatedAt)}</div>
               </TableCell>
-              <TableCell className="whitespace-nowrap text-right">
+              <TableCell className="whitespace-nowrap text-center">
                 <TableActionButton menu={(
                   <>
                     {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
@@ -1211,7 +1211,7 @@ function CustomerSearchCombobox({
       disabled={disabled}
       error={error}
       inputId="po-sell-customer-search"
-      inputClassName="!h-9 px-2 py-1.5"
+      inputClassName="!h-10 px-2 py-1.5"
       label="Customer *"
       options={options.map((customer) => ({
         id: customer.id,
@@ -1244,7 +1244,7 @@ function ProductSearchCombobox({
       error={error}
       hideLabel
       inputId={inputId}
-      inputClassName="!h-9 px-2 py-1.5"
+      inputClassName="!h-10 px-2 py-1.5"
       label="สินค้า *"
       options={options}
       optionsPanelClassName="max-h-[280px]"
@@ -1278,7 +1278,7 @@ function DecimalPatternInput({
   return (
     <UiInput
       aria-invalid={error}
-      className="!h-9 w-full px-2 py-1.5 text-right"
+      className="!h-10 w-full px-2 py-1.5 text-right"
       inputMode="decimal"
       required={required}
       type="text"
@@ -1370,7 +1370,7 @@ function PoSellFormModal({
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
               <div className="col-span-1" data-field-invalid={errors.branchId ? 'true' : undefined}>
                 <label className="mb-1 block text-xs font-medium text-slate-600">สาขา/คลัง <span className="text-red-600">*</span></label>
-                <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+                <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-10 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                   <option disabled value="">เลือกสาขา/คลัง</option>
                   {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </UiSelect>
@@ -1389,7 +1389,7 @@ function PoSellFormModal({
               </div>
               <div className="col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-600">วันส่งมอบ <span className="text-red-600">*</span></label>
-                <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-9 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+                <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-10 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
                 {fieldError('expectedDelivery')}
               </div>
               <div className="col-span-2">
@@ -1441,29 +1441,29 @@ function PoSellFormModal({
                          <DecimalPatternInput error={Boolean(errors[`items.${index}.price`])} formatOnBlur required value={item.price} onChange={(value) => onUpdateItem(index, 'price', value)} />
                          {fieldError(`items.${index}.price`)}
                        </TableCell>
-                       <TableCell className="bg-blue-50/50 p-1.5 px-2 text-right font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
+                       <TableCell className="whitespace-nowrap bg-blue-50/50 p-1.5 px-2 text-right font-bold tabular-nums text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
                        <TableCell className="p-1.5 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors outline-none focus:ring-0" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
                      </TableRow>
                    ))}
                  </TableBody>
                  <tfoot className="bg-slate-50 font-bold border-t border-slate-100 text-slate-800">
-                   <tr><td className="p-3 text-right">รวม {form.items.length} รายการ</td><td className="p-3 text-right">{formatMoney(totalQty)}</td><td /><td className="p-3 text-right text-base text-blue-700">{formatMoney(subtotal)}</td><td /></tr>
+                   <tr><td className="p-3 text-right">รวม {form.items.length} รายการ</td><td className="whitespace-nowrap p-3 text-right tabular-nums">{formatMoney(totalQty)}</td><td /><td className="whitespace-nowrap p-3 text-right text-base tabular-nums text-blue-700">{formatMoney(subtotal)}</td><td /></tr>
                  </tfoot>
                </Table>
              </div>
              {fieldError('items')}
            </div>
  
-           <div className="grid gap-3 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
+           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
               <div className="flex flex-col gap-3">
-                <label className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer select-none transition-colors ${form.hasVat ? 'border-amber-500 bg-amber-50/50' : 'border-slate-300 bg-white'}`}>
+                <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-2 px-3 py-2.5 select-none transition-colors ${form.hasVat ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                   <input
                     checked={form.hasVat}
-                    className="h-5 w-5 rounded border-slate-300 text-amber-600 focus:ring-0 outline-none"
+                    className="size-5"
                     type="checkbox"
                     onChange={(event) => onUpdate('hasVat', event.target.checked)}
                   />
-                  <span className="font-bold text-slate-700">มี VAT</span>
+                  <span className="font-semibold text-slate-700">คิด VAT {formatMoney(vatRatePercent)}%</span>
                 </label>
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow flex-1 flex flex-col">
                   <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
@@ -1471,7 +1471,7 @@ function PoSellFormModal({
                   {fieldError('note')}
                 </div>
               </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50/50 p-4 shadow flex flex-col justify-center">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
                 <SummaryLine label="จำนวนรวม" value={`${formatMoney(totalQty)} กก.`} />
                 <SummaryLine label="ยอดก่อน VAT" value={formatMoney(subtotal)} />
                 <SummaryLine label={`VAT ${formatMoney(vatRatePercent)}%`} value={formatMoney(vatAmount)} />

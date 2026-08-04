@@ -75,6 +75,7 @@ supplier master used by POB/WTI/PB/ADV/PMA/PMT/AP
 ## Validation / Status Rules
 
 - required fields ต้องชัดตามหน้าและไม่พึ่ง placeholder เป็น validation
+- ฟอร์มต้องให้เลือก scope อย่างชัดเจนระหว่าง `ทุกสาขา` และ `เลือกบางสาขา`; `ทุกสาขา` ต้องเขียน active mapping ให้ครบทุก branch ที่ active ณ เวลาบันทึก ส่วน `เลือกบางสาขา` ต้องเลือกอย่างน้อย 1 สาขาและกำหนด primary branch
 - code/business id ต้อง unique ตาม scope ที่กำหนด
 - inactive row ต้องยังแสดงในประวัติเอกสารเก่า แต่ห้ามเลือกในเอกสารใหม่
 - active supplier ต้องมีอย่างน้อย 1 active branch mapping ก่อนนำไปใช้ใน transaction ใหม่
@@ -94,6 +95,12 @@ supplier master used by POB/WTI/PB/ADV/PMA/PMT/AP
 - Legacy behavior does not override this page unless user requests a page-specific change.
 - Future work is doc sync when current code changes, not legacy proof.
 - Downstream transaction pages must consume this master data through active rows and snapshot values as required by their own flow.
+
+## Permission Contract
+
+- หน้า `/master-data/suppliers` และ `GET /api/master-data/suppliers/options` ใช้ `master.suppliers.view` ชุดเดียวกัน
+- Supplier Options API รวมเฉพาะ salesperson, active branch, bank name และ payment method ที่ฟอร์มผู้ขายต้องใช้ จึงไม่บังคับ `master.reference.view` และไม่เปิดสิทธิ์หน้า master อื่นให้ผู้ประสานงาน
+- permission code ของหน้าผู้ขายเก็บใน `apps/next/src/lib/supplier-page-permissions.ts` และ route mapping ใน `apps/next/src/lib/navigation.ts`; ห้ามผูกสิทธิ์กับอีเมลหรือ role name ใน client
 
 ## Current Gap
 

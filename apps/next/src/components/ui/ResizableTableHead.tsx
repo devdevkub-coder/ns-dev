@@ -54,7 +54,7 @@ export function ResizableTableHead<TSortKey extends string>({
       className={`relative bg-inherit p-0 text-xs font-semibold text-slate-700 ${alignment.text} ${className}`}
     >
       {sortKey && onSort ? (
-        <button className={`flex w-full min-w-0 items-center ${alignment.justify} gap-1.5 ${contentPadding} ${alignment.text} hover:bg-slate-200`} type="button" onClick={() => onSort(sortKey)}>
+        <button className={`flex w-full min-w-0 items-center ${alignment.justify} gap-1.5 ${contentPadding} ${alignment.text} hover:bg-slate-200 focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-blue-500/40`} type="button" onClick={() => onSort(sortKey)}>
           {content}
         </button>
       ) : (
@@ -65,10 +65,10 @@ export function ResizableTableHead<TSortKey extends string>({
       {resizeProps ? (
         <button
           {...resizeProps}
-          className="group absolute right-0 top-0 bottom-0 w-3 cursor-col-resize touch-none focus:outline-none"
+          className="group absolute right-0 top-0 bottom-0 w-3 cursor-col-resize touch-none focus:outline-none focus-visible:z-10 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-blue-500/60"
           type="button"
         >
-          <div className="absolute right-1 top-2.5 bottom-2.5 w-[1px] bg-slate-300 opacity-0 transition group-hover:bg-slate-400 group-hover:opacity-100 group-focus-visible:opacity-100 group-active:bg-blue-600 group-active:opacity-100" />
+          <div className="absolute right-1 top-2.5 bottom-2.5 w-[1px] bg-slate-300 opacity-0 transition group-hover:bg-slate-400 group-hover:opacity-100 group-focus-visible:bg-blue-500 group-focus-visible:opacity-100 group-active:bg-blue-600 group-active:opacity-100" />
         </button>
       ) : null}
     </th>

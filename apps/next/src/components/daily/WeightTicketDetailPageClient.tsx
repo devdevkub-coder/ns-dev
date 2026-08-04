@@ -495,7 +495,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold text-slate-900">{usageActionLabel(event.action)}</div>
-                      <div className="mt-1 text-xs text-slate-500">{formatDateTime(event.createdAt)}</div>
+                      <div className="whitespace-nowrap mt-1 text-xs text-slate-500">{formatDateTime(event.createdAt)}</div>
                     </div>
                     <div className={cn('shrink-0 text-right text-sm font-semibold tabular-nums', usageWeightClass(event.action))}>
                       {usageWeightLabel(event.action, event.allocatedNetWeight)}
@@ -511,7 +511,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                       <div className="text-xs text-slate-500">เอกสารปลายทาง</div>
                       <div className="mt-1">
                         {event.targetDocNo ? (
-                          <GuardedLink className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                          <GuardedLink className="whitespace-nowrap font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                             {event.targetDocNo}
                           </GuardedLink>
                         ) : (
@@ -537,10 +537,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
               <table className="ns-table min-w-full divide-y divide-slate-100 text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs">
                   <tr>
-                    <th className="px-3 py-3 text-left">เวลา</th>
-                    <th className="px-3 py-3 text-left">เหตุการณ์</th>
+                    <th className="px-3 py-3 text-center">เวลา</th>
+                    <th className="px-3 py-3 text-center">เหตุการณ์</th>
                     <th className="px-3 py-3 text-left">สินค้า</th>
-                    <th className="px-3 py-3 text-left">เอกสารปลายทาง</th>
+                    <th className="px-3 py-3 text-center">เอกสารปลายทาง</th>
                     <th className="px-3 py-3 text-right">น้ำหนักสุทธิ</th>
                     <th className="px-3 py-3 text-right">คงเหลือหลังรายการ</th>
                     <th className="px-3 py-3 text-left">ผู้ทำรายการ/หมายเหตุ</th>
@@ -555,15 +555,15 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                     </tr>
                   ) : ticket.usageTimeline.map((event) => (
                     <tr key={event.id}>
-                      <td className="whitespace-nowrap px-3 py-3 text-slate-500">{formatDateTime(event.createdAt)}</td>
-                      <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">{usageActionLabel(event.action)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center text-slate-500">{formatDateTime(event.createdAt)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-900">{usageActionLabel(event.action)}</td>
                       <td className="px-3 py-3">
                         <div className="font-medium text-slate-900">{event.productName}</div>
                         {event.productCode ? <div className="mt-0.5 text-xs text-slate-500">{event.productCode}</div> : null}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                      <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">
                         {event.targetDocNo ? (
-                          <GuardedLink className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                          <GuardedLink className="font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                             {event.targetDocNo}
                           </GuardedLink>
                         ) : (
@@ -603,9 +603,9 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="font-semibold text-slate-900">{downstreamDocLabel(allocation.targetType)}</div>
-                    <div className="mt-1 text-xs text-slate-500">{formatDateTime(allocation.createdAt)}</div>
+                    <div className="whitespace-nowrap mt-1 text-xs text-slate-500">{formatDateTime(allocation.createdAt)}</div>
                   </div>
-                  <GuardedLink className="shrink-0 font-medium text-blue-700 hover:underline" href={downstreamDocHref(allocation.targetType, allocation.targetDocNo)}>
+                  <GuardedLink className="shrink-0 whitespace-nowrap font-mono font-medium text-blue-700 hover:underline" href={downstreamDocHref(allocation.targetType, allocation.targetDocNo)}>
                     {allocation.targetDocNo}
                   </GuardedLink>
                 </div>
@@ -644,14 +644,14 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             <table className="ns-table min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs">
                 <tr>
-                  <th className="px-3 py-3 text-left">เวลา</th>
-                  <th className="px-3 py-3 text-left">ประเภทปลายทาง</th>
-                  <th className="px-3 py-3 text-left">เลขที่เอกสาร</th>
+                  <th className="px-3 py-3 text-center">เวลา</th>
+                  <th className="px-3 py-3 text-center">ประเภทปลายทาง</th>
+                  <th className="px-3 py-3 text-center">เลขที่เอกสาร</th>
                   <th className="px-3 py-3 text-left">สินค้า</th>
                   <th className="px-3 py-3 text-right">น้ำหนักรวม</th>
                   <th className="px-3 py-3 text-right">หัก</th>
                   <th className="px-3 py-3 text-right">น้ำหนักสุทธิ</th>
-                  <th className="px-3 py-3 text-left">สถานะ</th>
+                  <th className="px-3 py-3 text-center">สถานะ</th>
                   <th className="px-3 py-3 text-left">ผู้ทำรายการ</th>
                 </tr>
               </thead>
@@ -664,10 +664,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   </tr>
                 ) : ticket.downstreamAllocations.map((allocation) => (
                   <tr key={allocation.id}>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-500">{formatDateTime(allocation.createdAt)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-700">{downstreamDocLabel(allocation.targetType)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-700">
-                      <GuardedLink className="font-medium text-blue-700 hover:underline" href={downstreamDocHref(allocation.targetType, allocation.targetDocNo)}>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-500">{formatDateTime(allocation.createdAt)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">{downstreamDocLabel(allocation.targetType)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">
+                      <GuardedLink className="font-mono font-medium text-blue-700 hover:underline" href={downstreamDocHref(allocation.targetType, allocation.targetDocNo)}>
                         {allocation.targetDocNo}
                       </GuardedLink>
                       {allocation.targetLineNo ? <div className="mt-0.5 text-xs text-slate-500">รายการ {allocation.targetLineNo}</div> : null}
@@ -679,7 +679,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(allocation.allocatedGrossWeight)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(allocation.allocatedDeductWeight)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(allocation.allocatedNetWeight)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">{allocation.status || '-'}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{allocation.status || '-'}</td>
                     <td className="px-3 py-3 text-slate-600">{allocation.createdBy || '-'}</td>
                   </tr>
                 ))}
@@ -724,7 +724,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
                         {targetDocNo ? (
                           <GuardedLink
-                            className="font-medium text-blue-700 hover:underline"
+                            className="whitespace-nowrap font-mono font-medium text-blue-700 hover:underline"
                             href={downstreamDocHref((metadataString(event.metadata, 'targetType') || 'PURCHASE_BILL') as 'PURCHASE_BILL' | 'SALES_BILL', targetDocNo)}
                           >
                             {targetDocNo}

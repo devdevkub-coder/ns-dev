@@ -475,6 +475,7 @@ table.ns-table :where(th) {
 
 table.ns-table :where(thead th) {
   border-bottom: 1px solid var(--color-slate-200) !important;
+  white-space: nowrap;
 }
 
 table.ns-table :where(th:not([data-resizable-table-head])) {
@@ -489,7 +490,7 @@ table.ns-table > tbody > tr + tr > :is(th, td) {
   border-top: 1px solid var(--color-scrap-line) !important;
 }
 
-/* Data-table alignment: headers center, text left, and explicitly numeric cells right. */
+/* Data-table alignment follows explicit semantic classes; headers and body cells must match. */
 table.ns-table > thead > tr > th:not([colspan]) {
   text-align: center !important;
 }
@@ -499,20 +500,20 @@ table.ns-table > thead > tr > th:not([colspan]) > :is(.flex, .inline-flex, butto
   text-align: center !important;
 }
 
-table.ns-table > thead > tr > th[data-column-align="left"]:not([colspan]) {
+table.ns-table > thead > tr > th:is(.text-left, [data-column-align="left"]):not([colspan]) {
   text-align: left !important;
 }
 
-table.ns-table > thead > tr > th[data-column-align="left"]:not([colspan]) > :is(.flex, .inline-flex, button) {
+table.ns-table > thead > tr > th:is(.text-left, [data-column-align="left"]):not([colspan]) > :is(.flex, .inline-flex, button) {
   justify-content: flex-start !important;
   text-align: left !important;
 }
 
-table.ns-table > thead > tr > th[data-column-align="right"]:not([colspan]) {
+table.ns-table > thead > tr > th:is(.text-right, .tabular-nums, [data-column-align="right"]):not([colspan]) {
   text-align: right !important;
 }
 
-table.ns-table > thead > tr > th[data-column-align="right"]:not([colspan]) > :is(.flex, .inline-flex, button) {
+table.ns-table > thead > tr > th:is(.text-right, .tabular-nums, [data-column-align="right"]):not([colspan]) > :is(.flex, .inline-flex, button) {
   justify-content: flex-end !important;
   text-align: right !important;
 }
@@ -532,6 +533,8 @@ table.ns-table > :is(tbody, tfoot) > tr > :is(th, td):not([colspan]) {
 
 table.ns-table > :is(tbody, tfoot) > tr > :is(th, td):is(.text-right, .tabular-nums):not([colspan]) {
   text-align: right !important;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 table.ns-table > :is(tbody, tfoot) > tr > :is(th, td).text-center:not([colspan]) {
@@ -1137,7 +1140,6 @@ aside a:visited {
 }
 
 .dark table.ns-table :where(th) {
-  border-color: var(--ns-dark-border) !important;
   color: var(--ns-dark-muted) !important;
 }
 

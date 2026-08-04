@@ -21,7 +21,7 @@ export function PageSizeDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button aria-label="จำนวนรายการต่อหน้า" className={`h-9 min-w-[92px] justify-between gap-2 px-3 font-normal focus-visible:ring-slate-400 focus-visible:ring-offset-0 ${className ?? ''}`.trim()} disabled={disabled} size="sm" type="button" variant="outline">
+        <Button aria-label="จำนวนรายการต่อหน้า" className={`h-9 min-w-[92px] justify-between gap-2 px-3 font-normal focus-visible:border-blue-500 focus-visible:ring-[3px] focus-visible:ring-blue-500/30 focus-visible:ring-offset-0 ${className ?? ''}`.trim()} disabled={disabled} size="sm" type="button" variant="outline">
           <span>{value} / หน้า</span>
           <ChevronDown aria-hidden="true" className="size-4 opacity-70" />
         </Button>

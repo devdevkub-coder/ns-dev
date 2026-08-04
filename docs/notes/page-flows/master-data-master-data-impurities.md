@@ -89,7 +89,7 @@ impurity master for WTI/WTO deduction lines
 
 ## Current Gap
 
-Current code is accepted baseline. Remaining work is to keep documentation in sync with future code changes and verify downstream transaction consumption when those transaction pages are proofed.
+รายการสิ่งเจือปนใช้ permission ของหน้าโดยตรง: view สำหรับ list, create/update สำหรับบันทึก และ status สำหรับเปิด/ปิดใช้งาน เพื่อไม่ให้ role ที่เห็นเมนูต้องพึ่ง `master.reference.manage` แบบกว้าง.
 
 ## Implementation Checklist
 

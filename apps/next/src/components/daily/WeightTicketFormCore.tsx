@@ -2095,6 +2095,12 @@ export function WeightTicketFormCore({
                   onClick={(event) => {
                     if (event.currentTarget === event.target) closeMobileProductEditor()
                   }}
+                  onKeyDownCapture={(event) => {
+                    if (window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape') return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    closeMobileProductEditor()
+                  }}
                 >
                   <div className={cn(
                     mobileProductView === 'editor'
@@ -2317,8 +2323,8 @@ export function WeightTicketFormCore({
                                   </div>
                                   {!isCollapsed ? (
                                     <>
-                                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 items-start">
-                                        <FieldBlock error={showError(`line-${lot.id}-gross`)} label="น้ำหนักรวม (กก. / ลัง) *">
+                                      <div className="grid grid-cols-3 items-start gap-2 sm:gap-4">
+                                        <FieldBlock error={showError(`line-${lot.id}-gross`)} label="น้ำหนักรวม (กก. / ลัง) *" labelClassName="min-h-10 leading-5 sm:min-h-0">
                                           <Input
                                             id={`weight-gross-${lot.id}`}
                                             disabled={!hasSelectedProduct}
@@ -2329,7 +2335,7 @@ export function WeightTicketFormCore({
                                             onChange={(event) => updateLine(lot.id, (current) => ({ ...current, grossWeight: normalizeDecimalInput(event.target.value) }))}
                                           />
                                         </FieldBlock>
-                                        <FieldBlock error={showError(`line-${lot.id}-container`)} label="หักภาชนะ(กก.)">
+                                        <FieldBlock error={showError(`line-${lot.id}-container`)} label="หักภาชนะ (กก.)" labelClassName="min-h-10 leading-5 sm:min-h-0">
                                           <Input
                                             id={`weight-container-${lot.id}`}
                                             disabled={!hasSelectedProduct}
@@ -2340,14 +2346,12 @@ export function WeightTicketFormCore({
                                             onChange={(event) => updateLine(lot.id, (current) => ({ ...current, containerDeductionWeight: normalizeDecimalInput(event.target.value) }))}
                                           />
                                         </FieldBlock>
-                                        <div className="col-span-2 sm:col-span-1">
-                                          <FieldBlock label="น้ำหนักหลังหักภาชนะ">
-                                            <Input
-                                              disabled
-                                              value={formatWeight(lotNetBeforeImpurityWeight)}
-                                            />
-                                          </FieldBlock>
-                                        </div>
+                                        <FieldBlock label="น้ำหนักหลังหักภาชนะ" labelClassName="min-h-10 leading-5 sm:min-h-0">
+                                          <Input
+                                            disabled
+                                            value={formatWeight(lotNetBeforeImpurityWeight)}
+                                          />
+                                        </FieldBlock>
                                       </div>
                                       <FieldBlock error={showError(`line-${lot.id}-images`)} label="รูปภาพประกอบ*">
                                         <AttachmentProfileGrid

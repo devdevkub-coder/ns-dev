@@ -411,6 +411,7 @@ FCD conversion
   - Lifecycle จริงผ่าน: รับ `5 USD` ปิดบิล THB ด้วย rate `36.380`, revaluation ที่ `36.500`, conversion ได้ `182.00 THB` และ realized FX `-0.50`, แล้ว reverse conversion/revaluation และ cancel receipt.
   - Post-cleanup ยอด FCD กลับเป็น `0 USD / 0 THB`; เหลือเฉพาะ append-only reversal history ตาม contract. ไม่มี active test transaction ค้าง. UI smoke desktop/mobile และ API responses ผ่านโดยไม่พบ console error.
 - [x] `FCD-909` promote ตามลำดับ feature branch -> dev -> SIT/UAT หลัง reconciliation ผ่าน: ทุก FCD checkpoint ถูก commit และ push ไป `new-origin/dev` กับ `sit-origin/main` ตาม target ที่สั่ง; migration `20260730210000`, `20260730220000` apply/record ครบ Dev/SIT. ไม่ promote customer UAT เพราะไม่มีคำสั่ง (2026-07-30)
+- [x] `FCD-910` ทำให้ primary runtime grids ของ FCD Conversion และ FCD Revaluation ใช้ table contract กลางครบ: sort, resize, `colgroup`, fixed layout, horizontal overflow, reset width, non-wrapping document/date values และ shared `จัดการ` dropdown. สิ่งที่เปลี่ยนคือ presentation/interaction ของรายการ FCD เท่านั้น; เหตุผลคือให้ scan และจัดการข้อมูลเหมือนตารางหลักหน้าอื่น โดยไม่เปลี่ยน posting, permission, API, schema หรือยอดบัญชี (2026-08-01)
 
 ## Recommended Implementation Batches
 

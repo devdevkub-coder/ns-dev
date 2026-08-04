@@ -1050,7 +1050,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     ))}
                     <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="เฉลี่ยรายเดือน" resizeProps={dashboardColumnResize.getResizeHandleProps('avg', 'เฉลี่ยรายเดือน')} sortKey="avg" onSort={changeDashboardSort} />
                     <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="ยอดรวม" resizeProps={dashboardColumnResize.getResizeHandleProps('total', 'ยอดรวม')} sortKey="total" onSort={changeDashboardSort} />
-                    <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="center" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -1098,7 +1098,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <td className="expense-dashboard-total-cell bg-violet-50/20 px-3 py-3 text-right font-bold text-violet-700 tabular-nums">
                         {formatMoney(item.total)}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="whitespace-nowrap px-3 py-3 text-center">
                         {item.anomaly === 'high' ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/10">
                             <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> สูง
@@ -1157,7 +1157,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     <ResizableTableHead activeSortKey={dashboardSortKey} direction={dashboardSortDirection} label="หมวดค่าใช้จ่าย" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('category', 'หมวดค่าใช้จ่าย')} sortKey="category" onSort={changeDashboardSort} />
                     <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label={`เดือนล่าสุด (${formatMonthLabel(dashboard.monthList[dashboard.monthList.length - 1])})`} resizeProps={dashboardTabletColumnResize.getResizeHandleProps('latest', 'เดือนล่าสุด')} sortKey="latest" onSort={changeDashboardSort} />
                     <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="เฉลี่ยรายเดือน" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('avg', 'เฉลี่ยรายเดือน')} sortKey="avg" onSort={changeDashboardSort} />
-                    <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="center" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1179,7 +1179,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <td className="expense-dashboard-average-cell px-3 py-3 text-right font-semibold text-blue-700 tabular-nums">
                         {formatMoney(item.avg)}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="whitespace-nowrap px-3 py-3 text-center">
                         {item.anomaly === 'high' ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/10">
                             <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> สูง
@@ -1542,9 +1542,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 <SegmentMulti key={option.label} current={statusFilter} label={option.label} onClick={setStatusFilter} values={option.values} />
               ))}
               <div className="ml-auto flex flex-wrap items-center gap-2">
-                <Button className="h-9" size="sm" type="button" onClick={openCreateForm}>+ เพิ่มค่าใช้จ่าย</Button>
-                <a className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700" href={exportHref}>
-                  <Download className="h-4 w-4" aria-hidden="true" />
+                <Button className="gap-2" type="button" onClick={openCreateForm}><Plus aria-hidden="true" className="size-4" />เพิ่มค่าใช้จ่าย</Button>
+                <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white hover:bg-emerald-700" href={exportHref}>
+                  <Download className="size-4" aria-hidden="true" />
                   ส่งออก Excel
                 </a>
               </div>
@@ -1599,9 +1599,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                      <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                      <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                     </div>
                   </div>
 
@@ -1829,13 +1829,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         </label>
                         <label className="block" data-field="discount">
                           <span className="mb-1 block text-xs font-medium text-slate-600">Discount</span>
-                          <MoneyInputControl className="h-9 text-sm" error={fieldErrors.discount} value={Number(form.discount) || 0} onChange={(value) => setForm({ ...form, discount: value })} />
+                          <MoneyInputControl className="!h-10 text-sm" error={fieldErrors.discount} value={Number(form.discount) || 0} onChange={(value) => setForm({ ...form, discount: value })} />
                           {fieldErrors.discount ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.discount}</span> : null}
                         </label>
                         {selectedPaymentMethodGroup === 'cash' ? null : (
                           <label className="block" data-field="bankFee">
                             <span className="mb-1 block text-xs font-medium text-slate-600">Bank fee</span>
-                            <MoneyInputControl className="h-9 text-sm" error={fieldErrors.bankFee} value={Number(form.bankFee) || 0} onChange={(value) => setForm({ ...form, bankFee: value })} />
+                            <MoneyInputControl className="!h-10 text-sm" error={fieldErrors.bankFee} value={Number(form.bankFee) || 0} onChange={(value) => setForm({ ...form, bankFee: value })} />
                             {fieldErrors.bankFee ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.bankFee}</span> : null}
                           </label>
                         )}
@@ -1956,7 +1956,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   onClick={() => setDetailRow(row)}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                    <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
                     <span className={`inline-flex items-center gap-1.5 font-semibold text-xs ${expenseStatusTextClass(row.status)}`}>
                       <span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />
                       {expenseStatusLabel(row.status)}
@@ -1964,12 +1964,12 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   </div>
                   <div className="flex justify-between items-center text-xs text-slate-500 mb-3">
                     <span className="font-semibold text-slate-700">{row.categoryName}</span>
-                    <span>วันที่จ่าย: {formatDateDisplay(row.date)}</span>
+                    <span className="text-center whitespace-nowrap">วันที่จ่าย: {formatDateDisplay(row.date)}</span>
                   </div>
                   {row.dueDate ? (
                     <div className="text-xs mb-2">
                       <span className="text-slate-500">ครบกำหนด: </span>
-                      <span className={overdue ? 'text-red-600 font-semibold' : 'text-slate-700 font-semibold'}>
+                      <span className={overdue ? 'text-center text-red-600 font-semibold whitespace-nowrap' : 'text-center text-slate-700 font-semibold whitespace-nowrap'}>
                         {formatDateDisplay(row.dueDate)}
                         {overdue ? ' (เลยกำหนด)' : ''}
                       </span>
@@ -2018,10 +2018,10 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               </colgroup>
               <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-medium">
                 <tr>
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่ EXP" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ EXP')} sortKey="docNo" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่จ่าย" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} sortKey="date" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('dueDate', 'ครบกำหนด')} sortKey="dueDate" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขอ้างอิง" resizeProps={columnResize.getResizeHandleProps('refDocNo', 'เลขอ้างอิง')} sortKey="refDocNo" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขที่ EXP" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ EXP')} sortKey="docNo" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="วันที่จ่าย" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} sortKey="date" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('dueDate', 'ครบกำหนด')} sortKey="dueDate" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขอ้างอิง" resizeProps={columnResize.getResizeHandleProps('refDocNo', 'เลขอ้างอิง')} sortKey="refDocNo" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('payee', 'ผู้รับเงิน')} sortKey="payee" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="หมวดค่าใช้จ่าย" resizeProps={columnResize.getResizeHandleProps('category', 'หมวดค่าใช้จ่าย')} sortKey="category" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชีจ่าย" resizeProps={columnResize.getResizeHandleProps('account', 'บัญชีจ่าย')} sortKey="account" onSort={changeSort} />
@@ -2048,13 +2048,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         }
                       }}
                     >
-                      <td className="p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
-                      <td className="p-2 text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
-                      <td className="p-2 text-xs font-semibold">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs font-normal text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
-                      <td className="p-2 text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.refDocNo || ''}>{row.refDocNo || '-'}</div></td>
-                      <td className="p-2 text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.payee || ''}>{row.payee}</div></td>
-                      <td className="p-2 text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.categoryName || ''}>{row.categoryName}</div></td>
-                      <td className="p-2 text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.accountName || ''}>{row.accountName}</div></td>
+                      <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</td>
+                      <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
+                      <td className="whitespace-nowrap p-2 text-center text-xs font-semibold">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs font-normal text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
+                      <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.refDocNo || ''}>{row.refDocNo || '-'}</div></td>
+                      <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.payee || ''}>{row.payee}</div></td>
+                      <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.categoryName || ''}>{row.categoryName}</div></td>
+                      <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.accountName || ''}>{row.accountName}</div></td>
                       <td className="p-2 text-center text-xs"><span className={`inline-flex items-center gap-1.5 font-semibold ${expenseStatusTextClass(row.status)}`}><span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />{expenseStatusLabel(row.status)}</span></td>
                       <td className={`bg-red-50/60 p-2 pl-4 pr-4 text-right text-xs font-semibold tabular-nums whitespace-nowrap ${row.status === 'paid' ? 'text-emerald-700' : row.status === 'approved' ? 'text-blue-700' : row.status === 'cancelled' ? 'text-slate-500' : 'text-amber-700'}`}>{formatMoney(row.netAmount)}</td>
                       <td className="whitespace-nowrap p-2 pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">
@@ -2383,7 +2383,7 @@ function PayeeField(props: { error?: string; onChange: (value: string) => void; 
       <input
         aria-invalid={Boolean(props.error)}
         autoComplete="off"
-        className={`h-9 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-900'}`}
+        className={`h-10 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-900'}`}
         list="expense-payee-options"
         placeholder="ค้นหา Supplier"
         required
@@ -2407,8 +2407,8 @@ function TextField(props: { error?: string; fieldName?: string; label: string; o
     <label className="block" data-field={props.fieldName}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{renderRequiredMark(props.required)}</span>
       {props.type === 'date'
-        ? <DatePickerInput ariaInvalid={Boolean(props.error)} className={`h-9 w-full ${props.error ? 'border-red-400 bg-red-50' : ''}`} readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
-        : <input aria-invalid={Boolean(props.error)} className={`h-9 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-900'}`} readOnly={props.readOnly} required={props.required} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
+        ? <DatePickerInput ariaInvalid={Boolean(props.error)} className={`h-10 w-full ${props.error ? 'border-red-400 bg-red-50' : ''}`} readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
+        : <input aria-invalid={Boolean(props.error)} className={`h-10 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-900'}`} readOnly={props.readOnly} required={props.required} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )

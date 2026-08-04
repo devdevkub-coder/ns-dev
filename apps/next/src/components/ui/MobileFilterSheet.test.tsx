@@ -23,6 +23,22 @@ describe('MobileFilterSheet', () => {
     expect(html).toContain('bg-[rgba(2,6,23,0.55)]')
   })
 
+  it('uses the neutral table-header palette instead of the sidebar palette', () => {
+    const html = renderToStaticMarkup(
+      <MobileFilterSheet
+        footer={<button type="button">Apply filters</button>}
+        onClose={() => undefined}
+        title="Filters"
+      >
+        <div>filters</div>
+      </MobileFilterSheet>,
+    )
+
+    expect(html).toContain('border-b border-slate-200 bg-slate-100')
+    expect(html).toContain('<h4 class="text-sm font-bold text-slate-700"')
+    expect(html).not.toContain('<h4 class="text-sm font-bold text-white"')
+  })
+
   it('exposes a labelled modal dialog without duplicating the footer exit in its header', () => {
     const html = renderToStaticMarkup(
       <MobileFilterSheet

@@ -147,6 +147,41 @@ describe('Stock Planning design contract', () => {
     expect(client.match(/ยังไม่มี PO Sell สำหรับสินค้านี้/g) ?? []).toHaveLength(2)
   })
 
+  it('keeps descriptive planning columns left-aligned while identifiers, dates, states, and numbers stay semantic', async () => {
+    const client = await readFile(clientPath, 'utf8')
+    const purchaseSurface = client.slice(client.indexOf('function UrgentPurchasePanel'), client.indexOf('function PlanningPagination'))
+    const overviewSurface = client.slice(client.indexOf('function PlanDataSurface'), client.indexOf('function PlanDetailDesktopTable'))
+    const detailSurface = client.slice(client.indexOf('function PlanDetailDesktopTable'), client.indexOf('function PlanDetailMobileCards'))
+    const calendarSurface = client.slice(client.indexOf('function CalendarView'))
+
+    expect(purchaseSurface).toContain('align="left" direction={sortState.direction} label="สินค้า"')
+    expect(purchaseSurface).toContain('className="overflow-hidden p-3 text-left align-top"')
+    expect(purchaseSurface).toContain('align="right" direction={sortState.direction} label="Stock พร้อมส่ง (กก.)"')
+    expect(purchaseSurface).toContain('align="center" direction={sortState.direction} label="PO Sell แรกที่ขาด"')
+
+    expect(overviewSurface).toContain('align="left" direction={sortState.direction} label="สินค้า"')
+    expect(overviewSurface).toContain('align="left" direction={sortState.direction} label="หมวด"')
+    expect(overviewSurface).toContain('items-center justify-start gap-2')
+    expect(overviewSurface).toContain('className="p-3 text-left"')
+    expect(overviewSurface).toContain('align="right" direction={sortState.direction} label="Stock พร้อมส่ง (กก.)"')
+    expect(overviewSurface).toContain('align="center" direction={sortState.direction} label="สถานะ"')
+
+    expect(detailSurface).toContain('align="center" label="PO Sell"')
+    expect(detailSurface).toContain('align="left" label="ลูกค้า"')
+    expect(detailSurface).toContain('align="center" label="วันที่กำหนดส่ง"')
+    expect(detailSurface).toContain('align="right" label="ต้องส่ง (กก.)"')
+    expect(detailSurface).toContain('className="whitespace-nowrap p-3 text-center font-mono font-bold"')
+    expect(detailSurface).toContain('className="overflow-hidden p-3 text-left"')
+    expect(detailSurface).toContain('className="whitespace-nowrap p-3 text-center font-mono"')
+
+    expect(calendarSurface).toContain('align="center" label="PO Sell"')
+    expect(calendarSurface).toContain('align="left" label="สินค้า"')
+    expect(calendarSurface).toContain('align="left" label="ลูกค้า"')
+    expect(calendarSurface).toContain('align="right" label="ต้องส่ง (กก.)"')
+    expect(calendarSurface).toContain('align="center" label="สถานะ"')
+    expect(calendarSurface).toContain('className="overflow-hidden p-3 text-left"')
+  })
+
   it('sorts summary tables before pagination while preserving FIFO detail order', async () => {
     const client = await readFile(clientPath, 'utf8')
     const urgentSurface = client.slice(
@@ -171,7 +206,6 @@ describe('Stock Planning design contract', () => {
     expect(detailSurface).not.toContain('sortKey=')
     expect(calendarSurface).not.toContain('sortKey=')
   })
-
   it('shows canonical pagination/loading and exports a real Excel workbook', async () => {
     const client = await readFile(clientPath, 'utf8')
     const canonicalExportButtons = client.match(/variant="export"/g) ?? []

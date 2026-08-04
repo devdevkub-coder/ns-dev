@@ -172,10 +172,10 @@ export function WeightTicketStockReturnDialog({
                             value={salesBillByPendingOut[option.pendingOutKey] ?? ''}
                             onChange={(event) => setSalesBillByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
                           >
-                            {option.salesBillDocNos.map((docNo) => <option key={docNo} value={docNo}>{docNo}</option>)}
+                            {option.salesBillDocNos.map((docNo) => <option className="whitespace-nowrap" key={docNo} value={docNo}>{docNo}</option>)}
                           </Select>
                         ) : (
-                          <div className="font-mono text-slate-700">{option.salesBillDocNos[0] ?? '-'}</div>
+                          <div className="whitespace-nowrap font-mono text-slate-700">{option.salesBillDocNos[0] ?? '-'}</div>
                         )}
                       </div>
 
@@ -243,12 +243,12 @@ export function WeightTicketStockReturnDialog({
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">สินค้า</th>
                     <th className="px-3 py-2 text-left font-medium">คลัง</th>
-                    <th className="px-3 py-2 text-left font-medium">บิลขาย</th>
+                    <th className="px-3 py-2 text-center font-medium">บิลขาย</th>
                     <th className="px-3 py-2 text-right font-medium">pending_out</th>
                     <th className="px-3 py-2 text-right font-medium">น้ำหนักชั่งคืนจริง</th>
                     <th className="px-3 py-2 text-right font-medium">ส่วนต่างขาด</th>
                     <th className="px-3 py-2 text-left font-medium">เหตุผลส่วนต่าง <span className="text-red-600">*</span></th>
-                    <th className="px-3 py-2 text-right font-medium">จัดการ</th>
+                    <th className="px-3 py-2 text-center font-medium">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -258,28 +258,28 @@ export function WeightTicketStockReturnDialog({
                     const requiresReason = lossQty > 0.0001
                     return (
                       <tr key={option.pendingOutKey} className="border-t border-slate-100 align-top">
-                        <td className="px-3 py-2">
+                        <td className="whitespace-nowrap px-3 py-2 text-center">
                           <div className="font-medium text-slate-900">{option.productName}</div>
                           <div className="text-slate-500">{[option.productCode, option.sourceLineNo ? `line ${option.sourceLineNo}` : null].filter(Boolean).join(' · ')}</div>
                         </td>
                         <td className="px-3 py-2 text-slate-700">{option.warehouseName || '-'}</td>
-                        <td className="px-3 py-2">
+                        <td className="whitespace-nowrap px-3 py-2 text-center">
                           {option.salesBillDocNos.length > 1 ? (
                             <Select
-                              className="h-10 w-full px-2"
+                              className="h-10 w-full px-2 text-center font-mono"
                               value={salesBillByPendingOut[option.pendingOutKey] ?? ''}
                               onChange={(event) => setSalesBillByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
                             >
-                              {option.salesBillDocNos.map((docNo) => <option key={docNo} value={docNo}>{docNo}</option>)}
+                              {option.salesBillDocNos.map((docNo) => <option className="whitespace-nowrap" key={docNo} value={docNo}>{docNo}</option>)}
                             </Select>
                           ) : (
-                            <span className="font-mono text-slate-700">{option.salesBillDocNos[0] ?? '-'}</span>
+                            <span className="whitespace-nowrap font-mono text-slate-700">{option.salesBillDocNos[0] ?? '-'}</span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-right font-semibold tabular-nums text-amber-700">{formatMoney(option.pendingQty)}</td>
                         <td className="px-3 py-2">
                           <input
-                            className={`w-full rounded-xl border px-2 py-2 text-right tabular-nums ${requiresReason ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'}`}
+                            className={`h-10 w-full rounded-xl border px-2 py-2 text-right tabular-nums ${requiresReason ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'}`}
                             min="0"
                             max={option.pendingQty}
                             step="0.01"
@@ -298,7 +298,7 @@ export function WeightTicketStockReturnDialog({
                             onChange={(event) => setReasonByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
                           />
                         </td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2 text-center">
                           <TableActionButton
                             disabled={isReturningPendingOutKey === option.pendingOutKey}
                             busy={isReturningPendingOutKey === option.pendingOutKey}

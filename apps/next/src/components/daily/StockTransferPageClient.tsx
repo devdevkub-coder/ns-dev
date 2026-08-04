@@ -538,9 +538,9 @@ export function StockTransferPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                 </div>
               </div>
 
@@ -607,10 +607,10 @@ export function StockTransferPageClient() {
             <div className="max-h-[76vh] overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm flex-1">
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid grid-cols-2 gap-4">
                 <FormField error={fieldErrors.date} errorKey="date" label="วันที่เอกสาร *">
-                  <DatePickerInput className="w-full h-9" value={form.date} onChange={(value) => updateForm('date', value)} />
+                  <DatePickerInput className="w-full h-10" value={form.date} onChange={(value) => updateForm('date', value)} />
                 </FormField>
                 <FormField error={fieldErrors.transferDate} errorKey="transferDate" label="วันที่โอนย้าย *">
-                  <DatePickerInput className="w-full h-9" value={form.transferDate ?? ''} onChange={(value) => updateForm('transferDate', value)} />
+                  <DatePickerInput className="w-full h-10" value={form.transferDate ?? ''} onChange={(value) => updateForm('transferDate', value)} />
                 </FormField>
               </div>
 
@@ -671,7 +671,7 @@ export function StockTransferPageClient() {
                         <th className="p-2 text-right">มูลค่า/kg</th>
                         <th className="p-2 text-right">น้ำหนัก</th>
                         <th className="p-2 text-right">มูลค่ารวม</th>
-                        <th className="p-2 text-right">จัดการ</th>
+                        <th className="p-2 text-center">จัดการ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -704,7 +704,7 @@ export function StockTransferPageClient() {
                               />
                             </td>
                             <td className="p-2 pt-4 text-right tabular-nums font-medium text-emerald-700">{formatMoney(lineValue)}</td>
-                            <td className="p-2 text-right">
+                            <td className="p-2 text-center">
                               <TableActionButton
                                 disabled={form.items.length <= 1}
                                 label="ลบรายการ"
@@ -884,10 +884,10 @@ export function StockTransferPageClient() {
         {!isLoading && sortedRows.map((row) => (
           <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-2 flex items-start justify-between">
-              <span className="font-bold text-slate-800">{row.docNo}</span>
+              <span className="text-center font-mono font-bold text-slate-800 whitespace-nowrap">{row.docNo}</span>
               <StatusBadge status={row.status} />
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-center text-xs text-slate-500 whitespace-nowrap">
               วันที่เอกสาร: {formatDateDisplay(row.date)}
               {row.transferDate ? ` · วันที่โอน: ${formatDateDisplay(row.transferDate)}` : ''}
             </div>
@@ -926,38 +926,38 @@ export function StockTransferPageClient() {
           </colgroup>
           <TableHeader>
             <tr>
-              <ResizableTableHead label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-              <ResizableTableHead label="วันที่โอนย้าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transferDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
+              <ResizableTableHead align="center" label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead align="center" label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+              <ResizableTableHead align="center" label="วันที่โอนย้าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transferDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
               <ResizableTableHead label="จาก" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="from" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
               <ResizableTableHead label="ไป" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="to" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('to', 'ไป')} />
               <ResizableTableHead align="right" label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="itemCount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} />
               <ResizableTableHead align="right" label="น้ำหนักรวม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนักรวม')} />
               <ResizableTableHead align="right" label="มูลค่ารวม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalValue', 'มูลค่ารวม')} />
-              <ResizableTableHead label="วันที่สร้างรายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="updated" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updated', 'วันที่สร้างรายการ')} />
-              <ResizableTableHead label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="center" label="วันที่สร้างรายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="updated" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updated', 'วันที่สร้างรายการ')} />
+              <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody>
             {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
             {!isLoading && sortedRows.map((row) => (
               <TableRow key={row.id} className="hover:bg-slate-50">
-                <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{row.transferDate ? formatDateDisplay(row.transferDate) : '-'}</TableCell>
+                <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{row.transferDate ? formatDateDisplay(row.transferDate) : '-'}</TableCell>
                 <TableCell className="text-xs font-semibold text-red-600">{row.from}</TableCell>
                 <TableCell className="text-xs font-semibold text-emerald-700">{row.to}</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-slate-700">{row.itemCount.toLocaleString('th-TH')}</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-slate-700">{formatMoney(row.totalQty)} กก.</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-emerald-700">{formatMoney(row.totalValue)}</TableCell>
-                <TableCell className="text-xs text-slate-600">
+                <TableCell className="text-center text-xs text-slate-600">
                   <div className="truncate font-semibold text-slate-700">{row.updatedBy || '-'}</div>
-                  <div className="text-slate-400">{formatDateTime(row.updatedAt)}</div>
+                  <div className="whitespace-nowrap text-slate-400">{formatDateTime(row.updatedAt)}</div>
                 </TableCell>
-                <TableCell><StatusBadge status={row.status} /></TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
+                <TableCell className="text-center"><StatusBadge status={row.status} /></TableCell>
+                <TableCell className="whitespace-nowrap text-center">
+                  <div className="flex justify-center gap-1">
                     <RowActionButton
                       menu={(
                         <>

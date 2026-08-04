@@ -330,9 +330,9 @@ export function CustomerTrackingPageClient() {
               />
             </label>
             <label className="text-xs text-slate-500">วันที่:</label>
-            <DatePickerInput value={dateFrom} onChange={setDateFrom} />
+            <DatePickerInput className="h-9" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput value={dateTo} onChange={setDateTo} />
+            <DatePickerInput className="h-9" value={dateTo} onChange={setDateTo} />
 
             <Select
               className="h-9 w-[10rem] px-3 text-sm"
@@ -383,7 +383,7 @@ export function CustomerTrackingPageClient() {
               ตัวกรอง
             </button>
             <a
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-bold text-white hover:bg-emerald-700"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700"
               href={exportHref}
             >
               <Download aria-hidden="true" className="size-4" />
@@ -411,11 +411,11 @@ export function CustomerTrackingPageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500 font-semibold">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={dateFrom} onChange={setDateFrom} />
                 </label>
                 <label className="text-xs text-slate-500 font-semibold">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={dateTo} onChange={setDateTo} />
                 </label>
               </div>
 
@@ -439,7 +439,7 @@ export function CustomerTrackingPageClient() {
 
         <div className="mt-3 hidden items-center justify-end gap-2 lg:flex">
           <a
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-center text-sm font-bold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-center text-sm font-normal text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
             href={exportHref}
           >
             <Download aria-hidden="true" className="size-4" />
@@ -512,7 +512,7 @@ export function CustomerTrackingPageClient() {
             </colgroup>
             <thead className="bg-slate-100/75 text-slate-700 border-b border-slate-200">
               <tr>
-                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('billCount', 'บิล')} sortKey="billCount" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="น้ำหนัก" resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} sortKey="qty" onSort={handleSort} />
@@ -532,7 +532,7 @@ export function CustomerTrackingPageClient() {
               {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-slate-400 text-center" colSpan={13}>ไม่มีข้อมูลลูกค้า</td></tr> : null}
               {!isLoading && pagedRows.map((row) => (
                 <tr key={row.id} className="cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
-                  <td className="p-3 pl-4 font-mono text-xs text-slate-400 min-w-0 overflow-hidden"><div className="truncate" title={row.code || ''}>{row.code || '-'}</div></td>
+                  <td className="whitespace-nowrap p-3 pl-4 text-center font-mono text-xs text-slate-400 min-w-0 overflow-hidden"><div className="truncate" title={row.code || ''}>{row.code || '-'}</div></td>
                   <td className="p-3 font-medium text-slate-800 min-w-0 overflow-hidden"><div className="truncate" title={row.customerName || ''}>{row.customerName}</div></td>
                   <td className="p-3 text-right text-slate-700 whitespace-nowrap tabular-nums pl-4">{row.billCount}</td>
                   <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.qty)}</td>
@@ -732,7 +732,7 @@ function DetailSection({ children, title, headerActions }: { children: ReactNode
 
 function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][] }) {
   const cellText = (cell: DetailCell) => typeof cell === 'string' ? cell : cell.label
-  const rightAlignedColumns = headers.map((_, columnIndex) => columnIndex > 0)
+  const columns = headers.map(detailTableColumn)
   return (
     <>
       {/* Desktop Table View */}
@@ -740,9 +740,9 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
         <table className="ns-table w-full min-w-[760px] text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
-              {headers.map((header, idx) => (
-                <th key={header} className={`p-2 text-slate-600 font-semibold text-xs ${rightAlignedColumns[idx] ? 'text-right' : 'text-left'} ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
-                  {header}
+              {columns.map((column, idx) => (
+                <th key={column.label} className={`p-2 text-slate-600 font-semibold text-xs ${column.headerClassName} ${idx === 0 ? 'pl-4' : idx === columns.length - 1 ? 'pr-4' : ''}`} data-column-align={column.align}>
+                  {column.label}
                 </th>
               ))}
             </tr>
@@ -753,11 +753,11 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
               <tr key={index} className="border-t border-slate-100 hover:bg-slate-50/30">
                 {row.map((cell, cellIndex) => (
                   <td
-                    key={`${index}-${headers[cellIndex]}`}
+                    key={`${index}-${columns[cellIndex].label}`}
                     className={`
                       p-3 text-slate-700
                       ${cellIndex === 0 ? 'pl-4' : cellIndex === row.length - 1 ? 'pr-4' : ''}
-                      ${rightAlignedColumns[cellIndex] ? 'text-right' : 'text-left'}
+                      ${columns[cellIndex].cellClassName}
                     `}
                   >
                     {typeof cell === 'string' ? (
@@ -781,7 +781,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
         {rows.map((row, index) => (
           <div key={index} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-xs">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-semibold">
-              <span className="text-slate-800 font-bold">
+              <span className={`font-bold text-slate-800 ${columns[0]?.cellClassName.includes('whitespace-nowrap') ? 'whitespace-nowrap' : ''}`}>
                 {typeof row[0] === 'string' ? row[0] : (
                   <a className="font-mono text-blue-600 underline focus:outline-none focus-visible:outline-none focus-visible:ring-0" href={(row[0] as { href: string }).href}>
                     {row[0].label}
@@ -799,10 +799,11 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
                 const headerLabel = headers[cellIndex + 1] || ''
                 const cellValue = cellText(cell)
                 const isLink = typeof cell !== 'string'
+                const column = columns[cellIndex + 1]
                 return (
-                  <div key={cellIndex} className="flex justify-between items-center gap-2">
-                    <span className="text-slate-500 font-semibold">{headerLabel}</span>
-                    <span className="text-slate-800 font-medium font-mono text-right truncate max-w-[180px]">
+                  <div key={cellIndex} className="flex items-start justify-between gap-2">
+                    <span className="shrink-0 font-semibold text-slate-500">{headerLabel}</span>
+                    <span className={`min-w-0 max-w-[180px] text-right font-medium text-slate-800 ${column?.cellClassName.includes('font-mono') ? 'font-mono' : ''} ${column?.cellClassName.includes('tabular-nums') ? 'tabular-nums' : ''} ${column?.cellClassName.includes('whitespace-nowrap') ? 'whitespace-nowrap' : 'break-words'}`}>
                       {isLink ? (
                         <a className="text-blue-600 underline focus:outline-none focus-visible:outline-none focus-visible:ring-0" href={(cell as { href: string }).href}>
                           {cellValue}
@@ -820,6 +821,21 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
       </div>
     </>
   )
+}
+
+type DetailTableColumn = {
+  align: 'center' | 'left' | 'right'
+  cellClassName: string
+  headerClassName: string
+  label: string
+}
+
+function detailTableColumn(label: string): DetailTableColumn {
+  if (['วันที่', 'ครบกำหนด', 'เดือน'].includes(label)) return { label, align: 'center', headerClassName: 'text-center whitespace-nowrap min-w-[7.5rem]', cellClassName: 'text-center whitespace-nowrap min-w-[7.5rem]' }
+  if (['เอกสาร'].includes(label)) return { label, align: 'center', headerClassName: 'text-center whitespace-nowrap min-w-[8rem]', cellClassName: 'text-center whitespace-nowrap min-w-[8rem] font-mono' }
+  if (['สถานะ', 'กลุ่มอายุ', 'วิธีรับเงิน'].includes(label)) return { label, align: 'center', headerClassName: 'text-center whitespace-nowrap min-w-[7rem]', cellClassName: 'text-center whitespace-nowrap min-w-[7rem]' }
+  if (['อายุ', 'น้ำหนัก', 'ยอดขาย', 'COGS', 'GP', 'รับเงิน', 'ลูกหนี้', 'บิล', 'GP%', 'ยอดค้าง', 'ยอดรับ', 'สุทธิ', 'รับแล้ว', 'ราคาเฉลี่ย'].includes(label)) return { label, align: 'right', headerClassName: 'ns-table-numeric-header whitespace-nowrap min-w-[6.5rem]', cellClassName: 'text-right tabular-nums whitespace-nowrap min-w-[6.5rem]' }
+  return { label, align: 'left', headerClassName: 'text-left min-w-[10rem]', cellClassName: 'text-left break-words min-w-[10rem]' }
 }
 
 function debtAgeLabel(row: Pick<CustomerTrackingRow, 'oldestArAgeDays' | 'overdueArAmount' | 'receivable'>) {
@@ -880,7 +896,7 @@ function TopPanel({ color, rows, suffix = '', title }: { color: 'amber' | 'blue'
             <tr key={`${title}-${row.label}-${index}`} className="border-t border-slate-100 hover:bg-slate-50/50">
               <td className="p-2.5 pl-4 font-bold text-slate-400 w-10">{index + 1}</td>
               <td className="p-2.5 font-medium text-slate-800">{row.label}</td>
-              <td className="p-2.5 pr-4 text-right font-mono font-bold text-slate-900">
+              <td className="whitespace-nowrap p-2.5 pr-4 text-right font-mono font-bold tabular-nums text-slate-900">
                 {suffix ? `${row.value.toFixed(2)}${suffix}` : formatMoney(row.value)}
               </td>
             </tr>

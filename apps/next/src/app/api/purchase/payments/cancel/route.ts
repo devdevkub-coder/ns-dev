@@ -55,7 +55,7 @@ async function refreshAdvancePaymentPaymentStatus(tx: Parameters<typeof prisma.$
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'purchase.bills.pay')
 
     const payload = cancelPaymentSchema.parse(await request.json())
     const actor = currentActor(context)

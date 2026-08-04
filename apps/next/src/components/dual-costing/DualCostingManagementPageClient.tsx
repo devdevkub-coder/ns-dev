@@ -2,21 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
+import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Select } from '@/components/ui/Select'
 import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { useActionConfirmation } from '@/components/ui/FormSafetyProvider'
 import {
   DualCostingCountRow,
   DualCostingErrorBox,
@@ -53,7 +54,10 @@ type LedgerRow = {
   allocatedBy: string
   allocatedQty: number
   allocatedRevenue: number
+  canReallocate: boolean
+  canReverse: boolean
   costPerKg: number
+  costPoolLotNo: string | null
   costPoolNo: string
   date: string
   dealId: string
@@ -68,13 +72,14 @@ type LedgerRow = {
   saleQty: number
   sourceNo: string
   status: string
-  targetGroupKey: string
-  targetSourceType: 'po-sell' | 'spot-sell'
+  targetLineNo: number | null
+  targetRefId: string | null
+  targetSourceType: 'po-sell' | 'production' | 'spot-sell'
   targetType: string
   totalCost: number
 }
 
-type LedgerColumnKey = 'action' | 'allocatedBy' | 'allocatedQty' | 'costPerKg' | 'costPoolNo' | 'gpPct' | 'grossProfit' | 'matchId' | 'productCategory' | 'productName' | 'saleDocNo' | 'saleQty' | 'allocatedRevenue' | 'status' | 'targetType' | 'totalCost'
+type LedgerColumnKey = 'action' | 'allocatedAt' | 'allocatedBy' | 'allocatedQty' | 'costPerKg' | 'costPoolNo' | 'gpPct' | 'grossProfit' | 'matchId' | 'productCategory' | 'productName' | 'saleDocNo' | 'saleQty' | 'allocatedRevenue' | 'status' | 'targetType' | 'totalCost'
 
 type TabPayload = {
   rows: WaitingRow[]
@@ -206,8 +211,8 @@ function WaitingAllocationsView() {
   const pageSize = 20
 
   const poColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
-    { key: 'docNo', label: 'PO ขาย', defaultWidth: 140, className: 'ns-table-textual-column' },
-    { key: 'date', label: 'วันที่', defaultWidth: 100, className: 'ns-table-textual-column' },
+    { key: 'docNo', label: 'PO ขาย', defaultWidth: 140, align: 'center' },
+    { key: 'date', label: 'วันที่', defaultWidth: 100, align: 'center' },
     { key: 'customerName', label: 'ลูกค้า', defaultWidth: 180, className: 'ns-table-textual-column' },
     { key: 'productName', label: 'สินค้า', defaultWidth: 220, className: 'ns-table-textual-column' },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, className: 'ns-table-textual-column' },
@@ -216,13 +221,13 @@ function WaitingAllocationsView() {
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
-    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
 
   const billColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
-    { key: 'docNo', label: 'บิลขาย', defaultWidth: 140, className: 'ns-table-textual-column' },
-    { key: 'date', label: 'วันที่', defaultWidth: 100, className: 'ns-table-textual-column' },
+    { key: 'docNo', label: 'บิลขาย', defaultWidth: 140, align: 'center' },
+    { key: 'date', label: 'วันที่', defaultWidth: 100, align: 'center' },
     { key: 'customerName', label: 'ลูกค้า', defaultWidth: 180, className: 'ns-table-textual-column' },
     { key: 'productName', label: 'สินค้า', defaultWidth: 220, className: 'ns-table-textual-column' },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, className: 'ns-table-textual-column' },
@@ -231,13 +236,13 @@ function WaitingAllocationsView() {
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
-    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
 
   const productionColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
-    { key: 'docNo', label: 'ใบสั่งผลิต', defaultWidth: 140, className: 'ns-table-textual-column' },
-    { key: 'date', label: 'วันที่เบิกวัตถุดิบ', defaultWidth: 120, className: 'ns-table-textual-column' },
+    { key: 'docNo', label: 'ใบสั่งผลิต', defaultWidth: 140, align: 'center' },
+    { key: 'date', label: 'วันที่เบิกวัตถุดิบ', defaultWidth: 120, align: 'center' },
     { key: 'customerName', label: 'ผู้ผลิต', defaultWidth: 180, className: 'ns-table-textual-column' },
     { key: 'productName', label: 'สินค้า', defaultWidth: 220, className: 'ns-table-textual-column' },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, className: 'ns-table-textual-column' },
@@ -246,8 +251,8 @@ function WaitingAllocationsView() {
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ต้นทุน/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
-    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
 
   const poResize = useResizableColumns('dual-costing.waiting.po.v2', poColumns)
@@ -455,7 +460,7 @@ function WaitingAllocationsView() {
         {/* Desktop View */}
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <Input className="min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-blue-500/30" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <Select className="h-9 w-auto min-w-[160px] border-slate-300" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <div aria-label="กรองสถานะรายการรอจัดสรร" className="flex flex-wrap items-center gap-2" role="group">
               <span className="text-xs text-slate-500">สถานะ:</span>
@@ -466,7 +471,7 @@ function WaitingAllocationsView() {
               ))}
             </div>
             <Button
-              className="ml-auto h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100"
+              className="ml-auto h-9 rounded-md px-3 text-sm font-normal"
               size="sm"
               type="button"
               variant="outline"
@@ -480,7 +485,7 @@ function WaitingAllocationsView() {
         {/* Mobile View */}
         <div className="block lg:hidden space-y-2">
           <div className="flex gap-2">
-            <Input className="flex-1 h-10 rounded-md border-slate-300 focus-visible:ring-emerald-100 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 flex-1 rounded-md border-slate-300 focus-visible:ring-blue-500/30 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
@@ -515,7 +520,7 @@ function WaitingAllocationsView() {
               </label>
               <div className="flex justify-end pt-1">
                 <Button
-                  className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors focus-visible:outline-none"
+                  className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                   type="button"
                   size="sm"
                   variant="secondary"
@@ -596,8 +601,8 @@ function WaitingAllocationsView() {
 
               return (
                 <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="ns-table-textual-column p-3 pl-4 font-mono text-slate-700 whitespace-nowrap">{row.docNo}</td>
-                  <td className="ns-table-textual-column p-3 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</td>
+                  <td className="p-3 pl-4 text-center font-mono text-slate-700 whitespace-nowrap">{row.docNo}</td>
+                  <td className="p-3 whitespace-nowrap text-center text-slate-600">{formatDateDisplay(row.date)}</td>
                   <td className="ns-table-textual-column p-3 text-slate-800 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}>{row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}</div></td>
                   <td className="ns-table-textual-column p-3 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.productName || ''}>{row.productName}</div></td>
                   <td className="ns-table-textual-column p-3 text-left whitespace-nowrap">
@@ -610,11 +615,11 @@ function WaitingAllocationsView() {
                   <td className="p-3 text-right font-mono font-bold text-amber-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.remainingQty)}</td>
                   <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.unitPrice)}</td>
                   <td className="p-3 text-right font-mono text-emerald-700 font-medium whitespace-nowrap tabular-nums pl-4">{formatMoney(row.revenuePending)}</td>
-                  <td className="ns-table-textual-column p-3 text-left">
+                  <td className="whitespace-nowrap p-3 text-center">
                     <StatusPill status={row.allocationStatus} />
                   </td>
-                  <td className="p-3 pr-4 text-right">
-                    <Button asChild size="xs" type="button" className="rounded-md font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
+                  <td className="whitespace-nowrap p-3 pr-4 text-center">
+                    <Button asChild size="xs" type="button" className="rounded-md font-semibold focus-visible:ring-blue-500">
                       <Link href={allocatorHref}>
                         {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
                       </Link>
@@ -649,8 +654,8 @@ function WaitingAllocationsView() {
             <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
               <div className="flex justify-between items-start">
                 <div>
-                  <div className="font-mono text-xs font-semibold text-slate-500">{row.docNo}</div>
-                  <div className="text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
+                  <div className="whitespace-nowrap font-mono text-xs font-semibold text-slate-500">{row.docNo}</div>
+                  <div className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
                 </div>
                 <StatusPill status={row.allocationStatus} />
               </div>
@@ -678,7 +683,7 @@ function WaitingAllocationsView() {
                 </div>
               </div>
               <div className="pt-1">
-                <Button asChild size="sm" type="button" className="w-full rounded-md font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
+                <Button asChild size="sm" type="button" className="w-full rounded-md font-semibold focus-visible:ring-blue-500">
                   <Link href={allocatorHref}>
                     {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
                   </Link>
@@ -695,43 +700,40 @@ function WaitingAllocationsView() {
 }
 
 function AllocationLedgerView() {
-  const { requestConfirmation } = useActionConfirmation()
-  const pageSizeOptions = [10, 25, 50, 100] as const
+  const pageSizeOptions = [10, 25] as const
   const [actionTargetId, setActionTargetId] = useState<string | null>(null)
   const [category, setCategory] = useState('all')
   const [data, setData] = useState<LedgerPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fromDate, setFromDate] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [pendingReverse, setPendingReverse] = useState<{ editAfterReverse: boolean; row: LedgerRow } | null>(null)
   const [search, setSearch] = useState('')
-  const [selectedDetailKey, setSelectedDetailKey] = useState<string | null>(null)
+  const [selectedDetailMatchId, setSelectedDetailMatchId] = useState<string | null>(null)
   const [status, setStatus] = useState('approved')
   const [targetType, setTargetType] = useState('all')
   const [toDate, setToDate] = useState('')
+  const [mobileFilters, setMobileFilters] = useState({ category: 'all', fromDate: '', status: 'approved', targetType: 'all', toDate: '' })
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   // Pagination states
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(50)
+  const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(25)
   const [sortKey, setSortKey] = useState<LedgerColumnKey | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   const ledgerColumns = useMemo<Array<ResizableColumnDefinition<LedgerColumnKey> & { align?: 'center' | 'left' | 'right'; className?: string; label: string }>>(() => [
-    { key: 'matchId', label: 'เลขที่การจับคู่', defaultWidth: 190, minWidth: 160, className: 'ns-table-textual-column' },
-    { key: 'targetType', label: 'ประเภท', defaultWidth: 88, minWidth: 78, className: 'ns-table-textual-column' },
-    { key: 'saleDocNo', label: 'เอกสารขาย', defaultWidth: 130, minWidth: 120, className: 'ns-table-textual-column' },
-    { key: 'productName', label: 'สินค้า', defaultWidth: 230, minWidth: 180, className: 'ns-table-textual-column' },
-    { key: 'productCategory', label: 'หมวด', defaultWidth: 110, minWidth: 95, className: 'ns-table-textual-column' },
-    { key: 'saleQty', label: 'จำนวนขาย', defaultWidth: 115, minWidth: 105, align: 'right' },
-    { key: 'allocatedQty', label: 'จัดสรรแล้ว', defaultWidth: 115, minWidth: 105, align: 'right' },
-    { key: 'costPoolNo', label: 'กลุ่มต้นทุน', defaultWidth: 145, minWidth: 130, className: 'ns-table-textual-column' },
-    { key: 'costPerKg', label: 'ต้นทุน บาท/กก.', defaultWidth: 130, minWidth: 120, align: 'right' },
-    { key: 'totalCost', label: 'ต้นทุนรวม', defaultWidth: 125, minWidth: 110, align: 'right' },
-    { key: 'allocatedRevenue', label: 'รายได้', defaultWidth: 125, minWidth: 110, align: 'right' },
-    { key: 'grossProfit', label: 'GP', defaultWidth: 115, minWidth: 100, align: 'right' },
-    { key: 'gpPct', label: 'GP%', defaultWidth: 80, minWidth: 70, align: 'right' },
-    { key: 'allocatedBy', label: 'ผู้จัดสรร', defaultWidth: 135, minWidth: 115, className: 'ns-table-textual-column' },
-    { key: 'status', label: 'สถานะ', defaultWidth: 115, minWidth: 100, className: 'ns-table-textual-column' },
+    { key: 'matchId', label: 'เลขที่การจับคู่', defaultWidth: 155, minWidth: 145, align: 'center' },
+    { key: 'allocatedAt', label: 'วันที่บันทึก', defaultWidth: 115, minWidth: 100, align: 'center' },
+    { key: 'saleDocNo', label: 'เอกสารขาย', defaultWidth: 135, minWidth: 120, align: 'center' },
+    { key: 'productName', label: 'สินค้า', defaultWidth: 190, minWidth: 160, align: 'left', className: 'ns-table-textual-column' },
+    { key: 'allocatedQty', label: 'จำนวนจัดสรร', defaultWidth: 120, minWidth: 110, align: 'right' },
+    { key: 'costPoolNo', label: 'กลุ่มต้นทุน', defaultWidth: 135, minWidth: 120, align: 'center' },
+    { key: 'costPerKg', label: 'ต้นทุน/กก.', defaultWidth: 110, minWidth: 105, align: 'right' },
+    { key: 'totalCost', label: 'ต้นทุนรวม', defaultWidth: 115, minWidth: 105, align: 'right' },
+    { key: 'allocatedRevenue', label: 'รายได้', defaultWidth: 115, minWidth: 105, align: 'right' },
+    { key: 'grossProfit', label: 'GP', defaultWidth: 110, minWidth: 100, align: 'right' },
+    { key: 'status', label: 'สถานะ', defaultWidth: 110, minWidth: 100, align: 'center' },
     { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
   const ledgerResize = useResizableColumns('dual-costing.allocation-ledger.v1', ledgerColumns)
@@ -741,17 +743,42 @@ function AllocationLedgerView() {
   }, [category, fromDate, pageSize, search, status, targetType, toDate])
 
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
-  const rowsByTarget = useMemo(() => {
+  const rowsByMatch = useMemo(() => {
     const grouped = new Map<string, LedgerRow[]>()
     rows.forEach((row) => {
-      const targetRows = grouped.get(row.targetGroupKey) ?? []
-      targetRows.push(row)
-      grouped.set(row.targetGroupKey, targetRows)
+      const matchRows = grouped.get(row.matchId) ?? []
+      matchRows.push(row)
+      grouped.set(row.matchId, matchRows)
     })
     return grouped
   }, [rows])
-  const selectedDetailRows = selectedDetailKey ? rowsByTarget.get(selectedDetailKey) ?? [] : []
+  const selectedDetailRows = selectedDetailMatchId ? rowsByMatch.get(selectedDetailMatchId) ?? [] : []
   const selectedDetailRow = selectedDetailRows[0] ?? null
+  const hasActiveFilters = search.trim() !== '' || category !== 'all' || fromDate !== '' || status !== 'approved' || targetType !== 'all' || toDate !== ''
+  const hasActiveMobileFilters = category !== 'all' || fromDate !== '' || status !== 'approved' || targetType !== 'all' || toDate !== ''
+
+  function openMobileLedgerFilters() {
+    setMobileFilters({ category, fromDate, status, targetType, toDate })
+    setShowMobileFilters(true)
+  }
+
+  function applyMobileLedgerFilters() {
+    setCategory(mobileFilters.category)
+    setFromDate(mobileFilters.fromDate)
+    setStatus(mobileFilters.status)
+    setTargetType(mobileFilters.targetType)
+    setToDate(mobileFilters.toDate)
+    setShowMobileFilters(false)
+  }
+
+  function clearLedgerFilters() {
+    setCategory('all')
+    setFromDate('')
+    setSearch('')
+    setStatus('approved')
+    setTargetType('all')
+    setToDate('')
+  }
   const sortedRows = useMemo(() => {
     if (!sortKey) return rows
 
@@ -794,12 +821,14 @@ function AllocationLedgerView() {
 
   useEffect(() => { void loadData() }, [loadData])
 
-  function handleReverse(row: LedgerRow, editAfterReverse: boolean) {
-    const message = editAfterReverse
-      ? 'แก้ไขข้อมูลรายการนี้หรือไม่? ระบบจะคืนต้นทุนเดิมกลับ Cost Pool แล้วเปิดหน้าจัดสรรต้นทุนใหม่'
-      : 'ยกเลิกการจัดสรรรายการนี้หรือไม่? ระบบจะคืนต้นทุนกลับ Cost Pool และเก็บรายการไว้ในสถานะย้อนกลับแล้ว'
-    requestConfirmation({ title: editAfterReverse ? 'ยืนยันการแก้ไขและจัดสรรใหม่' : 'ยืนยันการยกเลิกการจัดสรร', description: message, confirmLabel: editAfterReverse ? 'ยืนยันจัดสรรใหม่' : 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
-    setActionTargetId(row.dealId)
+  function requestReverse(row: LedgerRow, editAfterReverse: boolean) {
+    setPendingReverse({ editAfterReverse, row })
+  }
+
+  async function handleReverse() {
+    if (!pendingReverse) return
+    const { editAfterReverse, row } = pendingReverse
+    setActionTargetId(row.matchId)
     setError(null)
     try {
       await dailyFetchJson<{ success: boolean }>(
@@ -813,18 +842,17 @@ function AllocationLedgerView() {
         },
       )
       if (editAfterReverse) {
+        setPendingReverse(null)
         window.location.assign(buildLedgerAllocatorHref(row))
         return
       }
+      setPendingReverse(null)
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ดำเนินการกับ Allocation Ledger ไม่สำเร็จ')
-      throw caught
     } finally {
       setActionTargetId(null)
     }
-      },
-    })
   }
 
   function handleLedgerSort(key: LedgerColumnKey) {
@@ -844,15 +872,22 @@ function AllocationLedgerView() {
 
       <DualCostingFilterCard>
         {/* Desktop View */}
-        <div className="hidden xl:block">
+        <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <Input className="h-9 min-w-[260px] flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100" placeholder="ค้นหา match id / doc / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <span className="text-xs text-slate-500 font-semibold">วันที่:</span>
-            <DatePickerInput id="allocation-ledger-from" value={fromDate} onChange={setFromDate} />
+            <Input className="h-9 min-w-[260px] flex-1 rounded-md border-slate-300" placeholder="ค้นหาเลขที่การจับคู่ / เอกสารขาย / เอกสารต้นทุน / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <span className="text-xs font-semibold text-slate-500">วันที่:</span>
+            <DatePickerInput className="h-9" id="allocation-ledger-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput id="allocation-ledger-to" value={toDate} onChange={setToDate} />
+            <DatePickerInput className="h-9" id="allocation-ledger-to" value={toDate} onChange={setToDate} />
             <Select className="h-9 w-auto min-w-[130px] border-slate-300" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุกประเภทเป้าหมาย</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}</Select>
             <Select className="h-9 w-auto min-w-[130px] border-slate-300" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+            {hasActiveFilters ? (
+              <Button className="h-9 rounded-md px-3 text-sm font-normal" size="sm" type="button" variant="outline" onClick={clearLedgerFilters}>
+                ล้างตัวกรอง
+              </Button>
+            ) : null}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
             <div aria-label="กรองสถานะรายการจัดสรร" className="flex flex-wrap items-center gap-2" role="group">
               <span className="text-xs text-slate-500">สถานะ:</span>
               {[{ label: 'ทั้งหมด', value: 'all' }, { label: 'อนุมัติแล้ว', value: 'approved' }, { label: 'ย้อนกลับแล้ว', value: 'reversed' }].map((item) => (
@@ -860,171 +895,206 @@ function AllocationLedgerView() {
               ))}
             </div>
             <Button
-              className="ml-auto h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100"
+              className="ml-auto h-9 rounded-md px-3 text-sm font-normal"
               disabled={isLoading || sortedRows.length === 0}
               size="sm"
               type="button"
               variant="export"
               onClick={() => window.location.assign(exportHref)}
             >
+              <Download aria-hidden="true" className="h-4 w-4" />
               ส่งออก Excel
             </Button>
           </div>
         </div>
 
         {/* Mobile / Tablet View */}
-        <div className="block xl:hidden space-y-2">
-          <div className="flex gap-2">
-            <Input className="h-9 flex-1 rounded-md border-slate-300 text-sm focus-visible:ring-emerald-100" placeholder="ค้นหา match id / doc / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <div className="block lg:hidden space-y-2">
+          <div className="flex min-w-0 gap-2">
+            <Input className="h-9 min-w-0 flex-1 rounded-md border-slate-300 text-sm" placeholder="ค้นหาเลขที่การจับคู่ / เอกสารขาย / เอกสารต้นทุน / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button
-              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
-              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              aria-expanded={showMobileFilters}
+              aria-haspopup="dialog"
+              onClick={openMobileLedgerFilters}
             >
-              ตัวกรอง
+              ตัวกรอง{hasActiveMobileFilters ? ' (มี)' : ''}
             </button>
+            <Button
+              aria-label="ส่งออก Excel"
+              className="h-9 shrink-0 gap-1 rounded-md px-2.5 text-sm font-normal"
+              disabled={isLoading || sortedRows.length === 0}
+              size="sm"
+              title="ส่งออก Excel"
+              type="button"
+              variant="export"
+              onClick={() => window.location.assign(exportHref)}
+            >
+              <Download aria-hidden="true" className="h-4 w-4" />
+              <span className="hidden sm:inline">ส่งออก Excel</span>
+              <span className="sm:hidden">Excel</span>
+            </Button>
           </div>
-
-          {showMobileFilters && (
-            <div className="grid grid-cols-1 gap-2.5 pt-2 border-t border-slate-100 animate-in slide-in-from-top-2 duration-100">
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs text-slate-500 font-semibold">
-                  จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
-                </label>
-                <label className="text-xs text-slate-500 font-semibold">
-                  ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
-                </label>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <label className="text-xs text-slate-500 font-semibold">
-                  ประเภทเป้าหมาย
-                  <Select className="mt-1 h-9 w-full border-slate-300 text-xs" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุกประเภทเป้าหมาย</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}</Select>
-                </label>
-                <label className="text-xs text-slate-500 font-semibold">
-                  หมวดหมู่
-                  <Select className="mt-1 h-9 w-full border-slate-300 text-xs" value={category} onChange={(event) => setCategory(event.target.value)}>
-                    <option value="all">ทุกหมวด</option>
-                    {(data?.filters.categories ?? []).map((item) => (
-                      <option key={item} value={item}>{item}</option>
-                    ))}
-                  </Select>
-                </label>
-                <div className="space-y-1">
-                  <span className="text-xs font-semibold text-slate-500">สถานะ</span>
-                  <div aria-label="กรองสถานะรายการจัดสรร" className="flex flex-wrap gap-2" role="group">
-                    {[{ label: 'ทั้งหมด', value: 'all' }, { label: 'อนุมัติแล้ว', value: 'approved' }, { label: 'ย้อนกลับแล้ว', value: 'reversed' }].map((item) => (
-                      <SegmentedFilterButton active={status === item.value} key={item.value} type="button" onClick={() => setStatus(item.value)}>{item.label}</SegmentedFilterButton>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-end pt-1">
-                <Button
-                  className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors focus-visible:outline-none"
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setCategory('all')
-                    setFromDate('')
-                    setSearch('')
-                    setStatus('approved')
-                    setTargetType('all')
-                    setToDate('')
-                  }}
-                >
-                  ล้างตัวกรอง
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </DualCostingFilterCard>
 
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 text-sm text-slate-600">
-        <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
-        <div className="flex flex-wrap items-center gap-2">
-          {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-          <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
-            setPageSize(size as (typeof pageSizeOptions)[number])
-            setPage(1)
-          }} />
-          <Button disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
-          <span className="px-1">หน้า {safePage} / {totalPages}</span>
-          <Button disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
-        </div>
-      </div>
-
-      {/* Desktop View */}
-      <div className="hidden overflow-x-auto lg:block">
-        <Table className="text-sm" style={{ minWidth: ledgerResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
-          <colgroup>
-            {ledgerColumns.map((column) => (
-              <col key={column.key} style={ledgerResize.getColumnStyle(column.key)} />
-            ))}
-          </colgroup>
-          <TableHeader className="bg-slate-100">
-            <tr>
-              {ledgerColumns.map((column) => (
-                <ResizableTableHead
-                  key={column.key}
-                  activeSortKey={sortKey ?? undefined}
-                  align={column.align}
-                  className={column.className}
-                  direction={sortDirection}
-                  label={column.label}
-                  sortKey={column.key === 'action' ? undefined : column.key}
-                  onSort={column.key === 'action' ? undefined : handleLedgerSort}
-                  resizeProps={ledgerResize.getResizeHandleProps(column.key, column.label)}
-                />
-              ))}
-            </tr>
-          </TableHeader>
-          <TableBody className="divide-y divide-slate-100">
-            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>ยังไม่มีรายการ</TableCell></TableRow> : null}
-            {visibleRows.map((row) => (
-              <TableRow
-                key={row.id}
-                className={`cursor-pointer hover:bg-indigo-50/50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}
-                onClick={() => setSelectedDetailKey(row.targetGroupKey)}
+      {showMobileFilters ? (
+        <MobileFilterSheet
+          footer={(
+            <>
+              <button
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                type="button"
+                onClick={() => setMobileFilters({ category: 'all', fromDate: '', status: 'approved', targetType: 'all', toDate: '' })}
               >
-                <TableCell className="ns-table-textual-column p-3 font-mono text-xs text-slate-700"><span className="block truncate" title={row.matchId}>{row.matchId}</span></TableCell>
-                <TableCell className="ns-table-textual-column p-3 text-left"><TargetPill type={row.targetType} /></TableCell>
-                <TableCell className="ns-table-textual-column p-3 text-left font-mono text-xs text-slate-700"><span className="block truncate" title={row.saleDocNo}>{row.saleDocNo}</span></TableCell>
-                <TableCell className="ns-table-textual-column p-3 text-left text-sm text-slate-800"><span className="block truncate" title={row.productName}>{row.productName}</span></TableCell>
-                <TableCell className="ns-table-textual-column p-3 text-left"><span className="whitespace-nowrap text-xs font-semibold text-slate-600">{row.productCategory}</span></TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.saleQty)}</TableCell>
-                <TableCell className="p-3 text-right font-mono font-medium">
-                  <button className="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900" type="button" onClick={() => setSelectedDetailKey(row.targetGroupKey)}>
-                    {formatMoney(row.allocatedQty)}
-                  </button>
-                </TableCell>
-                <TableCell className="ns-table-textual-column p-3 text-left font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-red-700">{formatMoney(row.totalCost)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
-                <TableCell className={`p-3 text-right font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-xs text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
-                <TableCell className="ns-table-textual-column p-3 text-xs text-slate-700"><span className="block truncate" title={row.allocatedBy}>{row.allocatedBy}</span></TableCell>
-                <TableCell className="ns-table-textual-column p-3 text-left"><LedgerStatusText status={row.status} /></TableCell>
-                <TableCell className="p-3 text-center" onClick={(event) => event.stopPropagation()}>
-                  <LedgerActionMenu
-                    busy={actionTargetId === row.dealId}
-                    disabled={row.status !== 'approved'}
-                    onCancel={() => void handleReverse(row, false)}
-                    onEdit={() => void handleReverse(row, true)}
+                ล้างตัวกรอง
+              </button>
+              <button className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" type="button" onClick={applyMobileLedgerFilters}>
+                ใช้ตัวกรอง
+              </button>
+            </>
+          )}
+          onClose={() => setShowMobileFilters(false)}
+          title="ตัวกรอง Allocation Ledger"
+          visibleClassName="lg:hidden"
+        >
+          <div>
+            <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่จัดสรร</span>
+            <div className="grid grid-cols-2 gap-2">
+              <DatePickerInput ariaLabel="จากวันที่" className="h-9 min-w-0" value={mobileFilters.fromDate} onChange={(fromDate) => setMobileFilters((current) => ({ ...current, fromDate }))} />
+              <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 min-w-0" value={mobileFilters.toDate} onChange={(toDate) => setMobileFilters((current) => ({ ...current, toDate }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-semibold text-slate-600">
+              ประเภทเป้าหมาย
+              <Select className="mt-1 h-9 w-full border-slate-300 text-xs" value={mobileFilters.targetType} onChange={(event) => setMobileFilters((current) => ({ ...current, targetType: event.target.value }))}>
+                <option value="all">ทุกประเภทเป้าหมาย</option>
+                {(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}
+              </Select>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              หมวดหมู่
+              <Select className="mt-1 h-9 w-full border-slate-300 text-xs" value={mobileFilters.category} onChange={(event) => setMobileFilters((current) => ({ ...current, category: event.target.value }))}>
+                <option value="all">ทุกหมวด</option>
+                {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+              </Select>
+            </label>
+          </div>
+          <div>
+            <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
+            <div aria-label="กรองสถานะรายการจัดสรร" className="flex flex-wrap gap-2" role="group">
+              {[{ label: 'ทั้งหมด', value: 'all' }, { label: 'อนุมัติแล้ว', value: 'approved' }, { label: 'ย้อนกลับแล้ว', value: 'reversed' }].map((item) => (
+                <SegmentedFilterButton active={mobileFilters.status === item.value} key={item.value} type="button" onClick={() => setMobileFilters((current) => ({ ...current, status: item.value }))}>{item.label}</SegmentedFilterButton>
+              ))}
+            </div>
+          </div>
+        </MobileFilterSheet>
+      ) : null}
+
+      <div className="lg:overflow-hidden lg:rounded-md lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm">
+        <div className="flex flex-col gap-3 px-1 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:border-b lg:border-slate-100 lg:px-3">
+          <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <div className="flex items-center justify-end gap-2">
+              {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+              <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
+                setPageSize(size as (typeof pageSizeOptions)[number])
+                setPage(1)
+              }} />
+            </div>
+            <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:flex sm:w-auto">
+              <Button className="h-9 w-full sm:w-auto" disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+              <span className="whitespace-nowrap px-1 text-center">หน้า {safePage} / {totalPages}</span>
+              <Button className="h-9 w-full sm:w-auto" disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop View */}
+        <div className="hidden overflow-x-auto lg:block">
+          <table className="ns-table min-w-full text-sm" style={{ minWidth: ledgerResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <colgroup>
+              {ledgerColumns.map((column) => (
+                <col key={column.key} style={ledgerResize.getColumnStyle(column.key)} />
+              ))}
+            </colgroup>
+            <TableHeader className="bg-slate-100">
+              <tr>
+                {ledgerColumns.map((column) => (
+                  <ResizableTableHead
+                    key={column.key}
+                    activeSortKey={sortKey ?? undefined}
+                    align={column.align}
+                    className={column.className}
+                    direction={sortDirection}
+                    label={column.label}
+                    sortKey={column.key === 'action' ? undefined : column.key}
+                    onSort={column.key === 'action' ? undefined : handleLedgerSort}
+                    resizeProps={ledgerResize.getResizeHandleProps(column.key, column.label)}
                   />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                ))}
+              </tr>
+            </TableHeader>
+            <TableBody className="divide-y divide-slate-100">
+              {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+              {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+              {visibleRows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className={`cursor-pointer hover:bg-indigo-50/50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}
+                  onClick={() => setSelectedDetailMatchId(row.matchId)}
+                >
+                  <TableCell className="p-3 text-center font-mono text-xs text-slate-700">
+                    <span className="block truncate" title={row.matchId}>{row.matchId}</span>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-center text-xs text-slate-600">{row.allocatedAt ? formatDateDisplay(row.allocatedAt) : '-'}</TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-center">
+                    <span className="block truncate font-mono text-xs text-slate-700" title={row.saleDocNo}>{row.saleDocNo}</span>
+                    <span className="mt-1 flex justify-center"><TargetPill type={row.targetType} /></span>
+                  </TableCell>
+                  <TableCell className="ns-table-textual-column p-3 text-left text-sm text-slate-800">
+                    <span className="block truncate" title={row.productName}>{row.productName}</span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-500">{row.productCategory}</span>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-right font-mono font-medium tabular-nums">
+                    <button className="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900" type="button" onClick={(event) => { event.stopPropagation(); setSelectedDetailMatchId(row.matchId) }}>
+                      {formatMoney(row.allocatedQty)}
+                    </button>
+                    <span className="mt-0.5 block text-[11px] font-normal text-slate-500">จาก {formatMoney(row.saleQty)} กก.</span>
+                  </TableCell>
+                  <TableCell className="p-3 text-center font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-red-700">{formatMoney(row.totalCost)}</TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
+                  <TableCell className={`whitespace-nowrap p-3 text-right font-mono font-bold tabular-nums ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {formatMoney(row.grossProfit)}
+                    <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{row.gpPct.toFixed(2)}%</span>
+                  </TableCell>
+                  <TableCell className="p-3 text-center">
+                    <span className="flex justify-center"><LedgerStatusText status={row.status} /></span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-500" title={row.allocatedBy}>{row.allocatedBy}</span>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap p-3 text-center" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex justify-center">
+                      <LedgerActionMenu
+                        busy={actionTargetId === row.matchId}
+                        canReallocate={row.canReallocate}
+                        canReverse={row.canReverse}
+                        onCancel={() => requestReverse(row, false)}
+                        onDetails={() => setSelectedDetailMatchId(row.matchId)}
+                        onEdit={() => requestReverse(row, true)}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </table>
+        </div>
       </div>
 
 
@@ -1040,73 +1110,119 @@ function AllocationLedgerView() {
         {!isLoading && visibleRows.map((row) => (
           <div
             key={row.id}
-            className={`cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 ${row.status === 'reversed' ? 'opacity-50' : ''}`}
-            onClick={() => setSelectedDetailKey(row.targetGroupKey)}
+            className={`cursor-pointer space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}
+            onClick={() => setSelectedDetailMatchId(row.matchId)}
           >
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="font-mono text-xs font-bold text-slate-800">{row.matchId}</div>
-                <div className="text-xs text-slate-500 mt-0.5">เอกสารขาย: <span className="font-mono">{row.saleDocNo}</span></div>
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate font-mono text-xs font-bold text-slate-800" title={row.matchId}>{row.matchId}</div>
               </div>
-              <div className="flex gap-1.5 items-center">
+              <div className="shrink-0 whitespace-nowrap text-right text-xs text-slate-500">
+                {row.allocatedAt ? formatDateDisplay(row.allocatedAt) : '-'}
+              </div>
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div className="flex min-w-0 items-center gap-1 text-xs text-slate-500">
+                <span className="shrink-0">เอกสารขาย:</span>
+                <span className="whitespace-nowrap font-mono text-slate-700" title={row.saleDocNo}>{row.saleDocNo}</span>
+              </div>
+              <div className="break-words text-sm font-medium text-slate-700">{row.productName}</div>
+              <div className="flex flex-wrap items-center gap-1.5">
                 <TargetPill type={row.targetType} />
                 <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${row.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 'bg-slate-100 text-slate-600 border border-slate-200/50'}`}>{ledgerStatusLabel(row.status)}</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-600">{row.productName}</div>
-              <div className="mt-1 flex gap-1">
                 <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{row.productCategory}</span>
-                <span className="rounded-md bg-indigo-50 text-indigo-700 px-2 py-0.5 text-xs font-mono">กลุ่มต้นทุน: {row.costPoolNo}</span>
+              </div>
+              <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-2 text-xs">
+                <span className="shrink-0 text-slate-500">กลุ่มต้นทุน</span>
+                <span className="min-w-0 truncate font-mono text-indigo-700" title={row.costPoolNo}>{row.costPoolNo}</span>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-slate-100 pt-3 text-xs">
               <div>
-                <span className="text-slate-500 block">จำนวนขาย / จัดสรรแล้ว</span>
-                <span className="font-mono text-slate-700">{formatMoney(row.saleQty)} / <button className="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2" type="button" onClick={() => setSelectedDetailKey(row.targetGroupKey)}>{formatMoney(row.allocatedQty)}</button> กก.</span>
+                <span className="block text-slate-500">จำนวนขาย</span>
+                <span className="font-mono text-slate-700">{formatMoney(row.saleQty)} กก.</span>
               </div>
               <div className="text-right">
-                <span className="text-slate-500 block">ต้นทุน (฿/กก.)</span>
-                <span className="font-mono text-slate-700">{formatMoney(row.totalCost)} (<span className="text-slate-600">{formatMoney(row.costPerKg)}</span>)</span>
+                <span className="block text-slate-500">จัดสรรแล้ว</span>
+                <button className="font-mono font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2" type="button" onClick={(event) => { event.stopPropagation(); setSelectedDetailMatchId(row.matchId) }}>{formatMoney(row.allocatedQty)} กก.</button>
               </div>
               <div>
-                <span className="text-slate-500 block">รายได้</span>
+                <span className="block text-slate-500">ต้นทุนรวม</span>
+                <span className="font-mono font-semibold text-red-700">{formatMoney(row.totalCost)}</span>
+              </div>
+              <div className="text-right">
+                <span className="block text-slate-500">ต้นทุน/กก.</span>
+                <span className="font-mono text-slate-700">{formatMoney(row.costPerKg)}</span>
+              </div>
+              <div>
+                <span className="block text-slate-500">รายได้</span>
                 <span className="font-mono font-semibold text-emerald-700">{formatMoney(row.allocatedRevenue)}</span>
               </div>
               <div className="text-right">
-                <span className="text-slate-500 block">GP (GP%)</span>
+                <span className="block text-slate-500">GP (GP%)</span>
                 <span className={`font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)} ({row.gpPct.toFixed(2)}%)</span>
               </div>
             </div>
-            <div className="pt-1.5 border-t border-slate-100/50 flex justify-between text-xs text-slate-500">
-              <span>โดย {row.allocatedBy}</span>
-              <span>{row.allocatedAt ? formatDateDisplay(row.allocatedAt) : ''}</span>
+            <div className="flex min-w-0 items-center justify-between gap-2 border-t border-slate-100/50 pt-2 text-xs text-slate-500">
+              <span className="shrink-0">ผู้จัดสรร</span>
+              <span className="min-w-0 truncate text-right" title={row.allocatedBy}>{row.allocatedBy}</span>
             </div>
             <div className="border-t border-slate-100 pt-3" onClick={(event) => event.stopPropagation()}>
               <LedgerActionMenu
-                busy={actionTargetId === row.dealId}
-                disabled={row.status !== 'approved'}
+                busy={actionTargetId === row.matchId}
+                canReallocate={row.canReallocate}
+                canReverse={row.canReverse}
                 mobileLabel
-                onCancel={() => void handleReverse(row, false)}
-                onEdit={() => void handleReverse(row, true)}
+                onCancel={() => requestReverse(row, false)}
+                onDetails={() => setSelectedDetailMatchId(row.matchId)}
+                onEdit={() => requestReverse(row, true)}
               />
             </div>
           </div>
         ))}
       </div>
-      </div>
 
-      <Dialog open={selectedDetailRow != null} onOpenChange={(open) => { if (!open) setSelectedDetailKey(null) }}>
-        <DialogContent className="max-h-[85vh] max-w-4xl overflow-hidden border border-slate-200 bg-white p-0">
+      <Dialog open={selectedDetailRow != null} onOpenChange={(open) => { if (!open) setSelectedDetailMatchId(null) }}>
+        <DialogContent fallbackTitle="รายละเอียดต้นทุนที่จับคู่" hideClose className="flex max-h-[85vh] max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 !p-0">
           {selectedDetailRow ? (
             <>
-              <DialogHeader className="border-b border-slate-200 bg-slate-50 px-5 py-4 pr-12 text-left">
-                <DialogTitle>รายละเอียดต้นทุนที่จับคู่</DialogTitle>
+              <DialogHeader className="px-5 py-4 text-left">
+                <DialogTitle>รายละเอียด {selectedDetailRow.matchId}</DialogTitle>
                 <DialogDescription>
-                  {selectedDetailRow.saleDocNo} · {selectedDetailRow.productName} · {selectedDetailRows.length.toLocaleString('th-TH')} รายการต้นทุน
+                  {selectedDetailRow.saleDocNo} · {selectedDetailRow.productName}
                 </DialogDescription>
               </DialogHeader>
               <LedgerMatchedCostDetails rows={selectedDetailRows} />
+              <DialogFooter>
+                <DialogClose asChild><Button type="button" variant="outline">ปิด</Button></DialogClose>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pendingReverse != null} onOpenChange={(open) => { if (!open && !actionTargetId) setPendingReverse(null) }}>
+        <DialogContent fallbackTitle="ยืนยันการย้อนกลับการจัดสรร" hideClose className="flex max-w-lg flex-col overflow-hidden rounded-md border-0 bg-slate-900 !p-0">
+          {pendingReverse ? (
+            <>
+              <DialogHeader className="px-5 py-4 text-left">
+                <DialogTitle>ยืนยันการย้อนกลับการจัดสรร</DialogTitle>
+                <DialogDescription>{pendingReverse.row.matchId} · {pendingReverse.row.saleDocNo}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 bg-slate-50 p-4 text-sm text-slate-700 sm:p-5">
+                <p>
+                  {pendingReverse.editAfterReverse
+                    ? 'ระบบจะคืนต้นทุนที่จัดสรรทั้งหมดของการจับคู่นี้กลับ Cost Pool เก็บประวัติเดิมไว้ แล้วเปิดหน้าจัดสรรต้นทุนใหม่'
+                    : 'ระบบจะคืนต้นทุนที่จัดสรรทั้งหมดของการจับคู่นี้กลับ Cost Pool และเก็บประวัติเดิมไว้ในสถานะย้อนกลับแล้ว'}
+                </p>
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">การทำรายการนี้ไม่กระทบ Stock Ledger หรือ WAC</p>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild><Button disabled={actionTargetId != null} type="button" variant="outline">ยกเลิก</Button></DialogClose>
+                <Button className="bg-red-600 hover:bg-red-700 focus-visible:ring-blue-500" disabled={actionTargetId != null} type="button" onClick={() => void handleReverse()}>
+                  {actionTargetId != null ? 'กำลังย้อนกลับ...' : pendingReverse.editAfterReverse ? 'ย้อนกลับและจัดสรรใหม่' : 'ย้อนกลับการจัดสรร'}
+                </Button>
+              </DialogFooter>
             </>
           ) : null}
         </DialogContent>
@@ -1221,12 +1337,12 @@ function DualCostingReportView() {
                     <Table className="min-w-[980px] text-sm">
                       <TableHeader className="bg-slate-100">
                         <tr>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">วันที่</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">Match ID</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">ประเภท</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">เอกสารขาย</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">ชุดต้นทุน</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">สินค้า</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">วันที่</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">Match ID</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">ประเภท</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">เอกสารขาย</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">ชุดต้นทุน</TableCell>
+                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">สินค้า</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">น้ำหนัก</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">รายได้</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ต้นทุน</TableCell>
@@ -1240,20 +1356,20 @@ function DualCostingReportView() {
                         ) : null}
                         {selectedCategory.detail.allocatedRows.map((row) => (
                           <TableRow key={`${row.matchId}-${row.saleDocNo}-${row.sourceNo}`}>
-                            <TableCell className="px-3 py-2 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                            <TableCell className="px-3 py-2 font-mono text-xs text-slate-700">{row.matchId}</TableCell>
-                            <TableCell className="px-3 py-2 text-slate-700">{row.targetType}</TableCell>
-                            <TableCell className="px-3 py-2 font-mono text-xs text-slate-700">{row.saleDocNo}</TableCell>
-                            <TableCell className="px-3 py-2">
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-600">{formatDateDisplay(row.date)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.matchId}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-700">{row.targetType}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.saleDocNo}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center">
                               <div className="font-mono text-xs text-slate-700">{row.costPoolNo}</div>
                               <div className="text-xs text-slate-500">{row.sourceNo}</div>
                             </TableCell>
-                            <TableCell className="px-3 py-2 text-slate-700">{row.productName}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-emerald-700">{formatMoney(row.revenue)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-red-600">{formatMoney(row.cost)}</TableCell>
-                            <TableCell className={`px-3 py-2 text-right font-mono font-bold ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
+                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.productName}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.revenue)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-red-600">{formatMoney(row.cost)}</TableCell>
+                            <TableCell className={`whitespace-nowrap px-3 py-2 text-right font-mono font-bold tabular-nums ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1266,10 +1382,10 @@ function DualCostingReportView() {
                     <Table className="min-w-[760px] text-sm">
                       <TableHeader className="bg-slate-100">
                         <tr>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">วันที่</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">เอกสาร</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">ลูกค้า</TableCell>
-                          <TableCell className="px-3 py-2 font-semibold text-slate-700">สินค้า</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">วันที่</TableCell>
+                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">เอกสาร</TableCell>
+                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">ลูกค้า</TableCell>
+                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">สินค้า</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ค้างจัดสรร</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ราคา/กก.</TableCell>
                           <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">มูลค่าค้าง</TableCell>
@@ -1281,13 +1397,13 @@ function DualCostingReportView() {
                         ) : null}
                         {selectedCategory.detail.pendingRows.map((row) => (
                           <TableRow key={`${row.docNo}-${row.productName}-${row.date}`}>
-                            <TableCell className="px-3 py-2 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                            <TableCell className="px-3 py-2 font-mono text-xs text-slate-700">{row.docNo}</TableCell>
-                            <TableCell className="px-3 py-2 text-slate-700">{row.customerName}</TableCell>
-                            <TableCell className="px-3 py-2 text-slate-700">{row.productName}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono text-slate-700">{formatMoney(row.unitPrice)}</TableCell>
-                            <TableCell className="px-3 py-2 text-right font-mono font-semibold text-amber-700">{formatMoney(row.pendingRevenue)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-600">{formatDateDisplay(row.date)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.docNo}</TableCell>
+                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.customerName}</TableCell>
+                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.productName}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitPrice)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono font-semibold tabular-nums text-amber-700">{formatMoney(row.pendingRevenue)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1315,7 +1431,7 @@ function DualCostingReportView() {
                   </div>
                 </div>
                 {hasActiveFilters ? (
-                  <Button className="h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100" size="sm" type="button" variant="outline" onClick={clearFilters}>
+                  <Button className="h-9 rounded-md px-3 text-sm font-normal" size="sm" type="button" variant="outline" onClick={clearFilters}>
                     ล้างตัวกรอง
                   </Button>
                 ) : null}
@@ -1326,7 +1442,7 @@ function DualCostingReportView() {
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold text-slate-500">ช่วงวันที่</div>
-                  <div className="truncate text-sm font-semibold text-slate-900">{fromDate || '-'} → {toDate || '-'}</div>
+                  <div className="text-sm font-semibold text-slate-900"><span className="whitespace-nowrap">{fromDate || '-'}</span> → <span className="whitespace-nowrap">{toDate || '-'}</span></div>
                 </div>
                 <button
                   className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
@@ -1344,15 +1460,15 @@ function DualCostingReportView() {
                   <div className="grid grid-cols-2 gap-2">
                     <label className="text-xs font-semibold text-slate-500">
                       จากวันที่
-                      <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                      <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                     </label>
                     <label className="text-xs font-semibold text-slate-500">
                       ถึงวันที่
-                      <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                      <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                     </label>
                   </div>
                   <div className="flex justify-end pt-1">
-                    <Button className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none" size="sm" type="button" variant="secondary" onClick={clearFilters}>
+                    <Button className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" size="sm" type="button" variant="secondary" onClick={clearFilters}>
                       ล้างตัวกรอง
                     </Button>
                   </div>
@@ -1494,37 +1610,40 @@ function LedgerMatchedCostDetails({ rows }: { rows: LedgerRow[] }) {
   const totalQty = rows.reduce((sum, row) => sum + row.allocatedQty, 0)
   const totalCost = rows.reduce((sum, row) => sum + row.totalCost, 0)
   const weightedCostPerKg = totalQty > 0 ? totalCost / totalQty : 0
+  const cannotReverse = rows.some((row) => row.status === 'approved' && !row.canReverse)
 
   return (
-    <div className="min-h-0 overflow-y-auto p-5">
-      <div className="mb-4 grid grid-cols-3 gap-3">
-        <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-          <div className="text-xs text-blue-700">จำนวนที่จับคู่รวม</div>
-          <div className="mt-1 font-mono text-base font-bold text-blue-900">{formatMoney(totalQty)} กก.</div>
+    <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="text-xs text-slate-600">จำนวนที่จับคู่รวม</div>
+          <div className="mt-1 font-mono text-base font-bold text-blue-700">{formatMoney(totalQty)} กก.</div>
         </div>
-        <div className="rounded-lg border border-red-100 bg-red-50 p-3">
-          <div className="text-xs text-red-700">ต้นทุนรวม</div>
-          <div className="mt-1 font-mono text-base font-bold text-red-900">{formatMoney(totalCost)} บาท</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="text-xs text-slate-600">ต้นทุนรวม</div>
+          <div className="mt-1 font-mono text-base font-bold text-red-700">{formatMoney(totalCost)} บาท</div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="col-span-2 md:col-span-1 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="text-xs text-slate-600">ต้นทุนเฉลี่ย</div>
           <div className="mt-1 font-mono text-base font-bold text-slate-900">{formatMoney(weightedCostPerKg)} บาท/กก.</div>
         </div>
       </div>
 
+      {cannotReverse ? <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">รายการนี้มีข้อมูลต้นทุนเดิมที่ยังระบุแหล่งต้นทุนไม่ครบทุกบรรทัด จึงดูรายละเอียดได้ แต่ยังไม่เปิดให้ย้อนกลับเพื่อป้องกันการคืนยอดผิดแหล่งต้นทุน</div> : null}
+
       <div className="space-y-2">
         {rows.map((row) => (
-          <div className="rounded-lg border border-slate-200 bg-white p-3" key={row.id}>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" key={row.id}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-mono text-sm font-semibold text-slate-900">{row.sourceNo}</div>
-                <div className="mt-0.5 font-mono text-xs text-slate-500">Match ID: {row.matchId}</div>
+                <div className="mt-0.5 font-mono text-xs text-slate-500">เลขที่การจับคู่: {row.matchId}</div>
               </div>
               <LedgerStatusText status={row.status} />
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs md:grid-cols-4">
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-100 pt-3 text-xs md:grid-cols-4">
               <div>
-                <div className="text-slate-500">Cost Pool</div>
+                <div className="text-slate-500">กลุ่มต้นทุน</div>
                 <div className="mt-0.5 truncate font-mono font-medium text-slate-800" title={row.costPoolNo}>{row.costPoolNo}</div>
               </div>
               <div className="text-right md:text-left">
@@ -1551,29 +1670,34 @@ function LedgerMatchedCostDetails({ rows }: { rows: LedgerRow[] }) {
 
 function LedgerActionMenu({
   busy,
-  disabled,
+  canReallocate,
+  canReverse,
   mobileLabel = false,
   onCancel,
+  onDetails,
   onEdit,
 }: {
   busy: boolean
-  disabled: boolean
+  canReallocate: boolean
+  canReverse: boolean
   mobileLabel?: boolean
   onCancel: () => void
+  onDetails: () => void
   onEdit: () => void
 }) {
   return (
     <TableActionButton
       aria-label="เปิดเมนูการจัดการ"
       busy={busy}
-      disabled={disabled || busy}
+      disabled={busy}
       mobileLabel={mobileLabel}
-      menu={(
-        <>
-          <TableActionMenuItem onSelect={onEdit}>แก้ไขข้อมูล</TableActionMenuItem>
-          <TableActionMenuItem onSelect={onCancel}>ยกเลิก</TableActionMenuItem>
-        </>
-      )}
+        menu={(
+          <>
+            <TableActionMenuItem onSelect={onDetails}>ดูรายละเอียด</TableActionMenuItem>
+            {canReallocate ? <TableActionMenuItem onSelect={onEdit}>แก้ไข</TableActionMenuItem> : null}
+            {canReverse ? <TableActionMenuItem onSelect={onCancel}>ยกเลิก</TableActionMenuItem> : null}
+          </>
+        )}
     />
   )
 }
@@ -1621,5 +1745,10 @@ function buildLedgerAllocatorHref(row: LedgerRow) {
     productId: row.productId,
     sourceType: row.targetSourceType,
   })
+  if (row.targetSourceType === 'po-sell' && row.targetRefId) {
+    params.set('poSellId', row.targetRefId)
+  } else if (row.targetSourceType === 'spot-sell' && row.targetLineNo != null) {
+    params.set('poSellId', `${row.saleDocNo}:${row.targetLineNo}`)
+  }
   return `/dual-costing/cost-allocator?${params.toString()}`
 }

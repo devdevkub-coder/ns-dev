@@ -256,7 +256,7 @@ export function ProfilePageClient() {
                   ชื่อแสดงในระบบ (Display Name) <span className="text-red-500">*</span>
                   <Input
                     aria-invalid={Boolean(profileErrors.displayName)}
-                    className={`mt-1.5 h-9 focus:ring-slate-400 focus:border-slate-400 outline-none ${profileErrors.displayName ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+                    className={`mt-1.5 h-10 focus:ring-slate-400 focus:border-slate-400 outline-none ${profileErrors.displayName ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
                     disabled={isFetchingUser || isSavingProfile}
                     placeholder="กรอกชื่อ-นามสกุล หรือชื่อแสดงผลในระบบ"
                     required
@@ -406,7 +406,7 @@ function PasswordField(props: {
       <Input
         autoComplete={props.autoComplete}
         aria-invalid={Boolean(props.error)}
-        className={`mt-1.5 h-9 focus:ring-slate-400 focus:border-slate-400 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+        className={`mt-1.5 h-10 focus:ring-slate-400 focus:border-slate-400 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
         disabled={props.disabled}
         required
         type={props.showPassword ? 'text' : 'password'}

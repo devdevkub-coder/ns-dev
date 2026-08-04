@@ -173,17 +173,17 @@ export function CustomerAdvancePageClient() {
           </colgroup>
           <thead className="border-b border-slate-100 bg-slate-50 text-slate-500">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} sortKey="customerName" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สกุล" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} sortKey="currency" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สกุล" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} sortKey="currency" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="Rate" resizeProps={columnResize.getResizeHandleProps('fxRate', 'Rate')} sortKey="fxRate" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="จำนวน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} sortKey="amount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="มูลค่า THB" resizeProps={columnResize.getResizeHandleProps('amountThb', 'มูลค่า THB')} sortKey="amountThb" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ใช้แล้ว" resizeProps={columnResize.getResizeHandleProps('usedAmount', 'ใช้แล้ว')} sortKey="usedAmount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="คงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'คงเหลือ')} sortKey="remainingAmount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-              <ResizableTableHead label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </thead>
           <tbody>
@@ -191,17 +191,17 @@ export function CustomerAdvancePageClient() {
             {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มี Customer Advance</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 transition-colors hover:bg-slate-50/50">
-                <td className="truncate px-4 py-3.5 font-mono text-xs">{row.docNo}</td>
-                <td className="truncate px-4 py-3.5">{row.date}</td>
+                <td className="px-4 py-3.5 text-center font-mono text-xs whitespace-nowrap">{row.docNo}</td>
+                <td className="px-4 py-3.5 text-center whitespace-nowrap">{row.date}</td>
                 <td className="truncate px-4 py-3.5">{row.customerName}</td>
-                <td className="truncate px-4 py-3.5">{row.currency}</td>
-                <td className="truncate px-4 py-3.5 text-right">{formatFxRate(row.fxRate)}</td>
-                <td className="truncate px-4 py-3.5 text-right">{formatMoney(row.amount)}</td>
-                <td className="truncate px-4 py-3.5 text-right font-medium">{formatMoney(row.amountThb)}</td>
-                <td className="truncate px-4 py-3.5 text-right text-slate-600">{formatMoney(row.usedAmount)}</td>
-                <td className="truncate px-4 py-3.5 text-right font-bold text-emerald-700">{formatMoney(row.remainingAmount)}</td>
-                <td className="truncate px-4 py-3.5 text-center"><StatusBadge status={row.status} /></td>
-                <td className="truncate px-4 py-3.5 text-right">
+                <td className="whitespace-nowrap truncate px-4 py-3.5 text-center">{row.currency}</td>
+                <td className="px-4 py-3.5 text-right whitespace-nowrap tabular-nums">{formatFxRate(row.fxRate)}</td>
+                <td className="px-4 py-3.5 text-right whitespace-nowrap tabular-nums">{formatMoney(row.amount)}</td>
+                <td className="px-4 py-3.5 text-right font-medium whitespace-nowrap tabular-nums">{formatMoney(row.amountThb)}</td>
+                <td className="px-4 py-3.5 text-right text-slate-600 whitespace-nowrap tabular-nums">{formatMoney(row.usedAmount)}</td>
+                <td className="px-4 py-3.5 text-right font-bold text-emerald-700 whitespace-nowrap tabular-nums">{formatMoney(row.remainingAmount)}</td>
+                <td className="px-4 py-3.5 text-center whitespace-nowrap"><StatusBadge status={row.status} /></td>
+                <td className="px-4 py-3.5 text-center whitespace-nowrap">
                   <TableActionButton disabled label="ยกเลิก" menu={<TableActionMenuItem disabled>ยกเลิก</TableActionMenuItem>} />
                 </td>
               </tr>
@@ -223,7 +223,7 @@ export function CustomerAdvancePageClient() {
             className="space-y-2 rounded-md border border-slate-100 bg-white p-4 shadow-sm"
           >
             <div className="flex items-start justify-between">
-              <span className="font-mono text-sm font-bold text-slate-800">{row.docNo}</span>
+              <span className="whitespace-nowrap font-mono text-sm font-bold text-slate-800">{row.docNo}</span>
               <StatusBadge status={row.status} />
             </div>
 
@@ -235,7 +235,7 @@ export function CustomerAdvancePageClient() {
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <div>
                   <span className="block font-semibold text-slate-500">วันที่: </span>
-                  <span className="text-slate-800">{row.date}</span>
+                  <span className="whitespace-nowrap text-slate-800">{row.date}</span>
                 </div>
                 <div>
                   <span className="block font-semibold text-slate-500">สกุลเงิน/Rate: </span>

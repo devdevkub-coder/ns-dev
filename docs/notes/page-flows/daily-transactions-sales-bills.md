@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-19
+updated: 2026-07-31
 route: /sales/bills
 ---
 
@@ -198,4 +198,34 @@ The `/sales/bills` list also left-aligns the `ลูกค้า` header to matc
 ## 2026-07-23 Sales list center-alignment checkpoint
 
 The `/sales/bills` desktop list now centers every non-numeric visible header/body column. Numeric columns `รายการ`, `ยอดรวม`, `GP / Margin`, `รับแล้ว`, and `ค้างชำระ` stay right-aligned in both the header and table body. What is what: this changes only Sales Bill list table geometry; totals, GP, received amount, and receivable balance remain the existing read-model facts. Why it has to be like this: sales document identifiers, party/source/status/tax/update/action fields are scanned as centered categorical facts, while numbers remain right-aligned for vertical comparison. This does not change formulas, source allocation, receipt/refund flows, APIs, permissions, database schema, or DB state.
+
+## 2026-07-31 VAT form presentation checkpoint
+
+- What is what: the existing `hasVat` decision uses compact `คิด VAT <rate>%` wording beside the neutral total summary. `ออกใบกำกับภาษีแล้ว` remains a separate document-evidence control inside the same VAT section; its number/date fields still appear only after it is selected.
+- Why it has to be like this: calculating VAT and recording tax-invoice issuance are separate business facts. This is presentation only; `hasVat`, `vatType` (`NONE`/`EXCLUDE`/`INCLUDE`), invoice field clearing, VAT/advance/receivable calculation, API payload, permissions, stock/Trading allocation, and AR side effects are unchanged.
+
+## 2026-07-31 Sales Bill line-item field-state checkpoint
+
+- What is what: user-entered quantity, deduction, PO reference, Spot Sale price, and line discount stay pale yellow; document-source, cost snapshot, PO-locked price, calculated net weight, and calculated line total use the neutral read-only surface. The Trading item table has one cell per header in the order Product → Source → PO reference → Average cost → Sell weight → Deduction → Net sell weight → Sale price → Line total.
+- Why it has to be like this: colour must state who owns each value. Yellow is data the operator can change, while neutral is source data or a calculation the system owns. This is presentation/table-geometry only; weight and amount formulas, PO price locking, source allocation, API payloads, permissions, stock/Trading allocation, and AR side effects are unchanged.
+
+## 2026-07-31 Sales Bill complete editable-field checkpoint
+
+- What is what: the same pale-yellow entry surface now applies consistently to every editable Sales Bill control—not only line quantities, prices, and references, but also header/VAT inputs, notes, cancellation reason, and Trading allocation-correction fields. A validation error remains red; a disabled PO-locked price and every calculated/read-only field remain neutral. Checkboxes remain neutral because they are decision toggles, not text/number entry surfaces.
+- Why it has to be like this: the colour is an ownership cue across the complete operating flow. It lets an operator immediately distinguish data they can enter from document facts and system calculations, without changing validation, calculations, PO price locking, source allocation, API payloads, permissions, stock/Trading allocation, or AR side effects.
 - Payment status ของ `sales_bills` ใช้เฉพาะ `unreceived`, `partial`, `received`, `cancelled`: สร้างบิลที่ยังมี AR เป็น `unreceived`, รับเงินบางส่วนเป็น `partial`, ตัด AR ครบเป็น `received`, และยกเลิกบิลเป็น `cancelled`. การยกเลิก RCP ที่คืน AR เต็มจำนวนต้องเขียน `unreceived`. API reader ต้อง reject status นอกชุดนี้; ห้าม fallback หรือแปลงค่า runtime.
+
+## 2026-07-31 VAT form presentation checkpoint
+
+- What is what: the existing `hasVat` decision uses compact `คิด VAT <rate>%` wording beside the neutral total summary. `ออกใบกำกับภาษีแล้ว` remains a separate document-evidence control inside the same VAT section; its number/date fields still appear only after it is selected.
+- Why it has to be like this: calculating VAT and recording tax-invoice issuance are separate business facts. This is presentation only; `hasVat`, `vatType` (`NONE`/`EXCLUDE`/`INCLUDE`), invoice field clearing, VAT/advance/receivable calculation, API payload, permissions, stock/Trading allocation, and AR side effects are unchanged.
+
+## 2026-07-31 Sales Bill line-item field-state checkpoint
+
+- What is what: user-entered quantity, deduction, PO reference, Spot Sale price, and line discount stay pale yellow; document-source, cost snapshot, PO-locked price, calculated net weight, and calculated line total use the neutral read-only surface. The Trading item table has one cell per header in the order Product → Source → PO reference → Average cost → Sell weight → Deduction → Net sell weight → Sale price → Line total.
+- Why it has to be like this: colour must state who owns each value. Yellow is data the operator can change, while neutral is source data or a calculation the system owns. This is presentation/table-geometry only; weight and amount formulas, PO price locking, source allocation, API payloads, permissions, stock/Trading allocation, and AR side effects are unchanged.
+
+## 2026-07-31 Sales Bill complete editable-field checkpoint
+
+- What is what: the same pale-yellow entry surface now applies consistently to every editable Sales Bill control—not only line quantities, prices, and references, but also header/VAT inputs, notes, cancellation reason, and Trading allocation-correction fields. A validation error remains red; a disabled PO-locked price and every calculated/read-only field remain neutral. Checkboxes remain neutral because they are decision toggles, not text/number entry surfaces.
+- Why it has to be like this: the colour is an ownership cue across the complete operating flow. It lets an operator immediately distinguish data they can enter from document facts and system calculations, without changing validation, calculations, PO price locking, source allocation, API payloads, permissions, stock/Trading allocation, or AR side effects.

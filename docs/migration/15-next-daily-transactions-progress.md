@@ -4,6 +4,25 @@
 
 ติดตามงานดึงหน้ากลุ่ม `รายการประจำวัน` จาก legacy source เข้าสู่ Next.js พร้อม API, DB wiring, validation, permission guard และ reconciliation เบื้องต้น
 
+## WTI/WTO chooser scroll-lock follow-up — 2026-08-03
+
+Status: completed and published to `sit-origin/main` in implementation commit `e155cb97ab94c870b532440b534cd430fad7d972`; remote SHA verified.
+
+- ล็อก scroll container ของฟอร์มที่ครอบ attachment tile ตลอดอายุ image source chooser พร้อมคืนตำแหน่งเดิมและ focus แบบ `preventScroll` หลัง animation ปิด เพื่อตัดอาการเนื้อหาด้านหลังขยับ.
+- ทำ label ของช่อง `น้ำหนักรวม`, `หักภาชนะ` และ `น้ำหนักหลังหักภาชนะ` สูงเท่ากันบนมือถือ โดยคง input `h-10`, ความกว้าง grid, read-only calculation และ payload เดิม.
+- Focused regression suites ผ่าน `34/34`; Codex Browser ที่ viewport `449x1032` วัด input ทั้งสามสูง `40px` และเริ่มที่ top เดียวกัน รวมถึงพิสูจน์ repeated live open/close รักษา form scroller ที่ `82 -> 82` เมื่อแยก locator actionability auto-scroll ออกจาก application behavior.
+- Targeted/workspace lint, workspace type-check, SIT-env Webpack build `331/331` routes, diff review, fresh-context acceptance, final SIT fetch/recheck, normal fast-forward push และ remote SHA verification ผ่านแล้ว.
+
+## WTI/WTO responsive form follow-up — 2026-08-03
+
+Status: completed and published to `sit-origin/main` at `7fbac4350471dd0a9770c3f4b592a8b3eef1128f`; remote SHA verified.
+
+- จัดช่อง `น้ำหนักรวม`, `หักภาชนะ` และ `น้ำหนักหลังหักภาชนะ` ของแต่ละเต๋าให้อยู่แถวเดียวกันทุก breakpoint โดยคงค่าคำนวณ read-only และ business contract เดิม
+- ทำ image source chooser ให้เต็มความกว้างเมื่อ viewport ต่ำกว่า `sm` เพื่อตัดขอบขาวด้านข้างที่ดูเหมือนแผงลอย; ตั้งแต่ `sm` ขึ้นไปยังใช้ `max-w-lg` จัดกึ่งกลางเหมือนเดิม
+- คง camera rear capture ครั้งละหนึ่งรูป, gallery multi-select, transform-only slide 400ms, validation, API, DB และ storage contract เดิม
+- Focused regression suites pass `31/31`; targeted ESLint, workspace type-check, SIT-env Webpack build `331/331` routes และ `git diff --check` ผ่าน
+- Dependency audit ยังรายงาน advisory เดิมจาก dependency graph; batch นี้ไม่เปลี่ยน manifest หรือ lockfile และไม่ขยาย scope ไปอัปเกรด framework/dependencies
+
 ## Reporting Rule
 
 - อัปเดตเอกสารนี้หลังจบแต่ละ batch หรือเมื่อเปลี่ยน schema/API contract

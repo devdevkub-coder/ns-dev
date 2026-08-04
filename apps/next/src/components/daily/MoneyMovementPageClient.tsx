@@ -3238,10 +3238,10 @@ export function MoneyMovementPageClient({
                 >
                   <div className="mb-2 flex items-start justify-between">
                     <div>
-                      <div className="font-bold text-slate-800 text-sm">{receiptDocNo}</div>
-                      <div className="mt-0.5 text-xs text-slate-500">อ้างอิง {bill.docNo}</div>
+                      <div className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{receiptDocNo}</div>
+                      <div className="mt-0.5 text-center font-mono text-xs text-slate-500 whitespace-nowrap">อ้างอิง {bill.docNo}</div>
                     </div>
-                    <span className="text-xs text-slate-500">{formatDateDisplay(bill.date)}</span>
+                    <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(bill.date)}</span>
                   </div>
                   <div className="mb-3 space-y-1 text-xs text-slate-600">
                     <div>
@@ -3249,7 +3249,7 @@ export function MoneyMovementPageClient({
                       <span className="text-slate-800">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</span>
                     </div>
                     <div className="text-xs font-semibold text-amber-700">{receiptQueueStatusLabel(bill)}</div>
-                    <div><span className="font-semibold text-slate-500">อัปเดตล่าสุด: </span>{formatDateTimeDisplay(bill.receiptUpdatedAt)}</div>
+                    <div className="text-center whitespace-nowrap"><span className="font-semibold text-slate-500">อัปเดตล่าสุด: </span>{formatDateTimeDisplay(bill.receiptUpdatedAt)}</div>
                     <div><span className="font-semibold text-slate-500">ผู้ดำเนินการ: </span>{bill.receiptUpdatedBy || '-'}</div>
                   </div>
                   <div className="flex items-end justify-between border-t border-slate-100 pt-2">
@@ -3287,15 +3287,15 @@ export function MoneyMovementPageClient({
               </colgroup>
               <TableHeader className="text-slate-700">
                 <tr>
-                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="เลขที่ใบรับเงิน" resizeProps={receiptQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่ใบรับเงิน')} sortKey="docNo" onSort={toggleBillSort} />
-                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="วันที่สร้างเอกสาร" resizeProps={receiptQueueColumnResize.getResizeHandleProps('date', 'วันที่สร้างเอกสาร')} sortKey="date" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="center" direction={billSortState.direction} label="เลขที่ใบรับเงิน" resizeProps={receiptQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่ใบรับเงิน')} sortKey="docNo" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="center" direction={billSortState.direction} label="วันที่สร้างเอกสาร" resizeProps={receiptQueueColumnResize.getResizeHandleProps('date', 'วันที่สร้างเอกสาร')} sortKey="date" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ลูกค้า" resizeProps={receiptQueueColumnResize.getResizeHandleProps('partyName', 'ลูกค้า')} sortKey="supplier" onSort={toggleBillSort} />
-                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="บิลขายอ้างอิง" resizeProps={receiptQueueColumnResize.getResizeHandleProps('accountNo', 'บิลขายอ้างอิง')} sortKey="sourceDocNo" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="center" direction={billSortState.direction} label="บิลขายอ้างอิง" resizeProps={receiptQueueColumnResize.getResizeHandleProps('accountNo', 'บิลขายอ้างอิง')} sortKey="sourceDocNo" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดรวม" resizeProps={receiptQueueColumnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="รับแล้ว" resizeProps={receiptQueueColumnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} sortKey="paidAmount" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ค้างรับ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('balance', 'ค้างรับ')} sortKey="balance" onSort={toggleBillSort} />
-                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="สถานะ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={toggleBillSort} />
-                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="อัปเดตล่าสุด" resizeProps={receiptQueueColumnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} sortKey="updatedAt" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="center" direction={billSortState.direction} label="สถานะ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="center" direction={billSortState.direction} label="อัปเดตล่าสุด" resizeProps={receiptQueueColumnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} sortKey="updatedAt" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ผู้ดำเนินการ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('operator', 'ผู้ดำเนินการ')} sortKey="operator" onSort={toggleBillSort} />
                   <ResizableTableHead align="center" label="จัดการ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('action', 'Action')} />
                 </tr>
@@ -3309,12 +3309,12 @@ export function MoneyMovementPageClient({
                   const receiptDocNo = receiptQueueDocNo(bill)
                   return (
                     <TableRow key={bill.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openReceivableBillDetail(bill)}>
-                      <TableCell className="text-xs font-semibold text-slate-700">
+                      <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">
                         {receiptDocNo}
                       </TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">{bill.docNo}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{bill.docNo}</TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-blue-700 tabular-nums">{formatMoney(receivedAmount)}</TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(balance)}</TableCell>
@@ -3325,6 +3325,14 @@ export function MoneyMovementPageClient({
                         </span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs font-medium text-slate-600">{formatDateTimeDisplay(bill.receiptUpdatedAt)}</TableCell>
+                      <TableCell className="truncate text-xs font-medium text-slate-700">{bill.receiptUpdatedBy || '-'}</TableCell>
+                      <TableCell className="text-center">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${receiptQueueStatus(bill) === 'active' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          <span className={`size-1.5 rounded-full ${receiptQueueStatus(bill) === 'active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                          {receiptQueueStatusLabel(bill)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-xs font-medium text-slate-600">{formatDateTimeDisplay(bill.receiptUpdatedAt)}</TableCell>
                       <TableCell className="truncate text-xs font-medium text-slate-700">{bill.receiptUpdatedBy || '-'}</TableCell>
                       <TableCell className="text-center">
                         <TableActionButton menu={(
@@ -3431,10 +3439,10 @@ export function MoneyMovementPageClient({
                 >
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-sm font-bold text-slate-800">{bill.docNo}</div>
-                      {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-0.5 text-xs text-slate-500">อ้างอิง {bill.sourceDocNo}</div> : null}
+                      <div className="text-center font-mono text-sm font-bold text-slate-800 whitespace-nowrap">{bill.docNo}</div>
+                      {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-0.5 text-center font-mono text-xs text-slate-500 whitespace-nowrap">อ้างอิง {bill.sourceDocNo}</div> : null}
                     </div>
-                    <span className="shrink-0 text-xs text-slate-500">{formatDateDisplay(bill.date)}</span>
+                    <span className="shrink-0 text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(bill.date)}</span>
                   </div>
                   <div className="mb-3 space-y-1.5 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
                     <div>
@@ -3467,7 +3475,7 @@ export function MoneyMovementPageClient({
                   <div className="flex items-end justify-between border-t border-slate-100 pt-2">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-medium text-slate-700">{paymentSourceTypeLabel(bill.sourceType)}</span>
-                      <span>อายุ {ageInDays(bill.date).toLocaleString('th-TH')} วัน</span>
+                      <span className="whitespace-nowrap">อายุ {ageInDays(bill.date).toLocaleString('th-TH')} วัน</span>
                     </div>
                     <div className="text-right">
                       <span className="block text-xs text-slate-400">ยอดรอจ่าย</span>
@@ -3501,14 +3509,14 @@ export function MoneyMovementPageClient({
                 </colgroup>
                 <TableHeader className="text-slate-700">
                   <tr>
-                    <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="เลขที่ PMA / อ้างอิง" resizeProps={paymentQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่ PMA / อ้างอิง')} sortKey="docNo" onSort={toggleBillSort} />
-                    <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="วันที่เอกสาร" resizeProps={paymentQueueColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} sortKey="date" onSort={toggleBillSort} />
-                    <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ผู้รับเงิน" resizeProps={paymentQueueColumnResize.getResizeHandleProps('partyName', 'ผู้รับเงิน')} sortKey="supplier" onSort={toggleBillSort} />
-                    <ResizableTableHead align="right" label="ปลายทางรับเงิน" resizeProps={paymentQueueColumnResize.getResizeHandleProps('destination', 'ปลายทางรับเงิน')} />
+                    <TableSortHeader activeKey={billSortState.field} align="center" direction={billSortState.direction} label="เลขที่ PMA / อ้างอิง" resizeProps={paymentQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่ PMA / อ้างอิง')} sortKey="docNo" onSort={toggleBillSort} />
+                    <TableSortHeader activeKey={billSortState.field} align="center" direction={billSortState.direction} label="วันที่เอกสาร" resizeProps={paymentQueueColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} sortKey="date" onSort={toggleBillSort} />
+                    <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ผู้รับเงิน" resizeProps={paymentQueueColumnResize.getResizeHandleProps('partyName', 'ผู้รับเงิน')} sortKey="supplier" onSort={toggleBillSort} />
+                    <ResizableTableHead align="left" label="ปลายทางรับเงิน" resizeProps={paymentQueueColumnResize.getResizeHandleProps('destination', 'ปลายทางรับเงิน')} />
                     <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดอนุมัติ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('totalAmount', 'ยอดอนุมัติ')} sortKey="totalAmount" onSort={toggleBillSort} />
                     <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดรอจ่าย" resizeProps={paymentQueueColumnResize.getResizeHandleProps('balance', 'ยอดรอจ่าย')} sortKey="balance" onSort={toggleBillSort} />
                     <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="อายุเอกสาร (วัน)" sortKey="age" onSort={toggleBillSort} />
-                    <ResizableTableHead align="right" className="sticky right-0 z-20 bg-slate-100" label="จัดการ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('action', 'จัดการ')} />
+                    <ResizableTableHead align="center" className="sticky right-0 z-20 bg-slate-100" label="จัดการ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
@@ -3521,13 +3529,13 @@ export function MoneyMovementPageClient({
                     const canCancelApproval = (bill.paidAmount ?? 0) <= 0.01 && Boolean(bill.approvalId)
                     return (
                       <TableRow key={`${bill.id}:${bill.approvalId ?? 'no-approval'}`} className="group hover:bg-slate-50">
-                        <TableCell className="text-xs font-semibold text-slate-700">
+                        <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">
                           <div>{bill.docNo}</div>
                           {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-0.5 text-xs font-normal text-slate-500">อ้างอิง {bill.sourceDocNo}</div> : null}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-right text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
-                        <TableCell className="max-w-72 truncate text-right text-xs font-semibold text-slate-700">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
-                        <TableCell className="text-right text-xs font-semibold text-slate-700">
+                        <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
+                        <TableCell className="max-w-72 truncate text-left text-xs font-semibold text-slate-700">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
+                        <TableCell className="text-left text-xs font-semibold text-slate-700">
                           {supplierBankAccounts.length > 0 ? (
                             <div className="space-y-1.5">
                               {supplierBankAccounts.map((account, index) => {
@@ -3564,7 +3572,7 @@ export function MoneyMovementPageClient({
                         <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
                         <TableCell className={`whitespace-nowrap text-right pr-4 text-xs font-semibold tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</TableCell>
                         <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{ageInDays(bill.date)}</TableCell>
-                        <TableCell className="sticky right-0 z-10 bg-white text-right group-hover:bg-slate-50">
+                        <TableCell className="sticky right-0 z-10 bg-white text-center group-hover:bg-slate-50">
                           <TableActionButton menu={(
                             <>
                               <TableActionMenuItem onSelect={() => openFormForBill(bill)}>ทำจ่าย</TableActionMenuItem>
@@ -3663,7 +3671,7 @@ export function MoneyMovementPageClient({
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-slate-600">วันที่</span>
                         <DatePickerInput
-                          className="w-full h-9 text-sm"
+                          className="w-full h-10 text-sm"
                           value={form.date}
                           onChange={changeReceiptDate}
                         />
@@ -3671,7 +3679,7 @@ export function MoneyMovementPageClient({
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-slate-600">ประเภทเอกสารรับเงิน</span>
                         <UiSelect
-                          className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm"
+                          className="h-10 w-full rounded-md border border-slate-300 px-2 text-sm"
                           disabled={Boolean(form.id)}
                           value={receiptSourceType}
                           onChange={(event) => changeReceiptSourceType(event.target.value as 'SB' | 'CADV')}
@@ -3691,7 +3699,7 @@ export function MoneyMovementPageClient({
                       />
                       <SearchCombobox
                         disabled={Boolean(form.id || form.billId) || (receiptSourceType === 'SB' && !(form as CustomerReceiptFormValues).branchId)}
-                        inputClassName="!h-9 px-2 py-1.5"
+                        inputClassName="!h-10 px-2 py-1.5"
                         inputId="receipt-customer-search"
                         label={`${partyLabel} *`}
                         options={customerSearchOptions}
@@ -3716,7 +3724,7 @@ export function MoneyMovementPageClient({
                       <table className="ns-table w-full min-w-[800px] table-fixed text-xs">
                         <thead className="bg-slate-50 text-slate-600">
                           <tr>
-                            <th className="w-[380px] p-2 text-left">Sales Bill</th>
+                            <th className="w-[380px] p-2 text-center">Sales Bill</th>
                             <th className="w-[110px] p-2 text-right">ค้างรับ (THB)</th>
                             <th className="w-[120px] p-2 text-right">ยอดรับ (THB)</th>
                             <th className="w-[110px] p-2 text-right">ภาษีหัก ณ ที่จ่าย (THB)</th>
@@ -3731,7 +3739,7 @@ export function MoneyMovementPageClient({
                             const withholdingTaxAmountKey = receiptLineMoneyKey(line, index, 'withholdingTaxAmount')
                             return (
                               <tr key={line.id ?? `${index}-${line.salesBillDocNo}`} className="border-t border-slate-100">
-                                <td className="p-2">
+                                <td className="whitespace-nowrap p-2 text-center">
                                   <UiSelect
                                     disabled={!(form as CustomerReceiptFormValues).branchId}
                                     className="h-9 w-full rounded-md border border-slate-300 px-2 text-xs"
@@ -3816,7 +3824,7 @@ export function MoneyMovementPageClient({
                               >
                                 <option value="">{(form as CustomerReceiptFormValues).branchId ? 'เลือกบิลขาย' : 'เลือกสาขาก่อน'}</option>
                                 {receiptSelectableBillsForLine(index).map((bill) => (
-                                  <option key={bill.docNo} value={bill.docNo}>
+                                  <option key={bill.docNo} className="whitespace-nowrap" value={bill.docNo}>
                                     {bill.docNo} - {partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'} - ค้าง {formatMoney(bill.receivableBalance ?? 0)}
                                   </option>
                                 ))}
@@ -3880,7 +3888,7 @@ export function MoneyMovementPageClient({
                         <table className="ns-table w-full min-w-[760px] table-fixed text-xs">
                           <thead className="bg-slate-50 text-slate-600">
                             <tr>
-                              <th className="w-[320px] p-2 text-left">CADV</th>
+                              <th className="w-[320px] p-2 text-center">CADV</th>
                               <th className="w-[130px] p-2 text-right">ยอดเอกสาร (THB)</th>
                               <th className="w-[130px] p-2 text-right">รับแล้ว (THB)</th>
                               <th className="w-[130px] p-2 text-right">คงเหลือรับ (THB)</th>
@@ -3894,7 +3902,7 @@ export function MoneyMovementPageClient({
                               const amountKey = `customer-advance-receipt:${line.id ?? index}:amount`
                               return (
                                 <tr key={line.id ?? `${index}-${line.customerAdvanceDocNo}`} className="border-t border-slate-100">
-                                  <td className="p-2">
+                                  <td className="whitespace-nowrap p-2 text-center">
                                     <UiSelect
                                       className="h-9 w-full rounded-md border border-slate-300 px-2 text-xs"
                                       value={line.customerAdvanceDocNo}
@@ -4004,7 +4012,7 @@ export function MoneyMovementPageClient({
                     introContent={<div className={`grid gap-4 ${isForeignReceipt ? 'max-w-[420px] md:grid-cols-[220px_180px]' : 'md:grid-cols-3'}`}>
                       <SearchCombobox
                         disabled={Boolean(form.id) || !functionalCurrencyCode}
-                        inputClassName="!h-9 px-2 py-1.5"
+                        inputClassName="!h-10 px-2 py-1.5"
                         inputId="receipt-currency"
                         label="สกุลเงินที่รับจริง *"
                         options={availableReceiptCurrencyOptions}
@@ -4015,7 +4023,7 @@ export function MoneyMovementPageClient({
                       {isForeignReceipt ? <label className="block">
                         <span className="mb-1 block text-xs font-medium text-slate-600">อัตรา {receiptCurrencyCode} → {functionalCurrencyCode} *</span>
                         <UiInput
-                          className="h-9 w-full text-right tabular-nums"
+                          className="h-10 w-full text-right tabular-nums"
                           inputMode="decimal"
                           placeholder={isFxRateLoading ? 'กำลังโหลด rate' : '0.00'}
                           type="text"
@@ -4204,9 +4212,9 @@ export function MoneyMovementPageClient({
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                      <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                      <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                     </div>
                   </div>
 
@@ -4330,15 +4338,15 @@ export function MoneyMovementPageClient({
                     ) : null}
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start mb-2">
-                        <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-                        <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+                        <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
+                        <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
                       </div>
                       <div className="text-xs text-slate-600 mb-3 space-y-1">
                         <div>
                           <span className="font-semibold text-slate-500">{partyLabel}: </span>
                           <span className="text-slate-800">{row.partyName}</span>
                         </div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-center text-xs text-slate-500 whitespace-nowrap">
                           อ้างอิง: {billDocNos.join(', ')}
                         </div>
                         <div className="text-xs text-slate-500">
@@ -4402,18 +4410,18 @@ export function MoneyMovementPageClient({
                         />
                       </th>
                     ) : null}
-                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="เลขที่รายการ" resizeProps={historyColumnResize.getResizeHandleProps('docNo', 'เลขที่รายการ')} sortKey="docNo" onSort={toggleHistorySort} />
-                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label={mode === 'receipt' ? 'วันที่รับเงิน' : 'วันที่สร้างรายการ'} resizeProps={historyColumnResize.getResizeHandleProps('date', mode === 'receipt' ? 'วันที่รับเงิน' : 'วันที่สร้างรายการ')} sortKey="date" onSort={toggleHistorySort} />
+                    <TableSortHeader activeKey={historySortField} align="center" direction={historySortDirection} label="เลขที่รายการ" resizeProps={historyColumnResize.getResizeHandleProps('docNo', 'เลขที่รายการ')} sortKey="docNo" onSort={toggleHistorySort} />
+                    <TableSortHeader activeKey={historySortField} align="center" direction={historySortDirection} label={mode === 'receipt' ? 'วันที่รับเงิน' : 'วันที่สร้างรายการ'} resizeProps={historyColumnResize.getResizeHandleProps('date', mode === 'receipt' ? 'วันที่รับเงิน' : 'วันที่สร้างรายการ')} sortKey="date" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label={partyLabel} resizeProps={historyColumnResize.getResizeHandleProps('partyName', partyLabel)} sortKey="partyName" onSort={toggleHistorySort} />
-                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="บิลอ้างอิง" resizeProps={historyColumnResize.getResizeHandleProps('billRefs', 'บิลอ้างอิง')} sortKey="billRefs" onSort={toggleHistorySort} />
+                    <TableSortHeader activeKey={historySortField} align="center" direction={historySortDirection} label="บิลอ้างอิง" resizeProps={historyColumnResize.getResizeHandleProps('billRefs', 'บิลอ้างอิง')} sortKey="billRefs" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label={accountLabel} resizeProps={historyColumnResize.getResizeHandleProps('accountName', accountLabel)} sortKey="accountName" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label={mode === 'receipt' ? 'ยอดรับ (THB)' : amountLabel} resizeProps={historyColumnResize.getResizeHandleProps('amount', mode === 'receipt' ? 'ยอดรับ (THB)' : amountLabel)} sortKey="amount" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label="ภาษีหัก ณ ที่จ่าย" resizeProps={historyColumnResize.getResizeHandleProps('wht', 'ภาษีหัก ณ ที่จ่าย')} sortKey="wht" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label="ค่าธรรมเนียมธนาคาร" resizeProps={historyColumnResize.getResizeHandleProps('bankFee', 'ค่าธรรมเนียมธนาคาร')} sortKey="bankFee" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label={mode === 'receipt' ? 'เงินเข้าสุทธิ (THB)' : 'สุทธิ'} resizeProps={historyColumnResize.getResizeHandleProps('netAmount', mode === 'receipt' ? 'เงินเข้าสุทธิ (THB)' : 'สุทธิ')} sortKey="netAmount" onSort={toggleHistorySort} />
-                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="สถานะ" resizeProps={historyColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={toggleHistorySort} />
+                    <TableSortHeader activeKey={historySortField} align="center" direction={historySortDirection} label="สถานะ" resizeProps={historyColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="หมายเหตุ" resizeProps={historyColumnResize.getResizeHandleProps('notes', 'หมายเหตุ')} sortKey="notes" onSort={toggleHistorySort} />
-                    <ResizableTableHead align="right" label="จัดการ" resizeProps={historyColumnResize.getResizeHandleProps('action', 'จัดการ')} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={historyColumnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
@@ -4443,18 +4451,18 @@ export function MoneyMovementPageClient({
                             />
                           </TableCell>
                         ) : null}
-                        <TableCell className="text-sm font-semibold text-slate-700">{row.docNo}</TableCell>
-                        <TableCell className="text-sm font-medium text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-center font-mono text-sm font-semibold text-slate-700">{row.docNo}</TableCell>
+                        <TableCell className="whitespace-nowrap text-center text-sm font-medium text-slate-700">{formatDateDisplay(row.date)}</TableCell>
                         <TableCell className="text-sm font-medium text-slate-700">{row.partyName}</TableCell>
-                        <TableCell className="text-sm font-medium text-slate-700">
+                        <TableCell className="whitespace-nowrap text-center font-mono text-sm font-medium text-slate-700">
                           <div className="space-y-1">
                             <CollapsedList items={billDocNos} />
                             {mode === 'payment' && row.approvalIds?.length ? (
-                              <div className="pt-1 text-xs text-slate-500">
+                              <div className="whitespace-nowrap pt-1 text-xs text-slate-500">
                                 PMA: {row.approvalIds.map((approvalId, index) => (
                                   <span key={`${row.id}-approval-${approvalId}`}>
                                     {index > 0 ? ', ' : ''}
-                                    <span className="text-slate-700">{approvalId}</span>
+                                    <span className="font-mono text-slate-700">{approvalId}</span>
                                   </span>
                                 ))}
                               </div>
@@ -4470,14 +4478,14 @@ export function MoneyMovementPageClient({
                         <TableCell className="whitespace-nowrap pr-4 text-right text-sm font-semibold text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
                         <TableCell className="whitespace-nowrap pr-4 text-right text-sm font-semibold text-slate-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
                         <TableCell className={`whitespace-nowrap pr-4 text-right text-sm font-semibold tabular-nums ${theme.strong}`}>{formatMoney(historyBookNetAmount(row, mode))}</TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
                             <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
                             <span>{paymentHistoryStatusLabel(row.status, mode)}</span>
                           </div>
                         </TableCell>
                         <TableCell className="max-w-56 truncate text-sm font-medium text-slate-700">{row.notes || '-'}</TableCell>
-                        <TableCell className="p-2">
+                        <TableCell className="p-2 text-center">
                           <TableActionButton menu={(
                             <>
                               <TableActionMenuItem onSelect={() => { if (mode === 'payment') void openPaymentHistoryRow(row); else openReceiptDetail(row) }}>ดูรายละเอียด</TableActionMenuItem>
@@ -4814,16 +4822,16 @@ function PaymentHistoryDetailDialog({
                   <table className="ns-table w-full text-sm">
                     <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                       <tr>
-                        <th className="p-2 text-left">{detail.type === 'approval' ? 'PMT' : 'PMA'}</th>
-                        <th className="p-2 text-left">เอกสารต้นทาง</th>
+                        <th className="p-2 text-center">{detail.type === 'approval' ? 'PMT' : 'PMA'}</th>
+                        <th className="p-2 text-center">เอกสารต้นทาง</th>
                         <th className="p-2 text-right">ยอดจัดสรร</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detail.approvalRows.map((approval) => (
                         <tr key={`${approval.docNo}-${approval.sourceDocNo}`} className="border-t border-slate-100">
-                          <td className="p-2 font-mono text-slate-800">{approval.docNo}</td>
-                          <td className="p-2 font-mono">{approval.sourceDocNo}</td>
+                          <td className="whitespace-nowrap p-2 text-center font-mono text-slate-800">{approval.docNo}</td>
+                          <td className="whitespace-nowrap p-2 text-center font-mono">{approval.sourceDocNo}</td>
                           <td className="p-2 text-right font-medium tabular-nums">{formatMoney(approval.amount)}</td>
                         </tr>
                       ))}
@@ -4843,7 +4851,7 @@ function PaymentHistoryDetailDialog({
                       <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                         <tr>
                           <th className="p-2 text-left">บัญชี</th>
-                          <th className="p-2 text-left">รายการธนาคาร</th>
+                          <th className="p-2 text-center">รายการธนาคาร</th>
                           <th className="p-2 text-right">ยอด</th>
                         </tr>
                       </thead>
@@ -4851,7 +4859,7 @@ function PaymentHistoryDetailDialog({
                         {detail.accountRows.map((account) => (
                           <tr key={`${account.accountName}-${account.bankStatementDocNo}-${account.amount}`} className="border-t border-slate-100">
                             <td className="p-2">{account.accountName}</td>
-                            <td className="p-2 font-mono">{account.bankStatementDocNo}</td>
+                            <td className="whitespace-nowrap p-2 text-center font-mono">{account.bankStatementDocNo}</td>
                             <td className="p-2 text-right font-medium tabular-nums">{formatMoney(account.amount)}</td>
                           </tr>
                         ))}
@@ -5127,14 +5135,14 @@ function ReceiptDetailDialog({
                   {row.sourceType === 'CADV' ? <table className="ns-table w-full text-sm">
                     <thead className="bg-slate-100 text-slate-700">
                       <tr>
-                        <th className="p-2 text-left">CADV</th>
+                        <th className="p-2 text-center">CADV</th>
                         <th className="p-2 text-right">ยอดตัด CADV (THB)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(row.customerAdvanceLines ?? []).map((line, index) => (
                         <tr key={`${line.customerAdvanceDocNo}-${index}`} className="border-t border-slate-200">
-                          <td className="p-2 font-mono text-slate-800">{line.customerAdvanceDocNo || '-'}</td>
+                          <td className="whitespace-nowrap p-2 text-center font-mono text-slate-800">{line.customerAdvanceDocNo || '-'}</td>
                           <td className="p-2 text-right font-semibold tabular-nums">{formatMoney(line.receiptAmount)}</td>
                         </tr>
                       ))}
@@ -5143,7 +5151,7 @@ function ReceiptDetailDialog({
                   </table> : <table className="ns-table w-full text-sm">
                     <thead className="bg-slate-100 text-slate-700">
                       <tr>
-                        <th className="p-2 text-left">บิลขาย</th>
+                        <th className="p-2 text-center">บิลขาย</th>
                         <th className="p-2 text-right">ยอดตัดลูกหนี้ (THB)</th>
                         <th className="p-2 text-right">ภาษีหัก ณ ที่จ่าย (THB)</th>
                         <th className="p-2 text-right">ส่วนลด (THB)</th>
@@ -5152,7 +5160,7 @@ function ReceiptDetailDialog({
                     <tbody>
                       {lines.map((line, index) => (
                         <tr key={`${line.salesBillDocNo}-${index}`} className="border-t border-slate-200">
-                          <td className="p-2 font-mono text-slate-800">{line.salesBillDocNo || '-'}</td>
+                          <td className="whitespace-nowrap p-2 text-center font-mono text-slate-800">{line.salesBillDocNo || '-'}</td>
                           <td className="p-2 text-right font-semibold tabular-nums">{formatMoney(line.receiptAmount)}</td>
                           <td className="p-2 text-right font-semibold tabular-nums text-amber-700">{formatMoney(line.withholdingTaxAmount)}</td>
                           <td className="p-2 text-right font-semibold tabular-nums">{formatMoney(line.discountAmount)}</td>

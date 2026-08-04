@@ -38,7 +38,7 @@ export async function PUT(request: Request, { params }: { params: Promise<unknow
     if (!user) return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 })
     if (permissions.length !== parsed.length) throw new Error('สิทธิ์รายผู้ใช้ไม่ถูกต้องหรือถูกปิดใช้งาน')
 
-    const actor = context.appUser?.email ?? context.authUser.email ?? 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
     await prisma.$transaction(async (tx) => {
       await tx.app_user_permission_overrides.deleteMany({ where: { user_id: userId } })
       if (parsed.length) {

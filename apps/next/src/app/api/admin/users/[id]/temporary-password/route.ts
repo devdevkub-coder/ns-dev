@@ -78,7 +78,7 @@ export async function POST(request: Request, { params }: TemporaryPasswordRouteP
         must_change_password: true,
         password_set_at: null,
         temporary_password_issued_at: issuedAt,
-        updated_by: context.appUser?.email ?? context.authUser.email ?? 'system',
+        updated_by: context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id,
       },
       where: { id: appUser.id },
     })

@@ -223,11 +223,11 @@ export function PoOutstandingPageClient() {
           )}
 
           <button
-            className="hidden h-9 items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-600 px-4 py-2 text-sm font-normal text-white transition-colors hover:bg-emerald-700 outline-none focus:ring-0 lg:inline-flex"
+            className="hidden h-10 items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 outline-none focus:ring-0 lg:inline-flex"
             type="button"
             onClick={exportExcel}
           >
-            <Download className="h-4 w-4" /> ส่งออก Excel
+            <Download className="size-4" /> ส่งออก Excel
           </button>
         </div>
       </div>
@@ -310,7 +310,7 @@ export function PoOutstandingPageClient() {
                 <col key={column.key} style={buyResize.getColumnStyle(column.key)} />
               ))}
             </colgroup>
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 [&>tr>th:nth-child(n+3)]:!text-right [&>tr>th:nth-child(n+3)>button]:!justify-end">
+            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600">
               <tr>
                 <ResizableTableHead
                   activeSortKey={sortKey}
@@ -323,7 +323,7 @@ export function PoOutstandingPageClient() {
                 />
                 <ResizableTableHead
                   activeSortKey={sortKey}
-                  align="left"
+                  align="center"
                   direction={sortDirection}
                   label="เลขที่"
                   resizeProps={buyResize.getResizeHandleProps('docNo', 'เลขที่')}
@@ -332,7 +332,7 @@ export function PoOutstandingPageClient() {
                 />
                 <ResizableTableHead
                   activeSortKey={sortKey}
-                  align="left"
+                  align="center"
                   direction={sortDirection}
                   label="วันที่"
                   resizeProps={buyResize.getResizeHandleProps('date', 'วันที่')}
@@ -404,7 +404,7 @@ export function PoOutstandingPageClient() {
                 />
                 <ResizableTableHead
                   activeSortKey={sortKey}
-                  align="left"
+                  align="center"
                   direction={sortDirection}
                   label="วันส่งมอบ"
                   resizeProps={buyResize.getResizeHandleProps('expectedDelivery', 'วันส่งมอบ')}
@@ -422,7 +422,7 @@ export function PoOutstandingPageClient() {
                 />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 [&>tr>td:nth-child(n+3)]:text-right">
+            <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
                   <td className="p-6 text-center text-slate-500" colSpan={12}>
@@ -436,8 +436,8 @@ export function PoOutstandingPageClient() {
                     <td className="p-3 text-center">
                       <input className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 outline-none" disabled type="checkbox" title="รอออกแบบ cost-pool write/audit" />
                     </td>
-                    <td className="p-3 font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
-                    <td className="p-3 text-slate-800">{formatDateDisplay(row.date)}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
+                    <td className="whitespace-nowrap p-3 text-center text-slate-800">{formatDateDisplay(row.date)}</td>
                     <td className="p-3 text-slate-800 truncate">{row.partnerName}</td>
                     <td className="p-3 text-slate-800 truncate">{row.productName || '-'}</td>
                     <td className="p-3 text-right text-slate-800 tabular-nums">{formatMoney(row.qty)}</td>
@@ -445,8 +445,8 @@ export function PoOutstandingPageClient() {
                     <td className="p-3 text-right text-emerald-700 tabular-nums">{formatMoney(row.receivedQty ?? row.qty - row.remainingQty)}</td>
                     <td className="p-3 text-right font-bold text-amber-700 tabular-nums">{formatMoney(row.remainingQty)}</td>
                     <td className="p-3 text-right font-bold text-blue-700 tabular-nums">{formatMoney(row.remainingValue)}</td>
-                    <td className="p-3 text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
-                    <td className="p-3 text-center text-xs font-semibold text-slate-600">{row.status}</td>
+                    <td className="whitespace-nowrap p-3 text-center text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
+                    <td className="whitespace-nowrap p-3 text-center text-xs font-semibold text-slate-600">{row.status}</td>
                   </tr>
                 ))}
               {!isLoading && sortedRows.length === 0 ? (
@@ -480,11 +480,11 @@ export function PoOutstandingPageClient() {
                 <col key={column.key} style={sellResize.getColumnStyle(column.key)} />
               ))}
             </colgroup>
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 [&>tr>th:nth-child(n+2)]:!text-right [&>tr>th:nth-child(n+2)>button]:!justify-end">
+            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600">
               <tr>
                 <ResizableTableHead
                   activeSortKey={sortKey}
-                  align="left"
+                  align="center"
                   direction={sortDirection}
                   label="เลขที่"
                   resizeProps={sellResize.getResizeHandleProps('docNo', 'เลขที่')}
@@ -493,7 +493,7 @@ export function PoOutstandingPageClient() {
                 />
                 <ResizableTableHead
                   activeSortKey={sortKey}
-                  align="left"
+                  align="center"
                   direction={sortDirection}
                   label="วันที่"
                   resizeProps={sellResize.getResizeHandleProps('date', 'วันที่')}
@@ -565,7 +565,7 @@ export function PoOutstandingPageClient() {
                 />
                 <ResizableTableHead
                   activeSortKey={sortKey}
-                  align="left"
+                  align="center"
                   direction={sortDirection}
                   label="วันส่งมอบ"
                   resizeProps={sellResize.getResizeHandleProps('expectedDelivery', 'วันส่งมอบ')}
@@ -583,7 +583,7 @@ export function PoOutstandingPageClient() {
                 />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 [&>tr>td:nth-child(n+2)]:text-right">
+            <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
                   <td className="p-6 text-center text-slate-500" colSpan={11}>
@@ -594,8 +594,8 @@ export function PoOutstandingPageClient() {
               {!isLoading &&
                 pagedRows.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-3 font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
-                    <td className="p-3 text-slate-800">{formatDateDisplay(row.date)}</td>
+                    <td className="whitespace-nowrap p-3 text-center font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
+                    <td className="whitespace-nowrap p-3 text-center text-slate-800">{formatDateDisplay(row.date)}</td>
                     <td className="p-3 text-slate-800 truncate">{row.partnerName}</td>
                     <td className="p-3 text-slate-800 truncate">{row.productName || '-'}</td>
                     <td className="p-3 text-right text-slate-800 tabular-nums">{formatMoney(row.qty)}</td>
@@ -603,8 +603,8 @@ export function PoOutstandingPageClient() {
                     <td className="p-3 text-right text-blue-700 tabular-nums">{formatMoney(row.soldQty ?? row.qty - row.remainingQty)}</td>
                     <td className="p-3 text-right font-bold text-amber-700 tabular-nums">{formatMoney(row.remainingQty)}</td>
                     <td className="p-3 text-right font-bold text-emerald-700 tabular-nums">{formatMoney(row.remainingValue)}</td>
-                    <td className="p-3 text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
-                    <td className="p-3 text-center text-xs font-semibold text-slate-600">{row.status}</td>
+                    <td className="whitespace-nowrap p-3 text-center text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
+                    <td className="whitespace-nowrap p-3 text-center text-xs font-semibold text-slate-600">{row.status}</td>
                   </tr>
                 ))}
               {!isLoading && sortedRows.length === 0 ? (
@@ -640,8 +640,8 @@ export function PoOutstandingPageClient() {
         {!isLoading && pagedRows.map((row) => (
           <div key={row.id} className="space-y-2 p-4">
             <div className="flex justify-between items-start">
-              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
+              <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
             </div>
 
             <div className="text-xs text-slate-600 space-y-1">
@@ -680,7 +680,7 @@ export function PoOutstandingPageClient() {
                 </div>
               </div>
               <div className="flex justify-between items-center text-xs text-slate-400 pt-1 border-t border-slate-100 mt-1">
-                <span>ส่งมอบ: {formatDateDisplay(row.expectedDelivery)}</span>
+                <span className="text-center whitespace-nowrap">ส่งมอบ: {formatDateDisplay(row.expectedDelivery)}</span>
                 <span className="font-semibold text-slate-500">{row.status}</span>
               </div>
             </div>

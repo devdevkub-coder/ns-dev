@@ -251,11 +251,12 @@ export function ImpuritiesPageClient() {
           <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => setActiveFilter('active')} />
           <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => setActiveFilter('inactive')} />
           <button
-            className="ml-auto flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+            className="ml-auto flex h-10 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
             type="button"
             onClick={openCreateForm}
           >
-            + เพิ่มสิ่งเจือปน
+            <Plus aria-hidden="true" className="size-4" />
+            เพิ่มสิ่งเจือปน
           </button>
         </div>
       </div>

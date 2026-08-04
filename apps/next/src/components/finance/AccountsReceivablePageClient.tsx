@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Download } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Button } from '@/components/ui/Button'
@@ -430,16 +431,16 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
             </div>
             
             <span className="text-xs text-slate-500">วันที่บิล:</span>
-            <DatePickerInput className="w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
+            <DatePickerInput className="h-9 w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput className="w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
+            <DatePickerInput className="h-9 w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
             
             {hasFilters && (
               <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-normal text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setChannelId(''); setCustomerId(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setTo('') }}>✕ ล้าง</button>
             )}
             
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button className="flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
+              <button className="flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}><Download aria-hidden="true" className="size-4" />{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
               <span className="text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
             </div>
           </div>
@@ -458,18 +459,19 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
               ตัวกรอง
             </button>
             <button
-              className="ml-auto inline-flex h-9 shrink-0 items-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-60"
+              className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
               disabled={isExporting}
               type="button"
               onClick={() => void exportXlsx()}
             >
+              <Download aria-hidden="true" className="size-4" />
               {isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}
             </button>
           </div>
 
           <div className="relative w-full">
             <input
-              autoComplete="off" className="w-full rounded-md border px-3 py-2 text-sm pr-8"
+              autoComplete="off" className="h-9 w-full rounded-md border px-3 py-2 pr-8 text-sm"
               placeholder="ค้นหาบิล / ลูกค้า / ช่องทาง..."
               type="search"
               value={q}
@@ -527,11 +529,11 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
                 </label>
                 <label className="text-xs text-slate-500">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
                 </label>
               </div>
               <div className="flex justify-between items-center pt-1">
@@ -663,7 +665,7 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
                                   <button
                                     type="button"
                                     onClick={() => setSelectedRow(bill)}
-                                    className="font-mono font-bold text-blue-600 text-left outline-none"
+                                    className="whitespace-nowrap font-mono font-bold text-blue-600 text-left outline-none"
                                   >
                                     {bill.docNo || '-'}
                                   </button>
@@ -672,14 +674,14 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
                                   </span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-1.5 text-slate-500">
-                                  <div>เลขใบกำกับ: <span className="text-slate-800 font-mono">{bill.vatInvoiceNo || '-'}</span></div>
+                                  <div>เลขใบกำกับ: <span className="whitespace-nowrap text-slate-800 font-mono">{bill.vatInvoiceNo || '-'}</span></div>
                                   {isOverseas ? (
-                                    <div>เลข order: <span className="text-slate-800 font-mono">{bill.refNo || '-'}</span></div>
+                                    <div>เลข order: <span className="whitespace-nowrap text-slate-800 font-mono">{bill.refNo || '-'}</span></div>
                                   ) : (
                                     <div />
                                   )}
-                                  <div>วันที่ออก: <span className="text-slate-800">{formatDateDisplay(bill.date)}</span></div>
-                                  <div>ครบกำหนด: <span className="text-slate-800">{formatDateDisplay(bill.dueDate)}</span></div>
+                                  <div>วันที่ออก: <span className="whitespace-nowrap text-slate-800">{formatDateDisplay(bill.date)}</span></div>
+                                  <div>ครบกำหนด: <span className="whitespace-nowrap text-slate-800">{formatDateDisplay(bill.dueDate)}</span></div>
                                 </div>
                                 <div className="pt-1.5 border-t border-slate-100 flex justify-between items-center text-xs">
                                   <span className="text-slate-400 font-medium">ยอดค้าง:</span>
@@ -752,17 +754,17 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
               </div>
               <div className="text-xs text-slate-600 space-y-2">
                 <div className="flex justify-between items-center text-sm font-medium">
-                  <span>บิล: <span className="font-mono text-blue-600 font-semibold">{row.docNo}</span></span>
+                  <span>บิล: <span className="whitespace-nowrap font-mono text-blue-600 font-semibold">{row.docNo}</span></span>
                   <span className="text-slate-400 text-xs">{row.channelName}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                   <div>
                     <span className="text-slate-400 block text-xs uppercase font-semibold">วันที่บิล:</span>
-                    <span className="text-slate-700 font-medium">{formatDateDisplay(row.date)}</span>
+                    <span className="whitespace-nowrap text-slate-700 font-medium">{formatDateDisplay(row.date)}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-xs uppercase font-semibold">ครบกำหนด:</span>
-                    <span className="text-slate-700 font-medium">{formatDateDisplay(row.dueDate)}</span>
+                    <span className="whitespace-nowrap text-slate-700 font-medium">{formatDateDisplay(row.dueDate)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-[13px]">
@@ -835,9 +837,9 @@ function DetailTable({
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
           <tr>
             <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="เลขที่บิลขาย" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิลขาย')} sortKey="docNo" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันที่ออกบิล" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่ออกบิล')} sortKey="date" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันครบกำหนด" resizeProps={columnResize.getResizeHandleProps('dueDate', 'วันครบกำหนด')} sortKey="dueDate" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="เลขที่บิลขาย" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิลขาย')} sortKey="docNo" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="วันที่ออกบิล" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่ออกบิล')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="วันครบกำหนด" resizeProps={columnResize.getResizeHandleProps('dueDate', 'วันครบกำหนด')} sortKey="dueDate" onSort={onSort} />
             <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="อายุหนี้ (วัน)" resizeProps={columnResize.getResizeHandleProps('aging', 'อายุหนี้')} sortKey="aging" onSort={onSort} />
             <ResizableTableHead align="right" label="ยอดบิล" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดบิล')} />
             <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('receivedAmount', 'รับแล้ว')} />
@@ -851,9 +853,9 @@ function DetailTable({
           {!isLoading && rows.map((row) => (
             <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.aging > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.aging > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
               <td className="px-4 py-3.5 min-w-0 overflow-hidden"><div className="truncate" title={row.customerName || ''}>{row.customerName}</div></td>
-              <td className="px-4 py-3.5 whitespace-nowrap"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
-              <td className="px-4 py-3.5 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
-              <td className="px-4 py-3.5 whitespace-nowrap">{formatDateDisplay(row.dueDate)}</td>
+              <td className="px-4 py-3.5 text-center whitespace-nowrap"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
+              <td className="px-4 py-3.5 text-center whitespace-nowrap">{formatDateDisplay(row.date)}</td>
+              <td className="px-4 py-3.5 text-center whitespace-nowrap">{formatDateDisplay(row.dueDate)}</td>
               <td className={`p-2 text-right whitespace-nowrap tabular-nums ${row.aging > 30 ? 'font-bold text-red-600' : row.aging > 0 ? 'text-amber-600' : ''}`}>{row.aging}</td>
               <td className="px-4 py-3.5 text-right whitespace-nowrap tabular-nums">{formatMoney(row.totalAmount)}</td>
               <td className="px-4 py-3.5 text-right text-emerald-600 whitespace-nowrap tabular-nums">{formatMoney(row.receivedAmount)}</td>
@@ -1159,12 +1161,12 @@ function SummaryTable({
                   <td className="p-2 text-right text-amber-700">{moneyOrDash(row.b60)}</td>
                   <td className="p-2 text-right text-orange-700">{moneyOrDash(row.b90)}</td>
                   <td className="p-2 text-right font-bold text-red-700">{moneyOrDash(row.gt90)}</td>
-                  <td className="p-2 text-right text-base font-bold text-blue-700">{formatMoney(row.total)}</td>
+                  <td className="p-2 text-right tabular-nums text-base font-bold text-blue-700">{formatMoney(row.total)}</td>
                   <td className={`p-2 text-right ${row.oldest > 30 ? 'font-bold text-red-700' : row.oldest > 0 ? 'text-amber-700' : 'text-slate-500'}`}>{row.oldest > 0 ? `${row.oldest} วัน` : '-'}</td>
                 </tr>
                 {isExpanded && (
                   <tr className="bg-slate-50/60 border-t border-slate-100">
-                    <td colSpan={9} className="p-3 pl-8">
+                    <td colSpan={9} className="whitespace-nowrap p-3 pl-8">
                       {isBillsLoading ? (
                         <div className="text-slate-500 text-xs py-2 text-center">กำลังโหลดบิลย่อย...</div>
                       ) : bills.length === 0 ? (
@@ -1174,11 +1176,11 @@ function SummaryTable({
                           <table className="ns-table w-full text-xs text-slate-700">
                             <thead className="bg-slate-50 text-slate-500 border-b border-slate-100 font-bold">
                               <tr>
-                                <th className="px-3 py-2 text-left font-semibold">เลขที่เอกสาร</th>
-                                <th className="px-3 py-2 text-left font-semibold">เลขที่ใบกำกับ</th>
-                                <th className="px-3 py-2 text-left font-semibold">เลข order ส่งออก</th>
-                                <th className="px-3 py-2 text-left font-semibold">วันที่ออก</th>
-                                <th className="px-3 py-2 text-left font-semibold">วันครบกำหนด</th>
+                                <th className="px-3 py-2 text-center font-semibold">เลขที่เอกสาร</th>
+                                <th className="px-3 py-2 text-center font-semibold">เลขที่ใบกำกับ</th>
+                                <th className="px-3 py-2 text-center font-semibold">เลข order ส่งออก</th>
+                                <th className="px-3 py-2 text-center font-semibold">วันที่ออก</th>
+                                <th className="px-3 py-2 text-center font-semibold">วันครบกำหนด</th>
                                 <th className="px-3 py-2 text-right font-semibold">ยอดค้าง</th>
                                 <th className="px-3 py-2 text-right font-semibold">อายุหนี้</th>
                               </tr>
@@ -1188,20 +1190,20 @@ function SummaryTable({
                                 const isOverseas = bill.marketScope === 'ต่างประเทศ'
                                 return (
                                   <tr key={bill.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-3 py-2 font-mono">
+                                    <td className="whitespace-nowrap px-3 py-2 text-center font-mono">
                                       <button
                                         type="button"
                                         onClick={() => onOpenDetail(bill)}
-                                        className="text-blue-600 hover:underline font-semibold text-left outline-none"
+                                        className="text-center font-semibold text-blue-600 outline-none hover:underline"
                                       >
                                         {bill.docNo || '-'}
                                       </button>
                                     </td>
-                                    <td className="px-3 py-2 font-mono">{bill.vatInvoiceNo || '-'}</td>
-                                    <td className="px-3 py-2 font-mono">{isOverseas ? (bill.refNo || '-') : ''}</td>
-                                    <td className="px-3 py-2">{formatDateDisplay(bill.date)}</td>
-                                    <td className="px-3 py-2">{formatDateDisplay(bill.dueDate)}</td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-blue-700">
+                                    <td className="whitespace-nowrap px-3 py-2 text-center font-mono">{bill.vatInvoiceNo || '-'}</td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-center font-mono">{isOverseas ? (bill.refNo || '-') : ''}</td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-center">{formatDateDisplay(bill.date)}</td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-center">{formatDateDisplay(bill.dueDate)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums font-mono font-bold text-blue-700">
                                       {formatMoney(bill.receivableBalance)}
                                     </td>
                                     <td className={`px-3 py-2 text-right font-semibold ${bill.aging > 30 ? 'text-red-600' : bill.aging > 0 ? 'text-amber-600' : 'text-slate-500'}`}>

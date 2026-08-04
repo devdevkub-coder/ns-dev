@@ -161,9 +161,9 @@ export function FxGainLossReportPageClient() {
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">วันที่:</span>
-          <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-[130px]" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" value={toDate} onChange={setToDate} />
+          <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-[130px]" value={toDate} onChange={setToDate} />
           
           <Select aria-label="สกุลเงิน" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" value={currency} onChange={(event) => setCurrency(event.target.value)}>
             <option value="all">ทุกสกุล</option>
@@ -199,11 +199,11 @@ export function FxGainLossReportPageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                 </label>
                 <label className="text-xs text-slate-500">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -253,11 +253,11 @@ export function FxGainLossReportPageClient() {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead align="center" label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
               <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transactionType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transactionType', 'ประเภท')} />
-              <ResizableTableHead label="Reference" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="reference" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('reference', 'Reference')} />
+              <ResizableTableHead align="center" label="Reference" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="reference" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('reference', 'Reference')} />
               <ResizableTableHead label="สาขา" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="branch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
-              <ResizableTableHead label="สกุล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
+              <ResizableTableHead align="center" label="สกุล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
               <ResizableTableHead align="right" label="Foreign Amount" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignAmount', 'Foreign Amount')} />
               <ResizableTableHead align="right" label="Original Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="originalFxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('originalFxRate', 'Original Rate')} />
               <ResizableTableHead align="right" label="Settlement Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="settlementFxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('settlementFxRate', 'Settlement Rate')} />
@@ -271,14 +271,14 @@ export function FxGainLossReportPageClient() {
             {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={fxGainLossColumns.length}>ยังไม่มี FX Gain/Loss</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
-                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.date)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(row.date)}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-slate-700">{row.transactionType}</td>
-                <td className="min-w-0 truncate px-3 py-3 font-mono text-xs">
+                <td className="px-3 py-3 text-center font-mono text-xs whitespace-nowrap">
                   {row.sourceDocumentHref ? <a className="text-blue-700 hover:underline" href={row.sourceDocumentHref}>{row.reference}</a> : <span className="text-slate-700">{row.reference}</span>}
                   {row.sourceLedgerHref ? <a className="ml-2 text-xs text-slate-500 hover:text-blue-700 hover:underline" href={row.sourceLedgerHref}>Ledger</a> : null}
                 </td>
                 <td className="min-w-0 truncate px-3 py-3 text-slate-700">{row.branch}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.currency || '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{row.currency || '-'}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.foreignAmount)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.originalFxRate)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.settlementFxRate)}</td>
@@ -306,7 +306,7 @@ export function FxGainLossReportPageClient() {
             className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-2 text-sm"
           >
             <div className="flex justify-between items-start">
-              <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
+              <span className="whitespace-nowrap font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
               <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${row.fxGainLossAmount >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                 {row.fxGainLossAmount >= 0 ? 'Gain' : 'Loss'}
               </span>

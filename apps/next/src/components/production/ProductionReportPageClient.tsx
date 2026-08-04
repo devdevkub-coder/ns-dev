@@ -3,14 +3,17 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
+import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { formatDateDisplay } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Coins, FileText, Package2, Scale, TrendingUp, TriangleAlert } from 'lucide-react'
+import { Coins, Download, FileText, Package2, Scale, SlidersHorizontal, TrendingUp, TriangleAlert } from 'lucide-react'
 
 type OutputProductValue = {
   cost?: number
@@ -31,6 +34,10 @@ type Payload = {
   breakdown?: Record<string, number>
   byStatus?: Array<{ count: number; status: string }>
   daily?: Array<{ date: string; inputQty: number; lossQty: number; outputQty: number }>
+  filters?: {
+    branches?: Array<{ id: string; name: string }>
+    machines?: Array<{ id: string; name: string }>
+  } | null
   machineUtil?: Array<{ batches: number; name: string; qty: number }>
   monthly?: Array<{ inputQty: number; month: string; outputQty: number }>
   rows: Row[]
@@ -250,6 +257,8 @@ const productionStatusOptions = [
   { label: 'ยกเลิก', value: 'Cancelled' },
 ] as const
 
+const reportStatusOptions = productionStatusOptions.filter((option) => option.value !== 'Cancelled')
+
 const dashboardRangeOptions = [
   { label: 'วันนี้', value: 'today' },
   { label: '7 วัน', value: 'last7' },
@@ -261,6 +270,14 @@ const dashboardRangeOptions = [
 
 type ReportRangeFilter = 'all' | 'custom' | typeof reportRangeOptions[number]['value']
 type DashboardRangeFilter = 'custom' | typeof dashboardRangeOptions[number]['value']
+type ReportMobileFilterDraft = {
+  branchId: string
+  dateFrom: string
+  dateTo: string
+  machineId: string
+  range: ReportRangeFilter
+  status: string
+}
 
 function formatDateLocal(d: Date) {
   const yyyy = d.getFullYear()
@@ -315,14 +332,18 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   const [dashboardMachineSortKey, setDashboardMachineSortKey] = useState<string>('qty')
   const [dashboardMachineSortDir, setDashboardMachineSortDir] = useState<SortDirection>('desc')
   const [reportRangeFilter, setReportRangeFilter] = useState<ReportRangeFilter>('all')
+  const [branchId, setBranchId] = useState('')
+  const [machineId, setMachineId] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [reportMobileFilterDraft, setReportMobileFilterDraft] = useState<ReportMobileFilterDraft | null>(null)
+  const [showReportMobileFilters, setShowReportMobileFilters] = useState(false)
   const isReportAllRange = mode === 'report' && reportRangeFilter === 'all'
   const displayedDateFrom = isReportAllRange ? '' : dateFrom
   const displayedDateTo = isReportAllRange ? '' : dateTo
 
   useEffect(() => {
     setPage(1)
-  }, [productSearch, displayedDateFrom, displayedDateTo, statusFilter])
+  }, [branchId, displayedDateFrom, displayedDateTo, machineId, productSearch, statusFilter])
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -333,6 +354,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       const params = new URLSearchParams()
       if (displayedDateFrom) params.set('dateFrom', displayedDateFrom)
       if (displayedDateTo) params.set('dateTo', displayedDateTo)
+      if (mode === 'report' && branchId) params.set('branchId', branchId)
+      if (mode === 'report' && machineId) params.set('machineId', machineId)
+      if (mode === 'report' && statusFilter) params.set('status', statusFilter)
       const suffix = params.toString() ? `?${params.toString()}` : ''
       const payload = await dailyFetchJson<Payload>(`${config.apiPath}${suffix}`)
       if (requestId !== latestLoadRequestRef.current) return
@@ -344,7 +368,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       if (requestId !== latestLoadRequestRef.current) return
       setIsLoading(false)
     }
-  }, [config.apiPath, config.title, displayedDateFrom, displayedDateTo])
+  }, [branchId, config.apiPath, config.title, displayedDateFrom, displayedDateTo, machineId, mode, statusFilter])
 
   useEffect(() => {
     void loadData()
@@ -413,7 +437,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
   const metricItems = useMemo(() => config.metrics.map((metric) => ({ ...metric, value: localSummary[metric.key as keyof typeof localSummary] ?? 0 })), [config.metrics, localSummary])
   const metricGrid = (
-    <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+    <div className={`grid grid-cols-2 gap-2.5 text-sm sm:gap-4 md:grid-cols-3 ${mode === 'report' ? '2xl:grid-cols-6' : 'xl:grid-cols-6'}`}>
       {metricItems.map((metric, index) => (
         <Metric
           key={metric.key}
@@ -421,7 +445,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           type={metric.type}
           value={metric.value}
           metricKey={metric.key}
-          className={index === metricItems.length - 1 && metricItems.length % 2 !== 0 ? 'col-span-2 md:col-span-1' : ''}
+          className={[
+            index === metricItems.length - 1 && metricItems.length % 2 !== 0 ? 'col-span-2 md:col-span-1' : '',
+            mode === 'report' && metric.key === 'lossQty' ? 'max-[420px]:[&>div:first-child]:hidden' : '',
+          ].filter(Boolean).join(' ')}
         />
       ))}
     </div>
@@ -460,6 +487,18 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       return compareTableValues(leftValue, rightValue, column.type, sortDir)
     })
   }, [productSummary, sortDir, sortKey])
+  const wipTotalPages = Math.max(1, Math.ceil(wipRows.length / pageSize))
+  const wipCurrentPage = Math.min(page, wipTotalPages)
+  const pagedWipRows = useMemo(() => {
+    const start = (wipCurrentPage - 1) * pageSize
+    return sortedWipRows.slice(start, start + pageSize)
+  }, [pageSize, sortedWipRows, wipCurrentPage])
+  const productSummaryTotalPages = Math.max(1, Math.ceil(productSummary.length / pageSize))
+  const productSummaryCurrentPage = Math.min(page, productSummaryTotalPages)
+  const pagedProductSummary = useMemo(() => {
+    const start = (productSummaryCurrentPage - 1) * pageSize
+    return sortedProductSummary.slice(start, start + pageSize)
+  }, [pageSize, productSummaryCurrentPage, sortedProductSummary])
   const sortedCostRows = useMemo(() => {
     const column = productionCostBreakdownTableColumns.find((item) => item.key === sortKey)
     if (!column) return filteredRows
@@ -479,37 +518,99 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       return compareTableValues(dashboardMachineValue(left, dashboardMachineSortKey), dashboardMachineValue(right, dashboardMachineSortKey), type, dashboardMachineSortDir)
     })
   }, [dashboardMachineSortDir, dashboardMachineSortKey, dashboardMachineUtil])
-  const hasActiveFilters = Boolean(displayedDateFrom || displayedDateTo || productSearch || statusFilter)
+  const hasActiveFilters = Boolean(branchId || displayedDateFrom || displayedDateTo || machineId || productSearch || statusFilter)
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ format: 'xlsx' })
     if (displayedDateFrom) params.set('dateFrom', displayedDateFrom)
     if (displayedDateTo) params.set('dateTo', displayedDateTo)
+    if (mode === 'report' && branchId) params.set('branchId', branchId)
+    if (mode === 'report' && machineId) params.set('machineId', machineId)
     if (productSearch.trim()) params.set('q', productSearch.trim())
     if (mode === 'report' && statusFilter) params.set('status', statusFilter)
     return `${config.apiPath}?${params.toString()}`
-  }, [config.apiPath, displayedDateFrom, displayedDateTo, mode, productSearch, statusFilter])
+  }, [branchId, config.apiPath, displayedDateFrom, displayedDateTo, machineId, mode, productSearch, statusFilter])
 
-  function applyReportRange(range: Exclude<ReportRangeFilter, 'custom'>) {
-    setReportRangeFilter(range)
+  function reportRangeDates(range: Exclude<ReportRangeFilter, 'custom'>) {
     if (range === 'all') {
-      setDateFrom('')
-      setDateTo('')
-      return
+      return { dateFrom: '', dateTo: '' }
     }
     const end = new Date()
     const start = new Date(end)
     if (range === 'last7') start.setDate(start.getDate() - 6)
     if (range === 'month') start.setDate(1)
-    setDateFrom(formatDateLocal(start))
-    setDateTo(formatDateLocal(end))
+    return { dateFrom: formatDateLocal(start), dateTo: formatDateLocal(end) }
+  }
+
+  function applyReportRange(range: Exclude<ReportRangeFilter, 'custom'>) {
+    const dates = reportRangeDates(range)
+    setReportRangeFilter(range)
+    setDateFrom(dates.dateFrom)
+    setDateTo(dates.dateTo)
   }
 
   function clearFilters() {
+    setBranchId('')
     setDateFrom('')
     setDateTo('')
+    setMachineId('')
     setProductSearch('')
     setStatusFilter('')
     setReportRangeFilter('all')
+  }
+
+  const reportFilterCount = [branchId, machineId, statusFilter, displayedDateFrom || displayedDateTo ? 'date' : ''].filter(Boolean).length
+  const reportRangeLabel = reportRangeOptions.find((option) => option.value === reportRangeFilter)?.label ?? 'กำหนดเอง'
+  const reportFilterOptions = {
+    branches: data?.filters?.branches ?? [],
+    machines: data?.filters?.machines ?? [],
+  }
+
+  function openReportMobileFilters() {
+    setReportMobileFilterDraft({
+      branchId,
+      dateFrom: displayedDateFrom,
+      dateTo: displayedDateTo,
+      machineId,
+      range: reportRangeFilter,
+      status: statusFilter,
+    })
+    setShowReportMobileFilters(true)
+  }
+
+  function closeReportMobileFilters() {
+    setShowReportMobileFilters(false)
+    setReportMobileFilterDraft(null)
+  }
+
+  function clearReportMobileFilterDraft() {
+    setReportMobileFilterDraft({
+      branchId: '',
+      dateFrom: '',
+      dateTo: '',
+      machineId: '',
+      range: 'all',
+      status: '',
+    })
+  }
+
+  function updateReportMobileFilters(patch: Partial<ReportMobileFilterDraft>) {
+    setReportMobileFilterDraft((current) => current ? { ...current, ...patch } : current)
+  }
+
+  function applyReportMobileRange(range: Exclude<ReportRangeFilter, 'custom'>) {
+    const dates = reportRangeDates(range)
+    updateReportMobileFilters({ ...dates, range })
+  }
+
+  function applyReportMobileFilters() {
+    if (!reportMobileFilterDraft) return
+    setBranchId(reportMobileFilterDraft.branchId)
+    setDateFrom(reportMobileFilterDraft.dateFrom)
+    setDateTo(reportMobileFilterDraft.dateTo)
+    setMachineId(reportMobileFilterDraft.machineId)
+    setReportRangeFilter(reportMobileFilterDraft.range)
+    setStatusFilter(reportMobileFilterDraft.status)
+    closeReportMobileFilters()
   }
 
   function applyDashboardRange(range: Exclude<DashboardRangeFilter, 'custom'>) {
@@ -615,9 +716,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" value={dateFrom} onChange={setDateFrom} />
+            <DatePickerInput className="h-9 flex-1 sm:flex-none sm:w-[130px]" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400 text-sm shrink-0">-</span>
-            <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" value={dateTo} onChange={setDateTo} />
+            <DatePickerInput className="h-9 flex-1 sm:flex-none sm:w-[130px]" value={dateTo} onChange={setDateTo} />
             <button className="rounded-md border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 focus:outline-none shrink-0" type="button" onClick={() => { setDateFrom(''); setDateTo('') }}>
               <span className="hidden xs:inline">ล้างวันที่</span>
               <span className="xs:hidden">ล้าง</span>
@@ -632,8 +733,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               คืนค่าเดิมตาราง
             </button>
           ) : null}
-          <button className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white focus:outline-none sm:ml-auto w-full sm:w-auto text-center shrink-0" type="button" onClick={exportCostCsv}>
-            ส่งออก Excel
+          <button className="flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 focus:outline-none sm:ml-auto sm:w-auto" type="button" onClick={exportCostCsv}>
+            <Download aria-hidden="true" className="size-4" />
+            ส่งออก CSV
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 lg:grid-cols-7 text-sm">
@@ -672,7 +774,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                     <ResizableTableHead
                       key={column.key}
                       activeSortKey={sortKey}
-                      align={column.type === 'money' || column.type === 'number' ? 'right' : 'left'}
+                      align={productionTableColumnAlignment(column)}
                       direction={sortDir}
                       label={column.label}
                       resizeProps={costBreakdownResize.getResizeHandleProps(column.key, column.label)}
@@ -692,7 +794,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                           key={column.key}
                           className={`p-3 text-xs min-w-0 overflow-hidden ${productionCostBreakdownCellClass(column)}`}
                         >
-                          <div className={column.type === 'money' || column.type === 'number' ? 'truncate text-right tabular-nums' : 'truncate'} title={formatProductionCostBreakdownCell(row, column)}>
+                          <div className={productionTableColumnAlignment(column) === 'left' ? 'truncate' : `${productionTableColumnAlignment(column) === 'right' ? 'text-right tabular-nums' : 'text-center'} whitespace-nowrap`} title={formatProductionCostBreakdownCell(row, column)}>
                             {formatProductionCostBreakdownCell(row, column)}
                           </div>
                         </td>
@@ -713,8 +815,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             return (
               <div key={String(row.id ?? index)} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="font-mono text-sm font-bold text-slate-800">{String(row.docNo ?? '')}</span>
-                  <span className="text-sm text-slate-600 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
+                  <span className="whitespace-nowrap font-mono text-sm font-bold text-slate-800">{String(row.docNo ?? '')}</span>
+                  <span className="whitespace-nowrap text-sm font-medium text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
                   <div>
@@ -818,16 +920,16 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             </colgroup>
                 <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                   <tr>
-                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="center" direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
-                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="center" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
+                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="left" direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
+                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
                     <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="น้ำหนักผลิต" resizeProps={dashboardMachineResize.getResizeHandleProps('qty', 'น้ำหนักผลิต')} sortKey="qty" onSort={toggleDashboardMachineSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {machineUtil.map((item) => (
                 <tr key={item.name} className="hover:bg-slate-50">
-                  <td className="min-w-0 overflow-hidden p-3 text-center text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
-                  <td className="whitespace-nowrap p-3 text-center text-xs tabular-nums">{item.batches}</td>
+                  <td className="min-w-0 overflow-hidden p-3 text-left text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
+                  <td className="whitespace-nowrap p-3 text-right text-xs tabular-nums">{item.batches}</td>
                   <td className="whitespace-nowrap p-3 text-right text-xs font-bold tabular-nums text-slate-800">{formatMoney(item.qty)}</td>
                 </tr>
               ))}
@@ -921,8 +1023,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   <tr>
                     <ResizableTableHead align="center" label="#" resizeProps={dashboardTopProductResize.getResizeHandleProps('rank', '#')} />
                     <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="รหัสสินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('code', 'รหัสสินค้า')} sortKey="code" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="สินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('name', 'สินค้า')} sortKey="name" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="รอบ" resizeProps={dashboardTopProductResize.getResizeHandleProps('batches', 'รอบ')} sortKey="batches" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="left" className="ns-table-textual-column" direction={dashboardProductSortDir} label="สินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('name', 'สินค้า')} sortKey="name" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" className="ns-table-numeric-header" direction={dashboardProductSortDir} label="รอบ" resizeProps={dashboardTopProductResize.getResizeHandleProps('batches', 'รอบ')} sortKey="batches" onSort={toggleDashboardProductSort} />
                     <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="น้ำหนัก (กก.)" resizeProps={dashboardTopProductResize.getResizeHandleProps('qty', 'น้ำหนัก (กก.)')} sortKey="qty" onSort={toggleDashboardProductSort} />
                     <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนรวม (บาท)" resizeProps={dashboardTopProductResize.getResizeHandleProps('cost', 'ต้นทุนรวม (บาท)')} sortKey="cost" onSort={toggleDashboardProductSort} />
                     <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนผลิต (บาท/กก.)" resizeProps={dashboardTopProductResize.getResizeHandleProps('avgCost', 'ต้นทุนผลิต (บาท/กก.)')} sortKey="avgCost" onSort={toggleDashboardProductSort} />
@@ -933,8 +1035,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                     <tr key={`${item.code || item.name}-${index}`} className="hover:bg-slate-50">
                       <td className="p-3 text-center text-xs font-bold text-emerald-700 tabular-nums">{index + 1}</td>
                       <td className="min-w-0 overflow-hidden p-3 text-center font-mono text-xs text-slate-600"><div className="truncate" title={item.code || '-'}>{item.code || '-'}</div></td>
-                      <td className="min-w-0 overflow-hidden p-3 text-center text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
-                      <td className="whitespace-nowrap p-3 text-center text-xs tabular-nums">{item.batches}</td>
+                      <td className="ns-table-textual-column min-w-0 overflow-hidden p-3 text-left text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
+                      <td className="whitespace-nowrap p-3 text-right text-xs tabular-nums">{item.batches}</td>
                       <td className="p-3 text-right font-bold text-xs tabular-nums whitespace-nowrap">{formatMoney(item.qty)}</td>
                       <td className="p-3 text-right text-xs tabular-nums whitespace-nowrap">{formatMoney(item.cost)}</td>
                       <td className="p-3 text-right text-xs text-slate-600 tabular-nums whitespace-nowrap">{formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))}</td>
@@ -990,13 +1092,18 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   }
 
   const filterCard = (
-    <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center gap-2 w-full">
+    <>
+    <div
+      className={`${mode === 'report' ? 'hidden lg:block' : ''} rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm`}
+      data-ns-field-scope="filter"
+    >
+        <div className="flex w-full flex-col gap-2 lg:flex-row lg:items-start">
           <div className="w-full lg:min-w-[260px] lg:flex-1 relative">
             <input
-              type="text"
+              aria-label="ค้นหารายงานการผลิต"
+              type="search"
               placeholder="ค้นหาเลขที่ใบสั่งผลิต / สินค้า / เครื่องจักร"
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-300 h-[38px]"
+              className="h-9 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/30"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
             />
@@ -1012,10 +1119,21 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto lg:ml-auto">
             <span className="text-xs font-semibold text-slate-500 shrink-0">วันที่สร้าง:</span>
-            <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" placeholder={isReportAllRange ? 'ไม่จำกัด' : undefined} value={displayedDateFrom} onChange={(value) => { setDateFrom(value); setReportRangeFilter('custom') }} />
+            <DatePickerInput ariaLabel="วันที่สร้างตั้งแต่" className="h-9 flex-1 sm:flex-none sm:w-[130px]" placeholder={isReportAllRange ? 'ไม่จำกัด' : undefined} value={displayedDateFrom} onChange={(value) => { setDateFrom(value); setReportRangeFilter('custom') }} />
             <span className="text-slate-400 text-sm shrink-0">-</span>
-            <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" placeholder={isReportAllRange ? 'ไม่จำกัด' : undefined} value={displayedDateTo} onChange={(value) => { setDateTo(value); setReportRangeFilter('custom') }} />
-            {isReportAllRange ? <span className="rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-500">ไม่จำกัดช่วงวันที่</span> : null}
+            <DatePickerInput ariaLabel="วันที่สร้างถึง" className="h-9 flex-1 sm:flex-none sm:w-[130px]" placeholder={isReportAllRange ? 'ไม่จำกัด' : undefined} value={displayedDateTo} onChange={(value) => { setDateTo(value); setReportRangeFilter('custom') }} />
+            {mode === 'report' ? (
+              <>
+                <Select aria-label="สาขา" className="h-9 w-[150px]" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
+                  <option value="">ทุกสาขา</option>
+                  {reportFilterOptions.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </Select>
+                <Select aria-label="เครื่องจักร" className="h-9 w-[160px]" value={machineId} onChange={(event) => setMachineId(event.target.value)}>
+                  <option value="">ทุกเครื่องจักร</option>
+                  {reportFilterOptions.machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.name}</option>)}
+                </Select>
+              </>
+            ) : null}
             {hasActiveFilters ? (
               <button className="rounded-md border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 focus:outline-none shrink-0" type="button" onClick={clearFilters}>
                 <span className="hidden xs:inline">ล้างตัวกรอง</span>
@@ -1032,14 +1150,14 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {reportRangeOptions.map((option) => {
                 const isActive = reportRangeFilter === option.value
                 return (
-                  <button
+                  <SegmentedFilterButton
+                    active={isActive}
                     key={option.value}
                     type="button"
-                    className={`rounded-md border px-3 py-1 text-xs font-medium ${isActive ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
                     onClick={() => applyReportRange(option.value)}
                   >
                     {option.label}
-                  </button>
+                  </SegmentedFilterButton>
                 )
               })}
               </div>
@@ -1047,29 +1165,158 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             {mode === 'report' ? (
               <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-slate-500">สถานะผลิต:</span>
-              {productionStatusOptions.map((option) => {
+              {reportStatusOptions.map((option) => {
                 const isActive = statusFilter === option.value
                 return (
-                  <button
+                  <SegmentedFilterButton
+                    active={isActive}
                     key={option.value || 'all'}
                     type="button"
-                    className={`rounded-md border px-3 py-1 text-xs font-medium ${isActive ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
                     onClick={() => setStatusFilter(option.value)}
                   >
                     {option.label}
-                  </button>
+                  </SegmentedFilterButton>
                 )
               })}
               </div>
             ) : null}
             {config.exportable ? (
-              <a className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 focus:outline-none" href={exportHref}>
-                ส่งออก Excel
-              </a>
+              <Button asChild className="ml-auto gap-2" variant="export">
+                <a href={exportHref}>
+                  <Download aria-hidden="true" className="size-4" />
+                  ส่งออก Excel
+                </a>
+              </Button>
             ) : null}
           </div>
         ) : null}
     </div>
+    {mode === 'report' ? (
+      <div className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden" data-ns-field-scope="filter">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <input
+              aria-label="ค้นหารายงานการผลิต"
+              className="h-9 w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/30"
+              placeholder="ค้นหาใบสั่งผลิต / สินค้า..."
+              type="search"
+              value={productSearch}
+              onChange={(event) => setProductSearch(event.target.value)}
+            />
+            {productSearch ? (
+              <button
+                aria-label="ล้างคำค้นหา"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-base font-bold text-slate-400 hover:text-slate-600"
+                type="button"
+                onClick={() => setProductSearch('')}
+              >
+                &times;
+              </button>
+            ) : null}
+          </div>
+          <Button className="shrink-0 gap-1.5" size="sm" type="button" variant="outline" onClick={openReportMobileFilters}>
+            <SlidersHorizontal aria-hidden="true" className="size-4" />
+            ตัวกรอง{reportFilterCount ? ` (${reportFilterCount})` : ''}
+          </Button>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="min-w-0 truncate text-xs font-medium text-slate-500">ช่วงเวลา: {reportRangeLabel}</span>
+          <Button asChild className="shrink-0 gap-2" variant="export">
+            <a href={exportHref}>
+              <Download aria-hidden="true" className="size-4" />
+              ส่งออก Excel
+            </a>
+          </Button>
+        </div>
+      </div>
+    ) : null}
+    {mode === 'report' && showReportMobileFilters && reportMobileFilterDraft ? (
+      <MobileFilterSheet
+        footer={
+          <>
+            <Button
+              className="h-11"
+              type="button"
+              variant="outline"
+              onClick={clearReportMobileFilterDraft}
+            >
+              ล้างตัวกรอง
+            </Button>
+            <Button className="h-11" type="button" onClick={applyReportMobileFilters}>ใช้ตัวกรอง</Button>
+          </>
+        }
+        onClose={closeReportMobileFilters}
+        title="ตัวกรองรายงานการผลิต"
+      >
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+          <Select aria-label="สาขา" className="h-9 w-full" value={reportMobileFilterDraft.branchId} onChange={(event) => updateReportMobileFilters({ branchId: event.target.value })}>
+            <option value="">ทุกสาขา</option>
+            {reportFilterOptions.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          </Select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-slate-600">เครื่องจักร</span>
+          <Select aria-label="เครื่องจักร" className="h-9 w-full" value={reportMobileFilterDraft.machineId} onChange={(event) => updateReportMobileFilters({ machineId: event.target.value })}>
+            <option value="">ทุกเครื่องจักร</option>
+            {reportFilterOptions.machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.name}</option>)}
+          </Select>
+        </label>
+        <div>
+          <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
+          <div className="grid grid-cols-2 gap-2">
+            {reportRangeOptions.map((option) => (
+              <SegmentedFilterButton
+                active={reportMobileFilterDraft.range === option.value}
+                key={option.value}
+                className="h-9 w-full"
+                type="button"
+                onClick={() => applyReportMobileRange(option.value)}
+              >
+                {option.label}
+              </SegmentedFilterButton>
+            ))}
+          </div>
+        </div>
+        <div>
+          <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่สร้าง</span>
+          <div className="flex items-center gap-2">
+            <DatePickerInput
+              ariaLabel="วันที่สร้างตั้งแต่"
+              className="h-9 min-w-0 flex-1"
+              placeholder={reportMobileFilterDraft.range === 'all' ? 'ไม่จำกัด' : undefined}
+              value={reportMobileFilterDraft.dateFrom}
+              onChange={(value) => updateReportMobileFilters({ dateFrom: value, range: 'custom' })}
+            />
+            <span className="text-slate-400">-</span>
+            <DatePickerInput
+              ariaLabel="วันที่สร้างถึง"
+              className="h-9 min-w-0 flex-1"
+              placeholder={reportMobileFilterDraft.range === 'all' ? 'ไม่จำกัด' : undefined}
+              value={reportMobileFilterDraft.dateTo}
+              onChange={(value) => updateReportMobileFilters({ dateTo: value, range: 'custom' })}
+            />
+          </div>
+        </div>
+        <div>
+          <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะผลิต</span>
+          <div className="grid grid-cols-2 gap-2">
+            {reportStatusOptions.map((option) => (
+              <SegmentedFilterButton
+                active={reportMobileFilterDraft.status === option.value}
+                key={option.value || 'all'}
+                className="h-9 w-full"
+                type="button"
+                onClick={() => updateReportMobileFilters({ status: option.value })}
+              >
+                {option.label}
+              </SegmentedFilterButton>
+            ))}
+          </div>
+        </div>
+      </MobileFilterSheet>
+    ) : null}
+    </>
   )
 
   const reportTabs = (
@@ -1087,6 +1334,82 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <TabsTrigger value="products" variant="line">สรุปตามสินค้า</TabsTrigger>
       </TabsList>
     </Tabs>
+  )
+
+  const paginationTotalRows = mode === 'report'
+    ? reportTab === 'wip'
+      ? wipRows.length
+      : reportTab === 'products'
+        ? productSummary.length
+        : totalRows
+    : totalRows
+  const paginationTotalPages = mode === 'report'
+    ? reportTab === 'wip'
+      ? wipTotalPages
+      : reportTab === 'products'
+        ? productSummaryTotalPages
+        : totalPages
+    : totalPages
+  const paginationCurrentPage = mode === 'report'
+    ? reportTab === 'wip'
+      ? wipCurrentPage
+      : reportTab === 'products'
+        ? productSummaryCurrentPage
+        : currentPage
+    : currentPage
+  const isReportWipTab = mode === 'report' && reportTab === 'wip'
+  const isReportProductSummaryTab = mode === 'report' && reportTab === 'products'
+  const paginationToolbar = (
+    <div className="flex flex-col gap-2 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span>พบทั้งหมด <span className="font-semibold text-slate-900">{paginationTotalRows}</span> รายการ</span>
+        {isReportWipTab ? (
+          <>
+            <span aria-hidden="true" className="text-slate-300">•</span>
+            <span className="whitespace-nowrap">งานระหว่างทำ <span className="font-semibold text-amber-700">{formatMoney(totalWipQty)} กก.</span></span>
+            <span aria-hidden="true" className="text-slate-300">|</span>
+            <span className="whitespace-nowrap">มูลค่า <span className="font-semibold text-slate-900">{formatMoney(totalWipValue)} บาท</span></span>
+          </>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {(mode !== 'report' || reportTab === 'orders') && columnResize.hasCustomWidths ? (
+          <Button className="hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </Button>
+        ) : null}
+        {isReportWipTab && wipResize.hasCustomWidths ? (
+          <Button className="hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={wipResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </Button>
+        ) : null}
+        {isReportProductSummaryTab && productSummaryResize.hasCustomWidths ? (
+          <Button className="hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={productSummaryResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </Button>
+        ) : null}
+        <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
+        <Button
+          disabled={paginationCurrentPage <= 1}
+          size="sm"
+          type="button"
+          variant="outline"
+          onClick={() => setPage(Math.max(1, paginationCurrentPage - 1))}
+        >
+          ก่อนหน้า
+        </Button>
+        <span className="px-1">หน้า {paginationCurrentPage} / {paginationTotalPages}</span>
+        <Button
+          disabled={paginationCurrentPage >= paginationTotalPages}
+          size="sm"
+          type="button"
+          variant="outline"
+          onClick={() => setPage(Math.min(paginationTotalPages, paginationCurrentPage + 1))}
+        >
+          ถัดไป
+        </Button>
+      </div>
+    </div>
   )
 
   return (
@@ -1108,19 +1431,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           {/* WIP คงเหลือ (Work-in-Progress) */}
           {reportTab === 'wip' ? (
             <div className="space-y-2">
-              <div className="flex flex-col gap-2 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-                <div>พบทั้งหมด <span className="font-semibold text-slate-900">{wipRows.length}</span> รายการ</div>
-                <div className="text-xs text-slate-500">
-                  งานระหว่างทำรวม <span className="font-semibold text-amber-700">{formatMoney(totalWipQty)} กก.</span>
-                  <span className="mx-1 text-slate-300">|</span>
-                  มูลค่า <span className="font-semibold text-slate-900">{formatMoney(totalWipValue)} บาท</span>
-                  {wipResize.hasCustomWidths ? (
-                    <Button className="ml-2 hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={wipResize.resetColumnWidths}>
-                      คืนค่าเดิมตาราง
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
+              {paginationToolbar}
 
               {/* Desktop View */}
               <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
@@ -1133,11 +1444,11 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                     </colgroup>
                     <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                       <tr>
-                        {configs.wip.columns.map((column, index) => (
+                        {configs.wip.columns.map((column) => (
                           <ResizableTableHead
                             key={column.key}
                             activeSortKey={sortKey}
-                            align={index === 0 ? 'left' : 'right'}
+                            align={column.type === 'money' || column.type === 'number' || column.type === 'percent' ? 'right' : column.key === 'docNo' || column.key === 'date' || column.key === 'status' ? 'center' : 'left'}
                             direction={sortDir}
                             label={column.label}
                             resizeProps={wipResize.getResizeHandleProps(column.key, column.label)}
@@ -1148,20 +1459,21 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedWipRows.map((row, index) => {
+                      {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={configs.wip.columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+                      {!isLoading && pagedWipRows.map((row, index) => {
                         const ageDays = Math.max(0, Math.floor((new Date().getTime() - new Date(String(row.date ?? '')).getTime()) / (1000 * 60 * 60 * 24)))
                         return (
                           <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${wipAgeClass(ageDays)}`}>
-                            <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{String(row.docNo ?? '')}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900">{String(row.docNo ?? '')}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</td>
                             <td className={`whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums ${cellTone(ageDays, { key: 'ageDays', label: 'อายุ (วัน)' }, 'wip')}`}>{ageDays}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">{String(row.branchName ?? '-')}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">{String(row.machineName ?? '-')}</td>
+                            <td className="ns-table-textual-column whitespace-nowrap px-3 py-3 text-left text-slate-700">{String(row.branchName ?? '-')}</td>
+                            <td className="ns-table-textual-column whitespace-nowrap px-3 py-3 text-left text-slate-700">{String(row.machineName ?? '-')}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(Number(row.inputQty ?? 0))}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(Number(row.outputQty ?? 0))}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-bold tabular-nums text-amber-700">{formatMoney(Number(row.wipQty ?? 0))}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(Number(row.wipValue ?? 0))}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right">
+                            <td className="whitespace-nowrap px-3 py-3 text-center">
                               <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                                 {productionStatusLabel(String(row.status ?? ''))}
                               </span>
@@ -1169,7 +1481,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                           </tr>
                         )
                       })}
-                      {!wipRows.length ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={10}>ไม่มีงานระหว่างทำคงเหลือ</td></tr> : null}
+                      {!isLoading && !wipRows.length ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={10}>ไม่มีงานระหว่างทำคงเหลือ</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
@@ -1177,13 +1489,14 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
               {/* Mobile View */}
               <div className="space-y-3 md:hidden">
-                  {wipRows.map((row, index) => {
+                  {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
+                  {!isLoading && pagedWipRows.map((row, index) => {
                     const ageDays = Math.max(0, Math.floor((new Date().getTime() - new Date(String(row.date ?? '')).getTime()) / (1000 * 60 * 60 * 24)))
                     return (
                       <div key={String(row.id ?? index)} className={`bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 ${wipAgeClass(ageDays)}`}>
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                          <span className="font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
-                          <span className="text-sm text-slate-600 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
+                          <span className="whitespace-nowrap font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
+                          <span className="whitespace-nowrap text-sm font-medium text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-y-3 gap-x-4">
                           <div>
@@ -1217,7 +1530,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       </div>
                     )
                   })}
-                  {!wipRows.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มีงานระหว่างทำคงเหลือ</div> : null}
+                  {!isLoading && !wipRows.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มีงานระหว่างทำคงเหลือ</div> : null}
               </div>
             </div>
           ) : null}
@@ -1225,14 +1538,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           {/* ผลผลิตแยกตามสินค้า */}
           {reportTab === 'products' ? (
             <div className="space-y-2">
-              <div className="flex flex-col gap-2 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-                <div>พบทั้งหมด <span className="font-semibold text-slate-900">{productSummary.length}</span> รายการ</div>
-                {productSummaryResize.hasCustomWidths ? (
-                  <Button className="hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={productSummaryResize.resetColumnWidths}>
-                    คืนค่าเดิมตาราง
-                  </Button>
-                ) : null}
-              </div>
+              {paginationToolbar}
 
               {/* Desktop View */}
               <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
@@ -1249,7 +1555,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       <ResizableTableHead
                         key={column.key}
                         activeSortKey={sortKey}
-                        align={column.type === 'number' || column.type === 'money' || column.type === 'percent' ? 'right' : 'left'}
+                        align={column.key === 'name' ? 'left' : 'right'}
+                        className={column.key === 'name' ? 'ns-table-textual-column' : 'ns-table-numeric-header'}
                         direction={sortDir}
                         label={column.label}
                         resizeProps={productSummaryResize.getResizeHandleProps(column.key, column.label)}
@@ -1260,16 +1567,17 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedProductSummary.map((item) => (
+                  {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={productSummaryTableColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+                  {!isLoading && pagedProductSummary.map((item) => (
                     <tr key={item.name} className="hover:bg-slate-50">
-                      <td className="px-3 py-3 text-slate-700">{item.name}</td>
+                      <td className="ns-table-textual-column px-3 py-3 text-left text-slate-700">{item.name}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{item.count}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-emerald-700">{formatMoney(item.qty)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(item.cost)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(item.unitCost)}</td>
                     </tr>
                   ))}
-                  {!productSummary.length ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={5}>ไม่มีข้อมูล</td></tr> : null}
+                  {!isLoading && !productSummary.length ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={5}>ไม่มีข้อมูล</td></tr> : null}
                 </tbody>
               </table>
                 </div>
@@ -1277,7 +1585,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
             {/* Mobile View */}
               <div className="space-y-3 md:hidden">
-              {productSummary.map((item) => (
+              {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
+              {!isLoading && pagedProductSummary.map((item) => (
                 <div key={item.name} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
                   <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
                     <span className="font-bold text-slate-900 text-base">{item.name}</span>
@@ -1301,45 +1610,14 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   </div>
                 </div>
               ))}
-                {!productSummary.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มีข้อมูล</div> : null}
+                {!isLoading && !productSummary.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มีข้อมูล</div> : null}
               </div>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      {mode !== 'yield' && (mode !== 'report' || reportTab === 'orders') && (
-        <div className="flex flex-col gap-2 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-          <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-          <div className="flex flex-wrap items-center gap-2">
-            {columnResize.hasCustomWidths ? (
-              <Button className="hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
-                คืนค่าเดิมตาราง
-              </Button>
-            ) : null}
-            <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-            <Button
-              disabled={currentPage <= 1}
-              size="sm"
-              variant="outline"
-              type="button"
-              onClick={() => setPage((value) => Math.max(1, value - 1))}
-            >
-              ก่อนหน้า
-            </Button>
-            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-            <Button
-              disabled={currentPage >= totalPages}
-              size="sm"
-              variant="outline"
-              type="button"
-              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-            >
-              ถัดไป
-            </Button>
-          </div>
-        </div>
-      )}
+      {mode !== 'yield' && (mode !== 'report' || reportTab === 'orders') ? paginationToolbar : null}
 
       {/* Desktop view for other modes */}
       <div className={mode === 'report' && reportTab !== 'orders' ? 'hidden' : 'hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block'}>
@@ -1352,12 +1630,12 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             </colgroup>
             <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
               <tr>
-                {config.columns.map((column, index) => (
+                {config.columns.map((column) => (
                   <ResizableTableHead
                     key={column.key}
                     activeSortKey={sortKey}
                     label={column.label}
-                    align={index === 0 ? 'left' : 'right'}
+                    align={productionTableColumnAlignment(column)}
                     direction={sortDir}
                     sortKey={column.key}
                     resizeProps={columnResize.getResizeHandleProps(column.key, column.label)}
@@ -1370,12 +1648,12 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={config.columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
               {!isLoading && pagedFilteredRows.map((row, index) => (
                 <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}>
-                  {config.columns.map((column, index) => {
-                    const isRightAligned = index > 0
+                  {config.columns.map((column) => {
+                    const alignment = productionTableColumnAlignment(column)
                     return (
                       <td
                         key={column.key}
-                        className={`whitespace-nowrap px-3 py-3 overflow-hidden truncate ${isRightAligned ? 'text-right font-medium tabular-nums text-slate-900' : 'text-left text-slate-700'} ${cellTone(row[column.key], column, mode)}`}
+                        className={`px-3 py-3 ${alignment === 'right' ? 'whitespace-nowrap text-right font-medium tabular-nums text-slate-900' : alignment === 'center' ? `whitespace-nowrap text-center text-slate-700 ${column.key === 'docNo' ? 'font-mono' : ''}` : 'break-words text-left text-slate-700'} ${cellTone(row[column.key], column, mode)}`}
                       >
                         {formatDisplayCell(row, column, mode)}
                       </td>
@@ -1409,8 +1687,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <span className="font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
-                  <span className="shrink-0 text-sm font-medium text-slate-500">{formatDateDisplay(String(row.date ?? ''))}</span>
+                  <span className="whitespace-nowrap font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
+                  <span className="shrink-0 whitespace-nowrap text-sm font-medium text-slate-500">{formatDateDisplay(String(row.date ?? ''))}</span>
                 </div>
 
                 <div className="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
@@ -1817,11 +2095,22 @@ function formatProductionCostBreakdownCell(row: Row, column: Column) {
 }
 
 function productionCostBreakdownCellClass(column: Column) {
-  const align = column.type === 'money' || column.type === 'number' ? 'text-right font-mono whitespace-nowrap tabular-nums' : 'text-left'
+  const alignment = productionTableColumnAlignment(column)
+  const align = alignment === 'right'
+    ? 'text-right font-mono whitespace-nowrap tabular-nums'
+    : alignment === 'center'
+      ? 'text-center whitespace-nowrap'
+      : 'text-left'
   if (column.key === 'totalCost') return `${align} font-bold text-blue-700`
   if (column.key === 'outputQty') return `${align} font-semibold text-emerald-700`
   if (column.key === 'docNo') return `${align} font-mono text-slate-600`
   return `${align} text-slate-700`
+}
+
+function productionTableColumnAlignment(column: Column): 'center' | 'left' | 'right' {
+  if (column.type === 'money' || column.type === 'number' || column.type === 'percent') return 'right'
+  if (column.type === 'date' || column.key === 'docNo' || column.key === 'status') return 'center'
+  return 'left'
 }
 
 function dashboardTopProductValue(row: DashboardTopProduct, key: string) {

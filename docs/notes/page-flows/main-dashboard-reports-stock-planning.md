@@ -48,12 +48,5 @@
 
 ## Validation checkpoint — 2026-07-28
 
-- Focused sort + design-contract Vitest ผ่าน `12/12`; targeted ESLint ผ่าน
-- Shared sortable header ตรงตาม Design: คอลัมน์ตัวเลขชิดขวาวาง caret ก่อน label เพื่อให้ขอบข้อความตรงกับค่าตัวเลขใน body โดยคงลำดับ label ก่อน caret สำหรับคอลัมน์ซ้าย/กลาง
-- Workspace lint ผ่านด้วย `0 errors` และมี warnings เดิมนอก scope `6` จุด; workspace type-check ผ่าน
-- Production Webpack build ผ่านด้วย Node heap `4 GB` และสร้าง static pages ครบ `325/325`; default Turbopack ใน temporary worktree ใช้ไม่ได้เพราะ `apps/next/node_modules` เป็น junction ออกนอก filesystem root ของ worktree ไม่ใช่ compile/type error ของโค้ด
-- Browser inspection หลังแก้รอบสุดท้ายผ่านบน Desktop `1280px`: ตารางภาพรวมมี sortable headers `9/9`, ตารางต้องซื้อเพิ่ม `6/6`, `aria-sort` เปลี่ยน `none -> ascending -> descending` และลำดับตัวเลขเปลี่ยนถูกต้อง; ลากคอลัมน์สินค้าจาก `250px` เป็น `300px` โดยไม่ trigger sort, reload แล้วยังจำ `300px` และ `คืนค่าเดิมตาราง` กลับ `250px`
-- Runtime geometry ยืนยันว่าหัวตัวเลขชิดขวาวาง caret ก่อน label ทั้งลำดับ DOM และตำแหน่งที่มองเห็นจริง; reload รอบตรวจเครือข่ายได้ `/api/auth/me`, `/api/activity`, `/api/po-reports/outstanding` และ `/api/stock/balance` เป็น HTTP `200` โดยไม่มี failed request หรือ console warning/error
-- ตาราง PO Sell ที่ขยายมี fixed-order headers `8/8` และรายการรายวันมี `7/7`: ทุกคอลัมน์มี Resize แต่ไม่มี sort button/`aria-sort`; แถวยังคงลำดับวันที่/FIFO สำหรับอ่าน available stock และ shortage ต่อเนื่อง
-- Mobile `390x844` ไม่มี document overflow, ไม่มีตาราง Desktop ที่มองเห็น และ cards ใช้ลำดับเดียวกับ Desktop หลัง Sort; ปฏิทินและรายการวันเลือกเปลี่ยนเป็น cards ตาม Design และไม่พบ console warning/error
-- Focused contract ยืนยัน Sort เกิดก่อน pagination, Desktop table ทั้ง 4 ชุดใช้ shared resizable headers/colgroup, ไม่มี raw `<th>` เหลือ, mobile card branch มี empty state สำหรับสินค้าที่ไม่มี PO และไม่เปลี่ยน FIFO/shortage/margin/API
+- ผล validation เก่าของสองฝั่งถูกถอดออกระหว่าง semantic merge เพราะอ้างจำนวน route/heap/ชุด test คนละฐานและไม่ใช่หลักฐานของโค้ดหลังรวม
+- ต้องบันทึกผล focused sort/design tests, lint, type-check และ build ชุดใหม่หลัง integration เสร็จเท่านั้น

@@ -250,7 +250,7 @@ export function CustomersPageClient() {
 
   async function loadBranches() {
     if (branches.length) return
-    const rows = await listMasterDataRecords('/api/master-data/branches')
+    const rows = await listMasterDataRecords('/api/master-data/customers/options')
     setBranches(rows.filter((branch) => branch.active))
   }
 
@@ -470,12 +470,12 @@ export function CustomersPageClient() {
                 }}
               />
             </label>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
-              <Download aria-hidden="true" className="h-4 w-4" />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
+              <Download aria-hidden="true" className="size-4" />
               <span className="text-xs sm:text-sm">{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
             </button>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" type="button" onClick={() => void openCreateForm()}>
-              <Plus aria-hidden="true" className="h-4 w-4" />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700 disabled:opacity-60" type="button" onClick={() => void openCreateForm()}>
+              <Plus aria-hidden="true" className="size-4" />
               เพิ่มรายการ
             </button>
           </div>
@@ -665,9 +665,9 @@ export function CustomersPageClient() {
                 </colgroup>
                 <TableHeader>
                   <tr>
-                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อบริษัท" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบริษัท')} sortKey="name" onSort={setSort} />
-                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รูปแบบบริษัท" resizeProps={columnResize.getResizeHandleProps('legalEntityType', 'รูปแบบบริษัท')} sortKey="legalEntityType" onSort={setSort} />
                     <ResizableTableHead direction={sortDirection} label="สาขาที่ใช้ได้" resizeProps={columnResize.getResizeHandleProps('branches', 'สาขาที่ใช้ได้')} />
@@ -696,9 +696,9 @@ export function CustomersPageClient() {
                         }
                       }}
                     >
-                      <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{customer.code}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{customer.code}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-800" title={customer.name}>{customer.name}</TableCell>
-                      <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{displayValue(customer.taxId)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{displayValue(customer.taxId)}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{displayValue(customer.type)}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.legalEntityType ?? undefined}>{customer.type === 'นิติบุคคล' ? displayValue(customer.legalEntityType) : '-'}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.branchNames.join(', ') || undefined}>

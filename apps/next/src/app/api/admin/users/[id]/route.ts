@@ -83,7 +83,7 @@ async function assertUserRefs(
   const [roles, branches, department] = await Promise.all([
     prisma.app_roles.findMany({
       select: { id: true },
-      where: { id: { in: parsedRoleIds }, active: true, is_employee_role: true },
+      where: { id: { in: parsedRoleIds }, active: true },
     }),
     findActiveBranchReferencesByCodes(branchIds),
     prisma.departments.findFirst({
@@ -133,7 +133,7 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
       return NextResponse.json({ error: 'อีเมลนี้มีอยู่แล้ว' }, { status: 409 })
     }
 
-    const actor = context.appUser?.email ?? context.authUser.email ?? 'system'
+    const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
 
     await prisma.$transaction(async (tx) => {
       await tx.app_users.update({

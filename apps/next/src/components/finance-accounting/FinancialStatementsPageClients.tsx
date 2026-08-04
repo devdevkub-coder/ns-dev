@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Activity, ArrowDownRight, ArrowUpRight, Building2, ChartColumnBig, Landmark, Scale, SlidersHorizontal, TrendingUp, Wallet } from 'lucide-react'
+import { Activity, ArrowDownRight, ArrowUpRight, Building2, ChartColumnBig, Download, Landmark, Scale, SlidersHorizontal, TrendingUp, Wallet } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard, KpiCardGrid, type KpiCardTone } from '@/components/ui/KpiCard'
@@ -440,7 +440,7 @@ export function PlStatementPageClient({ initialFilters }: { initialFilters?: { b
             value={costBasis}
             onChange={(value) => setCostBasis(value as 'COMPARE' | 'DEAL' | 'WAC')}
           />
-          <a className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>ส่งออก Excel</a>
+          <a className="ml-auto inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
         </div>
       </div>
 
@@ -452,7 +452,7 @@ export function PlStatementPageClient({ initialFilters }: { initialFilters?: { b
             <div className="truncate text-xs text-slate-500">{selectedBranch} · {activeBasis}</div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>Excel</a>
+            <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
             <button type="button" className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40" onClick={openMobileFilters}>
               <SlidersHorizontal aria-hidden="true" className="size-3.5" />
               ตัวกรอง{branchId || costBasis !== 'WAC' ? ' (มี)' : ''}
@@ -507,11 +507,11 @@ export function PlStatementPageClient({ initialFilters }: { initialFilters?: { b
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="pl-statement-from-mobile">จากวันที่</label>
-                <DatePickerInput ariaLabel="จากวันที่" className="w-full text-sm" id="pl-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
+                <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-full text-sm" id="pl-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="pl-statement-to-mobile">ถึงวันที่</label>
-                <DatePickerInput ariaLabel="ถึงวันที่" className="w-full text-sm" id="pl-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
+                <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-full text-sm" id="pl-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
               </div>
             </div>
           ) : null}
@@ -700,7 +700,7 @@ export function BalanceSheetPageClient() {
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="balance-sheet-as-of-mobile">ณ วันที่</label>
-            <DatePickerInput ariaLabel="ณ วันที่" className="w-full text-sm" id="balance-sheet-as-of-mobile" value={asOf} onChange={setAsOf} />
+            <DatePickerInput ariaLabel="ณ วันที่" className="h-9 w-full text-sm" id="balance-sheet-as-of-mobile" value={asOf} onChange={setAsOf} />
           </div>
 
           <div>
@@ -979,11 +979,11 @@ export function CashFlowStatementPageClient({ initialFilters }: { initialFilters
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-statement-from-mobile">จากวันที่</label>
-              <DatePickerInput ariaLabel="จากวันที่" className="w-full text-sm" id="cash-flow-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
+              <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-full text-sm" id="cash-flow-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-statement-to-mobile">ถึงวันที่</label>
-              <DatePickerInput ariaLabel="ถึงวันที่" className="w-full text-sm" id="cash-flow-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
+              <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-full text-sm" id="cash-flow-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
             </div>
           </div>
 
@@ -1129,7 +1129,7 @@ function FilterPanel({ children }: { children: ReactNode }) {
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
-  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput ariaLabel={label} className="w-[140px]" value={value} onChange={onChange} /></label>
+  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput ariaLabel={label} className="h-9 w-[140px]" value={value} onChange={onChange} /></label>
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
@@ -1297,7 +1297,7 @@ function LegacyBalanceSheetTable({
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className={`border-b border-slate-100 px-4 py-3 text-lg font-bold ${titleClassName}`}>{title}</div>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm" data-ns-table-contract="financial-hierarchy">
           <tbody>
             {isLoading ? (
               <tr>
@@ -1641,20 +1641,20 @@ function YearlyPlTable({ data, isLoading, year }: { data: YearlyPlData | null; i
         <table className="ns-table min-w-full text-sm">
           <thead className="bg-slate-100">
             <tr>
-              <th className="sticky left-0 bg-slate-100 px-3 py-2 text-left">รายการ</th>
-              {data.months.map((month) => <th key={month.month} className="px-3 py-2 text-right">{month.label}</th>)}
-              <th className="bg-emerald-50 px-3 py-2 text-right">รวมปี</th>
+              <th className="sticky left-0 whitespace-nowrap bg-slate-100 px-3 py-2 text-left">รายการ</th>
+              {data.months.map((month) => <th key={month.month} className="whitespace-nowrap px-3 py-2 text-right">{month.label}</th>)}
+              <th className="whitespace-nowrap bg-emerald-50 px-3 py-2 text-right">รวมปี</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.key} className="border-t border-slate-100">
-                <td className={`sticky left-0 px-3 py-2 ${row.tone === 'total' ? 'bg-slate-50 font-bold' : 'bg-white'} text-slate-700`}>{row.label}</td>
+                <td className={`ns-table-textual-column sticky left-0 px-3 py-2 ${row.tone === 'total' ? 'bg-slate-50 font-bold' : 'bg-white'} text-slate-700`}>{row.label}</td>
                 {data.months.map((month) => {
                   const value = month[row.key as keyof YearlyPlMonthRow] as number
-                  return <td key={`${row.key}-${month.month}`} className={`px-3 py-2 text-right font-mono tabular-nums ${value < 0 ? 'text-red-700' : 'text-slate-800'} ${row.tone === 'total' ? 'font-bold' : ''}`}>{money(value)}</td>
+                  return <td key={`${row.key}-${month.month}`} className={`whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums ${value < 0 ? 'text-red-700' : 'text-slate-800'} ${row.tone === 'total' ? 'font-bold' : ''}`}>{money(value)}</td>
                 })}
-                <td className={`bg-emerald-50 px-3 py-2 text-right font-mono tabular-nums ${row.tone === 'total' ? 'font-bold' : ''} ${(data.totals[row.key as keyof YearlyPlData['totals']] as number) < 0 ? 'text-red-700' : 'text-slate-900'}`}>
+                <td className={`whitespace-nowrap bg-emerald-50 px-3 py-2 text-right font-mono tabular-nums ${row.tone === 'total' ? 'font-bold' : ''} ${(data.totals[row.key as keyof YearlyPlData['totals']] as number) < 0 ? 'text-red-700' : 'text-slate-900'}`}>
                   {money(data.totals[row.key as keyof YearlyPlData['totals']] as number)}
                 </td>
               </tr>
@@ -1775,9 +1775,9 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
           <thead className="sticky top-0 z-10 bg-slate-100">
             <tr>
               <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
-              <ResizableTableHead align="right" label="หมวดรายงาน" resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
+              <ResizableTableHead align="left" className="ns-table-textual-column" label="หมวดรายงาน" resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
               <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
-              <ResizableTableHead align="right" label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
+              <ResizableTableHead align="center" label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -1792,13 +1792,13 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
                 onClick={isDrillable ? () => onDrill(line) : undefined}
               >
                 <td className="px-3 py-3 text-slate-900"><span className={line.level ? 'pl-5' : ''}>{line.label}</span></td>
-                <td className="px-3 py-3 text-right"><span className="rounded-md bg-slate-100/80 px-2 py-0.5 text-xs font-medium text-slate-500">{line.section}</span></td>
+                <td className="ns-table-textual-column px-3 py-3 text-left"><span className="rounded-md bg-slate-100/80 px-2 py-0.5 text-xs font-medium text-slate-500">{line.section}</span></td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums">
                   <span className={line.amount < 0 ? 'font-bold text-red-700' : line.tone === 'good' ? 'font-bold text-emerald-700' : 'font-bold text-slate-900'}>
                     {money(line.amount)}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-right">
+                <td className="whitespace-nowrap px-3 py-3 text-center">
                   {line.details?.length ? (
                     <button aria-label={`ดูรายละเอียด ${line.label} ${line.details.length} รายการ`} className="font-semibold text-blue-600 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-blue-600" type="button" onClick={(event) => { event.stopPropagation(); onDrill(line) }}>{line.details.length}</button>
                   ) : (
@@ -1889,20 +1889,20 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
             </colgroup>
             <thead className="sticky top-0 z-10 bg-slate-100">
               <tr>
-                <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-                <ResizableTableHead align="right" label="เลขที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} />
-                <ResizableTableHead align="right" label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
+                <ResizableTableHead align="center" label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+                <ResizableTableHead align="center" label="เลขที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} />
+                <ResizableTableHead align="left" className="ns-table-textual-column" label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
                 <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sortedRows.map((row, index) => (
                 <tr key={`${row.refNo}-${index}`} className="transition-colors hover:bg-slate-50">
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold text-blue-700">
-                    {row.href ? <a aria-label={`เปิดเอกสารต้นทาง ${row.refNo}`} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{row.refNo}</a> : row.refNo}
+                  <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{row.date}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-center font-mono font-semibold text-blue-700">
+                    {row.href ? <a aria-label={`เปิดเอกสารต้นทาง ${row.refNo}`} className="whitespace-nowrap hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{row.refNo}</a> : <span className="whitespace-nowrap">{row.refNo}</span>}
                   </td>
-                  <td className="min-w-0 px-3 py-3 text-right text-slate-700"><div className="truncate">{row.description}</div></td>
+                  <td className="ns-table-textual-column min-w-0 px-3 py-3 text-left text-slate-700"><div className="truncate">{row.description}</div></td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums"><span className={row.amount < 0 ? 'text-red-700' : 'text-slate-800'}>{money(row.amount)}</span></td>
                 </tr>
               ))}
@@ -1914,8 +1914,8 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
             {sortedRows.map((row, index) => (
               <div key={`${row.refNo}-${index}`} className="p-4 space-y-2 text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">{row.date}</span>
-                  {row.href ? <a aria-label={`เปิดเอกสารต้นทาง ${row.refNo}`} className="font-mono font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{row.refNo}</a> : <span className="font-mono font-semibold text-blue-700">{row.refNo}</span>}
+                  <span className="whitespace-nowrap text-slate-400">{row.date}</span>
+                  {row.href ? <a aria-label={`เปิดเอกสารต้นทาง ${row.refNo}`} className="whitespace-nowrap font-mono font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{row.refNo}</a> : <span className="whitespace-nowrap font-mono font-semibold text-blue-700">{row.refNo}</span>}
                 </div>
                 <div className="text-slate-700 break-words">{row.description}</div>
                 <div className="flex justify-between items-center pt-1">

@@ -71,7 +71,7 @@ export function CashOthersSummaryPageClient() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <label className="text-xs font-bold text-slate-500">ณ วันที่</label>
-        <DatePickerInput className="w-[140px]" value={asOf} onChange={setAsOf} />
+        <DatePickerInput className="h-9 w-[140px]" value={asOf} onChange={setAsOf} />
         <span className="flex-1" />
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -207,6 +207,7 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
   return (
     <Panel heading="💵 เงินสดและรายการอื่น" tone="emerald" total={total}>
       <Table
+        alignments={['left', 'left', 'left', 'right', 'right']}
         headers={['บัญชี', 'ประเภท', 'สกุล', 'ยอดคงเหลือ', 'เทียบเท่า บาท']}
         rows={rows.map((row) => [
           text(row.name),
@@ -278,7 +279,7 @@ function Panel({ children, heading, total }: { children: ReactNode; heading: str
   )
 }
 
-function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
+function Table({ alignments, headers, rows }: { alignments?: Array<'center' | 'left' | 'right'>; headers: string[]; rows: string[][] }) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const columns = useMemo<Array<ResizableColumnDefinition<string> & { align?: 'center' | 'left' | 'right'; label: string }>>(() => {
@@ -287,9 +288,9 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
       label: header,
       defaultWidth: index === 0 ? 190 : index >= headers.length - 2 ? 135 : 120,
       minWidth: index === 0 ? 145 : index >= headers.length - 2 ? 115 : 95,
-      align: index === 0 ? 'left' : 'right',
+      align: alignments?.[index] ?? 'left',
     }))
-  }, [headers])
+  }, [alignments, headers])
   const columnResize = useResizableColumns('main.cash-others-summary.cash-accounts.v1', columns)
   const sortedRows = useMemo(() => {
     if (sortKey === null) return rows
@@ -346,8 +347,8 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
             {sortedRows.map((row, index) => (
               <tr key={`${row[0]}-${index}`} className="hover:bg-slate-50/30 transition-colors">
                 {row.map((cell, cellIndex) => (
-                  <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex === 0 ? 'text-slate-700' : cellIndex >= row.length - 2 ? 'text-right font-mono tabular-nums' : 'text-right text-slate-700'}`}>
-                    <div className={cellIndex === 0 ? 'truncate' : 'whitespace-nowrap'} title={cell}>{cell}</div>
+                  <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${columns[cellIndex]?.align === 'right' ? 'text-right font-mono tabular-nums whitespace-nowrap' : columns[cellIndex]?.align === 'center' ? 'text-center whitespace-nowrap text-slate-700' : 'text-slate-700'}`}>
+                    <div className={columns[cellIndex]?.align === 'left' ? 'truncate' : 'whitespace-nowrap'} title={cell}>{cell}</div>
                   </td>
                 ))}
               </tr>
