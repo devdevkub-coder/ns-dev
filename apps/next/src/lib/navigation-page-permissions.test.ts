@@ -3,6 +3,7 @@ import { permissionCodesForPath, permissionForPath } from './navigation'
 import { REPORT_PAGE_PERMISSIONS } from './report-permissions'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from './finance-debt-permissions'
 import { SUPPLIER_PAGE_PERMISSIONS } from './supplier-page-permissions'
+import { MASTER_DATA_PAGE_PERMISSIONS } from './master-data-page-permissions'
 
 describe('Dashboard & Reports page permissions', () => {
   it('maps each main page to its own view permission', () => {
@@ -78,5 +79,9 @@ describe('Supplier page permissions', () => {
   it('uses the supplier page permission for its options API', () => {
     expect(permissionForPath('/master-data/suppliers')).toBe(SUPPLIER_PAGE_PERMISSIONS.view)
     expect(permissionForPath('/api/master-data/suppliers/options')).toBe(SUPPLIER_PAGE_PERMISSIONS.view)
+    expect(permissionForPath('/api/master-data/customers/options')).toBe(MASTER_DATA_PAGE_PERMISSIONS.customers.view)
+    expect(permissionForPath('/api/master-data/products/options')).toBe(MASTER_DATA_PAGE_PERMISSIONS.products.view)
+    expect(permissionForPath('/api/master-data/impurities')).toBe(MASTER_DATA_PAGE_PERMISSIONS.impurities.view)
+    expect(permissionForPath('/api/master-data/impurities/IMP-001')).toBe(MASTER_DATA_PAGE_PERMISSIONS.impurities.status)
   })
 })

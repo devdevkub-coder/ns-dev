@@ -15,7 +15,7 @@ import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
-import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
+import { type MasterDataRecord } from '@/lib/master-data'
 import {
   buildProductOriginalImageStorageKey,
   buildProductThumbnailStorageKey,
@@ -27,6 +27,7 @@ import {
   exportProducts,
   importProducts,
   listProducts,
+  loadProductOptions,
   productFormSchema,
   saveProduct,
   setProductActive,
@@ -142,14 +143,13 @@ export function ProductsPageClient() {
     setError(null)
     setIsLoading(true)
     try {
-      const [result, typeRows, unitRows] = await Promise.all([
+      const [result, options] = await Promise.all([
         listProducts({ all: true }),
-        listMasterDataRecords('/api/master-data/product-types'),
-        listMasterDataRecords('/api/master-data/product-units'),
+        loadProductOptions(),
       ])
       setProducts(result.rows)
-      setProductTypes(typeRows.filter((type) => type.active))
-      setProductUnits(unitRows.filter((unit) => unit.active))
+      setProductTypes(options.productTypes.filter((type) => type.active))
+      setProductUnits(options.productUnits.filter((unit) => unit.active))
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลสินค้าไม่ได้'))
     } finally {

@@ -1,3 +1,13 @@
+# Coordinator Page/API Permission Alignment — 2026-08-04
+
+Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
+
+Active batch: แยก customer/product options endpoint ตาม permission ของหน้า, ปรับ impurity API ให้ใช้ view/create/update/status ของรายการสิ่งเจือปน, และให้ stock product preview รองรับ `stock.ledger.view` หรือ `production.orders.view`.
+
+Validation: permission tests 9/9, workspace lint, type-check, production build และ `git diff --check` ผ่าน. ยังไม่ได้ commit, push SIT หรือ deploy.
+
+Immediate next task: review diff แล้วจึงค่อย commit/push SIT เมื่อได้รับคำสั่ง.
+
 # Vercel UAT Deployment Dependency Fix 2026-08-02
 
 Objective: ให้ Vercel project ใหม่ที่ deploy branch `uat` ของ `nserprich99-creator/ns-erp` resolve dependency ของ Next workspace ได้เหมือน local.

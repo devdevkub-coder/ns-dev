@@ -6,6 +6,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 import { invalidateImpurityReferenceCache } from '@/lib/server/reference-master-cache'
+import { MASTER_DATA_PAGE_PERMISSIONS } from '@/lib/master-data-page-permissions'
 
 export const runtime = 'nodejs'
 
@@ -24,7 +25,7 @@ type ImpurityRouteProps = {
 export async function PATCH(request: Request, { params }: ImpurityRouteProps) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.reference.manage')
+    requirePermission(context, MASTER_DATA_PAGE_PERMISSIONS.impurities.status)
 
     const { id } = routeParamsSchema.parse(await params)
     const internalId = parseInternalBigIntId(id)

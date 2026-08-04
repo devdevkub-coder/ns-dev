@@ -2,6 +2,7 @@ import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { PO_BUY_PERMISSIONS, PO_SELL_PERMISSIONS } from '@/lib/po-permissions'
 import { SUPPLIER_PAGE_PERMISSIONS } from '@/lib/supplier-page-permissions'
+import { MASTER_DATA_PAGE_PERMISSIONS } from '@/lib/master-data-page-permissions'
 
 export type NavigationSectionKey =
   | 'main'
@@ -109,7 +110,7 @@ const exactPathPermissions: Record<string, string> = {
   '/api/owner-daily': REPORT_PAGE_PERMISSIONS.ownerDaily,
   '/api/production/orders': 'production.orders.view',
   '/api/production/orders/options': 'production.orders.view',
-  '/api/production/orders/product-stock': 'production.orders.view',
+  '/api/production/orders/product-stock': 'stock.ledger.view',
   '/api/production/dashboard': 'production.operations.view',
   '/api/production/production-cost-report': 'production.reports.view',
   '/api/production/report': 'production.reports.view',
@@ -121,10 +122,15 @@ const exactPathPermissions: Record<string, string> = {
   '/business-calendar': REPORT_PAGE_PERMISSIONS.businessCalendar,
   '/cash-others-summary': REPORT_PAGE_PERMISSIONS.cashOthersSummary,
   '/cash-flow-calendar': REPORT_PAGE_PERMISSIONS.cashFlowCalendar,
-  '/api/master-data/customers': 'master.customers.view',
+  '/api/master-data/customers': MASTER_DATA_PAGE_PERMISSIONS.customers.view,
+  '/api/master-data/customers/options': MASTER_DATA_PAGE_PERMISSIONS.customers.view,
   '/api/master-data/customers/export': 'master.customers.export',
   '/api/master-data/customers/import': 'master.customers.create',
-  '/api/master-data/products': 'master.products.view',
+  '/api/master-data/products': MASTER_DATA_PAGE_PERMISSIONS.products.view,
+  '/api/master-data/products/options': MASTER_DATA_PAGE_PERMISSIONS.products.view,
+  '/api/master-data/impurities': MASTER_DATA_PAGE_PERMISSIONS.impurities.view,
+  '/api/master-data/product-types': 'master.product_types.view',
+  '/api/master-data/product-units': 'master.product_units.view',
   '/api/master-data/products/export': 'master.products.export',
   '/api/master-data/suppliers': SUPPLIER_PAGE_PERMISSIONS.view,
   '/api/master-data/suppliers/export': SUPPLIER_PAGE_PERMISSIONS.export,
@@ -207,6 +213,7 @@ const masterDataPagePermissions: Record<string, string> = {
 const prefixPathPermissions: Array<[string, string]> = [
   ['/api/master-data/customers/', 'master.customers.update'],
   ['/api/master-data/products/', 'master.products.update'],
+  ['/api/master-data/impurities/', MASTER_DATA_PAGE_PERMISSIONS.impurities.status],
   ['/api/master-data/suppliers/', SUPPLIER_PAGE_PERMISSIONS.update],
   ['/api/master-data/vat-settings/', 'system.settings.manage'],
   ['/api/master-data/wht-settings/', 'system.settings.manage'],

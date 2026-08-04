@@ -211,6 +211,12 @@ export function requirePermission(context: AppAuthContext, permissionCode: strin
   }
 }
 
+export function requireAnyPermission(context: AppAuthContext, permissionCodes: readonly string[]) {
+  if (!context.isAdmin && !permissionCodes.some((permissionCode) => context.permissionCodes.has(permissionCode))) {
+    throw new AuthContextError('ไม่มีสิทธิ์ใช้งานส่วนนี้', 403)
+  }
+}
+
 export function getBranchCodeIntersection(
   context: AppAuthContext,
   requestedBranchCode?: string | null
