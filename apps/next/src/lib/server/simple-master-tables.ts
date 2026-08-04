@@ -116,13 +116,17 @@ async function nextDirectorPersonCode() {
   return `P${String(maxNumber + 1).padStart(3, '0')}`
 }
 
-function permissionForSimpleMaster(kind: SimpleMasterKind, action: 'manage' | 'view') {
+type SimpleMasterPermissionAction = 'manage' | 'view' | 'create' | 'update' | 'status'
+
+function permissionForSimpleMaster(kind: SimpleMasterKind, action: SimpleMasterPermissionAction) {
   if (kind === 'vatSettings' || kind === 'whtSettings') return 'system.settings.manage'
   if (action === 'view' && (kind === 'productTypes' || kind === 'productUnits')) return simpleMasterViewPermission(kind)
-  return action === 'manage' ? 'master.reference.manage' : 'master.reference.view'
+  if (kind === 'productTypes' && action !== 'view' && action !== 'manage') return `master.product_types.${action}`
+  if (kind === 'productUnits' && action !== 'view' && action !== 'manage') return `master.product_units.${action}`
+  return action === 'view' ? 'master.reference.view' : 'master.reference.manage'
 }
 
-function requireSimpleMasterPermission(kind: SimpleMasterKind, action: 'manage' | 'view') {
+function requireSimpleMasterPermission(kind: SimpleMasterKind, action: SimpleMasterPermissionAction) {
   return getCurrentAuthContext().then((context) => requirePermission(context, permissionForSimpleMaster(kind, action)))
 }
 
@@ -533,10 +537,9 @@ export async function listSimpleMasterData(kind: SimpleMasterKind) {
 }
 
 export async function saveSimpleMasterData(request: Request, kind: SimpleMasterKind) {
-  await requireSimpleMasterPermission(kind, 'manage')
-
   const config = configs[kind]
   const rawValues = validateSimpleMasterValues(kind, parseMasterDataForm(prepareSimpleMasterBody(kind, await request.json())))
+  await requireSimpleMasterPermission(kind, rawValues.id ? 'update' : 'create')
   const values = config.normalizeValues ? await config.normalizeValues(rawValues) : rawValues
   if (kind === 'machines' && values.type) {
     const machineType = await findActiveMachineTypeReferenceByName(values.type)
@@ -600,7 +603,7 @@ export async function saveSimpleMasterData(request: Request, kind: SimpleMasterK
 }
 
 export async function patchSimpleMasterData(request: Request, kind: SimpleMasterKind, id: string) {
-  await requireSimpleMasterPermission(kind, 'manage')
+  await requireSimpleMasterPermission(kind, 'status')
 
   const config = configs[kind]
   const values = updateMasterDataStatusSchema.parse(await request.json())

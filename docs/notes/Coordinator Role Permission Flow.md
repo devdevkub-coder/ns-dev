@@ -2,7 +2,7 @@
 
 ## Scope and business rationale
 
-This note records the coordinator role as it exists on the SIT baseline. A coordinator can operate daily purchasing, sales, stock and selected master-data flows, but must not approve/pay bills, open bills from WTI/WTO, or obtain unrelated shared-reference access. The menu is only the first boundary; the proxy and each API route must enforce the same contract because a user can call an API without using the visible button.
+This note records the coordinator role as it exists on the SIT baseline. A coordinator can operate every action exposed by the visible daily, purchasing, sales, stock and selected master-data menus, including opening bills from WTI/WTO and writing product type/unit and salesperson masters. Finance payment/approval pages and unrelated shared-reference pages remain hidden. The menu is only the first boundary; the proxy and each API route must enforce the same contract because a user can call an API without using the visible button.
 
 The business entities are:
 
@@ -15,7 +15,7 @@ The business entities are:
 
 ## SIT role and menu inventory
 
-Evidence is from the active `coordinator` role on SIT, not Super Admin: 5 active users, branch scope `all`, 0 explicit branch-access rows, and 49 active role-permission rows. The role has no `master.reference.view` and no `daily.weight_tickets.open_bill`.
+Evidence is from the active `coordinator` role on SIT, not Super Admin: branch scope `all`, 0 explicit branch-access rows, and 59 active role-permission rows after the visible-menu grant migration. The role still has no `master.reference.view` or `master.reference.manage`.
 
 | Menu | Path | Required permission | Coordinator result |
 |---|---|---|---|
@@ -27,10 +27,10 @@ Evidence is from the active `coordinator` role on SIT, not Super Admin: 5 active
 | โอนสินค้า / Stock / ปรับสถานะ / ปรับเกรด / นับสต๊อก | `/stock/*` | `stock.ledger.view` | เห็น |
 | PO Buy | `/purchase/po-buy` | `purchase.po_buy.view` | เห็น |
 | PO Sell | `/sales/po-sell` | `sales.po_sell.view` | เห็น |
-| พนักงานขาย | `/master-data/salespersons` | `master.salespersons.view` | เห็นแบบอ่าน |
+| พนักงานขาย | `/master-data/salespersons` | `master.salespersons.view` | เห็นและจัดการ |
 | ลูกค้า | `/master-data/customers` | `master.customers.view` | เห็น |
 | ผู้ขาย | `/master-data/suppliers` | `master.suppliers.view` | เห็น |
-| สินค้า / ประเภท / หน่วย | `/master-data/products`, `/master-data/product-types`, `/master-data/product-units` | page-specific `*.view` | เห็น |
+| สินค้า / ประเภท / หน่วย | `/master-data/products`, `/master-data/product-types`, `/master-data/product-units` | page-specific `*.view` และ resource/action ของแต่ละหน้า | เห็นและจัดการ |
 | รายการสิ่งเจือปน | `/master-data/impurities` | `master.impurities.view` | เห็น |
 | Finance, payment, approval, admin, unrelated reports and other master data | various | separate permissions | ไม่เห็น |
 
@@ -41,7 +41,7 @@ Evidence is from the active `coordinator` role on SIT, not Super Admin: 5 active
 | Customer | `/api/master-data/customers`, `/options`, `/thai-address` | view, create, update, status, export, import | view; create/update/status; export; import uses create; Thai address is customer-view OR supplier-view |
 | Supplier | `/api/master-data/suppliers`, `/options`, `/export`, `/import` | view, create, update/status, export, import | supplier view/create/update/status/export; import uses create |
 | Product | `/api/master-data/products`, `/options`, `/export`, `/import` | view, create, update, status, export, import | product view/create/update/status/export; import uses create |
-| Product type / unit | `/api/master-data/product-types`, `/product-units` | view and supported simple-master actions | page-specific `master.product_types.view` / `master.product_units.view`; no generic reference grant |
+| Product type / unit | `/api/master-data/product-types`, `/product-units` | view, create, update, status | page-specific `master.product_types.*` / `master.product_units.*`; no generic reference grant |
 | Impurity | `/api/master-data/impurities` | view, create, update, status | `master.impurities.view/create/update/status` |
 | Sales plan | `/api/sales-plan` | view and the existing plan-write actions | `reports.sales_plan.view` by current contract; no new action code inferred |
 | Sales-plan analysis | page and shared sales-plan reader | view | `reports.sales_plan_analysis.view` for page; shared API uses its mapped report permissions |
@@ -54,7 +54,7 @@ Evidence is from the active `coordinator` role on SIT, not Super Admin: 5 active
 
 ## Explicitly excluded permissions
 
-The coordinator role must not receive these as a workaround: `master.reference.view`, `daily.weight_tickets.open_bill`, `finance.cash.view`, `purchase.bills.approve`, `purchase.bills.pay`, `sales.bills.approve`, `sales.bills.receive`, or unrelated report/admin permissions. A 403 from an API must be traced to its route/action contract, not fixed with a broad master permission.
+The coordinator role must not receive these as a workaround: `master.reference.view`, `master.reference.manage`, `finance.cash.view`, `purchase.bills.approve`, `purchase.bills.pay`, `sales.bills.approve`, `sales.bills.receive`, or unrelated report/admin permissions. `daily.weight_tickets.open_bill` is explicitly granted because it is an action on the visible WTI/WTO menu. A 403 from an in-scope API is a failure; a hidden finance API remains out of scope and must not be enabled indirectly.
 
 ## Regression and SIT test matrix
 
@@ -63,18 +63,18 @@ The coordinator role must not receive these as a workaround: `master.reference.v
 | PERM-01 | `permissionForPath` for coordinator-visible pages | each page maps to its page-specific view permission | PASS |
 | PERM-02 | master options and Thai address mapping | customer/supplier-specific permissions; no generic reference fallback | PASS |
 | PERM-03 | coordinator role inventory on SIT | 5 active users, all-branch role, 0 branch rows, 49 permissions; forbidden list absent | PASS |
-| PERM-04 | WTI/WTO list capability response | `canOpenPurchaseBill`/`canOpenSalesBill` false without `open_bill` | PASS in code contract; browser UAT still needs the daily ticket page rerun |
-| PERM-05 | WTI-based purchase bill POST | direct API call is rejected by `daily.weight_tickets.open_bill` before write | PASS |
-| PERM-06 | WTO-based sales bill POST | direct API call is rejected by `daily.weight_tickets.open_bill` before write | PASS |
+| PERM-04 | WTI/WTO list capability response | `canOpenPurchaseBill`/`canOpenSalesBill` true for coordinator | PASS after SIT grant |
+| PERM-05 | WTI-based purchase bill POST | valid in-scope action is not rejected by `daily.weight_tickets.open_bill` | rerun required after deployed code |
+| PERM-06 | WTO-based sales bill POST | valid in-scope action is not rejected by `daily.weight_tickets.open_bill` | rerun required after deployed code |
 | PERM-07 | manual Trading sales bill | no WTI/WTO source means `open_bill` is not inferred | PASS |
 | PERM-08 | build baseline | lint, type-check, build and diff check pass | PASS; build rerun after final code change |
-| UAT-01 | coordinator login and `/api/auth/me` on SIT | login and auth context 200; no Super Admin evidence | PASS: roles `[coordinator]`, 49 permissions |
+| UAT-01 | coordinator login and `/api/auth/me` on SIT | login and auth context 200; no Super Admin evidence | PASS: roles `[coordinator]`, 59 permissions after grant |
 | UAT-02 | coordinator menu and page APIs on SIT | visible pages match inventory; 400 validation is not called a permission failure | PASS after runtime fix: menu/session was coordinator-only; page APIs and dependencies were swept on SIT |
-| UAT-03 | full coordinator action matrix on SIT | every visible API action reaches its intended permission guard; malformed/fake input must stop at 400/404 without a write | PASS on rerun: 96 checks, 40 HTTP 200, 30 HTTP 400, 12 HTTP 404 for granted/safe probes; stock-source bill opening, payment approval, payments, branches/warehouses and unsupported master writes returned the expected 14 HTTP 403 |
+| UAT-03 | full coordinator action matrix on SIT | every visible API action reaches its intended permission guard; valid happy paths must not return 403/400/404 | rerun after deployment; previous invalid-payload matrix is not acceptance evidence |
 | UAT-04 | import and product-options regression | import guard accepts multipart input and rejects invalid file input with 400; product options must serialize successfully | PASS on rerun: all three import guards returned 400 for an invalid multipart field; `/api/master-data/products/options` returned 200 |
 
 ## Browser QA findings requiring follow-up
 
-The full coordinator smoke on SIT used `watcharath@9stepsdigital.com` and confirmed `/api/auth/me` is coordinator-only (`isAdmin=false`, role `coordinator`, 49 permissions). The browser page initially hit a Vercel Security Checkpoint after the first high-volume probe, so the final matrix used the same authenticated Playwright request context rather than treating the checkpoint as an application 403. The fresh rerun covered 96 checks with no unexpected result: read-only APIs and exports returned 200, the intentionally incomplete `stock-options` query returned validation 400 and the valid branch/product dependency query returned 200, granted create/update/status/confirm/cancel/share/PO/stock actions reached 400/404 validation or fake-record boundaries, and the 14 restricted checks returned 403. Stock-source bill creation returned 403 because `daily.weight_tickets.open_bill` is absent. Payment approval, payments, branches and warehouses remained out of scope. The previously observed product-options 500 remains fixed by serializing BigInt option ids and the SIT runtime returns 200 on rerun.
+The coordinator smoke on SIT uses `watcharathat@9stepsdigital.com` and must confirm coordinator-only (`isAdmin=false`) after each auth refresh. A browser security checkpoint is not an application permission result. The acceptance rerun must use valid, reversible business fixtures: visible read/export APIs return 200; create/update/status/confirm/cancel/share/open-bill/PO/stock actions must complete with 2xx; validation 400, fake-id 404 and any 403 are failures when used on the happy path. Payment approval, payments, branches and warehouses remain hidden and are not evidence for this role. Product options must remain 200 after the BigInt serialization fix.
 
-The generic master-data client previously rendered create/edit/status controls before checking the action permission, so a direct page visit could show controls even when its backing API returned 403. The client now receives the same permission set used by the sidebar and gates those controls; product type/unit write actions use the existing route contract `master.reference.manage`, while salespersons use their page-specific actions. The API remains authoritative.
+The generic master-data client previously rendered create/edit/status controls before checking the action permission, so a direct page visit could show controls even when its backing API returned 403. The client now receives the same permission set used by the sidebar and gates those controls; product type/unit write actions now use resource-scoped `master.product_types.*` / `master.product_units.*` permissions, while salespersons use their page-specific actions. The API remains authoritative.

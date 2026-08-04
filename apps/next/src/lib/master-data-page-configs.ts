@@ -239,9 +239,9 @@ export const productsPageConfig: MasterDataPageConfig = {
 
 export const productUnitsPageConfig: MasterDataPageConfig = {
   actionPermissions: {
-    create: 'master.reference.manage',
-    status: 'master.reference.manage',
-    update: 'master.reference.manage',
+    create: MASTER_DATA_PAGE_PERMISSIONS.productUnits.create,
+    status: MASTER_DATA_PAGE_PERMISSIONS.productUnits.status,
+    update: MASTER_DATA_PAGE_PERMISSIONS.productUnits.update,
   },
   apiPath: '/api/master-data/product-units',
   createLabel: 'เพิ่มหน่วยสินค้า',
@@ -262,9 +262,9 @@ export const productUnitsPageConfig: MasterDataPageConfig = {
 
 export const productTypesPageConfig: MasterDataPageConfig = {
   actionPermissions: {
-    create: 'master.reference.manage',
-    status: 'master.reference.manage',
-    update: 'master.reference.manage',
+    create: MASTER_DATA_PAGE_PERMISSIONS.productTypes.create,
+    status: MASTER_DATA_PAGE_PERMISSIONS.productTypes.status,
+    update: MASTER_DATA_PAGE_PERMISSIONS.productTypes.update,
   },
   apiPath: '/api/master-data/product-types',
   createLabel: 'เพิ่มประเภทสินค้า',

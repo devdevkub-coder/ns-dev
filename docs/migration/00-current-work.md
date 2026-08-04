@@ -26,19 +26,19 @@ Immediate next task: ขอ/เปิด session SIT ของ `sorting_departme
 - Require `master.customers.update` when the customer form saves an existing record; keep create and update actions separate.
 - Grant coordinator export permissions for customers, products, and suppliers only.
 - Enforce `daily.weight_tickets.open_bill` at WTI/WTO bill-creation APIs and gate generic master-data write controls by the same page/action permissions used by the routes.
-- Keep the change focused on operational permissions; do not grant bill-opening, finance, payment, approval, or broad shared-reference access.
+- Keep the change focused on the coordinator's visible operational menus. Grant WTI/WTO `open_bill` and visible salesperson/product-type/product-unit actions resource-by-resource; do not grant hidden finance/payment/approval or broad shared-reference access.
 - Branch scope remains `all` until coordinator users receive deliberate branch assignments; current users have no branch-access rows.
-- Code validation passed for the focused permission tests `14/14`, lint, type-check, build, and `git diff --check`.
-- SIT migration applied/recorded: `20260804110000_align_coordinator_operational_permissions.sql`. Postflight found the required seven grants and none of the forbidden grants.
-- Coordinator full SIT action matrix rerun passed with `watcharathat@9stepsdigital.com` (`coordinator`, `isAdmin=false`, 49 permissions); 96 checks had no unexpected result (40x 200, 30x 400, 12x 404, 14x expected 403). No Super Admin and no Production. Product-options remains 200 after the BigInt serialization fix in `c2147e23`.
+- Code changes now map product-type/product-unit writes to resource-scoped action permissions instead of `master.reference.manage`.
+- SIT migration applied/recorded: `20260804150000_grant_coordinator_visible_menu_actions.sql`. Postflight confirms the ten new coordinator grants and keeps both shared-reference permissions absent.
+- Coordinator valid-flow rerun is pending after the SIT deployment: use `watcharathat@9stepsdigital.com` (`coordinator`, `isAdmin=false`); any 403/400/404 on a valid visible-menu action is a failure. Previous malformed/fake-payload matrix is diagnostic only, not acceptance evidence.
 
 Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
 
 Active batch: แก้ API อ่านประเภทสินค้า/หน่วยสินค้าและ Thai address lookup ให้ตรงกับ permission เฉพาะหน้า, บังคับ open-bill API boundary, และซ่อน action ของ master-data ที่ role ไม่มีสิทธิ์; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
 
-Validation: focused permission tests 26/26, full coordinator SIT API/action matrix rerun (96 checks, no unexpected result), product-options regression, lint, type-check, build, `git diff --check`, SIT role postflight, and coordinator browser auth/API probe passed. The first DOM probe hit a Vercel Security Checkpoint after high request volume; final evidence used the same authenticated browser request context and did not classify that checkpoint as an app permission failure.
+Validation: focused permission tests, lint, type-check, build, `git diff --check`, SIT role postflight, and a fresh coordinator browser auth/API probe are required after this batch. The first DOM probe hit a Vercel Security Checkpoint after high request volume; do not classify that checkpoint as an app permission result.
 
-Immediate next task: keep the coordinator action matrix and API inventory as the handoff baseline; do not use a broad permission as a workaround and do not promote or test against Production.
+Immediate next task: deploy/push the focused change to SIT, then rerun valid reversible fixtures for every visible menu/API/action and record PASS/FAIL in the coordinator flow note; do not use a broad permission as a workaround and do not promote or test against Production.
 
 # Vercel UAT Deployment Dependency Fix 2026-08-02
 
