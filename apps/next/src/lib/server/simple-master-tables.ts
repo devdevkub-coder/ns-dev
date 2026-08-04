@@ -17,6 +17,7 @@ import {
 } from '@/lib/server/reference-master-cache'
 import { getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { simpleMasterViewPermission } from '@/lib/simple-master-permissions'
 import {
   masterDataJson,
   masterDataListJson,
@@ -117,6 +118,7 @@ async function nextDirectorPersonCode() {
 
 function permissionForSimpleMaster(kind: SimpleMasterKind, action: 'manage' | 'view') {
   if (kind === 'vatSettings' || kind === 'whtSettings') return 'system.settings.manage'
+  if (action === 'view' && (kind === 'productTypes' || kind === 'productUnits')) return simpleMasterViewPermission(kind)
   return action === 'manage' ? 'master.reference.manage' : 'master.reference.view'
 }
 
