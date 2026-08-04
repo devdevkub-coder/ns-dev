@@ -553,7 +553,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'finance.dual_costing.allocate')
 
     const body = await request.json()
     const { productId, poSellId, sourceType, candidates, notes } = body as {

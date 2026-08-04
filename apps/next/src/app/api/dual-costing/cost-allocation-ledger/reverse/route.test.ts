@@ -99,6 +99,15 @@ beforeEach(() => {
 })
 
 describe('POST /api/dual-costing/cost-allocation-ledger/reverse', () => {
+  it('requires the dedicated reverse permission before mutating financial facts', async () => {
+    await POST(new Request('http://localhost/api/dual-costing/cost-allocation-ledger/reverse', {
+      body: JSON.stringify({ dealId: '1' }),
+      method: 'POST',
+    }))
+
+    expect(mocks.requirePermission).toHaveBeenCalledWith(actor, 'finance.dual_costing.reverse')
+  })
+
   it('reverses every lot in one stored match while preserving the original deal amounts', async () => {
     const firstDeal = activeDeal(1n)
     const secondDeal = activeDeal(2n)

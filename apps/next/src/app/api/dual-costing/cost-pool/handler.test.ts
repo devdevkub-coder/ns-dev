@@ -1,11 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  getCurrentAuthContext: vi.fn(),
   getDualCostingBranch: vi.fn(),
   poBuysFindMany: vi.fn(),
   purchaseBillItemsFindMany: vi.fn(),
   purchaseBillsFindMany: vi.fn(),
   stockPoolEntriesFindMany: vi.fn(),
+  requirePermission: vi.fn(),
+}))
+
+vi.mock('@/lib/server/api-error', () => ({ apiErrorResponse: vi.fn() }))
+vi.mock('@/lib/server/auth-context', () => ({
+  AuthContextError: class AuthContextError extends Error {},
+  authContextErrorResponse: vi.fn(),
+  getCurrentAuthContext: mocks.getCurrentAuthContext,
+  requirePermission: mocks.requirePermission,
 }))
 
 vi.mock('@/lib/server/dual-costing-allocation-contract', () => ({
@@ -26,7 +36,7 @@ vi.mock('@/lib/server/prisma', () => ({
   },
 }))
 
-import { getCostPoolRowsData } from './handler'
+import { GET, getCostPoolRowsData } from './handler'
 
 function entry(overrides: Record<string, unknown>) {
   return {
@@ -52,10 +62,29 @@ function entry(overrides: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.getCurrentAuthContext.mockResolvedValue({ appUser: { email: 'viewer@example.com' }, authUser: { email: 'viewer@example.com' } })
   mocks.getDualCostingBranch.mockResolvedValue({ id: 1n })
   mocks.purchaseBillItemsFindMany.mockResolvedValue([])
   mocks.purchaseBillsFindMany.mockResolvedValue([{ doc_no: 'PB-001', suppliers: { name: 'ผู้ขายบิล' } }])
   mocks.poBuysFindMany.mockResolvedValue([{ doc_no: 'POB-001', suppliers: { name: 'ผู้ขาย PO' } }])
+})
+
+describe('GET /api/dual-costing/cost-pool cache contract', () => {
+  it('marks JSON financial facts as private and non-cacheable', async () => {
+    mocks.stockPoolEntriesFindMany.mockResolvedValue([entry({})])
+
+    const response = await GET(new Request('http://localhost/api/dual-costing/cost-pool'))
+
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+  })
+
+  it('marks XLSX financial exports as private and non-cacheable', async () => {
+    mocks.stockPoolEntriesFindMany.mockResolvedValue([entry({})])
+
+    const response = await GET(new Request('http://localhost/api/dual-costing/cost-pool?format=xlsx'))
+
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+  })
 })
 
 describe('Cost Pool supplier display contract', () => {

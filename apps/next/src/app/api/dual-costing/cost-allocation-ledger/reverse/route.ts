@@ -23,7 +23,7 @@ function isReversedStatus(status: string | null | undefined) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'finance.dual_costing.reverse')
 
     const body = await request.json()
     const dealId = String(body.dealId ?? '').trim()

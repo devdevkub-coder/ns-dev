@@ -138,6 +138,7 @@ async function buildWorkbook(rows: CostPoolRow[]) {
 function xlsxResponse(body: Buffer, filename: string) {
   return new Response(new Uint8Array(body), {
     headers: {
+      'Cache-Control': 'private, no-store',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     },
@@ -405,7 +406,7 @@ export async function GET(request: Request) {
         usedQty: filteredRows.reduce((sum, row) => sum + row.usedQty, 0),
       },
       summaryByCostType,
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด Cost Pool ไม่ได้', 500)
