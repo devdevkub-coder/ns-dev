@@ -219,6 +219,8 @@ const prefixPathPermissions: Array<[string, string]> = [
   ['/api/master-data/customers/', 'master.customers.update'],
   ['/api/master-data/products/', 'master.products.update'],
   ['/api/master-data/impurities/', MASTER_DATA_PAGE_PERMISSIONS.impurities.status],
+  ['/api/master-data/product-types/', 'master.product_types.status'],
+  ['/api/master-data/product-units/', 'master.product_units.status'],
   ['/api/master-data/salespersons/', MASTER_DATA_PAGE_PERMISSIONS.salespersons.update],
   ['/api/master-data/suppliers/', SUPPLIER_PAGE_PERMISSIONS.update],
   ['/api/master-data/vat-settings/', 'system.settings.manage'],

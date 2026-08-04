@@ -83,6 +83,8 @@ describe('Supplier page permissions', () => {
     expect(permissionForPath('/api/master-data/products/options')).toBe(MASTER_DATA_PAGE_PERMISSIONS.products.view)
     expect(permissionForPath('/api/master-data/impurities')).toBe(MASTER_DATA_PAGE_PERMISSIONS.impurities.view)
     expect(permissionForPath('/api/master-data/impurities/IMP-001')).toBe(MASTER_DATA_PAGE_PERMISSIONS.impurities.status)
+    expect(permissionForPath('/api/master-data/product-types/PT001')).toBe('master.product_types.status')
+    expect(permissionForPath('/api/master-data/product-units/U001')).toBe('master.product_units.status')
     expect(permissionForPath('/api/master-data/salespersons')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.view)
     expect(permissionForPath('/api/master-data/salespersons/SA001')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.update)
     expect(permissionForPath('/api/master-data/salespersons/SA001/status')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.status)
