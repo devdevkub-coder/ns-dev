@@ -31,6 +31,9 @@ import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/F
 import { Select } from '@/components/ui/Select'
 import { invalidateClientReferenceRecords, listClientReferenceRecords } from '@/lib/client-reference-cache'
 import { invalidateSalesBillReferencesCache } from '@/lib/sales-bill-options-cache'
+import { useAuthPermissions } from '@/components/layout/AuthPermissionsContext'
+import { canAccessPath } from '@/lib/navigation'
+import { canUseMasterDataAction } from '@/lib/master-data-page-capabilities'
 
 const CLIENT_REFERENCE_MASTER_PATHS = [
   '/api/master-data/bank-names',
@@ -328,6 +331,11 @@ function validateMasterDataForm(
 }
 
 export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
+  const authPermissions = useAuthPermissions()
+  const canView = authPermissions !== null && canAccessPath(config.apiPath, { permissions: authPermissions })
+  const canCreate = canView && canUseMasterDataAction(config, authPermissions ?? [], 'create')
+  const canUpdate = canView && canUseMasterDataAction(config, authPermissions ?? [], 'update')
+  const canChangeStatus = canView && canUseMasterDataAction(config, authPermissions ?? [], 'status')
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [formDirty, setFormDirty] = useState(false)
@@ -362,6 +370,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const { requestConfirmation } = useActionConfirmation()
 
   const loadData = useCallback(async () => {
+    if (!canView) return
     setError(null)
     setIsLoading(true)
     try {
@@ -391,7 +400,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     } finally {
       setIsLoading(false)
     }
-  }, [config.apiPath, config.entityName, config.fields])
+  }, [canView, config.apiPath, config.entityName, config.fields])
 
   const resolvedConfig = useMemo(() => ({
     ...config,
@@ -455,12 +464,14 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const currencyOptions = fieldOptions.currency ?? []
 
   function openCreateForm() {
+    if (!canCreate) return
     setFormDirty(false)
     setSelectedRecord(null)
     setFormOpen(true)
   }
 
   function openEditForm(record: MasterDataRecord) {
+    if (!canUpdate) return
     setFormDirty(false)
     setSelectedRecord(record)
     setFormOpen(true)
@@ -508,6 +519,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   }
 
   function requestToggleActive(record: MasterDataRecord) {
+    if (!canChangeStatus) return
     if (!record.active) {
       void handleToggleActive(record).catch(() => undefined)
       return
@@ -586,23 +598,27 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
             <MatchButton active={activeFilter === 'all'} label="ทั้งหมด" onClick={() => setActiveFilter('all')} />
             <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => setActiveFilter('active')} />
             <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => setActiveFilter('inactive')} />
-            <button
-              className="ml-auto flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60 focus:outline-none"
-              type="button"
-              onClick={openCreateForm}
-            >
-              + {config.createLabel}
-            </button>
+            {canCreate ? (
+              <button
+                className="ml-auto flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60 focus:outline-none"
+                type="button"
+                onClick={openCreateForm}
+              >
+                + {config.createLabel}
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="flex justify-end">
-            <button
-              className="flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60 focus:outline-none"
-              type="button"
-              onClick={openCreateForm}
-            >
-              + {config.createLabel}
-            </button>
+            {canCreate ? (
+              <button
+                className="flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60 focus:outline-none"
+                type="button"
+                onClick={openCreateForm}
+              >
+                + {config.createLabel}
+              </button>
+            ) : null}
           </div>
         )}
         {config.description ? <div className="text-xs text-slate-500 mt-1">{config.description}</div> : null}
@@ -635,14 +651,16 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
 
       {/* Floating Action Button (FAB) for Mobile */}
       <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
-        <button
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform focus:outline-none"
-          onClick={openCreateForm}
-          type="button"
-          aria-label={config.createLabel}
-        >
-          <Plus className="h-6 w-6" />
-        </button>
+        {canCreate ? (
+          <button
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform focus:outline-none"
+            onClick={openCreateForm}
+            type="button"
+            aria-label={config.createLabel}
+          >
+            <Plus className="h-6 w-6" />
+          </button>
+        ) : null}
       </div>
 
       {/* Bottom Sheet Filter for Mobile */}
@@ -804,17 +822,19 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                         {column.format === 'money' ? formatNumber(record[column.key] as number | null) : null}
                         {column.format === 'number' ? formatNumber(record[column.key] as number | null, 4) : null}
                         {column.format === 'status' ? (
-                          <ActiveToggle
-                            checked={record.active}
-                            label={record.active ? 'ใช้งาน' : 'ปิด'}
-                            onChange={() => requestToggleActive(record)}
-                          />
+                          canChangeStatus ? (
+                            <ActiveToggle
+                              checked={record.active}
+                              label={record.active ? 'ใช้งาน' : 'ปิด'}
+                              onChange={() => requestToggleActive(record)}
+                            />
+                          ) : record.active ? 'ใช้งาน' : 'ปิด'
                         ) : null}
                         {!column.format ? displayRecordValue(record, column.key) : null}
                       </TableCell>
                     ))}
                     <TableCell className="p-3 text-center">
-                      <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEditForm(record)}>แก้ไข</TableActionMenuItem>} />
+                      {canUpdate ? <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEditForm(record)}>แก้ไข</TableActionMenuItem>} /> : null}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -849,11 +869,13 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                   </div>
                   {config.supportsActive !== false ? (
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <ActiveToggle
-                        checked={record.active}
-                        label={record.active ? 'ใช้งาน' : 'ปิด'}
-                        onChange={() => requestToggleActive(record)}
-                      />
+                      {canChangeStatus ? (
+                        <ActiveToggle
+                          checked={record.active}
+                          label={record.active ? 'ใช้งาน' : 'ปิด'}
+                          onChange={() => requestToggleActive(record)}
+                        />
+                      ) : record.active ? 'ใช้งาน' : 'ปิด'}
                     </div>
                   ) : null}
                 </div>
@@ -874,7 +896,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                     ))}
                 </div>
                 <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
-                  <TableActionButton mobileLabel menu={<TableActionMenuItem onSelect={() => openEditForm(record)}>แก้ไข</TableActionMenuItem>} />
+                  {canUpdate ? <TableActionButton mobileLabel menu={<TableActionMenuItem onSelect={() => openEditForm(record)}>แก้ไข</TableActionMenuItem>} /> : null}
                 </div>
               </div>
             ))}

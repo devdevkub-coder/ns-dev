@@ -25,17 +25,18 @@ Immediate next task: ขอ/เปิด session SIT ของ `sorting_departme
 - Map the shared Thai-address lookup API to the customer/supplier page permissions instead of the broad reference fallback.
 - Require `master.customers.update` when the customer form saves an existing record; keep create and update actions separate.
 - Grant coordinator export permissions for customers, products, and suppliers only.
+- Enforce `daily.weight_tickets.open_bill` at WTI/WTO bill-creation APIs and gate generic master-data write controls by the same page/action permissions used by the routes.
 - Keep the change focused on operational permissions; do not grant bill-opening, finance, payment, approval, or broad shared-reference access.
 - Branch scope remains `all` until coordinator users receive deliberate branch assignments; current users have no branch-access rows.
-- Code validation passed for the prior permission batch and the API read-permission fix.
+- Code validation passed for the focused permission tests `14/14`, lint, type-check, build, and `git diff --check`.
 - SIT migration applied/recorded: `20260804110000_align_coordinator_operational_permissions.sql`. Postflight found the required seven grants and none of the forbidden grants.
-- Push SIT is requested; Production is not in scope for this batch.
+- Coordinator browser probe passed auth identity and open-bill capability checks; `/api/master-data/products/options` remains a separate SIT `500 SERVER_ERROR` blocker. Production is not in scope for this batch.
 
 Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
 
-Active batch: แก้ API อ่านประเภทสินค้า/หน่วยสินค้าและ Thai address lookup ให้ตรงกับ permission เฉพาะหน้า; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
+Active batch: แก้ API อ่านประเภทสินค้า/หน่วยสินค้าและ Thai address lookup ให้ตรงกับ permission เฉพาะหน้า, บังคับ open-bill API boundary, และซ่อน action ของ master-data ที่ role ไม่มีสิทธิ์; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
 
-Validation: focused permission tests 9/9, lint, type-check, build, `git diff --check`, and SIT postflight for the three export grants passed.
+Validation: focused permission tests 14/14, lint, type-check, build, `git diff --check`, SIT role postflight, and coordinator browser auth/API probe passed. Full browser closure remains blocked by the products/options 500 and needs a broader page-route sweep after that runtime issue is resolved.
 
 Immediate next task: commit and push the coordinator permission alignment batch to `sit-origin/main`, then verify the remote commit and deployed runtime.
 

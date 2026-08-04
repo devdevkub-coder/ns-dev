@@ -45,6 +45,7 @@ import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION, type WeightTicketUsageAction } from '@/lib/server/weight-ticket-usage-history'
+import { requiresWeightTicketOpenBillPermission, WEIGHT_TICKET_OPEN_BILL_PERMISSION } from '@/lib/server/weight-ticket-open-bill-permissions'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { Prisma } from '../../../../../generated/prisma/client'
 
@@ -2398,6 +2399,9 @@ export async function POST(request: Request) {
     requirePermission(context, 'purchase.bills.create')
 
     const values = purchaseBillFormSchema.parse(await request.json())
+    if (requiresWeightTicketOpenBillPermission({ hasWeightTicketSource: values.transactionMode === 'STOCK', transactionMode: values.transactionMode })) {
+      requirePermission(context, WEIGHT_TICKET_OPEN_BILL_PERMISSION)
+    }
     const actor = currentActor(context)
     const createdAt = new Date()
     const billDate = bangkokDateInput(createdAt)

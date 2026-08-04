@@ -9,6 +9,7 @@ import { AuthStatus } from '@/components/layout/AuthStatus'
 import { MobileBottomNavigation } from '@/components/layout/MobileBottomNavigation'
 import { ThemeModeToggle } from '@/components/layout/ThemeModeToggle'
 import { GuardedLink } from '@/components/ui/GuardedLink'
+import { AuthPermissionsProvider } from '@/components/layout/AuthPermissionsContext'
 import { breadcrumbsForPath, canAccessPath, navigationItems, navigationSections, pageTitleForPath, type NavigationItem } from '@/lib/navigation'
 
 type AppShellProps = {
@@ -228,7 +229,8 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-slate-100 text-slate-900">
+    <AuthPermissionsProvider permissions={authContext?.permissions ?? null}>
+      <div className="flex h-dvh overflow-hidden bg-slate-100 text-slate-900">
       <aside
         className={`${sidebarOpen ? 'fixed inset-0 z-50 flex w-full' : 'hidden'} flex-shrink-0 flex-col overflow-hidden bg-slate-900 text-slate-200 transition-[width] duration-200 ease-out lg:relative lg:flex ${desktopSidebarExpanded ? 'lg:w-64' : 'lg:w-16'}`}
         onBlur={handleSidebarBlur}
@@ -408,6 +410,7 @@ export function AppShell({ children }: AppShellProps) {
       {showMobileBottomNav && !sidebarOpen ? (
         <MobileBottomNavigation authContext={authContext} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : null}
-    </div>
+      </div>
+    </AuthPermissionsProvider>
   )
 }
