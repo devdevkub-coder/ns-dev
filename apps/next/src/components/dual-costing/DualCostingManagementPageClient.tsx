@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -16,6 +16,7 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { ChevronDown } from 'lucide-react'
 import {
   DualCostingCountRow,
   DualCostingErrorBox,
@@ -71,6 +72,10 @@ type LedgerRow = {
   targetSourceType: 'po-sell' | 'spot-sell'
   targetType: string
   totalCost: number
+}
+
+type LedgerMatchGroup = LedgerRow & {
+  rows: LedgerRow[]
 }
 
 type LedgerColumnKey = 'action' | 'allocatedBy' | 'allocatedQty' | 'costPerKg' | 'costPoolNo' | 'gpPct' | 'grossProfit' | 'matchId' | 'productCategory' | 'productName' | 'saleDocNo' | 'saleQty' | 'allocatedRevenue' | 'status' | 'targetType' | 'totalCost'
@@ -703,6 +708,7 @@ function AllocationLedgerView() {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedDetailKey, setSelectedDetailKey] = useState<string | null>(null)
+  const [expandedMatchIds, setExpandedMatchIds] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState('approved')
   const [targetType, setTargetType] = useState('all')
   const [toDate, setToDate] = useState('')
@@ -730,7 +736,7 @@ function AllocationLedgerView() {
     { key: 'gpPct', label: 'GP%', defaultWidth: 80, minWidth: 70, align: 'right' },
     { key: 'allocatedBy', label: 'ผู้จัดสรร', defaultWidth: 135, minWidth: 115, className: 'ns-table-textual-column' },
     { key: 'status', label: 'สถานะ', defaultWidth: 115, minWidth: 100, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
+    { key: 'action', label: 'ดูรายการ', defaultWidth: 88, minWidth: 78, maxWidth: 110, align: 'center' },
   ], [])
   const ledgerResize = useResizableColumns('dual-costing.allocation-ledger.v1', ledgerColumns)
 
@@ -739,25 +745,54 @@ function AllocationLedgerView() {
   }, [category, fromDate, pageSize, search, status, targetType, toDate])
 
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
-  const rowsByTarget = useMemo(() => {
+  const rowsByMatch = useMemo(() => {
     const grouped = new Map<string, LedgerRow[]>()
     rows.forEach((row) => {
-      const targetRows = grouped.get(row.targetGroupKey) ?? []
-      targetRows.push(row)
-      grouped.set(row.targetGroupKey, targetRows)
+      const matchRows = grouped.get(row.matchId) ?? []
+      matchRows.push(row)
+      grouped.set(row.matchId, matchRows)
     })
     return grouped
   }, [rows])
-  const selectedDetailRows = selectedDetailKey ? rowsByTarget.get(selectedDetailKey) ?? [] : []
+  const groupedRows = useMemo<LedgerMatchGroup[]>(() => Array.from(rowsByMatch.entries()).map(([matchId, matchRows]) => {
+    const first = matchRows[0]
+    const allocatedQty = matchRows.reduce((sum, row) => sum + row.allocatedQty, 0)
+    const totalCost = matchRows.reduce((sum, row) => sum + row.totalCost, 0)
+    const allocatedRevenue = matchRows.reduce((sum, row) => sum + row.allocatedRevenue, 0)
+    const grossProfit = matchRows.reduce((sum, row) => sum + row.grossProfit, 0)
+    const unique = (value: (row: LedgerRow) => string) => Array.from(new Set(matchRows.map(value)))
+    const products = unique((row) => row.productName)
+    const categories = unique((row) => row.productCategory)
+    const costPools = unique((row) => row.costPoolNo)
+    const allocators = unique((row) => row.allocatedBy)
+    const statuses = unique((row) => row.status)
+    return {
+      ...first,
+      allocatedQty,
+      allocatedRevenue,
+      costPerKg: allocatedQty > 0 ? totalCost / allocatedQty : 0,
+      grossProfit,
+      gpPct: allocatedRevenue > 0 ? (grossProfit / allocatedRevenue) * 100 : 0,
+      id: matchId,
+      matchId,
+      productName: products.length === 1 ? products[0] : `${products.length} รายการสินค้า`,
+      productCategory: categories.length === 1 ? categories[0] : 'หลายหมวด',
+      costPoolNo: costPools.length === 1 ? costPools[0] : `${costPools.length} กลุ่มต้นทุน`,
+      allocatedBy: allocators.length === 1 ? allocators[0] : `${allocators.length} ผู้จัดสรร`,
+      status: statuses.length === 1 ? statuses[0] : 'mixed',
+      rows: matchRows,
+    }
+  }), [rowsByMatch])
+  const selectedDetailRows = selectedDetailKey ? rowsByMatch.get(selectedDetailKey) ?? [] : []
   const selectedDetailRow = selectedDetailRows[0] ?? null
   const sortedRows = useMemo(() => {
-    if (!sortKey) return rows
+    if (!sortKey) return groupedRows
 
-    return [...rows].sort((left, right) => {
+    return [...groupedRows].sort((left, right) => {
       const result = compareSortValues(getLedgerSortValue(left, sortKey), getLedgerSortValue(right, sortKey))
       return sortDirection === 'asc' ? result : -result
     })
-  }, [rows, sortDirection, sortKey])
+  }, [groupedRows, sortDirection, sortKey])
   const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize))
   const safePage = Math.min(page, totalPages)
 
@@ -832,6 +867,15 @@ function AllocationLedgerView() {
 
     setSortKey(key)
     setSortDirection('asc')
+  }
+
+  function toggleMatch(matchId: string) {
+    setExpandedMatchIds((current) => {
+      const next = new Set(current)
+      if (next.has(matchId)) next.delete(matchId)
+      else next.add(matchId)
+      return next
+    })
   }
 
   return (
@@ -943,7 +987,7 @@ function AllocationLedgerView() {
 
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 text-sm text-slate-600">
-        <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
+        <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} กลุ่ม · {(data?.rows.length ?? 0).toLocaleString('th-TH')} รายการต้นทุน</div>
         <div className="flex flex-wrap items-center gap-2">
           {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
@@ -984,20 +1028,25 @@ function AllocationLedgerView() {
           <TableBody className="divide-y divide-slate-100">
             {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
             {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>ยังไม่มีรายการ</TableCell></TableRow> : null}
-            {visibleRows.map((row) => (
-              <TableRow
-                key={row.id}
-                className={`cursor-pointer hover:bg-indigo-50/50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}
-                onClick={() => setSelectedDetailKey(row.targetGroupKey)}
-              >
-                <TableCell className="ns-table-textual-column p-3 font-mono text-xs text-slate-700"><span className="block truncate" title={row.matchId}>{row.matchId}</span></TableCell>
+            {visibleRows.map((row) => {
+              const isExpanded = expandedMatchIds.has(row.matchId)
+              return (
+                <Fragment key={row.id}>
+                  <TableRow className={`hover:bg-indigo-50/50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
+                <TableCell className="ns-table-textual-column p-3 font-mono text-xs text-slate-700">
+                  <button className="inline-flex items-center gap-2 font-semibold text-slate-700 hover:text-indigo-700" type="button" onClick={() => toggleMatch(row.matchId)} aria-expanded={isExpanded}>
+                    <ChevronDown className={`size-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    <span className="truncate" title={row.matchId}>{row.matchId}</span>
+                  </button>
+                  <div className="mt-1 text-[11px] font-sans text-slate-500">{row.rows.length.toLocaleString('th-TH')} รายการต้นทุน</div>
+                </TableCell>
                 <TableCell className="ns-table-textual-column p-3 text-left"><TargetPill type={row.targetType} /></TableCell>
                 <TableCell className="ns-table-textual-column p-3 text-left font-mono text-xs text-slate-700"><span className="block truncate" title={row.saleDocNo}>{row.saleDocNo}</span></TableCell>
                 <TableCell className="ns-table-textual-column p-3 text-left text-sm text-slate-800"><span className="block truncate" title={row.productName}>{row.productName}</span></TableCell>
                 <TableCell className="ns-table-textual-column p-3 text-left"><span className="whitespace-nowrap text-xs font-semibold text-slate-600">{row.productCategory}</span></TableCell>
                 <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.saleQty)}</TableCell>
                 <TableCell className="p-3 text-right font-mono font-medium">
-                  <button className="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900" type="button" onClick={() => setSelectedDetailKey(row.targetGroupKey)}>
+                  <button className="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900" type="button" onClick={() => setSelectedDetailKey(row.matchId)}>
                     {formatMoney(row.allocatedQty)}
                   </button>
                 </TableCell>
@@ -1009,16 +1058,48 @@ function AllocationLedgerView() {
                 <TableCell className="p-3 text-right font-mono text-xs text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
                 <TableCell className="ns-table-textual-column p-3 text-xs text-slate-700"><span className="block truncate" title={row.allocatedBy}>{row.allocatedBy}</span></TableCell>
                 <TableCell className="ns-table-textual-column p-3 text-left"><LedgerStatusText status={row.status} /></TableCell>
-                <TableCell className="p-3 text-center" onClick={(event) => event.stopPropagation()}>
-                  <LedgerActionMenu
-                    busy={actionTargetId === row.dealId}
-                    disabled={row.status !== 'approved'}
-                    onCancel={() => void handleReverse(row, false)}
-                    onEdit={() => void handleReverse(row, true)}
-                  />
+                <TableCell className="p-3 text-center">
+                  <button className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700" type="button" onClick={() => toggleMatch(row.matchId)} aria-expanded={isExpanded}>
+                    {isExpanded ? 'ซ่อน' : 'ดู'} <span>{row.rows.length}</span>
+                  </button>
                 </TableCell>
-              </TableRow>
-            ))}
+                  </TableRow>
+                  {isExpanded ? (
+                    <TableRow className="bg-slate-50">
+                      <TableCell className="p-3" colSpan={ledgerColumns.length}>
+                        <div className="rounded-md border border-indigo-100 bg-white p-3 shadow-sm">
+                          <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+                            <span className="font-semibold text-slate-700">รายการภายใน {row.matchId}</span>
+                            <span>แสดง {row.rows.length.toLocaleString('th-TH')} รายการ</span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-[980px] w-full text-xs">
+                              <thead className="border-b border-slate-200 bg-slate-50 text-left text-slate-500">
+                                <tr><th className="px-2 py-2">ประเภท / เอกสารขาย</th><th className="px-2 py-2">สินค้า</th><th className="px-2 py-2">กลุ่มต้นทุน</th><th className="px-2 py-2 text-right">จัดสรรแล้ว</th><th className="px-2 py-2 text-right">ต้นทุนรวม</th><th className="px-2 py-2">ผู้จัดสรร</th><th className="px-2 py-2">สถานะ</th><th className="px-2 py-2 text-center">จัดการ</th></tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {row.rows.map((detail) => (
+                                  <tr key={detail.id}>
+                                    <td className="px-2 py-2 text-slate-700"><TargetPill type={detail.targetType} /><div className="mt-1 font-mono">{detail.saleDocNo}</div></td>
+                                    <td className="px-2 py-2 text-slate-700">{detail.productName}<div className="text-slate-500">{detail.productCategory}</div></td>
+                                    <td className="px-2 py-2 font-mono text-slate-700">{detail.costPoolNo}<div className="text-slate-500">{formatMoney(detail.costPerKg)} บาท/กก.</div></td>
+                                    <td className="px-2 py-2 text-right font-mono text-blue-700">{formatMoney(detail.allocatedQty)} กก.</td>
+                                    <td className="px-2 py-2 text-right font-mono text-red-700">{formatMoney(detail.totalCost)}</td>
+                                    <td className="px-2 py-2 text-slate-700">{detail.allocatedBy}<div className="text-slate-500">{detail.allocatedAt ? formatDateDisplay(detail.allocatedAt) : '-'}</div></td>
+                                    <td className="px-2 py-2"><LedgerStatusText status={detail.status} /></td>
+                                    <td className="px-2 py-2 text-center" onClick={(event) => event.stopPropagation()}><LedgerActionMenu busy={actionTargetId === detail.dealId} disabled={detail.status !== 'approved'} onCancel={() => void handleReverse(detail, false)} onEdit={() => void handleReverse(detail, true)} /></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </Fragment>
+              )
+            })}
           </TableBody>
         </Table>
       </div>
@@ -1033,15 +1114,17 @@ function AllocationLedgerView() {
         {!isLoading && (data?.rows.length ?? 0) === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">ไม่มีบันทึกการจัดสรรตรงกับตัวกรอง</div>
         ) : null}
-        {!isLoading && visibleRows.map((row) => (
+        {!isLoading && visibleRows.map((row) => {
+          const isExpanded = expandedMatchIds.has(row.matchId)
+          return (
           <div
             key={row.id}
-            className={`cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 ${row.status === 'reversed' ? 'opacity-50' : ''}`}
-            onClick={() => setSelectedDetailKey(row.targetGroupKey)}
+            className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 ${row.status === 'reversed' ? 'opacity-50' : ''}`}
           >
             <div className="flex justify-between items-start">
               <div>
-                <div className="font-mono text-xs font-bold text-slate-800">{row.matchId}</div>
+                <button className="inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-800 hover:text-indigo-700" type="button" onClick={() => toggleMatch(row.matchId)} aria-expanded={isExpanded}><ChevronDown className={`size-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />{row.matchId}</button>
+                <div className="text-[11px] text-slate-500">{row.rows.length} รายการต้นทุน</div>
                 <div className="text-xs text-slate-500 mt-0.5">เอกสารขาย: <span className="font-mono">{row.saleDocNo}</span></div>
               </div>
               <div className="flex gap-1.5 items-center">
@@ -1059,7 +1142,7 @@ function AllocationLedgerView() {
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
               <div>
                 <span className="text-slate-500 block">จำนวนขาย / จัดสรรแล้ว</span>
-                <span className="font-mono text-slate-700">{formatMoney(row.saleQty)} / <button className="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2" type="button" onClick={() => setSelectedDetailKey(row.targetGroupKey)}>{formatMoney(row.allocatedQty)}</button> กก.</span>
+              <span className="font-mono text-slate-700">{formatMoney(row.saleQty)} / <button className="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2" type="button" onClick={() => setSelectedDetailKey(row.matchId)}>{formatMoney(row.allocatedQty)}</button> กก.</span>
               </div>
               <div className="text-right">
                 <span className="text-slate-500 block">ต้นทุน (฿/กก.)</span>
@@ -1078,17 +1161,16 @@ function AllocationLedgerView() {
               <span>โดย {row.allocatedBy}</span>
               <span>{row.allocatedAt ? formatDateDisplay(row.allocatedAt) : ''}</span>
             </div>
-            <div className="border-t border-slate-100 pt-3" onClick={(event) => event.stopPropagation()}>
-              <LedgerActionMenu
-                busy={actionTargetId === row.dealId}
-                disabled={row.status !== 'approved'}
-                mobileLabel
-                onCancel={() => void handleReverse(row, false)}
-                onEdit={() => void handleReverse(row, true)}
-              />
+            <div className="border-t border-slate-100 pt-3">
+              <button className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-300 text-sm font-semibold text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700" type="button" onClick={() => toggleMatch(row.matchId)} aria-expanded={isExpanded}>
+                <ChevronDown className={`size-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                {isExpanded ? 'ซ่อนรายการต้นทุน' : `ดูรายการต้นทุน ${row.rows.length} รายการ`}
+              </button>
             </div>
+            {isExpanded ? <div className="space-y-2 border-t border-slate-100 pt-3">{row.rows.map((detail) => <div className="rounded-md bg-slate-50 p-3 text-xs" key={detail.id}><div className="flex items-start justify-between gap-2"><div><TargetPill type={detail.targetType} /><div className="mt-1 font-mono text-slate-700">{detail.saleDocNo}</div><div className="mt-1 text-slate-600">{detail.productName} · {detail.costPoolNo}</div></div><LedgerStatusText status={detail.status} /></div><div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-200 pt-2"><span className="font-mono text-blue-700">{formatMoney(detail.allocatedQty)} กก. · {formatMoney(detail.totalCost)} บาท</span><span onClick={(event) => event.stopPropagation()}><LedgerActionMenu busy={actionTargetId === detail.dealId} disabled={detail.status !== 'approved'} mobileLabel onCancel={() => void handleReverse(detail, false)} onEdit={() => void handleReverse(detail, true)} /></span></div></div>)}</div> : null}
           </div>
-        ))}
+          )
+        })}
       </div>
       </div>
 

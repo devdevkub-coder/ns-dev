@@ -128,6 +128,7 @@ Target future: reverse/edit actions must create auditable reversal behavior and 
 - Current API/page is implemented and protected by `finance.cash.view`.
 - Current route reads `trading_deals` as the available read source until durable allocation ledger exists.
 - 2026-07-01 UI alignment: removed the explanatory hint banner from the page body, aligned filter control height/search width with the shared list-page baseline, added a page-size selector to the pagination row, changed pagination buttons to the `h-9` baseline, and converted the desktop ledger table to resizable columns with fixed column widths so `Type`, `หมวด`, `By`, and `Status` do not collapse into vertical text.
+- 2026-08-04 UI grouping: the main table now renders one summary row per `matchId`, aggregates the matched quantities and financial facts from its source rows, and exposes a `ดูรายการ` dropdown for the individual cost-pool/source rows. Child rows retain the existing status and reverse/edit actions; API, export contract, allocation formulas, and database state are unchanged. This keeps one matching decision visually together while preserving row-level audit actions.
 
 ## Current Gap
 

@@ -105,16 +105,28 @@ describe('Allocation Ledger table density', () => {
     })
   })
 
-  it('opens matched-cost details from the allocated quantity without expanding the table row', () => {
+  it('opens matched-cost details from the allocated quantity while keeping the group dropdown available', () => {
     const viewStart = source.indexOf('function AllocationLedgerView()')
     const viewEnd = source.indexOf('\nfunction compareSortValues', viewStart)
     const view = source.slice(viewStart, viewEnd)
 
-    expect(view).toContain('setSelectedDetailKey(row.targetGroupKey)')
-    expect(view).toContain('onClick={() => setSelectedDetailKey(row.targetGroupKey)}')
+    expect(view).toContain('setSelectedDetailKey(row.matchId)')
+    expect(view).toContain('onClick={() => setSelectedDetailKey(row.matchId)}')
     expect(view).toContain('onClick={(event) => event.stopPropagation()}')
     expect(view).toContain('<Dialog open={selectedDetailRow != null}')
     expect(view).toContain('<LedgerMatchedCostDetails rows={selectedDetailRows} />')
     expect(view).not.toContain('colSpan={ledgerColumns.length}>\n                        <LedgerMatchedCostDetails')
+  })
+
+  it('groups the main ledger by match id and exposes a dropdown for each source row', () => {
+    const viewStart = source.indexOf('function AllocationLedgerView()')
+    const viewEnd = source.indexOf('\nfunction compareSortValues', viewStart)
+    const view = source.slice(viewStart, viewEnd)
+
+    expect(view).toContain('groupedRows = useMemo<LedgerMatchGroup[]>')
+    expect(view).toContain('rowsByMatch.get(selectedDetailKey)')
+    expect(view).toContain('const isExpanded = expandedMatchIds.has(row.matchId)')
+    expect(view).toContain('รายการภายใน {row.matchId}')
+    expect(view).toContain('ดูรายการต้นทุน ${row.rows.length} รายการ')
   })
 })
