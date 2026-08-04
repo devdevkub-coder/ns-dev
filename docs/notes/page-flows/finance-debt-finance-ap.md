@@ -141,6 +141,12 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - PMA/PMT state separation and locks need end-to-end runtime proof.
 - Source links to PB/PMA/PMT/Supplier Advance are available in detail; export/source-link depth can still be expanded later.
 
+## Filter Surface Convention 2026-08-04
+
+- What is what: desktop row one owns search, supplier/aging/branch/date controls and `ล้างตัวกรอง`; row two owns status and Excel export. `พบทั้งหมด ... รายการ` belongs only to the table/pagination surface. Mobile keeps search/actions compact and puts `ล้างตัวกรอง` in the filter sheet footer.
+- Why it has to be like this: filter controls stay together, status/actions remain easy to scan, and the result count is shown once next to the data it describes instead of being duplicated in the filter toolbar.
+- Validation: local `/finance/ap` was checked at desktop and emulated mobile widths; filter sheet, clear action, and single table/pagination count were present.
+
 ## Drilldown Scope Hydration 2026-07-17
 
 - What is what: `/finance/ap` accepts outward `from`, `to`, and branch-code `branchId` from a related-report URL and initializes the AP client with them before its first request.
