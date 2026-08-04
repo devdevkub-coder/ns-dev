@@ -1,6 +1,7 @@
 import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { PO_BUY_PERMISSIONS, PO_SELL_PERMISSIONS } from '@/lib/po-permissions'
+import { SUPPLIER_PAGE_PERMISSIONS } from '@/lib/supplier-page-permissions'
 
 export type NavigationSectionKey =
   | 'main'
@@ -126,9 +127,10 @@ const exactPathPermissions: Record<string, string> = {
   '/api/master-data/customers/import': 'master.customers.create',
   '/api/master-data/products': 'master.products.view',
   '/api/master-data/products/export': 'master.products.export',
-  '/api/master-data/suppliers': 'master.suppliers.view',
-  '/api/master-data/suppliers/export': 'master.suppliers.export',
-  '/api/master-data/suppliers/import': 'master.suppliers.create',
+  '/api/master-data/suppliers': SUPPLIER_PAGE_PERMISSIONS.view,
+  '/api/master-data/suppliers/export': SUPPLIER_PAGE_PERMISSIONS.export,
+  '/api/master-data/suppliers/import': SUPPLIER_PAGE_PERMISSIONS.create,
+  '/api/master-data/suppliers/options': SUPPLIER_PAGE_PERMISSIONS.view,
   '/api/master-data/vat-settings': 'system.settings.manage',
   '/api/master-data/wht-settings': 'system.settings.manage',
   '/dashboard': REPORT_PAGE_PERMISSIONS.dashboardOverview,
@@ -145,7 +147,7 @@ const exactPathPermissions: Record<string, string> = {
   '/master-data/customers': 'master.customers.view',
   '/master-data/products': 'master.products.view',
   '/master-data/impurity-products': 'master.products.view',
-  '/master-data/suppliers': 'master.suppliers.view',
+  '/master-data/suppliers': SUPPLIER_PAGE_PERMISSIONS.view,
   '/owner-daily': REPORT_PAGE_PERMISSIONS.ownerDaily,
   '/production/orders': 'production.orders.view',
   '/production/dashboard': 'production.operations.view',
@@ -178,7 +180,7 @@ const exactPathPermissions: Record<string, string> = {
 const prefixPathPermissions: Array<[string, string]> = [
   ['/api/master-data/customers/', 'master.customers.update'],
   ['/api/master-data/products/', 'master.products.update'],
-  ['/api/master-data/suppliers/', 'master.suppliers.update'],
+  ['/api/master-data/suppliers/', SUPPLIER_PAGE_PERMISSIONS.update],
   ['/api/master-data/vat-settings/', 'system.settings.manage'],
   ['/api/master-data/wht-settings/', 'system.settings.manage'],
   ['/api/daily/weight-tickets/', 'daily.weight_tickets.view'],
@@ -235,7 +237,7 @@ export function permissionForPath(pathname: string) {
   }
 
   if (normalizedPath.startsWith('/api/master-data/suppliers/') && normalizedPath.endsWith('/status')) {
-    return 'master.suppliers.status'
+    return SUPPLIER_PAGE_PERMISSIONS.status
   }
 
   return prefixPathPermissions.find(([prefix]) => normalizedPath === prefix.slice(0, -1) || normalizedPath.startsWith(prefix))?.[1] ?? null

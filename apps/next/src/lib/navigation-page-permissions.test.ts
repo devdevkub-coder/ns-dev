@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { permissionCodesForPath, permissionForPath } from './navigation'
 import { REPORT_PAGE_PERMISSIONS } from './report-permissions'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from './finance-debt-permissions'
+import { SUPPLIER_PAGE_PERMISSIONS } from './supplier-page-permissions'
 
 describe('Dashboard & Reports page permissions', () => {
   it('maps each main page to its own view permission', () => {
@@ -70,5 +71,12 @@ describe('Transaction Ledger page permissions', () => {
   it('uses an independent permission for the page and API', () => {
     expect(permissionCodesForPath('/admin/transaction-ledger')).toEqual([FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger])
     expect(permissionCodesForPath('/api/admin/transaction-ledger')).toEqual([FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger])
+  })
+})
+
+describe('Supplier page permissions', () => {
+  it('uses the supplier page permission for its options API', () => {
+    expect(permissionForPath('/master-data/suppliers')).toBe(SUPPLIER_PAGE_PERMISSIONS.view)
+    expect(permissionForPath('/api/master-data/suppliers/options')).toBe(SUPPLIER_PAGE_PERMISSIONS.view)
   })
 })
