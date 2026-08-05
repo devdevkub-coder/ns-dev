@@ -916,7 +916,7 @@ const blankSalesItem = (): SalesBillFormValues['items'][number] => ({
   price: 0,
   productId: '',
   qty: 0,
-  salesDisplayProductId: null,
+  salesProductId: null,
   tradingCostSourceId: null,
 })
 
@@ -1746,13 +1746,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   function poSellAvailableForRow(poSellId: string | null, index: number) {
     if (!poSellId) return 0
     const currentItem = salesForm.items[index]
-    const currentProductId = currentItem?.productId ?? null
+    const currentProductId = currentItem?.salesProductId ?? currentItem?.productId ?? null
     const po = poSellOptionForProduct(poSellId, currentProductId)
     if (!po) return 0
     const allocatedOtherRows = salesForm.items.reduce((sum, item, itemIndex) => {
       if (itemIndex === index) return sum
       if (item.poSellId !== poSellId) return sum
-      if (currentProductId && item.productId !== currentProductId) return sum
+      if (currentProductId && (item.salesProductId ?? item.productId) !== currentProductId) return sum
       return sum + item.qty
     }, 0)
     return Math.max(0, (po.remainingQty ?? 0) - allocatedOtherRows)
@@ -1761,7 +1761,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   function poSellVarianceForRow(poSellId: string | null, index: number) {
     if (!poSellId) return null
     const currentItem = salesForm.items[index]
-    const po = poSellOptionForProduct(poSellId, currentItem?.productId ?? null)
+    const po = poSellOptionForProduct(poSellId, currentItem?.salesProductId ?? currentItem?.productId ?? null)
     if (!po) return null
     const availableQty = poSellAvailableForRow(poSellId, index)
     if (currentItem.qty > availableQty + 0.001) {
@@ -2226,7 +2226,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         productId: item.productCode || item.productId,
         qty: item.qty,
         salesBillLineNo: item.lineNo,
-        salesDisplayProductId: item.salesDisplayProductCode || null,
+        salesProductId: item.productCode || item.productId,
         tradingCostSourceId: item.tradingSourceDocNo
           ? tradingSourceByDocLine.get(`${item.tradingSourceDocNo}:${item.tradingSourceLineNo ?? ''}`) ?? null
           : null,
@@ -2861,6 +2861,24 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSalesFieldErrors({})
   }
 
+  function updateSalesStockProduct(index: number, salesProductId: string) {
+    setSalesForm((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        const nextSalesProductId = salesProductId === item.productId ? null : salesProductId
+        const selectedPoSell = item.poSellId ? poSellOptionForProduct(item.poSellId, salesProductId) : null
+        return {
+          ...item,
+          poSellId: selectedPoSell ? item.poSellId : null,
+          price: selectedPoSell ? selectedPoSell.unitPrice ?? item.price : item.poSellId ? 0 : item.price,
+          salesProductId: nextSalesProductId,
+        }
+      }),
+    }))
+    setSalesFieldErrors({})
+  }
+
   function updateSalesSplitProduct(index: number, productId: string) {
     setSalesForm((current) => ({
       ...current,
@@ -2933,7 +2951,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           && nextRow?.productId === item.productId
           && !nextRow?.deliveryTicketId
         const mergedSplitQty = mergeNextSpotSplit ? (nextRow?.qty ?? 0) : 0
-        const selectedPoSell = poSellId ? poSellOptionForProduct(poSellId, item.productId) : null
+        const salesProductId = item.salesProductId ?? item.productId
+        const selectedPoSell = poSellId ? poSellOptionForProduct(poSellId, salesProductId) : null
         const selectedTradingCostSource = item.tradingCostSourceId ? tradingCostSourceOptionForProduct(item.tradingCostSourceId, item.productId) : null
         const summaryId = item.deliverySummaryId ?? item.deliveryLineId ?? null
         const summary = summaryId ? deliverySummaryById.get(summaryId) : null
@@ -2949,7 +2968,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           ? current.items.reduce((sum, row, rowIndex) => {
             if (rowIndex === index) return sum
             if (row.poSellId !== poSellId) return sum
-            if (item.productId && row.productId !== item.productId) return sum
+            if (salesProductId && (row.salesProductId ?? row.productId) !== salesProductId) return sum
             return sum + row.qty
           }, 0)
           : 0
@@ -4491,12 +4510,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                              ? Math.max(0, sourceSummary.remainingWeight - (summaryState?.allocatedQty ?? 0))
 	                              : 0
 	                            const productName = activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId
-	                            const itemPoSellOptions = activePoSells.filter((po) => {
-	                              if (po.product_id && po.product_id !== item.productId) return false
+                            const salesProductId = item.salesProductId ?? item.productId
+                            const itemPoSellOptions = activePoSells.filter((po) => {
+                              if (po.product_id && po.product_id !== salesProductId) return false
 	                              if (item.poSellId === po.id) return true
 	                              return poSellAvailableForRow(po.id, index) > 0.0001
 	                            })
-	                            const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
+                            const selectedPoSell = poSellOptionForProduct(item.poSellId, salesProductId)
 	                            const hasSelectedPoSell = Boolean(item.poSellId && selectedPoSell)
 	                            const selectedPoSellFallback = item.poSellId && selectedPoSell && !itemPoSellOptions.some((po) => po.id === item.poSellId)
 	                              ? { id: item.poSellId, label: selectedPoSell.name || selectedPoSell.id }
@@ -4536,11 +4556,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                         hideLabel
                                         inputId={`sales-bill-stock-display-product-search-${index}`}
                                         options={activeProducts}
-                                        value={item.salesDisplayProductId ?? item.productId}
-                                        onChange={(value) => updateSalesItem(index, 'salesDisplayProductId', value === item.productId ? null : value)}
+                                        value={salesProductId}
+                                        onChange={(value) => updateSalesStockProduct(index, value)}
                                       />
                                       <div className="mt-1 text-xs text-slate-500">
-                                        ชื่อสินค้าในบิลขาย · ตัด WTO, สต็อก และต้นทุนตาม {sourceSummary?.productName ?? productName}
+                                        สินค้าที่ขาย · ตัด WTO, สต็อก และต้นทุนตาม {sourceSummary?.productName ?? productName}
                                       </div>
                                     </div>
                                   )}

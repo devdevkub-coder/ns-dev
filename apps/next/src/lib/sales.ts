@@ -44,7 +44,7 @@ export const salesLineItemSchema = z.object({
   productId: z.string().trim().min(1, 'เลือกสินค้า').max(80, 'รหัสสินค้ายาวเกินไป').regex(safeIdPattern, 'รหัสสินค้ามีรูปแบบไม่ถูกต้อง'),
   qty: positiveNumber('จำนวน'),
   salesBillLineNo: z.coerce.number().int().min(1).nullable().optional(),
-  salesDisplayProductId: optionalSafeId('สินค้าในบิลขาย'),
+  salesProductId: optionalSafeId('สินค้าที่ขาย'),
   tradingCostSourceId: optionalSafeId('Trading cost source'),
 })
 

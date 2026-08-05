@@ -73,8 +73,8 @@ describe('sales bill line-item field states', () => {
     const splitRow = stockTableSource.slice(splitRowStart, stockTableSource.indexOf('</div>', splitRowStart) + 6)
 
     expect(splitRowStart).toBeGreaterThan(-1)
-    expect(splitRow).toContain("updateSalesItem(index, 'salesDisplayProductId'")
-    expect(splitRow).toContain('ชื่อสินค้าในบิลขาย · ตัด WTO, สต็อก และต้นทุนตาม')
+    expect(splitRow).toContain('updateSalesStockProduct(index, value)')
+    expect(splitRow).toContain('สินค้าที่ขาย · ตัด WTO, สต็อก และต้นทุนตาม')
     expect(splitRow).not.toContain('updateSalesSplitProduct')
   })
 
