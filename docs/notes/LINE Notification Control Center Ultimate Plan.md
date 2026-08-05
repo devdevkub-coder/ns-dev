@@ -867,6 +867,7 @@ LINE Messaging API **ไม่มี endpoint ลิสต์ทุกกลุ�
 - `line_notification_jobs` คือ outbox ของ WTI, WTO, PB, SB, PMT และ RCP ส่วน `line_notification_attempts` เก็บผลของแต่ละครั้งที่ worker พยายามส่ง
 - request จากผู้ใช้ต้องใช้ branch scope ตามสิทธิ์ของผู้ใช้ แต่ worker ที่อ่าน job ซึ่งผ่านการตรวจสิทธิ์และบันทึกลง outbox แล้วใช้ trusted lookup แบบไม่จำกัดสาขา โดยค่า `null` หมายถึง trusted unscoped lookup; ค่า `[]` หมายถึงไม่มีสาขาที่มองเห็นและต้องไม่ใช้แทนกัน
 - ผลส่งจริงถือว่าสำเร็จเมื่อ LINE ตอบ 2xx พร้อม `x-line-request-id` เท่านั้น ส่วน retry ที่ LINE ตอบ 409 ต้องมี `x-line-accepted-request-id` หรือ request ID ที่ยอมรับได้ จึงบันทึกเป็น `skipped/accepted` ได้
+- API และปุ่ม Retry ต้องถือทั้ง `sent` และ `skipped/accepted` เป็นผลสำเร็จที่ตรวจสอบได้; ห้ามแปลง accepted 409 กลับเป็น HTTP 502
 
 ### Why it has to work this way
 
@@ -885,5 +886,5 @@ LINE Messaging API **ไม่มี endpoint ลิสต์ทุกกลุ�
 
 ### Verification contract
 
-- Focused tests ต้องครอบคลุม routing/dispatch ของ WTI, WTO, PB, SB, PMT และ RCP, post-commit trigger, branch-scoped admin test send, permanent/transient error classification, request ID contract และ timeout ของ LINE transports
+- Focused tests ต้องครอบคลุม routing/dispatch ของ WTI, WTO, PB, SB, PMT และ RCP, post-commit trigger, branch-scoped admin test send, permanent/transient error classification, request ID contract, accepted 409 retry response และ timeout ของ LINE transports
 - หลัง deploy ต้องทดสอบ connection, webhook signature, target send และ retry job จริง พร้อมตรวจ `line_request_id`/attempt ใหม่ในหน้า `/admin/line-settings`

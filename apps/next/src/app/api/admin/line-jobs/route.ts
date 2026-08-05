@@ -130,8 +130,13 @@ export async function PATCH(request: Request) {
     if (action === 'retry') {
       // Re-trigger execution immediately
       const result = await executeNotificationJob(id, { force: true })
-      if (result.status === 'sent') {
-        return NextResponse.json({ ok: true, lineRequestId: result.lineRequestId, pdfUrl: result.pdfUrl })
+      if (result.status === 'sent' || result.status === 'skipped') {
+        return NextResponse.json({
+          ok: true,
+          deliveryStatus: result.status,
+          lineRequestId: result.lineRequestId,
+          pdfUrl: result.pdfUrl,
+        })
       } else {
         return NextResponse.json({ code: 'FAILED', error: result.error || 'ส่งแจ้งเตือนซ้ำไม่สำเร็จ' }, { status: 502 })
       }
