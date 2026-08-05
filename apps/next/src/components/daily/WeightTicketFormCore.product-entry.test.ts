@@ -34,7 +34,7 @@ const formSource = readFileSync(
 describe('weight-ticket product entry start contract', () => {
   it('starts with no product line until the user explicitly adds one', () => {
     expect(formSource).toMatch(/function initialForm[\s\S]*?lines:\s*\[\],/)
-    expect(formSource).toContain("next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
+    expect(formSource).toContain("if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
     expect(formSource).toContain("const firstErrorKey = errors.lines ? 'lines' : errorKeys[0]")
     expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
   })
