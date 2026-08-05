@@ -1,9 +1,8 @@
 'use client'
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { GuardedLink } from '@/components/ui/GuardedLink'
-import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { loginSchema } from '@/lib/auth'
 import { completeBrowserLoginSession } from '@/lib/auth-client-contract'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
@@ -36,14 +35,11 @@ export function LoginPageClient() {
   const hasValidatedExistingSession = useRef(false)
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
-  const { hasUnsavedChanges } = useActionConfirmation()
-  const isFormDirty = !successfulRedirect && Boolean(identifier || password)
-  useUnsavedChangesGuard(isFormDirty)
 
   useEffect(() => {
-    if (!successfulRedirect || hasUnsavedChanges) return
+    if (!successfulRedirect) return
     window.location.assign(successfulRedirect)
-  }, [hasUnsavedChanges, successfulRedirect])
+  }, [successfulRedirect])
 
   useEffect(() => {
     if (!supabase || hasValidatedExistingSession.current) return
@@ -217,9 +213,9 @@ export function LoginPageClient() {
           </label>
 
           <div className="text-right">
-            <GuardedLink className="text-sm font-medium text-blue-700 hover:underline" href="/forgot-password">
+            <Link className="text-sm font-medium text-blue-700 hover:underline" href="/forgot-password">
               ลืมรหัสผ่าน?
-            </GuardedLink>
+            </Link>
           </div>
 
           {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
