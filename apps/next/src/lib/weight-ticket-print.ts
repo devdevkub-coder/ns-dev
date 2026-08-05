@@ -532,7 +532,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .summary-card .value { font-size: 10.5px; font-weight: 700; color: #0f172a; margin-top: 2px; }
       .photos { margin-top: 12px; break-inside: avoid; page-break-inside: avoid; }
       .photos-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px; border: 1px solid #cbd5e1; border-top: 0; border-radius: 0 0 8px 8px; }
-      .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px; break-inside: avoid; page-break-inside: avoid; }
+      .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: auto; margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 16px; font-weight: 700; color: #1e293b; }
       .continued { margin-top: auto; padding-top: 8px; text-align: right; color: #64748b; font-weight: 700; }
@@ -568,7 +568,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .note { min-height: 24px; }
         .summary-card { padding: 5px; }
         .summary-card .value { font-size: 10.5px; }
-        .signatures { gap: 12px; margin-top: 18px; }
+        .signatures { gap: 12px; margin-top: auto; margin-bottom: 5mm; }
         .sig-line { margin-top: 12px; padding-top: 3px; }
       }
     </style>

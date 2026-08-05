@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   noteText: { fontSize: 9, color: TEXT_DARK },
 
   // Signatures
-  signatures: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  signatures: { flexDirection: 'row', gap: 12, marginTop: 'auto', marginBottom: 14 },
   sig: { flex: 1 },
   sigLine: {
     borderTopWidth: 1,
