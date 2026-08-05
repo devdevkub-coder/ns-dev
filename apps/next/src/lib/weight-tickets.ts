@@ -337,6 +337,13 @@ export const weightTicketFormSchema = z.object({
       path: ['lines'],
     })
   }
+  if (value.type === 'WTO' && !value.godownName) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'กรอกโกดัง',
+      path: ['godownName'],
+    })
+  }
   const lineById = new Map<string, (typeof value.lines)[number]>()
   value.lines.forEach((line, index) => {
     if (lineById.has(line.id)) {

@@ -1134,6 +1134,7 @@ export function WeightTicketFormCore({
     if (!form.branchId) next.branchId = 'เลือกสาขา'
     if (!form.partyId) next.partyId = form.type === 'WTI' ? 'เลือกผู้ขาย' : 'เลือกลูกค้า'
     if (form.vehicleNo.trim().length < 2) next.vehicleNo = 'กรอกทะเบียนรถ'
+    if (form.type === 'WTO' && !form.godownName.trim()) next.godownName = 'กรอกโกดัง'
 
     const parentLines = getMainParentLines(form.lines)
     if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'
@@ -2083,7 +2084,7 @@ export function WeightTicketFormCore({
                   onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
                 />
               </FieldBlock>
-	              <FieldBlock error={showError('godownName')} label="โกดัง">
+	              <FieldBlock error={showError('godownName')} label={form.type === 'WTO' ? 'โกดัง*' : 'โกดัง'}>
 	                <Input
 	                  placeholder="เช่น โกดัง A"
 	                  value={form.godownName}

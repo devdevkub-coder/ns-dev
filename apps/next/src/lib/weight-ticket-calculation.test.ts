@@ -42,14 +42,18 @@ const validWtiPayload = (lines: TestWeightTicketLine[]) => ({
 })
 
 describe('weight ticket totals', () => {
-  it('allows WTI metadata to be saved without product lines or a godown, while WTO still requires a product line', () => {
+  it('allows WTI metadata to be saved without product lines or a godown, while WTO still requires lines and a godown', () => {
     expect(weightTicketFormSchema.safeParse({
       ...validWtiPayload([]),
       godownName: '',
     }).success).toBe(true)
 
     expect(weightTicketFormSchema.safeParse({
-      ...validWtiPayload([]),
+      ...validWtiPayload([{
+        ...validWtiLine('wto-line'),
+        warehouseId: 'WAREHOUSE-1',
+      }]),
+      godownName: '',
       type: 'WTO',
     }).success).toBe(false)
   })
