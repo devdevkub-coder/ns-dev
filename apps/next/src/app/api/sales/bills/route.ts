@@ -431,7 +431,7 @@ function salesItems(
   values: SalesBillFormValues,
   parsedProductIds: bigint[],
   productById: Map<bigint, { code: string | null; name: string; unit: string | null }>,
-  salesDisplayProductByItemIndex: Map<number, { code: string | null; name: string; unit: string | null }> = new Map(),
+  salesProductByItemIndex: Map<number, { code: string | null; name: string; unit: string | null }> = new Map(),
   deliverySummarySourceMap: Map<string, DeliverySummarySource> = new Map(),
   deliverySummaryIdByIndex: Map<number, string> = new Map(),
   stockIssueQtyByIndex: Map<number, number> = new Map(),
@@ -442,12 +442,13 @@ function salesItems(
     const productId = parsedProductIds[index]
     const product = productById.get(productId)
     const sourceProductCode = requireBusinessCode(product?.code, `สินค้า ${productId}`)
+    const salesProduct = salesProductByItemIndex.get(index) ?? product
     const presentation = salesBillProductPresentation(
       { code: sourceProductCode, name: product?.name ?? '' },
-      salesDisplayProductByItemIndex.has(index)
+      salesProductByItemIndex.has(index)
         ? {
-            code: requireBusinessCode(salesDisplayProductByItemIndex.get(index)?.code, `สินค้าในบิลขาย ${index + 1}`),
-            name: salesDisplayProductByItemIndex.get(index)?.name ?? '',
+            code: requireBusinessCode(salesProduct?.code, `สินค้าที่ขาย ${index + 1}`),
+            name: salesProduct?.name ?? '',
           }
         : null,
     )
@@ -479,9 +480,9 @@ function salesItems(
       netWeight: item.qty,
       note: item.note,
       poSellId: item.poSellId,
-      productCode: presentation.sourceProductCode,
-      productId: presentation.sourceProductCode,
-      productName: presentation.sourceProductName,
+      productCode: presentation.salesDisplayProductCode ?? presentation.sourceProductCode,
+      productId: presentation.salesDisplayProductCode ?? presentation.sourceProductCode,
+      productName: presentation.salesDisplayProductName ?? presentation.sourceProductName,
       qty: item.qty,
       salesDisplayProductCode: presentation.salesDisplayProductCode,
       salesDisplayProductName: presentation.salesDisplayProductName,
@@ -493,22 +494,26 @@ function salesItems(
   })
 }
 
-function resolveSalesDisplayProducts(
+function resolveSalesProducts(
   values: SalesBillFormValues,
   productByCode: Map<string, { code: string | null; name: string; unit: string | null }>,
 ) {
   const byItemIndex = new Map<number, { code: string | null; name: string; unit: string | null }>()
   for (const [index, item] of values.items.entries()) {
-    const displayProductCode = item.salesDisplayProductId?.trim()
-    if (!displayProductCode) continue
+    const salesProductCode = item.salesProductId?.trim()
+    if (!salesProductCode) continue
     if (!item.deliveryTicketId) {
       return { error: `รายการที่ ${index + 1}: เปลี่ยนชื่อสินค้าในบิลขายได้เฉพาะรายการจาก WTO` }
     }
-    const displayProduct = productByCode.get(displayProductCode)
-    if (!displayProduct) {
-      return { error: `รายการที่ ${index + 1}: สินค้าที่เลือกเพื่อแสดงในบิลขายไม่ถูกต้องหรือถูกปิดใช้งาน` }
+    const salesProduct = productByCode.get(salesProductCode)
+    if (!salesProduct) {
+      return { error: `รายการที่ ${index + 1}: สินค้าที่ขายไม่ถูกต้องหรือถูกปิดใช้งาน` }
     }
-    byItemIndex.set(index, displayProduct)
+    const sourceProduct = productByCode.get(item.productId)
+    if (sourceProduct?.unit !== salesProduct.unit) {
+      return { error: `รายการที่ ${index + 1}: สินค้าที่ขายต้องมีหน่วยเดียวกับสินค้า WTO` }
+    }
+    byItemIndex.set(index, salesProduct)
   }
   return { byItemIndex }
 }
@@ -1830,10 +1835,10 @@ export async function POST(request: Request) {
     if (invalidProductIndex >= 0) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้อง' }, { status: 400 })
     }
-    const requestedSalesDisplayProductCodes = values.items
-      .map((item) => item.salesDisplayProductId?.trim() ?? '')
+    const requestedSalesProductCodes = values.items
+      .map((item) => item.salesProductId?.trim() ?? '')
       .filter(Boolean)
-    const productCodes = [...new Set([...requestedProductCodes, ...requestedSalesDisplayProductCodes])]
+    const productCodes = [...new Set([...requestedProductCodes, ...requestedSalesProductCodes])]
     const [branch, warehouse] = await Promise.all([
       findActiveBranchReferenceByCodeOrId(values.branchId),
       values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
@@ -1944,10 +1949,11 @@ export async function POST(request: Request) {
     const productById = new Map(products.map((product) => [product.id, product]))
     const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
     const parsedProductIdsByLine = values.items.map((item) => productByCode.get(item.productId)?.id ?? null)
-    const salesDisplayProducts = resolveSalesDisplayProducts(values, productByCode)
-    if ('error' in salesDisplayProducts) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: salesDisplayProducts.error }, { status: 400 })
+    const salesProducts = resolveSalesProducts(values, productByCode)
+    if ('error' in salesProducts) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: salesProducts.error }, { status: 400 })
     }
+    const parsedSalesProductIdsByLine = values.items.map((item) => productByCode.get(item.salesProductId ?? item.productId)?.id ?? null)
     let deliverySummaryIdByItemIndex = new Map<number, string>()
     let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
     let stockIssueQtyByItemIndex = new Map<number, number>()
@@ -1971,7 +1977,7 @@ export async function POST(request: Request) {
     }
     const manualStockCostByItemIndex = manualStockValidation.manualStockCostByItemIndex
 
-    const items = salesItems(values, parsedProductIdsByLine as bigint[], productById, salesDisplayProducts.byItemIndex, deliverySummarySourceMap, deliverySummaryIdByItemIndex, stockIssueQtyByItemIndex)
+    const items = salesItems(values, parsedProductIdsByLine as bigint[], productById, salesProducts.byItemIndex, deliverySummarySourceMap, deliverySummaryIdByItemIndex, stockIssueQtyByItemIndex)
     const poSellAllocations = new Map<string, ReturnType<typeof allocatePoSellForSalesBill>>()
     for (const poSellDocNo of requestedPoSellDocNos) {
       const poSell = poSellByDocNo.get(poSellDocNo)
@@ -2246,7 +2252,7 @@ export async function POST(request: Request) {
           billId: createdBill.id,
           createdAt,
           items,
-          parsedProductIds: parsedProductIdsByLine as bigint[],
+          parsedProductIds: parsedSalesProductIdsByLine as bigint[],
           totals: salesLineTotalsAfterCustomerAdvance(totals, settledTotals),
         }),
       })
@@ -2310,7 +2316,7 @@ export async function POST(request: Request) {
         headerPoSellDocNo: values.poSellId?.trim() || undefined,
         items,
         lineIdByLineNo,
-        parsedProductIds: parsedProductIdsByLine as bigint[],
+        parsedProductIds: parsedSalesProductIdsByLine as bigint[],
         poSellByDocNo,
       })
       if (poSellRows.length) {
@@ -2866,7 +2872,7 @@ export async function PATCH(request: Request) {
 
       const requestedProductCodes = [...new Set([
         ...values.items.map((item) => item.productId),
-        ...values.items.map((item) => item.salesDisplayProductId ?? ''),
+        ...values.items.map((item) => item.salesProductId ?? ''),
       ].filter(Boolean))]
       const products = await prisma.products.findMany({
         select: { active: true, code: true, id: true, name: true, unit: true },
@@ -2881,10 +2887,11 @@ export async function PATCH(request: Request) {
       const parsedProductIdsByLine = values.items.map((item) => productByCode.get(item.productId)?.id ?? null)
       const productById = new Map(products.map((product) => [product.id, product]))
       const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)] as const))
-      const salesDisplayProducts = resolveSalesDisplayProducts(values, productByCode)
-      if ('error' in salesDisplayProducts) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: salesDisplayProducts.error }, { status: 400 })
+      const salesProducts = resolveSalesProducts(values, productByCode)
+      if ('error' in salesProducts) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: salesProducts.error }, { status: 400 })
       }
+      const parsedSalesProductIdsByLine = values.items.map((item) => productByCode.get(item.salesProductId ?? item.productId)?.id ?? null)
       const sourceAllocationByLineNo = new Map(bill.sales_bill_source_allocations.map((allocation) => [allocation.sales_line_no, allocation] as const))
       const activeLineByOriginalLineNo = new Map(bill.sales_bill_lines.map((line) => [line.line_no, line] as const))
       const invalidSubmittedLine = values.items.find((item) => item.salesBillLineNo != null && !activeLineByOriginalLineNo.has(item.salesBillLineNo))
@@ -3036,7 +3043,7 @@ export async function PATCH(request: Request) {
         values,
         parsedProductIdsByLine as bigint[],
         productById,
-        salesDisplayProducts.byItemIndex,
+        salesProducts.byItemIndex,
         deliverySummarySourceMap,
         deliverySummaryIdByItemIndex,
         stockIssueQtyByItemIndex,
@@ -3170,7 +3177,7 @@ export async function PATCH(request: Request) {
             billId: bill.id,
             createdAt,
             items,
-            parsedProductIds: parsedProductIdsByLine as bigint[],
+            parsedProductIds: parsedSalesProductIdsByLine as bigint[],
             totals: salesLineTotalsAfterCustomerAdvance(totals, settledTotals),
           })
           await tx.sales_bill_lines.createMany({
@@ -3588,7 +3595,7 @@ export async function PATCH(request: Request) {
               net_weight: item.netWeight,
               notes: item.note || null,
               product_code_snapshot: item.productCode,
-              product_id: parsedProductIdsByLine[index] ?? null,
+              product_id: parsedSalesProductIdsByLine[index] ?? null,
               product_name_snapshot: item.productName,
               qty: item.qty,
               unit_price: item.unitPrice,
@@ -3625,7 +3632,7 @@ export async function PATCH(request: Request) {
           headerPoSellDocNo,
           items,
           lineIdByLineNo,
-          parsedProductIds: parsedProductIdsByLine as bigint[],
+          parsedProductIds: parsedSalesProductIdsByLine as bigint[],
           poSellByDocNo,
         })
         if (poSellRows.length) {
