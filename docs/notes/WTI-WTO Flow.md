@@ -791,7 +791,7 @@ Implementation separation checkpoint 2026-06-30:
 - `handlers.ts` แยก decision กลางที่ route เคย branch เอง เช่น party snapshot, warehouse resolution, stock validation, และ pending_out create/edit side effect
 - WTI-specific write guard อยู่ใน `apps/next/src/lib/server/weight-ticket-write/wti.ts` เช่น supplier eligibility
 - WTO-specific write guard อยู่ใน `apps/next/src/lib/server/weight-ticket-write/wto.ts` เช่น customer eligibility และ WTO-only impurity restriction
-- WTO edit pending_out/cost plan อยู่ใน `apps/next/src/lib/server/weight-ticket-write/wto.ts` เพื่อให้การ preserve cost snapshot, audit event type, และ qty-before map เป็น logic ของใบส่งของ ไม่กระจายใน API route
+- WTO delivered edit ใช้ release/rebuild pending_out ทั้งชุดใน transaction เดียว: route เก็บ hold เดิมเพื่อเขียน `edit_release` event หลัง release, แล้วสร้าง hold ใหม่ด้วยต้นทุนเฉลี่ยปัจจุบันและเขียน `edit_rebuild` event. ไม่ preserve cost เดิมและไม่ใช้ Delta; policy นี้อยู่ใน route/stock-holds write path และต้อง lock เมื่อมี Sales Bill usage
 - `apps/next/src/lib/server/weight-ticket-write/type-guards.ts` เป็นตัวประสานตาม `values.type` เพื่อให้ route ไม่ต้องมี WTI/WTO guard กระจายหลายจุด
 - stock/cost side effect ของ WTO ยังอยู่ใน `stock-holds.ts` และ `weight-ticket-pending-out-events.ts`; WTI ไม่เรียก path เหล่านี้
 

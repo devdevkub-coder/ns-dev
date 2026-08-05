@@ -204,6 +204,8 @@ function timelinePendingOutChangeLabel(
     }
     return withFieldChanges('แก้ไขเต๋าเดิม')
   }
+  if (row.eventType === 'edit_rebuild') return 'สร้าง pending_out ใหม่หลังแก้ไข'
+  if (row.eventType === 'edit_release') return 'release pending_out เดิมก่อน rebuild'
   if (row.eventType === 'cancel_release') return 'ยกเลิกใบส่งของ'
   if (row.eventType === 'sales_bill_consume') return 'ใช้ในบิลขาย'
   if (row.eventType === 'sales_bill_edit_release') return 'คืนจากแก้ไขบิลขาย'

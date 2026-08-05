@@ -287,7 +287,7 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 
 - WTI save สร้าง evidence/summary แต่ไม่ stock ledger
 - WTO draft save ยังไม่สร้าง `pending_out`; WTO confirm ตรวจ stock แล้วสร้าง pending_out พร้อม snapshot ราคาต้นทุนเฉลี่ยแบบแยกเต๋า/line
-- WTO edit หลัง confirm ต้องปิด/release เฉพาะ pending_out ส่วนที่ลด/ลบ/แก้, สร้างหรือ update snapshot ใหม่เฉพาะเต๋าที่แก้หรือเพิ่ม, เก็บประวัติ pending_out เดิมไว้, แล้ว recompute product-level weighted average cost summary จาก active pending_out ทุกเต๋าของ SKU นั้น
+- WTO delivered ที่ยังไม่ถูกใช้ใน Sales Bill ใช้วิธี release/rebuild ทั้งชุด: release active pending_out เดิมและเขียน immutable `edit_release` event ก่อนสร้าง pending_out ชุดใหม่จากรายการล่าสุด พร้อม snapshot ต้นทุนเฉลี่ยปัจจุบันและ immutable `edit_rebuild` event ใน transaction เดียวกัน. ไม่ใช้ Delta และไม่ preserve cost snapshot เดิม; ถ้ามี downstream usage แล้วห้ามแก้
 - WTO customer edit before SB usage must not release/recreate pending_out by itself unless line, product, warehouse, branch, or qty data also changes. The customer is a billing/customer ownership guard for later SB validation, not a stock movement dimension.
 - PB/SB เป็นผู้ consume source และเขียน ledger
 - WTO detail แสดงปุ่ม `รับของคืน` เฉพาะเมื่อ `GET /api/daily/weight-tickets/[id]/stock-returns` พบ active `pending_out` ที่ถูกนำไปออก `SB` แล้วบางส่วน; modal ให้กรอกน้ำหนักชั่งคืนจริง และถ้าคืนน้อยกว่ายอดค้างต้องระบุเหตุผลเพื่อให้ระบบบันทึก loss ledger ผ่าน Sales Bill stock-return API
