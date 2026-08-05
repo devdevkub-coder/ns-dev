@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { calculateSalesNetWeight, salesBillFormSchema } from './sales'
+import { calculateSalesNetWeight, normalizeSalesBillWeights, salesBillFormSchema, type SalesBillFormValues } from './sales'
 
 const stockSalesBill = (item: Record<string, unknown>) => ({
   branchId: 'BR01',
@@ -33,5 +33,13 @@ describe('sales net weight', () => {
   it('rejects a WTO sales bill when its submitted net sale differs from gross minus impurity', () => {
     expect(salesBillFormSchema.safeParse(stockSalesBill({ qty: 5000, netWeight: 5000 })).success).toBe(false)
     expect(salesBillFormSchema.safeParse(stockSalesBill({ deductWeight: 5100, netWeight: 0, qty: 0 })).success).toBe(false)
+  })
+
+  it('derives both submitted weights from the editable WTO values', () => {
+    const staleSalesBill = stockSalesBill({ grossWeight: 500, deductWeight: 100, netWeight: 500, qty: 400 }) as SalesBillFormValues
+    const normalized = normalizeSalesBillWeights(staleSalesBill)
+    expect(normalized.items[0]?.netWeight).toBe(400)
+    expect(normalized.items[0]?.qty).toBe(400)
+    expect(salesBillFormSchema.safeParse(normalized).success).toBe(true)
   })
 })

@@ -156,3 +156,14 @@ export type SalesBillCancelValues = z.infer<typeof salesBillCancelSchema>
 export type SalesBillStockReturnValues = z.infer<typeof salesBillStockReturnSchema>
 export type PoSellFormValues = z.infer<typeof poSellFormSchema>
 export type PoSellPageFormValues = z.infer<typeof poSellPageFormSchema>
+
+export function normalizeSalesBillWeights(value: SalesBillFormValues): SalesBillFormValues {
+  return {
+    ...value,
+    items: value.items.map((item) => {
+      if (!item.deliveryTicketId) return item
+      const netWeight = calculateSalesNetWeight(item.grossWeight, item.deductWeight)
+      return { ...item, netWeight, qty: netWeight }
+    }),
+  }
+}

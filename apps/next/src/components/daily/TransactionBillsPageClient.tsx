@@ -33,7 +33,7 @@ import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCanc
 import { calculatePurchaseBillPostAdvanceTotals } from '@/lib/purchase-advance'
 import { calculateSupplierAdvanceAllocation } from '@/lib/purchase-advance'
 import { openPurchaseBillPrint, openPurchaseBillPrintWindow } from '@/lib/purchase-bill-print'
-import { calculateSalesNetWeight, salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
+import { calculateSalesNetWeight, normalizeSalesBillWeights, salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
 import { openSalesBillPrint, openSalesBillPrintWindow } from '@/lib/sales-bill-print'
 import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 
@@ -3282,7 +3282,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   async function saveSalesBill() {
-    const parsed = salesBillFormSchema.safeParse(salesForm)
+    const normalizedSalesForm = normalizeSalesBillWeights(salesForm)
+    const parsed = salesBillFormSchema.safeParse(normalizedSalesForm)
     if (!parsed.success) {
       const nextFieldErrors = issueMapFromZodIssues(parsed.error.issues)
       setSalesFieldErrors(nextFieldErrors)
