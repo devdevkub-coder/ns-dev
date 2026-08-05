@@ -3,6 +3,7 @@ import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { PO_BUY_PERMISSIONS, PO_SELL_PERMISSIONS } from '@/lib/po-permissions'
 import { SUPPLIER_PAGE_PERMISSIONS } from '@/lib/supplier-page-permissions'
 import { MASTER_DATA_PAGE_PERMISSIONS } from '@/lib/master-data-page-permissions'
+import { COMPANY_PROFILE_READ_PERMISSIONS } from '@/lib/company-profile'
 
 export type NavigationSectionKey =
   | 'main'
@@ -299,6 +300,9 @@ export function canAccessPath(pathname: string, context: { permissions?: string[
 
 export function permissionCodesForPath(pathname: string) {
   const normalizedPath = pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname
+  if (normalizedPath === '/api/admin/company-profile') {
+    return [...COMPANY_PROFILE_READ_PERMISSIONS]
+  }
   if (normalizedPath === '/api/daily/expenses') {
     return ['daily.expenses.view', REPORT_PAGE_PERMISSIONS.expenseDashboard]
   }

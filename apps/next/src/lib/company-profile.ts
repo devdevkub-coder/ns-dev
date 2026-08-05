@@ -1,5 +1,11 @@
 import { z } from 'zod'
 
+export const COMPANY_PROFILE_READ_PERMISSIONS = [
+  'system.settings.manage',
+  'daily.weight_tickets.view',
+  'daily.weight_tickets.create',
+] as const
+
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
 const phonePattern = /^\+?[0-9][0-9\s().-]{7,24}$/

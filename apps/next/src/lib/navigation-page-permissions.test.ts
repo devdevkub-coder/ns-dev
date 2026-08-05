@@ -75,6 +75,18 @@ describe('Transaction Ledger page permissions', () => {
   })
 })
 
+describe('Printable company profile permissions', () => {
+  it('allows weight-ticket creators to read the profile without granting settings access', () => {
+    expect(permissionCodesForPath('/api/admin/company-profile')).toEqual([
+      'system.settings.manage',
+      'daily.weight_tickets.view',
+      'daily.weight_tickets.create',
+    ])
+    expect(canAccessPath('/api/admin/company-profile', { permissions: ['daily.weight_tickets.create'] })).toBe(true)
+    expect(canAccessPath('/api/admin/company-profile', { permissions: ['daily.weight_tickets.view'] })).toBe(true)
+  })
+})
+
 describe('Supplier page permissions', () => {
   it('uses the supplier page permission for its options API', () => {
     expect(permissionForPath('/master-data/suppliers')).toBe(SUPPLIER_PAGE_PERMISSIONS.view)
