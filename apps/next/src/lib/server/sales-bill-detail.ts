@@ -2,6 +2,7 @@ import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { requireSalesBillStatus, salesBillStatusText } from '@/lib/server/sales-bill-history'
 import { salesBillLineFactsForBills } from '@/lib/server/sales-bill-line-facts'
+import { salesBillDisplayProductName } from '@/lib/server/sales-bill-display-product'
 import type { Prisma } from '../../../generated/prisma/client'
 
 export type SalesBillDetail = {
@@ -41,6 +42,7 @@ export type SalesBillDetail = {
     productCode: string
     productId: string
     productName: string
+    salesDisplayProductCode: string
     qty: number
     sourceDeductWeight: number
     sourceGrossWeight: number
@@ -318,6 +320,7 @@ function buildDurableItems(input: {
       ])).join(' / ')
     const sourceProductCode = sourceSummary?.productCode || wtoSource?.product_code_snapshot || line.product_code_snapshot
     const sourceProductName = sourceSummary?.productName || wtoSource?.product_name_snapshot || line.product_name_snapshot || '-'
+    const lineMeta = jsonObject(line.meta)
 
     return {
       amount: toNumber(line.line_amount),
@@ -336,8 +339,9 @@ function buildDurableItems(input: {
       price: toNumber(line.unit_price),
       productCode: line.product_code_snapshot,
       productId: line.product_code_snapshot,
-      productName: line.product_name_snapshot || '-',
+      productName: salesBillDisplayProductName(lineMeta, line.product_name_snapshot || '-'),
       qty: toNumber(line.qty),
+      salesDisplayProductCode: jsonString(lineMeta.salesDisplayProductCode),
       sourceDeductWeight: sourceSummary?.deductWeight ?? toNumber(line.deduct_weight),
       sourceGrossWeight: sourceSummary?.grossWeight ?? toNumber(line.gross_weight),
       sourceLineCount: sourceSummary?.lineCount ?? 1,

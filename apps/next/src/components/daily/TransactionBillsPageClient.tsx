@@ -916,6 +916,7 @@ const blankSalesItem = (): SalesBillFormValues['items'][number] => ({
   price: 0,
   productId: '',
   qty: 0,
+  salesDisplayProductId: null,
   tradingCostSourceId: null,
 })
 
@@ -2225,6 +2226,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         productId: item.productCode || item.productId,
         qty: item.qty,
         salesBillLineNo: item.lineNo,
+        salesDisplayProductId: item.salesDisplayProductCode || null,
         tradingCostSourceId: item.tradingSourceDocNo
           ? tradingSourceByDocLine.get(`${item.tradingSourceDocNo}:${item.tradingSourceLineNo ?? ''}`) ?? null
           : null,
@@ -4568,11 +4570,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     </>
                                   ) : (
                                     <div className="min-w-[360px]">
-                                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                                        {sourceSummary?.productName ?? productName}
-                                      </div>
+                                      <ProductSearchCombobox
+                                        hideLabel
+                                        inputId={`sales-bill-stock-display-product-search-${index}`}
+                                        options={activeProducts}
+                                        value={item.salesDisplayProductId ?? item.productId}
+                                        onChange={(value) => updateSalesItem(index, 'salesDisplayProductId', value === item.productId ? null : value)}
+                                      />
                                       <div className="mt-1 text-xs text-slate-500">
-                                        split WTO ใช้สินค้าเดิมตามใบส่งของ
+                                        ชื่อสินค้าในบิลขาย · ตัด WTO, สต็อก และต้นทุนตาม {sourceSummary?.productName ?? productName}
                                       </div>
                                     </div>
                                   )}
