@@ -1,3 +1,12 @@
+# Production -> SIT database refresh checkpoint — 2026-08-04
+
+- Source confirmed by user: current Production database `fhglqymcdmrgbsbadnwr` (the database referenced by the production runtime env).
+- Target: SIT database `vbjlkxbytccklhqvxjuu`; its previous data was overwritten as requested.
+- Restored scope: `public`, `maintenance`, `supabase_migrations`, `auth.users`, and `auth.identities`.
+- Postflight: 172 public tables, 56 Auth users, 25 app users, 254 products, 59 customers, and 1,914 suppliers match Production.
+- Intentional exclusions: transient Auth sessions/tokens/MFA rows and Storage binary objects; public audit counts may differ by verification traffic.
+- No application code or production database schema was changed.
+
 # Coordinator Page/API Permission Alignment — 2026-08-04
 
 ## Active implementation batch

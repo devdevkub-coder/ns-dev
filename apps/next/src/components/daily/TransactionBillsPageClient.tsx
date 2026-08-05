@@ -2905,7 +2905,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       items: current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
         const next = { ...item, [key]: value }
-        const qty = Number(Math.max(0, next.netWeight).toFixed(2))
+        const qty = Number(Math.max(0, next.netWeight - next.deductWeight).toFixed(2))
         return { ...next, qty }
       }),
     }))

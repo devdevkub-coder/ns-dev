@@ -13,10 +13,18 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-08-03
+updated: 2026-08-04
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
+
+## Attachment upload validation and notification (2026-08-04)
+
+- การเพิ่มรูปรถ/รูปสินค้า/รูปสิ่งเจือปนต้องตรวจว่าเป็นรูปที่รองรับก่อนส่ง และย่อรูปจากกล้อง/PNG ให้เหมาะกับ request ก่อนอัปโหลดไป Storage เพื่อไม่ให้ request ขนาดใหญ่ถูกปฏิเสธเงียบ ๆ
+- การอัปโหลดหลายรูปใช้ผลสำเร็จและผลล้มเหลวแยกกัน: รูปที่สำเร็จยังถูกเพิ่มในฟอร์ม และรูปที่ไม่สำเร็จต้องแสดง `role="alert"` พร้อมจำนวนและสาเหตุที่อ่านได้ เช่น ไฟล์ใหญ่เกินไปหรือเซิร์ฟเวอร์ตอบกลับผิดพลาด
+- สิ่งนี้เป็น validation/feedback ของหลักฐานธุรกรรมระดับ L5 เท่านั้น ไม่เก็บรูปหรือ permission response ใน browser storage และยังใช้ API/Storage เดิมเป็น source of truth; ผู้ใช้ต้องเห็นความล้มเหลวก่อนกดบันทึกเอกสาร
+
+What is what: upload result คือสถานะของไฟล์แนบแต่ละไฟล์ ไม่ใช่สถานะของเอกสาร WTI/WTO. Why it has to be like this: หน้างานต้องรู้ทันทีว่าหลักฐานรูปใดหายไป และไม่ควรเสียรูปที่อัปโหลดสำเร็จเพียงเพราะอีกรูปหนึ่งมีปัญหา.
 
 ## Attachment chooser scroll stability and weight-field alignment (2026-08-03)
 
