@@ -42,6 +42,22 @@ const validWtiPayload = (lines: TestWeightTicketLine[]) => ({
 })
 
 describe('weight ticket totals', () => {
+  it('allows WTI metadata to be saved without product lines or a godown, while WTO still requires lines and a godown', () => {
+    expect(weightTicketFormSchema.safeParse({
+      ...validWtiPayload([]),
+      godownName: '',
+    }).success).toBe(true)
+
+    expect(weightTicketFormSchema.safeParse({
+      ...validWtiPayload([{
+        ...validWtiLine('wto-line'),
+        warehouseId: 'WAREHOUSE-1',
+      }]),
+      godownName: '',
+      type: 'WTO',
+    }).success).toBe(false)
+  })
+
   it('deducts a child impurity from the whole product instead of clipping it to the first lot', () => {
     const totals = calculateTicketTotals([
       {

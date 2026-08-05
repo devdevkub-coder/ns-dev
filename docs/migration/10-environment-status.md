@@ -6,6 +6,11 @@
 - Verified all 126 source objects were readable, copied them to SIT bucket `weight-ticket-pdfs` without changing Production objects, and rewrote 128 SIT JSON references to the SIT public host.
 - Postflight: 129/129 unique references match SIT Storage objects and all 131 image URLs return HTTP 200 with `image/jpeg`. Ticket/image counts were not changed.
 
+### WTI Optional Header Godown 2026-08-05
+
+- Applied and recorded `20260805110000_allow_empty_wti_godown.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the verified PostgreSQL connection. It replaces only `weight_tickets_godown_name_required_check`; no WTI/WTO rows were changed.
+- The guard now permits a blank header godown only for `WTI`. `WTO` continues to require a non-blank header godown, and its existing per-line stock-warehouse validation remains unchanged. Postflight confirmed the new conditional constraint and its migration-history row.
+
 ### Trading Allocation Fact Schema Parity 2026-08-01
 
 - Applied and recorded existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the verified non-pooling PostgreSQL connection. Dev-target already had the same migration, columns, FK, and indexes.
@@ -608,9 +613,3 @@ Removed duplicate/stale local files: root `.env.local` and `apps/next/.env`. `.e
 
 Production event migration `20260728110000_add_production_event_identity` was applied and recorded in both Dev and SIT. Postflight found 3 expected columns, 3 expected indexes, and 1 migration-history row in each environment. No business data was backfilled.
 - Applied and recorded `20260730150000_lock_fcd_posted_revaluation_periods.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through controlled `psql` transactions. Postflight confirmed `fcd_revaluation_period_lock_guard` is installed once in each environment. It rejects backdated FCD receipt/conversion ledger entries through a still-posted revaluation period for the same account and currency; it does not mutate existing ledgers.
-# Production -> SIT database refresh checkpoint 2026-08-04
-
-- Per user confirmation, the current Production source is project `fhglqymcdmrgbsbadnwr`; SIT target is `vbjlkxbytccklhqvxjuu`.
-- Refreshed `public`, `maintenance`, `supabase_migrations`, `auth.users`, and `auth.identities` from Production into SIT. The prior SIT data was intentionally overwritten.
-- Postflight matched 172 public tables, 56 `auth.users`, 25 `app_users`, 254 products, 59 customers, and 1,914 suppliers.
-- Auth session/token/MFA tables were intentionally not copied because they are transient credentials/session state. Storage buckets/objects were not copied because they are outside PostgreSQL.

@@ -24,7 +24,7 @@ vi.mock('@/lib/weight-ticket-reference-cache', () => ({
   cachedWeightTicketReferences: mocks.cachedWeightTicketReferences,
 }))
 
-import { getProductCardImages, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, getProductCardImages, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -34,9 +34,81 @@ const formSource = readFileSync(
 describe('weight-ticket product entry start contract', () => {
   it('starts with no product line until the user explicitly adds one', () => {
     expect(formSource).toMatch(/function initialForm[\s\S]*?lines:\s*\[\],/)
-    expect(formSource).toContain("next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
+    expect(formSource).toContain("if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
     expect(formSource).toContain("const firstErrorKey = errors.lines ? 'lines' : errorKeys[0]")
     expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
+  })
+
+  it('auto-saves only the first WTO add and keeps the WTI first-add flow local', () => {
+    expect(formSource).toContain("if (form.lines.length === 0 && form.type !== 'WTO') return true")
+    expect(formSource).toContain("beginSaveStage('auto_save')")
+    expect(formSource).toContain('<WeightTicketSaveProgress stage={saveStage} type={form.type} />')
+  })
+})
+
+describe('weight-ticket product change behavior', () => {
+  it('uses the save boundary for WTO draft stock validation', () => {
+    const editRouteSource = readFileSync(
+      resolve(process.cwd(), 'src/app/api/daily/weight-tickets/[id]/route.ts'),
+      'utf8',
+    )
+    const createRouteSource = readFileSync(
+      resolve(process.cwd(), 'src/app/api/daily/weight-tickets/route.ts'),
+      'utf8',
+    )
+
+    expect(editRouteSource).toContain("if (values.type === 'WTO')")
+    expect(createRouteSource).toContain("if (values.type === 'WTO')")
+    expect(editRouteSource).toContain('excludeWeightTicketId')
+  })
+
+  it('keeps the confirmation contract non-destructive for WTI and WTO', () => {
+    expect(formSource).toContain("description: form.type === 'WTO'")
+    expect(formSource).toContain('ข้อมูลเดิมจะคงไว้ ระบบจะตรวจ stock ของรายการทั้งหมดใหม่ก่อนบันทึก')
+    expect(formSource).toContain('เปลี่ยนเฉพาะสินค้า น้ำหนัก และสิ่งเจือปน ข้อมูลและรูปถ่ายอื่นจะคงเดิม')
+    expect(formSource).not.toContain('ข้อมูลสินค้า เต๋า และสิ่งเจือปนที่เกี่ยวข้องจะถูกล้างจากรายการนี้')
+  })
+
+  it('changes the product without dropping weighing data or attached evidence', () => {
+    const evidence = { fileName: 'weighing.jpg', id: 'photo-1', rawValue: 'photo-1', url: 'https://example.test/photo-1.jpg' }
+    const mainLine = {
+      containerDeductionWeight: '10',
+      deductionMode: 'none',
+      deductionValue: '0',
+      grossWeight: '500',
+      id: 'main-line',
+      imageFiles: [evidence],
+      imageNames: ['photo-1'],
+      parentId: undefined,
+      productId: 'old-product',
+      productName: 'สินค้าเดิม',
+    } as Parameters<typeof changeWeightTicketProduct>[0][number]
+    const lotLine = {
+      ...mainLine,
+      id: 'lot-line',
+      parentId: 'main-line',
+      grossWeight: '250',
+    }
+    const purchasedImpurityLine = {
+      ...mainLine,
+      id: 'purchased-impurity-line',
+      impuritySourceLineId: 'impurity-line',
+      parentId: 'main-line',
+      productId: 'purchased-impurity-product',
+      productName: 'สินค้าที่ปนมา',
+    }
+
+    const changed = changeWeightTicketProduct(
+      [mainLine, lotLine, purchasedImpurityLine],
+      'main-line',
+      'new-product',
+      'สินค้าใหม่',
+    )
+
+    expect(changed).toHaveLength(3)
+    expect(changed[0]).toMatchObject({ grossWeight: '500', imageFiles: [evidence], imageNames: ['photo-1'], productId: 'new-product', productName: 'สินค้าใหม่' })
+    expect(changed[1]).toMatchObject({ grossWeight: '250', imageFiles: [evidence], imageNames: ['photo-1'], productId: 'new-product' })
+    expect(changed[2]).toMatchObject({ productId: 'purchased-impurity-product', productName: 'สินค้าที่ปนมา' })
   })
 })
 
@@ -79,6 +151,31 @@ describe('weight-ticket mobile product workspace contract', () => {
 
   it('shows product image choices three per row on mobile', () => {
     expect(formSource).toContain('grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4')
+  })
+
+  it('uses the requested action colors and gives each lot a distinct detail section', () => {
+    expect(formSource).toContain('border-emerald-600 bg-emerald-600')
+    expect(formSource).toContain('border-red-600 bg-red-600')
+    expect(formSource).toContain('data-testid={`weight-ticket-lot-${lot.id}`}')
+    expect(formSource).toContain('รายละเอียดเต๋าที่ {lotIndex + 1}')
+    expect(formSource).toContain('border-slate-300 bg-white p-3 shadow-sm')
+  })
+
+  it('hides the lot summary while expanded for both WTI and WTO', () => {
+    expect(formSource).toContain('const showLotSummary = isCollapsed')
+    expect(formSource).not.toContain("const showLotSummary = form.type !== 'WTI' || isCollapsed")
+    expect(formSource).toContain('{showLotSummary ? (')
+    expect(formSource).toContain('รวม {formatWeight(lotGrossWeight)} กก.')
+    expect(formSource).toContain('หลังหัก {formatWeight(lotNetBeforeImpurityWeight)} กก.')
+  })
+
+  it('keeps WTI impurity evidence optional and reuses the shared attachment grid', () => {
+    expect(formSource).toContain("const showImpurityImageField = form.type === 'WTI' || isOtherProductImpurity")
+    expect(formSource).toContain("label={isOtherProductImpurity ? 'รูปสินค้าที่ปนมา' : 'รูปสิ่งเจือปน (ไม่บังคับ)'}")
+    expect(formSource).toContain('onAppend={(files) => void appendLineImages(child.id, files)}')
+    expect(formSource).toContain('if (isParent || isSecondaryLot) {')
+    expect(formSource).toContain('if (getLineImages(line).length === 0)')
+    expect(formSource).not.toContain('รูปสิ่งเจือปน (ไม่บังคับ)*')
   })
 
   it('shows each product card a compact thumbnail from its real-lot evidence only', () => {

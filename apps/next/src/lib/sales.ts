@@ -29,6 +29,10 @@ const requiredDate = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วัน�
 const positiveNumber = (label: string) => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).gt(0, `${label}ต้องมากกว่า 0`)
 const money = (label: string) => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).min(0, `${label}ต้องไม่ติดลบ`)
 
+export function calculateSalesNetWeight(grossWeight: number, deductWeight: number) {
+  return Number(Math.max(0, grossWeight - deductWeight).toFixed(2))
+}
+
 export const salesLineItemSchema = z.object({
   deliveryLineId: optionalSafeId('รายการใบส่งของ'),
   deliverySummaryId: optionalSafeId('สรุปใบส่งของ'),
@@ -44,6 +48,7 @@ export const salesLineItemSchema = z.object({
   productId: z.string().trim().min(1, 'เลือกสินค้า').max(80, 'รหัสสินค้ายาวเกินไป').regex(safeIdPattern, 'รหัสสินค้ามีรูปแบบไม่ถูกต้อง'),
   qty: positiveNumber('จำนวน'),
   salesBillLineNo: z.coerce.number().int().min(1).nullable().optional(),
+  salesProductId: optionalSafeId('สินค้าที่ขาย'),
   tradingCostSourceId: optionalSafeId('Trading cost source'),
 })
 
@@ -76,6 +81,26 @@ export const salesBillFormSchema = z.object({
     vatInvoiceIssued: z.boolean().default(false),
     vatType: z.enum(['NONE', 'EXCLUDE', 'INCLUDE']).default('NONE'),
     warehouseId: optionalSafeId('คลัง'),
+}).superRefine((value, context) => {
+  value.items.forEach((item, index) => {
+    if (!item.deliveryTicketId) return
+    if (item.deductWeight > item.grossWeight + 0.0001) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'หักสิ่งเจือปนต้องไม่เกินจำนวนที่ขายได้',
+        path: ['items', index, 'deductWeight'],
+      })
+      return
+    }
+    const netWeight = calculateSalesNetWeight(item.grossWeight, item.deductWeight)
+    if (Math.abs(item.netWeight - netWeight) > 0.0001 || Math.abs(item.qty - netWeight) > 0.0001) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'น้ำหนักขายสุทธิต้องเท่ากับจำนวนที่ขายได้ลบสิ่งเจือปน',
+        path: ['items', index, 'qty'],
+      })
+    }
+  })
 }).refine((value) => !value.vatInvoiceIssued || Boolean(value.vatInvoiceNo), {
     message: 'กรอกเลขที่ใบกำกับภาษีเมื่อเลือกออกใบกำกับภาษีแล้ว',
     path: ['vatInvoiceNo'],
@@ -117,7 +142,7 @@ export const poSellFormSchema = z.object({
   customerId: z.string().trim().min(1, 'เลือกลูกค้า').max(80, 'รหัสลูกค้ายาวเกินไป').regex(safeIdPattern, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง'),
   expectedDelivery: requiredDate,
   hasVat: z.boolean().optional().default(false),
-  items: z.array(salesLineItemSchema.omit({ deductWeight: true, discount: true, grossWeight: true, netWeight: true, poSellId: true }).extend({ discount: money('ส่วนลด').default(0) })).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ').max(50, 'รายการสินค้ามากเกินไป'),
+  items: z.array(salesLineItemSchema.omit({ deductWeight: true, discount: true, grossWeight: true, netWeight: true, poSellId: true, salesProductId: true }).extend({ discount: money('ส่วนลด').default(0) })).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ').max(50, 'รายการสินค้ามากเกินไป'),
   note: optionalGeneralText('หมายเหตุ', 500),
   salesPlanId: optionalSafeId('แผนขาย'),
 })
@@ -131,3 +156,14 @@ export type SalesBillCancelValues = z.infer<typeof salesBillCancelSchema>
 export type SalesBillStockReturnValues = z.infer<typeof salesBillStockReturnSchema>
 export type PoSellFormValues = z.infer<typeof poSellFormSchema>
 export type PoSellPageFormValues = z.infer<typeof poSellPageFormSchema>
+
+export function normalizeSalesBillWeights(value: SalesBillFormValues): SalesBillFormValues {
+  return {
+    ...value,
+    items: value.items.map((item) => {
+      if (!item.deliveryTicketId) return item
+      const netWeight = calculateSalesNetWeight(item.grossWeight, item.deductWeight)
+      return { ...item, netWeight, qty: netWeight }
+    }),
+  }
+}

@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
-import { notifyWeightTicketLine } from '@/lib/server/weight-ticket-line-notification'
+import { notifyWeightTicketLine, sendLinePush } from '@/lib/server/weight-ticket-line-notification'
 import { currentActor } from '@/lib/server/daily'
+import { branchScopeIds } from '@/lib/server/weight-tickets'
 
 export const runtime = 'nodejs'
 
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
         customMessage: customMessage || undefined,
         requestedBy: actor,
         origin: request.headers.get('origin') || '',
-        scopedBranchIds: [],
+        scopedBranchIds: branchScopeIds(context),
       })
 
       if (res.status !== 200 && res.status !== 201) {
@@ -140,22 +141,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const response = await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${finalToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: finalTargetId,
-        messages: [mockFlexMessage],
-      }),
-    })
-
-    if (!response.ok) {
-      const errBody = await response.text()
-      throw new Error(`ส่งข้อความไม่สำเร็จ (${response.status}): ${errBody}`)
-    }
+    await sendLinePush(finalTargetId, [mockFlexMessage], finalToken)
 
     return NextResponse.json({ ok: true })
   } catch (caught) {

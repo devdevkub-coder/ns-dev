@@ -1,11 +1,47 @@
-# Production -> SIT database refresh checkpoint — 2026-08-04
+# LINE Notification Reliability — 2026-08-05
 
-- Source confirmed by user: current Production database `fhglqymcdmrgbsbadnwr` (the database referenced by the production runtime env).
-- Target: SIT database `vbjlkxbytccklhqvxjuu`; its previous data was overwritten as requested.
-- Restored scope: `public`, `maintenance`, `supabase_migrations`, `auth.users`, and `auth.identities`.
-- Postflight: 172 public tables, 56 Auth users, 25 app users, 254 products, 59 customers, and 1,914 suppliers match Production.
-- Intentional exclusions: transient Auth sessions/tokens/MFA rows and Storage binary objects; public audit counts may differ by verification traffic.
-- No application code or production database schema was changed.
+Objective: ทำให้ Connection/Webhook, Targets, Routing, Test Send, Queue/Retry และเอกสาร WTI/WTO/PB/SB/PMT/RCP ใช้ contract เดียวกันและรายงานผลตรงกับ LINE จริง
+
+Active batch: แก้ trusted WTI/WTO queue lookup, branch-scoped admin test send, permanent/transient HTTP classification, accepted 409 retry response, shared-worker fail-closed เมื่อไม่มี LINE request ID และ timeout 10 วินาทีของ LINE transports; เพิ่ม focused tests และบันทึก flow ใน `docs/notes/LINE Notification Control Center Ultimate Plan.md`
+
+Expected write areas: LINE server services/routes, focused tests และ LINE flow note เท่านั้น; ห้าม stage local logs/reports/config หรือทับ Dual Costing commit ที่อยู่ก่อนหน้า
+
+Required validation: focused Vitest, full lint, type-check, production build, `git diff --check`, independent acceptance audit, fresh `sit-origin/main` integration, deploy SHA verification และ Codex Browser runtime checks หลัง deploy
+
+Immediate next task: รัน full validation, ตรวจ intended diff, fetch/integrate SIT, commit/push/deploy แล้ว retry job จริงและทดสอบ target send; automatic frequent retry ยังต้องใช้ Vercel Pro หรือ external scheduler เพราะ SIT อยู่ Hobby plan
+
+# Dual Costing Allocation Ledger Audit — 2026-08-05
+
+## Active implementation batch
+
+- ปรับ `/dual-costing/cost-allocation-ledger` ให้เป็นหน้าตรวจสอบรายการจัดสรรที่อ่านจาก API แบบแบ่งหน้าตามกลุ่ม `matchId` โดยไม่ตัดรายละเอียดของ Match เดียวกันข้ามหน้า
+- API รองรับ `page`, `pageSize` (`10/25`), `sortBy`, `sortDir`, ส่ง `pagination` metadata และคงการส่งออก Excel ตามผลลัพธ์ทั้งหมดของตัวกรอง ไม่จำกัดเฉพาะหน้าปัจจุบัน
+- UI desktop/mobile ใช้คำว่า `รายการ`, แสดงหน่วย `กก.`/`บาท`, ใช้ตาราง/รายละเอียดที่สอดคล้องกับ design baseline, แสดงสถานะ reversed ด้วยพื้นหลัง/ขอบแทนการลด opacity และไม่แสดงค่า `mixed` ดิบ
+- ปรับชื่อผู้ใช้ให้เป็น `สมุดรายวันจัดสรรต้นทุน` ใน sidebar, workflow, related link, filter และข้อความ API ที่เกี่ยวข้อง
+
+Expected write areas: API ledger/reverse, Allocation Ledger client, shared naming/navigation, targeted tests และ flow note ของหน้า
+
+Required validation: focused Vitest, full lint, type-check, production build และ `git diff --check`; browser UAT ยังไม่ทำเพราะผู้ใช้ยังไม่ได้สั่งทดสอบและ session ใน Codex Browser อยู่หน้า login
+
+Immediate next task: ตรวจ final diff/ไฟล์ที่ stage, fetch `sit-origin/main` ก่อน commit หรือ push และรายงานสถานะ deploy แยกจาก Git หากมีคำสั่ง promote
+
+# Department Role Access Boundary — 2026-08-04
+
+## Active implementation batch
+
+- ตรวจและจำกัด `sorting_department` / `production_department` บน SIT ให้เห็นและทำเฉพาะ WTI/WTO และงาน production ของฝ่ายผลิตตาม permission action.
+- ห้ามทั้งสอง role เปิดบิลจาก WTI/WTO (`daily.weight_tickets.open_bill`) หรือเข้าถึง/สร้าง/แก้ Purchase Bill และ Sales Bill.
+- ถอน `stock.ledger.view` จากทั้งสอง role; `GET /api/production/orders/product-stock` ใช้ `production.orders.view` ที่ central proxy และยังคง route guard แบบ OR เพื่อรองรับ warehouse.
+- บังคับ production role ให้มี dashboard landing grant และตรวจ action ยกเลิกผลผลิตด้วย `production.orders.reverse`.
+- ไม่เขียนทับ direct user overrides; SIT preflight พบ forbidden override ของสอง role เป็นศูนย์. ไม่ใช้ Super Admin และไม่แตะ Production.
+- Local focused permission/API tests ผ่าน `15/15`; lint, type-check, webpack production build และ `git diff --check` ผ่าน. Migration postflight ผ่าน `forbidden_role_grants=0`, `forbidden_user_overrides=0`, history `20260804140000` ครบ.
+- Code push ไป `sit-origin/main` ที่ `991d1349` และ Vercel SIT deployment `dpl_DiLtdiCAUvnmyr42gM4gMZnf3yun` ขึ้น READY แล้ว. Browser run ถูก discard เพราะ session ที่ได้เป็น `system_admin`/`isAdmin=true`; local env ไม่มี credential non-admin ที่ยืนยันได้แยกสำหรับสอง role.
+
+Expected write areas: navigation/API tests, production output reverse guard, role-scope migration, and the related WTI/production flow notes.
+
+Required validation: focused positive/negative UI permission contracts, API guard tests, workspace lint/type-check/build, `git diff --check`, SIT migration postflight, and SIT browser smoke with non-admin department accounts.
+
+Immediate next task: ขอ/เปิด session SIT ของ `sorting_department` และ `production_department` ที่ไม่ใช่ Super Admin แล้ว rerun browser UI/API matrix; ห้ามสร้างหรือบันทึก password ใน repo.
 
 # Coordinator Page/API Permission Alignment — 2026-08-04
 
@@ -16,19 +52,21 @@
 - Map the shared Thai-address lookup API to the customer/supplier page permissions instead of the broad reference fallback.
 - Require `master.customers.update` when the customer form saves an existing record; keep create and update actions separate.
 - Grant coordinator export permissions for customers, products, and suppliers only.
-- Keep the change focused on operational permissions; do not grant bill-opening, finance, payment, approval, or broad shared-reference access.
+- Enforce `daily.weight_tickets.open_bill` at WTI/WTO bill-creation APIs and gate generic master-data write controls by the same page/action permissions used by the routes.
+- Keep the change focused on the coordinator's visible operational menus. Grant WTI/WTO `open_bill` and visible salesperson/product-type/product-unit actions resource-by-resource; do not grant hidden finance/payment/approval or broad shared-reference access.
 - Branch scope remains `all` until coordinator users receive deliberate branch assignments; current users have no branch-access rows.
-- Code validation passed for the prior permission batch and the API read-permission fix.
-- SIT migration applied/recorded: `20260804110000_align_coordinator_operational_permissions.sql`. Postflight found the required seven grants and none of the forbidden grants.
-- Push SIT is requested; Production is not in scope for this batch.
+- Code changes now map product-type/product-unit writes to resource-scoped action permissions instead of `master.reference.manage`.
+- SIT migration applied/recorded: `20260804150000_grant_coordinator_visible_menu_actions.sql`. Postflight confirms the ten new coordinator grants and keeps both shared-reference permissions absent.
+- Coordinator browser/API rerun used `watcharathat@9stepsdigital.com` (`coordinator`, `isAdmin=false`) on SIT. Auth 200, 59 permissions, no `master.reference.view`; 22 read APIs and 6 `?format=xlsx` exports returned 2xx with XLSX content. Valid master import, CRUD/status, WTI, PO Buy/Sell, purchase bill, sales bill, and stock fixtures passed in the same coordinator session; the LINE share action remains blocked only because SIT has no routed notification target.
+- Sales STOCK now normalizes an omitted optional `deliveryTicketDocNo` to the selected WTO document in commit `7cb1cdbf`; local lint, type-check, and diff check pass. The SIT GitHub `main` ref is at that commit, but the SIT deployment status still points to `faaa7d7d`, so the omitted-field runtime regression must be rerun after the new deployment before this batch is accepted.
 
 Objective: ให้ role `coordinator` ใช้ทุกเมนูที่เปิดไว้ได้จริง โดยไม่เพิ่ม `master.reference.view` ที่จะเปิดเมนูสาขา/คลังเกินขอบเขต.
 
-Active batch: แก้ API อ่านประเภทสินค้า/หน่วยสินค้าและ Thai address lookup ให้ตรงกับ permission เฉพาะหน้า; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
+Active batch: แก้ API อ่านประเภทสินค้า/หน่วยสินค้าและ Thai address lookup ให้ตรงกับ permission เฉพาะหน้า, บังคับ open-bill API boundary, และซ่อน action ของ master-data ที่ role ไม่มีสิทธิ์; ทุกสาขายังคงเป็น scope ที่ถูกต้องตามการตั้งค่าปัจจุบัน.
 
-Validation: focused permission tests 9/9, lint, type-check, build, `git diff --check`, and SIT postflight for the three export grants passed.
+Validation: focused permission tests, lint, type-check, build, `git diff --check`, SIT role postflight, and a fresh coordinator browser auth/API probe are required after this batch. The first DOM probe hit a Vercel Security Checkpoint after high request volume; do not classify that checkpoint as an app permission result.
 
-Immediate next task: commit and push the coordinator permission alignment batch to `sit-origin/main`, then verify the remote commit and deployed runtime.
+Immediate next task: verify SIT deployment of `7cb1cdbf`, then rerun Sales STOCK create/update/cancel without `deliveryTicketDocNo`; record PASS/FAIL in the coordinator flow note. Do not use a broad permission as a workaround and do not promote or test against Production.
 
 # Vercel UAT Deployment Dependency Fix 2026-08-02
 
@@ -174,17 +212,20 @@ Blocker/next: continue the remaining broad finance-route audit documented in `do
 
 # 00 Current Work
 
-## Awaiting next requested batch — 2026-08-03
+## NSERP-180 — Compact AR/AP filters — 2026-08-04
 
-Latest completed checkpoint: WTI/WTO chooser scroll-lock and mobile weight-field alignment.
+Active objective: reduce the desktop filter height on `/finance/ar` and `/finance/ap` while preserving every finance/query contract.
 
-- Implementation commit `e155cb97ab94c870b532440b534cd430fad7d972` was pushed to `sit-origin/main` by normal fast-forward and its remote SHA was verified.
-- The image source chooser keeps the nested form scroller fixed through open, focus and the 400ms close lifecycle, including cancelled pointer gestures followed by keyboard activation.
-- Mobile labels and inputs for `น้ำหนักรวม`, `หักภาชนะ` and `น้ำหนักหลังหักภาชนะ` share the same top and `40px` height while the calculated third field and all upload/business contracts remain unchanged.
-- Focused suites `34/34`, targeted/workspace lint, type-check, SIT-env Webpack build `331/331`, `git diff --check`, Codex Browser mobile proof and fresh-context acceptance passed.
-- No Plane issue mapping is known for this follow-up, so no issue state/comment/upload was attempted.
+- Worktree: `C:\new-ns-scrap-erp-worktrees\nserp-180-ar-ap-compact-filters-20260804`
+- Branch: `codex/nserp-180-ar-ap-compact-filters`
+- Base: `sit-origin/main` at `6294a58dae2aebba4d9a3113d83996086322b1fc`
+- Plane issue `NSERP-180` is `In Progress`; Plane access remains REST-only.
+- Expected writes: AR/AP page clients and their page-flow notes only.
+- Preserve: API/query behavior, date/status/customer/supplier/channel/branch filters, pagination, export, permissions, data and mobile filter behavior.
 
-Immediate next tasks:
+Required validation before publication:
 
-1. Wait for the next user-requested business/UI batch.
-2. If an assigned Plane issue mapping is provided, complete its REST-only reporting workflow before claiming that issue workflow complete.
+1. Targeted lint, workspace lint, type-check, build and `git diff --check`.
+2. Fresh desktop/mobile Codex Browser evidence for both AR and AP plus an independent acceptance verdict.
+3. Fresh remote comparison, intended-only commit, normal SIT push and remote-SHA/deploy verification.
+4. Upload evidence, add the Thai completion report and move Plane to `wait for test` through REST, then read everything back as UTF-8.

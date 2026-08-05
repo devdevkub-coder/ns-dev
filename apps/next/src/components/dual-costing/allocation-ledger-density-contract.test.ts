@@ -82,7 +82,7 @@ describe('Allocation Ledger table density', () => {
     const viewStart = source.indexOf('function AllocationLedgerView()')
     const viewEnd = source.indexOf('\nfunction compareSortValues', viewStart)
     const view = source.slice(viewStart, viewEnd)
-    const rowStart = view.indexOf('{visibleRows.map((row) => (')
+    const rowStart = view.indexOf('{visibleRows.map((row) => {')
     const rowEnd = view.indexOf('</TableRow>', rowStart)
     const ordinaryRow = view.slice(rowStart, rowEnd)
     const ordinaryCells = ordinaryRow.match(/<TableCell className=(?:"[^"]*"|\{`[^`]*`\})/g) ?? []
@@ -134,7 +134,7 @@ describe('Allocation Ledger table density', () => {
     expect(view).toContain('flex justify-center"><LedgerStatusText status={row.status} />')
   })
 
-  it('opens matched-cost details from the allocated quantity without expanding the table row', () => {
+  it('opens matched-cost details from the allocated quantity while keeping the group dropdown available', () => {
     const viewStart = source.indexOf('function AllocationLedgerView()')
     const viewEnd = source.indexOf('\nfunction compareSortValues', viewStart)
     const view = source.slice(viewStart, viewEnd)
@@ -145,6 +145,34 @@ describe('Allocation Ledger table density', () => {
     expect(view).toContain('<Dialog open={selectedDetailRow != null}')
     expect(view).toContain('<LedgerMatchedCostDetails rows={selectedDetailRows} />')
     expect(view).not.toContain('colSpan={ledgerColumns.length}>\n                        <LedgerMatchedCostDetails')
+  })
+
+  it('groups the main ledger by match id and exposes source rows from a dropdown', () => {
+    const viewStart = source.indexOf('function AllocationLedgerView()')
+    const viewEnd = source.indexOf('\nfunction compareSortValues', viewStart)
+    const view = source.slice(viewStart, viewEnd)
+
+    expect(view).toContain('groupedRows = useMemo<LedgerMatchGroup[]>')
+    expect(view).toContain('rowsByMatch.get(selectedDetailMatchId)')
+    expect(view).toContain('const isExpanded = expandedMatchIds.has(row.matchId)')
+    expect(view).toContain('รายการภายใน {row.matchId}')
+    expect(view).toContain('ดูรายการ ${row.rows.length} รายการ')
+  })
+
+  it('keeps Thai-first wording, explicit units, and server-side table controls', () => {
+    const viewStart = source.indexOf('function AllocationLedgerView()')
+    const viewEnd = source.indexOf('\nfunction compareSortValues', viewStart)
+    const view = source.slice(viewStart, viewEnd)
+
+    expect(view).not.toContain('รายการต้นทุน')
+    expect(view).not.toMatch(/\bLot\b/i)
+    expect(view).toContain("label: 'น้ำหนักจัดสรร (กก.)'")
+    expect(view).toContain("label: 'ต้นทุนรวม (บาท)'")
+    expect(view).toContain("label: 'รายได้ (บาท)'")
+    expect(view).toContain("label: 'กำไรขั้นต้น (บาท)'")
+    expect(view).toContain("params.set('page', String(page))")
+    expect(view).toContain("params.set('pageSize', String(pageSize))")
+    expect(view).toContain("params.set('sortBy', sortKey)")
   })
 
   it('keeps the allocation record timestamp visible for audit', () => {

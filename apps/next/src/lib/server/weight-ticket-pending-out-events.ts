@@ -33,6 +33,7 @@ type PendingOutEventRow = {
 }
 
 type HoldSnapshotRow = {
+  id: bigint
   cost_snapshot_at: Date | null
   cost_snapshot_note: string | null
   cost_snapshot_source: string | null
@@ -60,6 +61,7 @@ export type WtoPendingOutEventInput = {
   holdIds: bigint[]
   occurredAt: Date
   qtyBeforeForHold?: (hold: HoldSnapshotRow) => number | null
+  qtyAfterForHold?: (hold: HoldSnapshotRow) => number | null
   referenceDocNo?: string | null
   referenceDocType?: string | null
   statusLogEventKey?: string | null
@@ -102,6 +104,7 @@ export async function appendWtoPendingOutEventsFromHolds(tx: DbClient, input: Wt
 
   const holds = await tx.$queryRaw<HoldSnapshotRow[]>`
     select
+      h.id,
       h.hold_key,
       h.weight_ticket_id,
       wt.doc_no as weight_ticket_doc_no,
@@ -138,6 +141,7 @@ export async function appendWtoPendingOutEventsFromHolds(tx: DbClient, input: Wt
       : toNumber(hold.value_snapshot)
     const eventType = input.eventTypeForHold?.(hold) ?? 'hold_snapshot'
     const qtyBefore = input.qtyBeforeForHold?.(hold) ?? null
+    const qtyAfter = input.qtyAfterForHold?.(hold) ?? qty
 
     await tx.$executeRaw`
       insert into public.weight_ticket_pending_out_events (
@@ -187,7 +191,7 @@ export async function appendWtoPendingOutEventsFromHolds(tx: DbClient, input: Wt
         ${hold.warehouse_name},
         ${qty},
         ${qtyBefore},
-        ${qty},
+        ${qtyAfter},
         ${unitCost},
         ${value},
         ${hold.cost_snapshot_at},

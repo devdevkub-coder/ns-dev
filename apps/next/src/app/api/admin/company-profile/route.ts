@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { companyProfileSchema, type CompanyProfileFormValues } from '@/lib/company-profile'
+import { COMPANY_PROFILE_READ_PERMISSIONS, companyProfileSchema, type CompanyProfileFormValues } from '@/lib/company-profile'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requireAnyPermission, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId, listActiveBranches } from '@/lib/server/reference-master-cache'
@@ -114,7 +114,7 @@ async function profileBranchIdSet() {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'system.settings.manage')
+    requireAnyPermission(context, COMPANY_PROFILE_READ_PERMISSIONS)
 
     const url = new URL(request.url)
     const branches = await activeBranches()

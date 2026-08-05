@@ -23,7 +23,7 @@ type NotifyOptions = {
   customMessage?: string
   origin: string
   requestedBy: string
-  scopedBranchIds: string[]
+  scopedBranchIds: string[] | null
   targetId?: string
   force?: boolean
   retryKey?: string
@@ -112,7 +112,7 @@ async function loadCompanyPrintProfile(branchId: string): Promise<CompanyProfile
   }
 }
 
-async function loadWeightTicketRecord(documentNo: string, scopedBranchIds: string[]) {
+async function loadWeightTicketRecord(documentNo: string, scopedBranchIds: string[] | null) {
   const ticket = await findScopedWeightTicket(documentNo, scopedBranchIds)
   if (!ticket) return null
   const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
@@ -953,13 +953,16 @@ export async function sendLinePush(targetId: string, messages: any[], token: str
     }),
     headers,
     method: 'POST',
-    signal,
+    signal: signal ?? AbortSignal.timeout(10_000),
   })
 
   if (response.status === 409 && retryKey) {
     const acceptedRequestId = response.headers.get('x-line-accepted-request-id') || response.headers.get('x-line-request-id')
+    if (!acceptedRequestId) {
+      throw new Error('LINE Push Message ตอบกลับ 409 แต่ไม่คืน accepted request id')
+    }
     return {
-      lineRequestId: acceptedRequestId || null,
+      lineRequestId: acceptedRequestId,
       isConflict: true
     }
   }
@@ -968,8 +971,12 @@ export async function sendLinePush(targetId: string, messages: any[], token: str
     const body = await response.text()
     throw new Error(`LINE Push Message ไม่สำเร็จ (${response.status}): ${body}`)
   }
+  const lineRequestId = response.headers.get('x-line-request-id')
+  if (!lineRequestId) {
+    throw new Error('LINE Push Message ไม่คืน x-line-request-id')
+  }
   return {
-    lineRequestId: response.headers.get('x-line-request-id') || null,
+    lineRequestId,
     isConflict: false
   }
 }

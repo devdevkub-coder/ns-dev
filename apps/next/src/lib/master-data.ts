@@ -283,6 +283,11 @@ export type MasterDataColumn = {
 }
 
 export type MasterDataPageConfig = {
+  actionPermissions?: {
+    create?: string
+    status?: string
+    update?: string
+  }
   apiPath: string
   createLabel: string
   description?: string

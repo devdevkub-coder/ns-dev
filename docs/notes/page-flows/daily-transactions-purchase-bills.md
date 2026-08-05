@@ -146,3 +146,9 @@ The `/purchase/bills` desktop list now centers every visible header/body column 
 
 - What is what: the existing `hasVat` decision uses compact `คิด VAT <rate>%` wording in the left workflow column, with the total summary in a neutral side panel. On mobile, these areas stack in reading order.
 - Why it has to be like this: the calculation choice must remain close to discount/ADV decisions and the payable summary without changing the Stock-source lock, `vatType`, VAT/ADV calculation, API payload, supplier/payment flow, or ledger side effects.
+
+## 2026-08-04 Trading item single-row checkpoint
+
+- What is what: รายการสินค้าในบิลรับซื้อประเภท Trading แสดงสินค้า, ชื่อบนบิล, PO, น้ำหนักรวม, หัก, สุทธิ, ราคา/กก., ราคาหน้าใบ, ยอดรวม และปุ่มลบเป็นหนึ่งแถวต่อรายการบน Desktop; บน Mobile ใช้การ์ดสองคอลัมน์ โดยสินค้า ชื่อบนบิล และ PO กว้างเต็มแถวเพื่อให้กรอกได้จริงโดยไม่ต้องเลื่อนแนวนอน.
+- Why it has to be like this: ผู้ใช้ต้องเปรียบเทียบข้อมูลของรายการเดียวกันตามแนวนอนได้โดยไม่เสียพื้นที่กับโครงสร้างสองแถว ขณะที่หน้าจอแคบยังต้องอ่านและแตะช่องกรอกได้สะดวก การเปลี่ยนนี้คงสูตร `สุทธิ = น้ำหนักรวม - หัก`, `ยอดรวม = สุทธิ x ราคา/กก.`, validation, PO allocation, API payload, Stock/Payment contract, database schema และข้อมูลเดิมทั้งหมด.
+- Modal fit: ฟอร์มบิลรับซื้อใช้ความกว้างสูงสุด `1480px`, body padding ตาม baseline `p-4 sm:p-5` และคอลัมน์ลบกว้าง `64px` พร้อมข้อความบรรทัดเดียว เพื่อให้รายการ Desktop ทั้งแถวอยู่ในพื้นที่ใช้งานโดยไม่บีบ action; Mobile ยังคงถูกจำกัดด้วยความกว้าง viewport และใช้ card layout เดิม.

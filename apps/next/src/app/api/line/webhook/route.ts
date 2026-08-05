@@ -6,6 +6,8 @@ import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/lin
 
 export const runtime = 'nodejs'
 
+const LINE_API_TIMEOUT_MS = 10_000
+
 function formatDateTime(value?: string | Date | null) {
   if (!value) return '-'
   const date = typeof value === 'string' ? new Date(value) : value
@@ -59,6 +61,7 @@ async function upsertLineTarget(targetId: string, targetType: 'group' | 'room' |
       const res = await fetch(`https://api.line.me/v2/bot/group/${targetId}/summary`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(LINE_API_TIMEOUT_MS),
       })
       if (res.ok) {
         const body = await res.json() as { groupName?: string; pictureUrl?: string }
@@ -69,6 +72,7 @@ async function upsertLineTarget(targetId: string, targetType: 'group' | 'room' |
       const res = await fetch(`https://api.line.me/v2/bot/profile/${targetId}`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(LINE_API_TIMEOUT_MS),
       })
       if (res.ok) {
         const body = await res.json() as { displayName?: string; pictureUrl?: string }
@@ -432,6 +436,7 @@ export async function POST(request: Request) {
                 replyToken: event.replyToken,
                 messages: [{ type: 'text', text: replyText }],
               }),
+              signal: AbortSignal.timeout(LINE_API_TIMEOUT_MS),
             }).catch((err) => console.error('[line-webhook] reply failed', err))
           }
         }

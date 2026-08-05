@@ -1,8 +1,14 @@
 import type { MasterDataPageConfig } from '@/lib/master-data'
+import { MASTER_DATA_PAGE_PERMISSIONS } from '@/lib/master-data-page-permissions'
 
 const statusColumn = { key: 'active', label: 'สถานะ', align: 'center', format: 'status' } as const
 
 export const salespersonsPageConfig: MasterDataPageConfig = {
+  actionPermissions: {
+    create: MASTER_DATA_PAGE_PERMISSIONS.salespersons.create,
+    status: MASTER_DATA_PAGE_PERMISSIONS.salespersons.status,
+    update: MASTER_DATA_PAGE_PERMISSIONS.salespersons.update,
+  },
   apiPath: '/api/master-data/salespersons',
   createLabel: 'เพิ่มพนักงานขาย',
   entityName: 'พนักงานขาย',
@@ -232,6 +238,11 @@ export const productsPageConfig: MasterDataPageConfig = {
 }
 
 export const productUnitsPageConfig: MasterDataPageConfig = {
+  actionPermissions: {
+    create: MASTER_DATA_PAGE_PERMISSIONS.productUnits.create,
+    status: MASTER_DATA_PAGE_PERMISSIONS.productUnits.status,
+    update: MASTER_DATA_PAGE_PERMISSIONS.productUnits.update,
+  },
   apiPath: '/api/master-data/product-units',
   createLabel: 'เพิ่มหน่วยสินค้า',
   entityName: 'หน่วยสินค้า',
@@ -250,6 +261,11 @@ export const productUnitsPageConfig: MasterDataPageConfig = {
 }
 
 export const productTypesPageConfig: MasterDataPageConfig = {
+  actionPermissions: {
+    create: MASTER_DATA_PAGE_PERMISSIONS.productTypes.create,
+    status: MASTER_DATA_PAGE_PERMISSIONS.productTypes.status,
+    update: MASTER_DATA_PAGE_PERMISSIONS.productTypes.update,
+  },
   apiPath: '/api/master-data/product-types',
   createLabel: 'เพิ่มประเภทสินค้า',
   entityName: 'ประเภทสินค้า',

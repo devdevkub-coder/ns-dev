@@ -33,7 +33,7 @@ import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCanc
 import { calculatePurchaseBillPostAdvanceTotals } from '@/lib/purchase-advance'
 import { calculateSupplierAdvanceAllocation } from '@/lib/purchase-advance'
 import { openPurchaseBillPrint, openPurchaseBillPrintWindow } from '@/lib/purchase-bill-print'
-import { salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
+import { calculateSalesNetWeight, normalizeSalesBillWeights, salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
 import { openSalesBillPrint, openSalesBillPrintWindow } from '@/lib/sales-bill-print'
 import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 
@@ -718,7 +718,7 @@ function salesStockQtyVariance(sentQty: number, acceptedQty: number) {
   const diff = sentQty - acceptedQty
   if (Math.abs(diff) < 0.001) return { className: 'text-emerald-700', text: 'ขายครบตามใบส่งของ' }
   if (diff > 0) return { className: 'text-amber-700', text: `เหลือรอรับคืน ${formatMoney(diff)} กก.` }
-  return { className: 'text-sky-700', text: `ลูกค้าชั่งเกิน ${formatMoney(Math.abs(diff))} กก. ตัด stock เท่าใบส่งของ` }
+  return { className: 'text-sky-700', text: `ลูกค้าชั่งเกิน ${formatMoney(Math.abs(diff))} กก. บันทึกยอดขายตามจริง แต่ตัด stock เท่าใบส่งของ` }
 }
 
 function salesItemSourceGroupKey(item: SalesBillFormValues['items'][number]) {
@@ -916,6 +916,7 @@ const blankSalesItem = (): SalesBillFormValues['items'][number] => ({
   price: 0,
   productId: '',
   qty: 0,
+  salesProductId: null,
   tradingCostSourceId: null,
 })
 
@@ -1745,13 +1746,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   function poSellAvailableForRow(poSellId: string | null, index: number) {
     if (!poSellId) return 0
     const currentItem = salesForm.items[index]
-    const currentProductId = currentItem?.productId ?? null
+    const currentProductId = currentItem?.salesProductId ?? currentItem?.productId ?? null
     const po = poSellOptionForProduct(poSellId, currentProductId)
     if (!po) return 0
     const allocatedOtherRows = salesForm.items.reduce((sum, item, itemIndex) => {
       if (itemIndex === index) return sum
       if (item.poSellId !== poSellId) return sum
-      if (currentProductId && item.productId !== currentProductId) return sum
+      if (currentProductId && (item.salesProductId ?? item.productId) !== currentProductId) return sum
       return sum + item.qty
     }, 0)
     return Math.max(0, (po.remainingQty ?? 0) - allocatedOtherRows)
@@ -1760,7 +1761,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   function poSellVarianceForRow(poSellId: string | null, index: number) {
     if (!poSellId) return null
     const currentItem = salesForm.items[index]
-    const po = poSellOptionForProduct(poSellId, currentItem?.productId ?? null)
+    const po = poSellOptionForProduct(poSellId, currentItem?.salesProductId ?? currentItem?.productId ?? null)
     if (!po) return null
     const availableQty = poSellAvailableForRow(poSellId, index)
     if (currentItem.qty > availableQty + 0.001) {
@@ -1814,8 +1815,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       const overQty = acceptedQty - summary.remainingWeight
       if (overQty <= 0.001) return []
       return [{
-        className: 'text-red-700',
-        message: `${summary.productName}: ขายเกินใบส่งของ ${formatMoney(overQty)} กก.`,
+        className: 'text-sky-700',
+        message: `${summary.productName}: ลูกค้าชั่งเกินใบส่งของ ${formatMoney(overQty)} กก. บันทึกยอดขายตามจริง แต่ตัด stock เท่าใบส่งของ`,
         rowIndex: state?.rowIndices[0] ?? null,
         summaryId: summary.id,
       }]
@@ -1858,6 +1859,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       price: 0,
       productId: summary.productId,
       qty: summary.remainingWeight,
+      salesProductId: null,
       tradingCostSourceId: null,
     }))
   }
@@ -1878,6 +1880,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       price: 0,
       productId: source.product_id ?? '',
       qty: remainingQty,
+      salesProductId: null,
       tradingCostSourceId: source.id,
     }
   }
@@ -2225,6 +2228,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         productId: item.productCode || item.productId,
         qty: item.qty,
         salesBillLineNo: item.lineNo,
+        salesProductId: item.productCode || item.productId,
         tradingCostSourceId: item.tradingSourceDocNo
           ? tradingSourceByDocLine.get(`${item.tradingSourceDocNo}:${item.tradingSourceLineNo ?? ''}`) ?? null
           : null,
@@ -2859,6 +2863,24 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSalesFieldErrors({})
   }
 
+  function updateSalesStockProduct(index: number, salesProductId: string) {
+    setSalesForm((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        const nextSalesProductId = salesProductId === item.productId ? null : salesProductId
+        const selectedPoSell = item.poSellId ? poSellOptionForProduct(item.poSellId, salesProductId) : null
+        return {
+          ...item,
+          poSellId: selectedPoSell ? item.poSellId : null,
+          price: selectedPoSell ? selectedPoSell.unitPrice ?? item.price : item.poSellId ? 0 : item.price,
+          salesProductId: nextSalesProductId,
+        }
+      }),
+    }))
+    setSalesFieldErrors({})
+  }
+
   function updateSalesSplitProduct(index: number, productId: string) {
     setSalesForm((current) => ({
       ...current,
@@ -2899,14 +2921,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSalesFieldErrors({})
   }
 
-  function updateSalesStockSaleWeight(index: number, key: 'deductWeight' | 'netWeight', value: number) {
+  function updateSalesStockSaleWeight(index: number, key: 'deductWeight' | 'grossWeight', value: number) {
     setSalesForm((current) => ({
       ...current,
       items: current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
         const next = { ...item, [key]: value }
-        const qty = Number(Math.max(0, next.netWeight - next.deductWeight).toFixed(2))
-        return { ...next, qty }
+        const qty = calculateSalesNetWeight(next.grossWeight, next.deductWeight)
+        return { ...next, netWeight: qty, qty }
       }),
     }))
     setSalesFieldErrors({})
@@ -2931,7 +2953,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           && nextRow?.productId === item.productId
           && !nextRow?.deliveryTicketId
         const mergedSplitQty = mergeNextSpotSplit ? (nextRow?.qty ?? 0) : 0
-        const selectedPoSell = poSellId ? poSellOptionForProduct(poSellId, item.productId) : null
+        const salesProductId = item.salesProductId ?? item.productId
+        const selectedPoSell = poSellId ? poSellOptionForProduct(poSellId, salesProductId) : null
         const selectedTradingCostSource = item.tradingCostSourceId ? tradingCostSourceOptionForProduct(item.tradingCostSourceId, item.productId) : null
         const summaryId = item.deliverySummaryId ?? item.deliveryLineId ?? null
         const summary = summaryId ? deliverySummaryById.get(summaryId) : null
@@ -2947,7 +2970,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           ? current.items.reduce((sum, row, rowIndex) => {
             if (rowIndex === index) return sum
             if (row.poSellId !== poSellId) return sum
-            if (item.productId && row.productId !== item.productId) return sum
+            if (salesProductId && (row.salesProductId ?? row.productId) !== salesProductId) return sum
             return sum + row.qty
           }, 0)
           : 0
@@ -3259,7 +3282,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   async function saveSalesBill() {
-    const parsed = salesBillFormSchema.safeParse(salesForm)
+    const normalizedSalesForm = normalizeSalesBillWeights(salesForm)
+    const parsed = salesBillFormSchema.safeParse(normalizedSalesForm)
     if (!parsed.success) {
       const nextFieldErrors = issueMapFromZodIssues(parsed.error.issues)
       setSalesFieldErrors(nextFieldErrors)
@@ -3272,21 +3296,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       setSalesFieldErrors((current) => ({ ...current, exportOrderNo: 'กรอกเลขที่ order ส่งออก' }))
       setError('กรอกเลขที่ order ส่งออกสำหรับบิลขายต่างประเทศ')
       focusFieldError('exportOrderNo')
-      return
-    }
-
-    if (salesStockAllocationIssues.length > 0) {
-      const nextFieldErrors = salesStockAllocationIssues.reduce<Record<string, string>>((errors, issue) => {
-        if (issue.rowIndex != null) {
-          errors[`items.${issue.rowIndex}.qty`] = issue.message
-        }
-        return errors
-      }, { items: 'รายการจากใบส่งของ WTO ต้องไม่ขายเกินน้ำหนักคงเหลือ' })
-      const firstIssue = salesStockAllocationIssues[0]
-      const firstErrorKey = firstIssue?.rowIndex != null ? `items.${firstIssue.rowIndex}.qty` : 'items'
-      setSalesFieldErrors(nextFieldErrors)
-      setError(firstIssue?.message ?? 'รายการจากใบส่งของ WTO ต้องไม่ขายเกินน้ำหนักคงเหลือ')
-      focusFieldError(firstErrorKey)
       return
     }
 
@@ -3740,8 +3749,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       </div>
 
       {showForm && mode === 'purchase' ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClosePurchaseForm() }}>
-          <div className="mx-auto my-4 flex max-h-[94vh] w-full max-w-[1280px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-ns-field-scope="entry">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-2" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClosePurchaseForm() }}>
+          <div className="mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-ns-field-scope="entry">
             <div data-ns-dialog-header className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div className="min-w-0">
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
@@ -3751,7 +3760,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white outline-none hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={requestClosePurchaseForm}>ยกเลิก</button>
               </div>
             </div>
-            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
+            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
               {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
               <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="amber">1</StepBadge>ประเภทบิล</h4>
@@ -4046,114 +4055,152 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     </div>
                   )
                 ) : (
-                  <div className="overflow-x-auto rounded-md border border-slate-200/60">
-                    <table className="ns-table w-full min-w-[1040px] text-sm">
-                      <colgroup>
-                        <col className="w-[132px]" />
-                        <col className="w-[132px]" />
-                        <col className="w-[132px]" />
-                        <col className="w-[160px]" />
-                        <col className="w-[160px]" />
-                        <col className="w-[170px]" />
-                        <col className="w-[80px]" />
+                  <div className="rounded-md lg:overflow-x-auto lg:border lg:border-slate-200/60">
+                    <table className="ns-table block w-full text-sm lg:min-w-[1200px] lg:table lg:table-fixed">
+                      <colgroup className="hidden lg:table-column-group">
+                        <col className="w-[210px]" />
+                        <col className="w-[150px]" />
+                        <col className="w-[150px]" />
+                        <col className="w-[96px]" />
+                        <col className="w-[96px]" />
+                        <col className="w-[96px]" />
+                        <col className="w-[110px]" />
+                        <col className="w-[110px]" />
+                        <col className="w-[116px]" />
+                        <col className="w-[64px]" />
                       </colgroup>
-                      <tbody>
+                      <thead className="hidden border-b border-slate-100 bg-slate-50 text-xs font-medium text-slate-600 lg:table-header-group">
+                        <tr>
+                          <th className="p-2 text-left">สินค้า <span className="text-red-500">*</span></th>
+                          <th className="p-2 text-left">ชื่อบนบิล</th>
+                          <th className="p-2 text-left">อ้างอิง PO</th>
+                          <th className="p-2 text-right">น้ำหนักรวม</th>
+                          <th className="p-2 text-right">หัก</th>
+                          <th className="p-2 text-right">สุทธิ</th>
+                          <th className="p-2 text-right">ราคา/กก.</th>
+                          <th className="p-2 text-right">ราคาหน้าใบ</th>
+                          <th className="p-2 text-right">ยอดรวม</th>
+                          <th className="p-2 text-center"><span className="sr-only">จัดการ</span></th>
+                        </tr>
+                      </thead>
+                      <tbody className="block space-y-3 lg:table-row-group lg:space-y-0">
                         {form.items.map((item, index) => (
-                          <Fragment key={index}>
-                            <tr className="border-t align-top hover:bg-slate-50">
-                              <td className="p-2" colSpan={4}>
-                                <ProductSearchCombobox error={fieldErrors[`items.${index}.productId`]} errorKey={`items.${index}.productId`} inputId={`purchase-bill-product-search-${index}`} options={activeProducts} value={item.productId} onChange={(value) => updateItem(index, 'productId', value)} />
-                                <input className="mt-1.5 w-full rounded-md border bg-[var(--ns-manual-entry-bg)] px-2 py-1 text-xs" placeholder="ชื่อสำหรับโชว์ในบิล (ว่าง = ใช้ชื่อ Master)" value={item.displayName ?? ''} onChange={(event) => updateItem(index, 'displayName', event.target.value || null)} />
-                              </td>
-                              <td className="p-2" colSpan={2}>
-                                <div className="mb-1 text-xs font-semibold text-slate-600">อ้างอิง PO</div>
-                                <SearchCombobox
-                                  hideLabel
-                                  inputClassName="h-10 px-2 py-2 text-xs"
-                                  inputId={`purchase-bill-manual-po-buy-${index}`}
-                                  label="อ้างอิง PO"
-                                  options={toPoSearchOptions(
-                                    activePoBuys.filter((po) => item.productId && (!po.product_id || po.product_id === item.productId)),
-                                    'Spot Buy',
-                                  )}
-                                  value={item.poBuyId ?? ''}
-                                  onChange={(value) => updateItemPoBuy(index, value || null)}
-                                />
-                                {(() => {
-                                  const remainingQty = poOptionForProduct(item.poBuyId, item.productId)?.remainingQty
-                                  if (remainingQty === null || remainingQty === undefined) return null
-                                  const variance = poQtyVariance(remainingQty, item.qty)
-                                  return <div className={`mt-1 text-xs font-semibold ${variance.className}`}>{variance.text}</div>
-                                })()}
-                              </td>
-                              <td className="w-[80px] p-2 text-center align-middle" rowSpan={2}><button className="rounded-md px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40" disabled={form.items.length <= 1} type="button" onClick={() => removeItem(index)}>ลบ</button></td>
-                            </tr>
-                            <tr className="border-t border-slate-100 align-top hover:bg-slate-50">
-                              <td className="w-[132px] p-2 text-right">
-                                <div className="mb-1 text-xs font-semibold text-slate-500">น้ำหนักรวม</div>
-                                <InlineDecimalInput
-                                  error={fieldErrors[`items.${index}.grossWeight`]}
-                                  errorKey={`items.${index}.grossWeight`}
-                                  inputClassName="ml-auto !w-[12ch] font-normal"
-                                  value={item.grossWeight}
-                                  onChange={(value) => updateItemWeights(index, 'grossWeight', value)}
-                                />
-                              </td>
-                              <td className="w-[132px] p-2 text-right">
-                                <div className="mb-1 text-xs font-semibold text-slate-600">หัก</div>
-                                <InlineDecimalInput
-                                  error={fieldErrors[`items.${index}.deductWeight`]}
-                                  errorKey={`items.${index}.deductWeight`}
-                                  inputClassName="ml-auto !w-[12ch] font-normal"
-                                  value={item.deductWeight}
-                                  onChange={(value) => updateItemWeights(index, 'deductWeight', value)}
-                                />
-                              </td>
-                              <td className="w-[132px] p-2 text-right">
-                                <div className="mb-1 text-xs font-semibold text-slate-600">สุทธิ</div>
-                                <InlineDecimalInput
-                                  error={fieldErrors[`items.${index}.qty`]}
-                                  errorKey={`items.${index}.qty`}
-                                  inputClassName="ml-auto !w-[12ch]"
-                                  value={item.qty}
-                                  onChange={(value) => updateItem(index, 'qty', value)}
-                                />
-                              </td>
-                              <td className="p-2">
-                                <div className="mb-1 text-xs font-semibold text-slate-500">ราคา/กก.</div>
-                                <InlineMoneyInput
-                                  error={fieldErrors[`items.${index}.price`]}
-                                  errorKey={`items.${index}.price`}
-                                  value={item.price}
-                                  onChange={(value) => updateItem(index, 'price', value)}
-                                />
-                              </td>
-                              <td className="p-2">
-                                <div className="mb-1 text-xs font-semibold text-slate-600">ราคาหน้าใบ</div>
-                                <InlineMoneyInput
-                                  disabled={!salesPriceEditable}
-                                  inputClassName={salesPriceEditable ? 'bg-[var(--ns-manual-entry-bg)]' : 'bg-slate-100 text-slate-500'}
-                                  value={item.salesPrice}
-                                  onChange={(value) => updateItem(index, 'salesPrice', value)}
-                                />
-                              </td>
-                              <td className="p-2">
-                                <div className="mb-1 whitespace-nowrap text-xs font-semibold text-slate-600">ยอดรวม</div>
-                                <div className="whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-2 text-right font-bold tabular-nums text-slate-900">{formatMoney(Math.max(0, item.qty * item.price))}</div>
-                              </td>
-                            </tr>
-                          </Fragment>
+                          <tr
+                            key={index}
+                            className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 bg-white p-3 align-top hover:bg-slate-50 lg:table-row lg:border-0 lg:p-0"
+                            data-testid={`purchase-bill-trading-item-${index}`}
+                          >
+                            <td className="col-span-2 min-w-0 lg:table-cell lg:p-2">
+                              <div className="mb-1 text-xs font-semibold text-slate-600 lg:hidden">สินค้า <span className="text-red-500">*</span></div>
+                              <ProductSearchCombobox hideLabel error={fieldErrors[`items.${index}.productId`]} errorKey={`items.${index}.productId`} inputId={`purchase-bill-product-search-${index}`} options={activeProducts} value={item.productId} onChange={(value) => updateItem(index, 'productId', value)} />
+                            </td>
+                            <td className="col-span-2 min-w-0 lg:table-cell lg:p-2">
+                              <label className="mb-1 block text-xs font-semibold text-slate-600 lg:sr-only" htmlFor={`purchase-bill-display-name-${index}`}>ชื่อบนบิล</label>
+                              <input
+                                className="h-10 w-full rounded-md border bg-[var(--ns-manual-entry-bg)] px-2 py-2 text-sm"
+                                id={`purchase-bill-display-name-${index}`}
+                                placeholder="ว่าง = ใช้ชื่อ Master"
+                                value={item.displayName ?? ''}
+                                onChange={(event) => updateItem(index, 'displayName', event.target.value || null)}
+                              />
+                            </td>
+                            <td className="col-span-2 min-w-0 lg:table-cell lg:p-2">
+                              <div className="mb-1 text-xs font-semibold text-slate-600 lg:hidden">อ้างอิง PO</div>
+                              <SearchCombobox
+                                hideLabel
+                                inputClassName="h-10 px-2 py-2 text-sm"
+                                inputId={`purchase-bill-manual-po-buy-${index}`}
+                                label="อ้างอิง PO"
+                                options={toPoSearchOptions(
+                                  activePoBuys.filter((po) => item.productId && (!po.product_id || po.product_id === item.productId)),
+                                  'Spot Buy',
+                                )}
+                                value={item.poBuyId ?? ''}
+                                onChange={(value) => updateItemPoBuy(index, value || null)}
+                              />
+                              {(() => {
+                                const remainingQty = poOptionForProduct(item.poBuyId, item.productId)?.remainingQty
+                                if (remainingQty === null || remainingQty === undefined) return null
+                                const variance = poQtyVariance(remainingQty, item.qty)
+                                return <div className={`mt-1 text-xs font-semibold ${variance.className}`}>{variance.text}</div>
+                              })()}
+                            </td>
+                            <td className="min-w-0 text-right lg:table-cell lg:p-2">
+                              <div className="mb-1 text-xs font-semibold text-slate-500 lg:hidden">น้ำหนักรวม</div>
+                              <InlineDecimalInput
+                                error={fieldErrors[`items.${index}.grossWeight`]}
+                                errorKey={`items.${index}.grossWeight`}
+                                inputClassName="!w-full font-normal"
+                                value={item.grossWeight}
+                                onChange={(value) => updateItemWeights(index, 'grossWeight', value)}
+                              />
+                            </td>
+                            <td className="min-w-0 text-right lg:table-cell lg:p-2">
+                              <div className="mb-1 text-xs font-semibold text-slate-600 lg:hidden">หัก</div>
+                              <InlineDecimalInput
+                                error={fieldErrors[`items.${index}.deductWeight`]}
+                                errorKey={`items.${index}.deductWeight`}
+                                inputClassName="!w-full font-normal"
+                                value={item.deductWeight}
+                                onChange={(value) => updateItemWeights(index, 'deductWeight', value)}
+                              />
+                            </td>
+                            <td className="min-w-0 text-right lg:table-cell lg:p-2">
+                              <div className="mb-1 text-xs font-semibold text-slate-600 lg:hidden">สุทธิ</div>
+                              <InlineDecimalInput
+                                error={fieldErrors[`items.${index}.qty`]}
+                                errorKey={`items.${index}.qty`}
+                                inputClassName="!w-full"
+                                value={item.qty}
+                                onChange={(value) => updateItem(index, 'qty', value)}
+                              />
+                            </td>
+                            <td className="min-w-0 lg:table-cell lg:p-2">
+                              <div className="mb-1 text-xs font-semibold text-slate-500 lg:hidden">ราคา/กก.</div>
+                              <InlineMoneyInput
+                                error={fieldErrors[`items.${index}.price`]}
+                                errorKey={`items.${index}.price`}
+                                value={item.price}
+                                onChange={(value) => updateItem(index, 'price', value)}
+                              />
+                            </td>
+                            <td className="min-w-0 lg:table-cell lg:p-2">
+                              <div className="mb-1 text-xs font-semibold text-slate-600 lg:hidden">ราคาหน้าใบ</div>
+                              <InlineMoneyInput
+                                disabled={!salesPriceEditable}
+                                inputClassName={salesPriceEditable ? 'bg-[var(--ns-manual-entry-bg)]' : 'bg-slate-100 text-slate-500'}
+                                value={item.salesPrice}
+                                onChange={(value) => updateItem(index, 'salesPrice', value)}
+                              />
+                            </td>
+                            <td className="min-w-0 lg:table-cell lg:p-2">
+                              <div className="mb-1 text-xs font-semibold text-slate-600 lg:hidden">ยอดรวม</div>
+                              <div className="flex h-10 items-center justify-end whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 font-bold tabular-nums text-slate-900">{formatMoney(Math.max(0, item.qty * item.price))}</div>
+                            </td>
+                            <td className="col-span-2 flex items-end justify-end lg:table-cell lg:p-2 lg:text-center">
+                              <button
+                                aria-label={`ลบรายการสินค้า ${index + 1}`}
+                                className="h-10 w-full whitespace-nowrap rounded-md px-2 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40 lg:w-auto"
+                                disabled={form.items.length <= 1}
+                                type="button"
+                                onClick={() => removeItem(index)}
+                              >
+                                ลบ
+                              </button>
+                            </td>
+                          </tr>
                         ))}
                       </tbody>
-                      <tfoot className="border-t bg-white font-bold">
-                        <tr>
-                          <td className="p-2 text-right tabular-nums"><span className="mr-2 text-slate-700">รวม</span>{formatMoney(form.items.reduce((sum, item) => sum + item.grossWeight, 0))}</td>
-                          <td className="p-2 text-right tabular-nums text-slate-700">{formatMoney(form.items.reduce((sum, item) => sum + item.deductWeight, 0))}</td>
-                          <td className="p-2 text-right tabular-nums text-slate-900">{formatMoney(formTotalWeight)}</td>
-                          <td></td>
-                          <td></td>
-                          <td className="p-2 text-right tabular-nums text-slate-900">{formatMoney(formSubtotal)}</td>
-                          <td></td>
+                      <tfoot className="block font-bold lg:table-footer-group">
+                        <tr className="mt-3 grid grid-cols-2 gap-2 rounded-md bg-slate-50 p-3 lg:mt-0 lg:table-row lg:p-0">
+                          <td className="hidden p-2 text-right text-slate-700 lg:table-cell" colSpan={3}>รวม</td>
+                          <td className="text-right tabular-nums lg:table-cell lg:p-2"><span className="mr-2 text-xs text-slate-500 lg:hidden">น้ำหนักรวม</span>{formatMoney(form.items.reduce((sum, item) => sum + item.grossWeight, 0))}</td>
+                          <td className="text-right tabular-nums text-slate-700 lg:table-cell lg:p-2"><span className="mr-2 text-xs text-slate-500 lg:hidden">หัก</span>{formatMoney(form.items.reduce((sum, item) => sum + item.deductWeight, 0))}</td>
+                          <td className="text-right tabular-nums text-slate-900 lg:table-cell lg:p-2"><span className="mr-2 text-xs text-slate-500 lg:hidden">สุทธิ</span>{formatMoney(formTotalWeight)}</td>
+                          <td className="hidden lg:table-cell"></td>
+                          <td className="hidden lg:table-cell"></td>
+                          <td className="text-right tabular-nums text-slate-900 lg:table-cell lg:p-2"><span className="mr-2 text-xs text-slate-500 lg:hidden">ยอดรวม</span>{formatMoney(formSubtotal)}</td>
+                          <td className="hidden lg:table-cell"></td>
                         </tr>
                       </tfoot>
                     </table>
@@ -4489,12 +4536,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                              ? Math.max(0, sourceSummary.remainingWeight - (summaryState?.allocatedQty ?? 0))
 	                              : 0
 	                            const productName = activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId
-	                            const itemPoSellOptions = activePoSells.filter((po) => {
-	                              if (po.product_id && po.product_id !== item.productId) return false
+                            const salesProductId = item.salesProductId ?? item.productId
+                            const itemPoSellOptions = activePoSells.filter((po) => {
+                              if (po.product_id && po.product_id !== salesProductId) return false
 	                              if (item.poSellId === po.id) return true
 	                              return poSellAvailableForRow(po.id, index) > 0.0001
 	                            })
-	                            const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
+                            const selectedPoSell = poSellOptionForProduct(item.poSellId, salesProductId)
 	                            const hasSelectedPoSell = Boolean(item.poSellId && selectedPoSell)
 	                            const selectedPoSellFallback = item.poSellId && selectedPoSell && !itemPoSellOptions.some((po) => po.id === item.poSellId)
 	                              ? { id: item.poSellId, label: selectedPoSell.name || selectedPoSell.id }
@@ -4530,11 +4578,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     </>
                                   ) : (
                                     <div className="min-w-[360px]">
-                                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                                        {sourceSummary?.productName ?? productName}
-                                      </div>
+                                      <ProductSearchCombobox
+                                        hideLabel
+                                        inputId={`sales-bill-stock-display-product-search-${index}`}
+                                        options={activeProducts}
+                                        value={salesProductId}
+                                        onChange={(value) => updateSalesStockProduct(index, value)}
+                                      />
                                       <div className="mt-1 text-xs text-slate-500">
-                                        split WTO ใช้สินค้าเดิมตามใบส่งของ
+                                        สินค้าที่ขาย · ตัด WTO, สต็อก และต้นทุนตาม {sourceSummary?.productName ?? productName}
                                       </div>
                                     </div>
                                   )}
@@ -4551,9 +4603,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                ) : null}
 	                                <td className="p-2">
 	                                  <div className="ml-auto w-17">
-                                    <input data-error-key={`items.${index}.netWeight`} className={`w-full rounded-md border px-2 py-2 text-right font-bold tabular-nums text-slate-900 ${salesFieldErrors[`items.${index}.netWeight`] || salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'bg-[var(--ns-manual-entry-bg)]'} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.netWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'netWeight', Number(event.target.value || 0))} />
+	                                  <input data-error-key={`items.${index}.grossWeight`} className={`w-full rounded-md border px-2 py-2 text-right font-bold tabular-nums text-slate-900 ${salesFieldErrors[`items.${index}.grossWeight`] || salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'bg-[var(--ns-manual-entry-bg)]'} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.grossWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'grossWeight', Number(event.target.value || 0))} />
 	                                  </div>
-	                                  {salesFieldErrors[`items.${index}.netWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.netWeight`]}</div> : null}
+	                                  {salesFieldErrors[`items.${index}.grossWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.grossWeight`]}</div> : null}
 	                                  {salesFieldErrors[`items.${index}.qty`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.qty`]}</div> : null}
 	                                </td>
 	                                <td className="p-2">
@@ -4635,7 +4687,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                           <tr>
                             <td className="p-2 text-right text-slate-700">รวม</td>
 	                            <td className="p-2 text-right tabular-nums text-slate-900">{formatMoney((selectedDelivery?.productSummaries ?? []).reduce((sum, summary) => sum + summary.remainingWeight, 0))}</td>
-	                            <td className="p-2 text-right tabular-nums">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.netWeight, 0))}</td>
+	                            <td className="p-2 text-right tabular-nums">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.grossWeight, 0))}</td>
 	                            <td className="p-2 text-right tabular-nums text-slate-700">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.deductWeight, 0))}</td>
 	                            <td className="p-2 text-right tabular-nums text-slate-900">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.qty, 0))}</td>
 	                            <td></td>

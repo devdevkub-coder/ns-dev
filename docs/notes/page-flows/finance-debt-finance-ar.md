@@ -6,7 +6,7 @@ tags:
   - finance-debt
   - accounts-receivable
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-08-04
 route: /finance/ar
 ---
 
@@ -147,6 +147,13 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Why it has to be like this: period-based navigation preserves its source range, while the Financial Dashboard's as-of outstanding KPI intentionally sends an empty `from` plus `to=asOf`; the client must preserve that empty lower bound so older open bills are not dropped by a current-month default.
 - Authorization: bills, branch options, customer options and returned customer-branch mappings use the same effective finance branch intersection. Unknown/inactive explicit branches return `404`; existing branches outside scope return `403`; an empty mapped scope returns no branch data.
 - Aging cutoff: `today` is normalized to the Bangkok business date before comparison with due dates, preventing the 00:00–06:59 Bangkok window from reporting one day behind.
+
+## Compact Filter Layout 2026-08-04
+
+- What is what: desktop row one owns search, customer, sales channel, aging bucket, branch, bill-date range and the full `ล้างตัวกรอง` action; row two owns status and `ส่งออก Excel`. The result count belongs only to the table/pagination surface. Mobile keeps search/actions compact and puts `ล้างตัวกรอง` in the expanded filter surface.
+- Why it has to be like this: all scope controls stay together, status and export remain easy to scan, and the same result count is not repeated in both the filter card and the table toolbar.
+- Responsive boundary: the two-row desktop toolbar is used from `2xl` upward, where the full first row still fits when the sidebar expands. Narrower desktop/tablet widths use the compact filter surface so controls never wrap into a third visual row; filter state and results remain identical.
+- Preserved boundary: filter state, query parameters, API requests, export scope, pagination, permissions and the existing mobile filter interaction do not change.
 
 ## Implementation Checklist
 

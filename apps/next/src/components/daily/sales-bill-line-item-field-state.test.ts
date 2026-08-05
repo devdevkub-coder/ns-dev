@@ -69,6 +69,16 @@ describe('sales bill line-item field states', () => {
     expect(cellContaining(stockTableSource, 'item.qty * item.price - item.discount')).toContain('bg-slate-50')
   })
 
+  it('lets a split WTO row select a Sales Bill label without changing its stock source product', () => {
+    const splitRowStart = stockTableSource.indexOf('sales-bill-stock-display-product-search-${index}')
+    const splitRow = stockTableSource.slice(splitRowStart, stockTableSource.indexOf('</div>', splitRowStart) + 6)
+
+    expect(splitRowStart).toBeGreaterThan(-1)
+    expect(splitRow).toContain('updateSalesStockProduct(index, value)')
+    expect(splitRow).toContain('สินค้าที่ขาย · ตัด WTO, สต็อก และต้นทุนตาม')
+    expect(splitRow).not.toContain('updateSalesSplitProduct')
+  })
+
   it('keeps the Trading table column order and field states unambiguous', () => {
     const sourceLabelIndex = tradingTableSource.indexOf('{sourceLabel}</div>')
     const referenceIndex = tradingTableSource.indexOf('inputId={`sales-bill-manual-po-sell-${index}`}')

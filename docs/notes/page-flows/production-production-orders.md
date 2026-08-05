@@ -292,3 +292,8 @@ This implementation batch completes the accepted production-order list/detail, p
 
 - [x] The live product/warehouse/quantity controls are a staging row. `บันทึกการเบิก` posts only rows already added to the `รายการวัตถุดิบที่เตรียมเบิก` table; an unadded live row is not included in the payload.
 - [x] Saving with only an unadded live row shows an explicit instruction to press `+ เพิ่มรายการวัตถุดิบ` first.
+# Department access boundary checkpoint — 2026-08-04
+
+What is what: `sorting_department` handles the WTI/WTO operational document lifecycle; `production_department` handles that same weight-ticket lifecycle plus production dashboard/report/order actions. `production.orders.view` is also the permission for the product-stock read used inside a production order; it does not grant the stock-ledger menu or stock write APIs. Purchase Bills and Sales Bills are separate accounting documents, and `daily.weight_tickets.open_bill` is a deliberate handoff capability rather than part of either department role.
+
+Why it has to be like this: the sidebar mapping and each API guard must agree, otherwise a production user can be blocked by the proxy or can reach a broader stock surface through a shared permission. Bill creation/editing and WTI/WTO-to-bill handoff cross into finance and therefore remain denied even when the operational weight-ticket rows are visible. Posted-output voiding is a reversal action and now requires `production.orders.reverse`.

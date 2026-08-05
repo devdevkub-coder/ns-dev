@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const dealId = String(body.dealId ?? '').trim()
-    const reason = String(body.reason ?? '').trim().slice(0, 500) || 'ย้อนกลับการจัดสรรจาก Allocation Ledger'
+    const reason = String(body.reason ?? '').trim().slice(0, 500) || 'ย้อนกลับการจัดสรรจากสมุดรายวันจัดสรรต้นทุน'
     if (!/^\d+$/.test(dealId)) {
       return NextResponse.json({ error: 'ไม่พบรายการที่ต้องการย้อนกลับการจัดสรร' }, { status: 400 })
     }
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const branch = await getDualCostingBranch()
     const allowedBranchIds = await getAllowedBranchIds(context)
     if (!canAccessBranchId(allowedBranchIds, branch.id, { allowNull: false })) {
-      return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการ Allocation Ledger ของสาขานี้' }, { status: 403 })
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการสมุดรายวันจัดสรรต้นทุนของสาขานี้' }, { status: 403 })
     }
 
     const actor = context.appUser?.email?.trim() || context.authUser.email?.trim() || context.authUser.id
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
       if (allReversed) {
         if (activeFacts.length > 0) {
-          throw new AllocationLedgerConflictError('พบสถานะ Allocation Ledger ไม่สอดคล้องกัน จึงไม่สามารถย้อนกลับซ้ำได้')
+          throw new AllocationLedgerConflictError('พบสถานะสมุดรายวันจัดสรรต้นทุนไม่สอดคล้องกัน จึงไม่สามารถย้อนกลับซ้ำได้')
         }
         return {
           alreadyReversed: true,
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         })
         : null
       if (productionTarget) {
-        throw new AllocationLedgerConflictError('การจัดสรรต้นทุนของการผลิตต้องใช้ flow ย้อนกลับเฉพาะ จึงยังไม่เปิดให้ย้อนกลับจาก Allocation Ledger')
+          throw new AllocationLedgerConflictError('การจัดสรรต้นทุนของการผลิตต้องใช้ flow ย้อนกลับเฉพาะ จึงยังไม่เปิดให้ย้อนกลับจากสมุดรายวันจัดสรรต้นทุน')
       }
 
       const releasedByPoolId = new Map<string, number>()
@@ -173,6 +173,6 @@ export async function POST(request: Request) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     if (caught instanceof AllocationLedgerConflictError) return NextResponse.json({ error: caught.message }, { status: 409 })
     if (caught instanceof Error) return NextResponse.json({ error: caught.message }, { status: 400 })
-    return apiErrorResponse(caught, 'ย้อนกลับ Allocation Ledger ไม่สำเร็จ', 500)
+    return apiErrorResponse(caught, 'ย้อนกลับสมุดรายวันจัดสรรต้นทุนไม่สำเร็จ', 500)
   }
 }

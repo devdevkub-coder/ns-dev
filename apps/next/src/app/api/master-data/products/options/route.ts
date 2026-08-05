@@ -12,8 +12,8 @@ export async function GET() {
 
     const [productTypes, productUnits] = await Promise.all([listProductTypes(), listProductUnits()])
     return Response.json({
-      productTypes: productTypes.map((row) => ({ id: row.id, code: row.code, name: row.name, active: row.active })),
-      productUnits: productUnits.map((row) => ({ id: row.id, code: row.code, name: row.name, active: row.active })),
+      productTypes: productTypes.map((row) => ({ id: row.id.toString(), code: row.code, name: row.name, active: row.active })),
+      productUnits: productUnits.map((row) => ({ id: row.id.toString(), code: row.code, name: row.name, active: row.active })),
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

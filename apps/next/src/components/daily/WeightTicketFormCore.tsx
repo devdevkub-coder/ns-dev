@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/Input'
 import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { WeightTicketAttachmentGrid as AttachmentProfileGrid, type WeightTicketAttachmentPreview as AttachmentPreview } from '@/components/daily/WeightTicketAttachmentGrid'
+import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/components/daily/WeightTicketTypeFormSections'
 import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
@@ -408,6 +409,20 @@ function isImpurityPurchaseLine(line: FormWeightTicketLine) {
   return Boolean(line.impuritySourceLineId)
 }
 
+export function changeWeightTicketProduct(
+  lines: FormWeightTicketLine[],
+  lineId: string,
+  productId: string,
+  productName: string,
+) {
+  return lines.map((line) => (
+    line.id === lineId
+    || (line.parentId === lineId && !isImpurityPurchaseLine(line))
+      ? { ...line, productId, productName }
+      : line
+  ))
+}
+
 function getMainParentLines(lines: FormWeightTicketLine[]) {
   return lines.filter((line) => !line.parentId)
 }
@@ -783,7 +798,7 @@ export function WeightTicketFormCore({
   const [impurities, setImpurities] = useState<OptionItem[]>([])
   const [loadedTicket, setLoadedTicket] = useState<WeightTicketRecord | null>(null)
   const [savedTicket, setSavedTicket] = useState<WeightTicketRecord | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
+  const { begin: beginSaveStage, end: endSaveStage, isSaving, stage: saveStage } = useWeightTicketSaveProgress()
   const [isLoadingTicket, setIsLoadingTicket] = useState(Boolean(editingTicketId))
   const [loadError, setLoadError] = useState('')
   const [attachmentError, setAttachmentError] = useState('')
@@ -1134,10 +1149,10 @@ export function WeightTicketFormCore({
     if (!form.branchId) next.branchId = 'เลือกสาขา'
     if (!form.partyId) next.partyId = form.type === 'WTI' ? 'เลือกผู้ขาย' : 'เลือกลูกค้า'
     if (form.vehicleNo.trim().length < 2) next.vehicleNo = 'กรอกทะเบียนรถ'
-    if (!form.godownName || form.godownName.trim().length === 0) next.godownName = 'กรอกโกดัง'
+    if (form.type === 'WTO' && !form.godownName.trim()) next.godownName = 'กรอกโกดัง'
 
     const parentLines = getMainParentLines(form.lines)
-    if (parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'
+    if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'
 
     form.lines.forEach((line) => {
       if (isImpurityPurchaseLine(line)) return
@@ -1329,12 +1344,31 @@ export function WeightTicketFormCore({
     return getLineImages(sourceParentLine ?? sourceLine ?? line)
   }
 
-  async function saveDraftBeforeAdding() {
+  async function saveDraftBeforeAdding(): Promise<boolean> {
     // A new/empty line cannot be persisted yet. Save the current complete
     // document first so adding another line never loses the existing draft.
-    if (isSaving || isLoadingTicket || Object.keys(errors).length > 0) return
+    if (isSaving || isLoadingTicket) return false
+    const headerErrorKeys = ['branchId', 'partyId', 'vehicleNo', 'godownName']
+    const firstHeaderError = headerErrorKeys.find((key) => errors[key])
+    if (firstHeaderError) {
+      setTouched((current) => ({ ...current, [firstHeaderError]: true }))
+      setPendingFocusField(firstHeaderError)
+      return false
+    }
+    const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
+    if (form.lines.length > 0 && firstLineError) {
+      setTouched((current) => ({ ...current, [firstLineError]: true }))
+      setPendingFocusField(firstLineError)
+      return false
+    }
 
-    setIsSaving(true)
+    // WTI keeps its existing flow: the first product entry is still local
+    // until the user explicitly saves. WTO needs a persisted draft before
+    // the first product editor opens because subsequent line saves use the
+    // ticket id and must not create an orphan draft.
+    if (form.lines.length === 0 && form.type !== 'WTO') return true
+
+    beginSaveStage('auto_save')
     try {
       const ticket = await saveWeightTicket({
         branchId: form.branchId,
@@ -1368,10 +1402,12 @@ export function WeightTicketFormCore({
       setForm(nextForm)
       setFormBaseline(formSafetySnapshot(nextForm))
       setLoadError('')
+      return true
     } catch (caught) {
       setLoadError(getErrorMessage(caught, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้'))
+      return false
     } finally {
-      setIsSaving(false)
+      endSaveStage()
     }
   }
 
@@ -1381,27 +1417,21 @@ export function WeightTicketFormCore({
       const targetLine = current.lines.find((line) => line.id === lineId)
       if (!targetLine || targetLine.productId === productId) return current
 
-      const childIds = current.lines
-        .filter((line) => line.parentId === lineId)
-        .map((line) => line.id)
-      const resetLine = {
-        ...createFormWeightTicketLine(lineId),
-        productId,
-        productName: products.find((product) => product.id === productId)?.label ?? '',
-      }
-
       return {
         ...current,
-        lines: current.lines
-          .filter((line) => line.id === lineId || (line.parentId !== lineId && !childIds.includes(line.impuritySourceLineId ?? '')))
-          .map((line) => line.id === lineId ? resetLine : line),
+        lines: changeWeightTicketProduct(
+          current.lines,
+          lineId,
+          productId,
+          products.find((product) => product.id === productId)?.label ?? '',
+        ),
       }
     })
   }
 
   async function addLine() {
     setMergeNotice('')
-    await saveDraftBeforeAdding()
+    if (!await saveDraftBeforeAdding()) return
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)
@@ -1441,7 +1471,7 @@ export function WeightTicketFormCore({
 
   async function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
-    await saveDraftBeforeAdding()
+    if (!await saveDraftBeforeAdding()) return
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = sourceLine.productId
     nextLine.warehouseId = sourceLine.warehouseId
@@ -1553,8 +1583,10 @@ export function WeightTicketFormCore({
       {
         cancelLabel: 'ไม่เปลี่ยน',
         confirmLabel: 'เปลี่ยนสินค้า',
-        description: 'ข้อมูลสินค้า เต๋า และสิ่งเจือปนที่เกี่ยวข้องจะถูกล้างจากรายการนี้',
-        destructive: true,
+        description: form.type === 'WTO'
+          ? 'ข้อมูลเดิมจะคงไว้ ระบบจะตรวจ stock ของรายการทั้งหมดใหม่ก่อนบันทึก'
+          : 'เปลี่ยนเฉพาะสินค้า น้ำหนัก และสิ่งเจือปน ข้อมูลและรูปถ่ายอื่นจะคงเดิม',
+        destructive: false,
         title: 'เปลี่ยนสินค้า?',
       },
       () => changeLineProduct(lineId, productId),
@@ -1816,7 +1848,7 @@ export function WeightTicketFormCore({
       return
     }
 
-    setIsSaving(true)
+    beginSaveStage(form.type === 'WTO' ? 'stock_check' : 'save')
     try {
       const ticket = await saveWeightTicket({
         branchId: form.branchId,
@@ -1861,7 +1893,7 @@ export function WeightTicketFormCore({
       }
       setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
-      setIsSaving(false)
+      endSaveStage()
     }
   }
 
@@ -1993,6 +2025,7 @@ export function WeightTicketFormCore({
           {loadError}
         </div>
       ) : null}
+      <WeightTicketSaveProgress stage={saveStage} type={form.type} />
       {attachmentError ? (
         <div role="alert" aria-live="assertive" className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
@@ -2084,7 +2117,7 @@ export function WeightTicketFormCore({
                   onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
                 />
               </FieldBlock>
-	              <FieldBlock error={showError('godownName')} label="โกดัง*">
+	              <FieldBlock error={showError('godownName')} label={form.type === 'WTO' ? 'โกดัง*' : 'โกดัง'}>
 	                <Input
 	                  placeholder="เช่น โกดัง A"
 	                  value={form.godownName}
@@ -2122,6 +2155,7 @@ export function WeightTicketFormCore({
                   <div className="text-sm font-medium text-slate-700">รายการทั้งหมด {getMainParentLines(form.lines).length} รายการ</div>
                   <Button
                     aria-describedby={showError('lines') ? 'weight-ticket-lines-error' : undefined}
+                    className="h-9 border-emerald-600 bg-emerald-600 px-3 font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
                     id="weight-ticket-add-product"
                     size="xs"
                     type="button"
@@ -2257,10 +2291,9 @@ export function WeightTicketFormCore({
                           {products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
                         </div>
                         <Button
-                          className="h-8 shrink-0 px-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                          className="h-8 shrink-0 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 hover:text-white"
                           size="xs"
                           type="button"
-                          variant="ghost"
                           onClick={addLine}
                         >
                           <Plus className="mr-1 size-3" />
@@ -2398,9 +2431,15 @@ export function WeightTicketFormCore({
                               const lotGrossWeight = Math.max(0, Number(lot.grossWeight || 0))
                               const lotContainerWeight = Math.max(0, Number(lot.containerDeductionWeight || 0))
                               const lotNetBeforeImpurityWeight = Math.max(0, lotGrossWeight - lotContainerWeight)
+                              const showLotSummary = isCollapsed
                               return (
-                                <div key={lot.id} className="bg-white p-3 rounded-xl border border-slate-200/60 space-y-3">
-                                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <section
+                                  aria-labelledby={`weight-ticket-lot-title-${lot.id}`}
+                                  className="space-y-3 rounded-xl border border-slate-300 bg-white p-3 shadow-sm ring-1 ring-slate-200/60 sm:p-4"
+                                  data-testid={`weight-ticket-lot-${lot.id}`}
+                                  key={lot.id}
+                                >
+                                  <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                                     <button
                                       type="button"
                                       className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none"
@@ -2409,13 +2448,15 @@ export function WeightTicketFormCore({
                                     >
                                       <ChevronDown className={cn("size-4 shrink-0 text-slate-500 transition-transform", isCollapsed ? "-rotate-90" : "rotate-0")} />
                                       <div className="min-w-0">
-                                        <div className="text-sm font-bold text-slate-700">เต๋าที่ {lotIndex + 1}</div>
-                                        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500">
-                                          <span>รวม {formatWeight(lotGrossWeight)} กก.</span>
-                                          <span>ภาชนะ {formatWeight(lotContainerWeight)} กก.</span>
-                                          <span className="text-emerald-700 font-bold">หลังหัก {formatWeight(lotNetBeforeImpurityWeight)} กก.</span>
-                                          <span>{getLineImages(lot).length} รูป</span>
-                                        </div>
+                                        <span className="block truncate text-sm font-bold text-slate-800" id={`weight-ticket-lot-title-${lot.id}`}>รายละเอียดเต๋าที่ {lotIndex + 1}</span>
+                                        {showLotSummary ? (
+                                          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500">
+                                            <span>รวม {formatWeight(lotGrossWeight)} กก.</span>
+                                            <span>ภาชนะ {formatWeight(lotContainerWeight)} กก.</span>
+                                            <span className="text-emerald-700 font-bold">หลังหัก {formatWeight(lotNetBeforeImpurityWeight)} กก.</span>
+                                            <span>{getLineImages(lot).length} รูป</span>
+                                          </div>
+                                        ) : null}
                                       </div>
                                     </button>
                                     <div className="flex items-center gap-1">
@@ -2492,7 +2533,7 @@ export function WeightTicketFormCore({
                                       </FieldBlock>
                                     </>
                                   ) : null}
-                                </div>
+                                </section>
                               )
                             })
                           })()}
@@ -2647,6 +2688,7 @@ export function WeightTicketFormCore({
                                 const selectedImpurityId = getLineImpurityId(child)
                                 const hasSelectedImpurity = Boolean(selectedImpurityId)
                                 const isOtherProductImpurity = isOtherProductImpurityOption(selectedImpurityId)
+                                const showImpurityImageField = form.type === 'WTI' || isOtherProductImpurity
                                 const impurityOptionsForChild = optionsWithCurrentValue(impurityOptions, selectedImpurityId, child.impurityName)
                                 const impurityPurchaseProducts = optionsWithCurrentValue(
                                   normalProducts.filter((product) => product.id !== line.productId),
@@ -2859,9 +2901,9 @@ export function WeightTicketFormCore({
                                         เลือกสินค้าที่ปนมาก่อน จึงจะกรอกน้ำหนักหักและเลือกซื้อ/ไม่ซื้อได้
                                       </div>
                                     ) : null}
-                                    {isOtherProductImpurity ? (
+                                    {showImpurityImageField ? (
                                       <div className="mt-2 border-t border-slate-100 pt-2">
-                                        <FieldBlock label="รูปสินค้าที่ปนมา">
+                                        <FieldBlock label={isOtherProductImpurity ? 'รูปสินค้าที่ปนมา' : 'รูปสิ่งเจือปน (ไม่บังคับ)'}>
                                           <AttachmentProfileGrid
                                             id={`weight-images-${child.id}`}
                                             addLabel="เพิ่มรูป"
@@ -2938,7 +2980,7 @@ export function WeightTicketFormCore({
                           เพิ่มเต๋า
                         </Button>
                         <Button
-                          className="h-10 border-blue-200 bg-white text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:border-slate-200 disabled:text-slate-400"
+                          className="h-10 border-red-600 bg-red-600 text-sm font-semibold text-white hover:border-red-700 hover:bg-red-700 hover:text-white disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                           disabled={!activeLine.productId || calculateRealLotSummary(activeLine, form.lines).lotCount === 0}
                           type="button"
                           variant="outline"

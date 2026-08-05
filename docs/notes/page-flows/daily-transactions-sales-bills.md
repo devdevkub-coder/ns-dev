@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-31
+updated: 2026-08-05
 route: /sales/bills
 ---
 
@@ -89,13 +89,15 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - Trading SB ต้องเลือก PB Trading source ก่อนบันทึกเฉพาะทุก PB-derived row โดย source เป็น `PB:<docNo>:<lineNo>` จาก Trading PB; WTO-derived rows ใน mixed-source Trading ไม่ต้องมี Trading PB/Cost Source เพราะใช้ pending_out/ledger ของ WTO แทน; manual `SRC:<sourceNo>:1` ยังเป็น backend-supported source แต่ไม่ใช่ primary create UX รอบนี้
 - Trading SB mixed-source ที่เลือก WTO ต้อง validate WTO active/same branch/customer/not billed/fully allocated เหมือน Stock SB และ stock side effect ต้องเกิดเฉพาะ WTO-derived rows
 - Stock SB and WTO-derived Trading SB must validate that the selected WTO `customer_id` equals the Sales Bill customer. If the WTO customer was corrected before billing, only the corrected customer can consume that WTO; using the old customer must be rejected.
-- Stock SB item table ต้องไม่แสดง `Gross`; ให้แสดง `น้ำหนักสุทธิที่ส่ง` จาก WTO หลังหักภาชนะแล้ว, `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, `น้ำหนักขายสุทธิ = จำนวนที่ขายได้ - หักสิ่งเจือปน`, และ `ราคาต้นทุนเฉลี่ย` แบบ read-only จาก WTO pending_out cost snapshot หลัง column `อ้างอิง`
+- Stock SB item table ต้องไม่แสดง `Gross`; ให้แสดง `น้ำหนักสุทธิที่ส่ง` จาก WTO หลังหักภาชนะแล้ว, `จำนวนที่ขายได้` (น้ำหนักที่ลูกค้าชั่ง), `หักสิ่งเจือปน`, `น้ำหนักขายสุทธิ = จำนวนที่ขายได้ - หักสิ่งเจือปน`, และ `ราคาต้นทุนเฉลี่ย` แบบ read-only จาก WTO pending_out cost snapshot หลัง column `อ้างอิง`; ยอดขาย, PO Sell allocation และรายงานใช้ `น้ำหนักขายสุทธิ` เท่านั้น
+- เมื่อ `น้ำหนักขายสุทธิ` มากกว่าน้ำหนัก WTO ที่ยัง pending_out ให้แสดงคำเตือนแต่บันทึกบิลและยอดขายตามน้ำหนักที่ลูกค้าชั่งได้; การตัด stock/WTO จำกัดที่ pending_out จริง. เมื่อ `น้ำหนักขายสุทธิ` น้อยกว่า pending_out ให้ตัด stock ตามน้ำหนักขายสุทธิและคงส่วนต่างเป็น pending_out เพื่อเข้าสู่ flow `รับของคืนจากใบส่งของ WTO` (ผู้ใช้ระบุน้ำหนักคืนและเหตุผลของส่วนต่างใน flow นั้น)
 - รายการจาก PB Trading auto จากน้ำหนักคงเหลือซื้อเข้า `น้ำหนักที่ขาย`; ผู้ใช้กรอก `หัก` เอง และระบบคำนวณ `น้ำหนักสุทธิขาย = น้ำหนักที่ขาย - หัก` เป็น read-only; column `อ้างอิง` ใช้เลือก Spot Sale หรือ PO Sell ต่อ line; `ราคาต้นทุนเฉลี่ย` แสดงเฉพาะ WTO-derived line จาก pending_out cost snapshot; `ราคาขาย/หน่วย` เริ่มว่างเมื่อเป็น Spot Sale, ถ้าเลือก PO Sell ต้อง auto ราคาจาก PO Sell และ lock ไม่ให้แก้ไข, ไม่มีหมายเหตุรายสินค้า, ไม่มีส่วนลดรายบรรทัดใน Trading item table, และยอดรายการเป็นค่าคำนวณจาก `น้ำหนักสุทธิขาย x ราคาขาย/หน่วย`
 - รายการจาก PB Trading ที่เลือก PO Sell ต้องตัด PO Sell ไม่เกิน remaining; ถ้าน้ำหนักรายการมากกว่า remaining ระบบต้องแทรกแถว Spot Sale ถัดจากแถวเดิมสำหรับน้ำหนักส่วนที่เหลือ โดยยังอ้าง source PB line เดิมเพื่อคุม cost/source allocation
 - ใน item table ถ้าหลายแถวต่อกันเป็นสินค้าเดียวกันจากบิลซื้อเดียวกัน ให้แสดงเป็นกลุ่มเดียว ไม่ใส่เส้นคั่นหนักระหว่างแถวในกลุ่ม และไม่แสดงชื่อสินค้า/แหล่งสินค้าซ้ำ; column แหล่งสินค้าต้องแสดงเลข PB, น้ำหนักจากบิลซื้อ, และ supplier ของ source นั้น; ถ้าเป็นบิลซื้อคนละใบหรือคนละสินค้าให้เริ่มกลุ่มใหม่และคั่นรายการตามปกติ
 - รายการที่ระบบดึงจาก source เอกสารจริง (`PB Trading` หรือ `WTO`) ห้ามลบรายแถวจาก item table; ต้องลบผ่าน selector/source owner เท่านั้น และถ้าเปลี่ยนแถวที่ผูก PO Sell กลับเป็น Spot Sale ต้อง reset ราคาเป็นว่าง/0 พร้อมรวม child Spot Sale ที่ระบบเคย split กลับเข้ารายการเดิม
 - Sales Bill contracts must use direct WTO source allocation for stock sale lines
 - When editing a WTO-backed Stock SB, the edit form and read model must preserve the original WTO `deliveryLineId` and `deliverySummaryId` from durable allocation facts. The UI must not generate edit-only source ids, because the PATCH validation resolves against the original WTO summary keys before saving price/discount/weight changes.
+- เมื่อกด `เพิ่มแถว` เพื่อ split รายการ WTO ผู้ใช้เลือก `สินค้าที่ขาย` จาก Product Master ที่ active และหน่วยเดียวกับ WTO ได้: `sales_bill_lines.product_id/product_code_snapshot/product_name_snapshot`, PO Sell allocation, รายงานยอดขาย และ Tracking จะบันทึกสินค้าที่ขายนี้จริง; แต่ `sales_bill_source_allocations`, `pending_out`, stock ledger, COGS และการคืน/ยกเลิก SB ยังคงอ้างสินค้า source ของ WTO เดิมทั้งหมด. Detail/print ต้องแสดงทั้งสินค้าที่ขายและต้นทาง WTO เพื่อให้ตรวจสอบย้อนกลับได้ จึงเป็นการจัดประเภทการขาย ไม่ใช่การแปลงสต็อก.
 - receipt active แล้วต้อง lock cancel/edit field การเงิน ทั้ง legacy `receipts` และ new `customer_receipt_allocations` ที่ parent `customer_receipts` ยัง active
 
 ## Side Effects

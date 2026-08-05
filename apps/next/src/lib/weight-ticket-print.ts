@@ -162,18 +162,19 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
         })
       })
 
-      // Add subtotal row for this product group
-      rows.push({
-        className: 'product-total',
-        containerDeductionWeight: summary.containerDeductionWeight,
-        deductionWeight: summary.deductWeight,
-        detail: '',
-        grossWeight: summary.grossWeight,
-        label: '',
-        netWeight: summary.netWeight,
-        productName: `รวม ${summary.productName}`,
-        rank: '',
-      })
+      if (productLines.length > 1) {
+        rows.push({
+          className: 'product-total',
+          containerDeductionWeight: summary.containerDeductionWeight,
+          deductionWeight: summary.deductWeight,
+          detail: '',
+          grossWeight: summary.grossWeight,
+          label: '',
+          netWeight: summary.netWeight,
+          productName: `รวม ${summary.productName}`,
+          rank: '',
+        })
+      }
     })
     return rows
   }
@@ -217,15 +218,16 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
       })
 
       realLotLines.forEach((line, lotIndex) => {
+        const detail = cleanNote(line.note)
         rows.push({
           className: 'lot-row',
           containerDeductionWeight: line.containerDeductionWeightValue,
           deductionWeight: line.deductionWeight,
-          detail: cleanNote(line.note),
+          detail: detail === '-' ? '' : detail,
           grossWeight: line.grossWeightValue,
-          label: `เต๋าที่ ${lotIndex + 1}`,
+          label: '',
           netWeight: Math.max(0, line.grossWeightValue - line.containerDeductionWeightValue - line.deductionWeight),
-          productName: summary.productName,
+          productName: `${summary.productName} - ${lotIndex + 1}`,
         })
       })
     }
@@ -331,15 +333,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     `
   }
 
-  function emptyRows(count: number) {
-    const tds = isReceipt
-      ? '<td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>'
-      : '<td>&nbsp;</td><td></td><td></td><td></td><td></td>'
-    return Array.from({ length: Math.max(0, count) }, () => (
-      `<tr class="empty">${tds}</tr>`
-    )).join('')
-  }
-
   const printRows = buildPrintWeightRows(ticket, isReceipt)
   const pages: Array<{ capacity: number; items: PrintWeightRow[] }> = []
   let cursor = 0
@@ -356,7 +349,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   const pageHtml = pages.map((page, pageIndex) => {
     const isLastPage = pageIndex === totalPages - 1
     const rows = page.items.map((row) => rowHtml(row)).join('')
-    const fillerRows = emptyRows(page.capacity - page.items.length)
     const totalAfterContainer = Math.max(0, ticket.totals.grossWeight - ticket.totals.containerDeductionWeight)
 
     return `
@@ -416,7 +408,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </thead>
           <tbody>
             ${rows}
-            ${fillerRows}
           </tbody>
           ${isLastPage ? `
             <tfoot>
@@ -473,11 +464,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
           </section>
         ` : '<div class="continued">ต่อหน้าถัดไป</div>'}
-
-        <footer class="footer">
-          <span>${escapeHtml(profile.footerNote || '')}</span>
-          <span>หน้า ${pageIndex + 1} / ${totalPages}</span>
-        </footer>
       </main>
     `
   }).join('')
@@ -547,11 +533,10 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .summary-card .value { font-size: 10.5px; font-weight: 700; color: #0f172a; margin-top: 2px; }
       .photos { margin-top: 12px; break-inside: avoid; page-break-inside: avoid; }
       .photos-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px; border: 1px solid #cbd5e1; border-top: 0; border-radius: 0 0 8px 8px; }
-      .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px; break-inside: avoid; page-break-inside: avoid; }
+      .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: auto; margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 16px; font-weight: 700; color: #1e293b; }
       .continued { margin-top: auto; padding-top: 8px; text-align: right; color: #64748b; font-weight: 700; }
-      .footer { margin-top: auto; padding-top: 5px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 10px; flex: 0 0 auto; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
         body { background: white; font-size: 10.5px; line-height: 1.18; }
@@ -584,9 +569,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .note { min-height: 24px; }
         .summary-card { padding: 5px; }
         .summary-card .value { font-size: 10.5px; }
-        .signatures { gap: 12px; margin-top: 18px; }
+        .signatures { gap: 12px; margin-top: auto; margin-bottom: 5mm; }
         .sig-line { margin-top: 12px; padding-top: 3px; }
-        .footer { padding-top: 3px; }
       }
     </style>
   </head><body>

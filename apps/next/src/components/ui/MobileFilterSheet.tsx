@@ -14,6 +14,7 @@ type MobileFilterSheetProps = {
 }
 
 const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+const floatingContentSelector = '[data-radix-popper-content-wrapper], [data-slot="popover-content"]'
 
 export function MobileFilterSheet({
   bodyClassName,
@@ -34,7 +35,23 @@ export function MobileFilterSheet({
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousBodyOverflow = document.body.style.overflow
-    const getFocusableElements = () => Array.from(sheetRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+    const isSheetOwnedFloatingContent = (element: Element) => {
+      const floatingContent = element.closest<HTMLElement>(floatingContentSelector)
+      if (!floatingContent) return false
+
+      const content = floatingContent.matches('[data-slot="popover-content"]')
+        ? floatingContent
+        : floatingContent.querySelector<HTMLElement>('[data-slot="popover-content"]')
+      if (!content?.id) return false
+
+      return Array.from(sheetRef.current?.querySelectorAll<HTMLElement>('[aria-controls]') ?? [])
+        .some((trigger) => trigger.getAttribute('aria-controls') === content.id)
+    }
+    const isWithinManagedSurface = (element: Element | null) => Boolean(
+      element && (sheetRef.current?.contains(element) || isSheetOwnedFloatingContent(element)),
+    )
+    const getFocusableElements = () => Array.from(document.querySelectorAll<HTMLElement>(focusableSelector))
+      .filter((element) => isWithinManagedSurface(element))
     const focusFirstElement = () => {
       const first = getFocusableElements()[0]
       if (first) first.focus()
@@ -53,7 +70,7 @@ export function MobileFilterSheet({
       const last = focusable.at(-1)
       if (!first || !last) return
 
-      if (!sheetRef.current?.contains(document.activeElement)) {
+      if (!isWithinManagedSurface(document.activeElement)) {
         event.preventDefault()
         if (event.shiftKey) last.focus()
         else first.focus()
@@ -69,18 +86,30 @@ export function MobileFilterSheet({
       }
     }
     const handleFocusIn = (event: FocusEvent) => {
-      if (sheetRef.current?.contains(event.target as Node)) return
+      const focusTarget = event.target instanceof Element ? event.target : null
+      if (isWithinManagedSurface(focusTarget)) return
+      focusFirstElement()
+    }
+    const blockUnmanagedFloatingInteraction = (event: Event) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (!target?.closest(floatingContentSelector) || isWithinManagedSurface(target)) return
+      event.preventDefault()
+      event.stopPropagation()
       focusFirstElement()
     }
 
     document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', handleKeyDown)
     document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('pointerdown', blockUnmanagedFloatingInteraction, true)
+    document.addEventListener('click', blockUnmanagedFloatingInteraction, true)
     focusFirstElement()
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('pointerdown', blockUnmanagedFloatingInteraction, true)
+      document.removeEventListener('click', blockUnmanagedFloatingInteraction, true)
       document.body.style.overflow = previousBodyOverflow
       if (previousFocus?.isConnected) previousFocus.focus()
     }

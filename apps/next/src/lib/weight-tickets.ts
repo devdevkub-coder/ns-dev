@@ -317,7 +317,7 @@ const weightTicketLinePayloadSchema = z.object({
 export const weightTicketFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
   id: z.string().trim().max(80).optional(),
-  lines: z.array(weightTicketLinePayloadSchema).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),
+  lines: z.array(weightTicketLinePayloadSchema),
   partyId: z.string().trim().min(1, 'เลือกคู่ค้า'),
   remark: z.preprocess(blankToEmpty, z.string().max(500, 'หมายเหตุยาวเกินไป').default('')),
   type: typeEnum,
@@ -328,8 +328,22 @@ export const weightTicketFormSchema = z.object({
     .min(2, 'กรอกทะเบียนรถ')
     .max(24, 'ทะเบียนรถยาวเกินไป')
     .regex(/^[\p{L}\p{M}\p{N}\s.-]+$/u, 'ทะเบียนรถมีรูปแบบไม่ถูกต้อง'),
-  godownName: z.string().trim().min(1, 'กรอกโกดัง').max(100, 'ชื่อโกดังยาวเกินไป'),
+  godownName: z.preprocess(blankToEmpty, z.string().max(100, 'ชื่อโกดังยาวเกินไป').default('')),
 }).superRefine((value, ctx) => {
+  if (value.type === 'WTO' && value.lines.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ',
+      path: ['lines'],
+    })
+  }
+  if (value.type === 'WTO' && !value.godownName) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'กรอกโกดัง',
+      path: ['godownName'],
+    })
+  }
   const lineById = new Map<string, (typeof value.lines)[number]>()
   value.lines.forEach((line, index) => {
     if (lineById.has(line.id)) {

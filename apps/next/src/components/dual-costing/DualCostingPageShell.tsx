@@ -80,7 +80,7 @@ export function DualCostingWorkflowStrip({ active }: { active: 'allocator' | 'le
     { key: 'pool', label: 'Cost Pool' },
     { key: 'waiting', label: 'Waiting Allocation' },
     { key: 'allocator', label: 'Cost Allocator' },
-    { key: 'ledger', label: 'Allocation Ledger' },
+    { key: 'ledger', label: 'สมุดรายวันจัดสรรต้นทุน' },
   ] as const
 
   return (

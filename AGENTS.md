@@ -13,7 +13,10 @@ This project is an existing NS Scrap ERP system that must be rehabilitated and r
 - Do not store user passwords in application tables. Use `auth.users` as the authentication source of truth.
 - Do not use destructive git commands or revert user changes unless explicitly requested.
 - Git remote policy:
-  - push to `new-origin` only unless the user explicitly says otherwise
+  - for normal day-to-day SIT work, use `sit-origin/main` as the canonical source of truth and push target
+  - use one local working line aligned with the latest `sit-origin/main`; do not create per-task branches or worktrees unless the user explicitly requests an exception
+  - fetch and integrate the latest `sit-origin/main` before editing and again before every push; never discard or overwrite existing local work while aligning
+  - use `new-origin` only when the user explicitly requests a Dev or other non-SIT promotion
   - `origin` / `https://github.com/sirimasth/ns-scrap-erp.git` is legacy read-only reference material only
   - never push, force-push, create branches, delete branches, open PRs, write tags, or otherwise mutate `origin` / `https://github.com/sirimasth/ns-scrap-erp.git`
   - use `origin` only for read operations such as fetch, log, diff, show, and checkout-to-inspect
@@ -33,6 +36,7 @@ This project is an existing NS Scrap ERP system that must be rehabilitated and r
 - Keep `docs/` root reserved for global cross-project documents only. New business notes, page-flow notes, and dated work summaries must not be created directly under `docs/`; place them under `docs/notes/` or the appropriate subfolder instead.
 - Use a sub agent by default for Playwright/browser QA work; the main agent still defines scope and integrates findings.
 - **🚫 NO DOM ON PLANE:** Do not use DOM automation, browser sub-agents, or Playwright to access, login, click, input, or interact with `https://plane.devkub.com/` under any circumstances. All interactions with Plane must be executed programmatically via backend REST APIs or node/bash scripts, or handled manually by the user.
+- **Mandatory Plane issue workflow:** Apply this only to Plane issues assigned to the current user/agent and use backend REST APIs or scripts only. Move an assigned issue from `Backlog` to `Todo` when selecting it for work, move it to `In Progress` when implementation starts, and after the requested scope is complete and validation passes move it to `wait for test`—never directly to `Done`. Add a Thai completion comment summarizing the implemented scope, affected pages/files, validation results, branch/commit/push/deploy status, and any remaining risk. For UI work, upload fresh screenshots of every affected page, including Desktop and Mobile evidence when both layouts are in scope. Leave final `Done` confirmation to the tester/owner. If the required state update, comment, or screenshot upload cannot be completed, report the exact blocker and do not claim the Plane workflow is complete.
 - If the user requests modifications or code improvements, only perform the code changes and verify compilation locally. Do NOT run browser or DOM UAT testing unless the user explicitly requests testing (i.e. do not use browser sub-agent unless told to test).
 - Split large refactors into reviewable batches with one clear module, transform, or behavior change per batch.
 - During clone/migration batches, use `docs/design.md` as the active design convention source and keep legacy/Vue parity unless a difference is documented and approved.
@@ -115,18 +119,21 @@ After those tables, add only a short validation and remaining-risk summary. For 
 
 ## Team Git Workflow
 
-Use this promotion path:
+Use this normal SIT working path:
 
 ```text
-codex/* or feature/* -> dev -> uat -> main
+sit-origin/main -> one local working line -> sit-origin/main
 ```
 
+- User decision 2026-08-04: do not create a new branch or worktree for each normal task. Keep one working line based on the latest deployed SIT source so page behavior and Git history do not diverge across local copies.
+- Before editing and before pushing, fetch `sit-origin/main`, verify ancestry, and semantically integrate any newer remote changes with the intended local changes.
+- Keep commits focused even though they share one working line. Never mix unrelated dirty files into a commit.
+- Run only one local Next.js server for this repository at `http://localhost:3000`. Restart that instance when needed instead of starting ports 3001, 3004, or another parallel app instance.
 - `origin` is legacy read-only. Do not push, force-push, tag, delete branches, or open PRs there.
-- `dev` is the normal integration target. `main` is release-only.
+- `sit-origin/main` is the normal SIT integration target. Use `new-origin/dev`, customer UAT, or release targets only when the user explicitly requests that promotion.
 - The word `UAT` means the active deployed UAT environment, not just a branch name. Verify the real target from env/deployment settings before any promotion.
 - Customer UAT promotion uses remote `uat-origin`. When the user says `push UAT` or `promote dev to UAT` without another target, use the customer UAT target defined by the current deployment/env rules, not `new-origin/uat` by assumption.
-- Before any mutating git action, verify remote, branch, worktree, and target ancestry.
-- Keep branches scoped. Do not mix unrelated changes into the same commit/promotion batch.
+- Before any mutating git action, verify the remote, current working line, dirty files, and target ancestry.
 - Follow the operational git procedure in `docs/agent-rules/git-communication.md`.
 
 ## Required Reading

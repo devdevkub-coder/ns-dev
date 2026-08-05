@@ -23,6 +23,7 @@ import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/compon
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
 import { cancelWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, isPreviewableStoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, typeLabels, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 
 function formatDateTime(value?: string | null) {
@@ -115,7 +116,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
   const [cancelNote, setCancelNote] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [isCanceling, setIsCanceling] = useState(false)
-  const [isConfirming, setIsConfirming] = useState(false)
+  const { begin: beginSaveStage, end: endSaveStage, isSaving: isConfirming, stage: saveStage } = useWeightTicketSaveProgress()
   const [previewImage, setPreviewImage] = useState<{ fileName: string; url: string } | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
@@ -238,13 +239,13 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
 
   async function handleConfirmTicket() {
     if (!ticket) return
-    setIsConfirming(true)
+    beginSaveStage('confirm')
     try {
       setTicket(await confirmWeightTicket(ticket.id))
     } catch (caught) {
       window.alert(getErrorMessage(caught, 'ยืนยันใบรับ-ส่งของไม่ได้'))
     } finally {
-      setIsConfirming(false)
+      endSaveStage()
     }
   }
 
@@ -290,6 +291,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
         breadcrumbLabel={`${ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'} ${ticket.documentNo}`}
         title={`${ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'} - ${ticket.documentNo}`}
       />
+      <WeightTicketSaveProgress stage={saveStage} type={ticket.type} />
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <Button asChild size="xs" type="button" variant="outline">

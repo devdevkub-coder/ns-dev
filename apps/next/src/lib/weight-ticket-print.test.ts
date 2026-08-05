@@ -1,11 +1,13 @@
-import { Children, createElement, isValidElement, type ReactNode } from 'react'
+import { renderToBuffer } from '@react-pdf/renderer'
+import { Children, createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTicketProductBreakdownTable'
 import type { CompanyProfilePrintValues } from './company-profile'
+import { ensurePdfFontsRegistered } from './server/pdf/fonts'
 import { WeightTicketDocument } from './server/pdf/weight-ticket-document'
-import { buildReceiptPrintHtml } from './weight-ticket-print'
+import { buildPrintWeightRows, buildReceiptPrintHtml } from './weight-ticket-print'
 import type { WeightTicketRecord } from './weight-tickets'
 
 vi.mock('server-only', () => ({}))
@@ -16,7 +18,7 @@ const profile: CompanyProfilePrintValues = {
   branchCode: '00000',
   email: null,
   fax: null,
-  footerNote: null,
+  footerNote: 'ขอบคุณที่ใช้บริการค่ะ/ครับ',
   logoUrl: null,
   name: 'NS Scrap',
   nameEn: null,
@@ -180,7 +182,12 @@ const ticket: WeightTicketRecord = {
 function nodeText(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') return String(node)
   if (!isValidElement<{ children?: ReactNode }>(node)) return ''
-  return Children.toArray(node.props.children).map(nodeText).join('')
+  const element = node as ReactElement<{ children?: ReactNode }>
+  if (typeof element.type === 'function') {
+    const component = element.type as (props: typeof element.props) => ReactNode
+    return nodeText(component(element.props))
+  }
+  return Children.toArray(element.props.children).map(nodeText).join('')
 }
 
 function findParentWithDirectText(node: ReactNode, text: string): ReactNode | null {
@@ -207,6 +214,10 @@ function tableRowCells(html: string, label: string) {
   ))
 }
 
+function countPdfPages(buffer: Buffer) {
+  return buffer.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length ?? 0
+}
+
 describe('weight ticket print HTML', () => {
   it('loads the existing local Thai fonts without external stylesheets', () => {
     const html = buildReceiptPrintHtml(ticket, profile)
@@ -218,6 +229,8 @@ describe('weight ticket print HTML', () => {
     expect(html).toContain("url('/fonts/NotoSansThai-Regular.ttf')")
     expect(html).toContain("url('/fonts/NotoSansThai-Bold.ttf')")
     expect(html).toContain("font-family: 'Noto Sans Thai', Arial, sans-serif")
+    expect(html).not.toContain('ขอบคุณที่ใช้บริการค่ะ/ครับ')
+    expect(html).not.toContain('class="footer"')
   })
 
   it('uses the complete ticket totals in Weight Info when impurity is purchased as another product', () => {
@@ -243,12 +256,175 @@ describe('weight ticket print HTML', () => {
     expect(text).toContain('429.00 kg')
   })
 
+  it('numbers WTI lot rows in the product name without empty lot captions', () => {
+    const ticketWithThreeLots: WeightTicketRecord = {
+      ...ticket,
+      lines: [
+        ...ticket.lines.map((ticketLine) => (
+          ticketLine.id === 'lot-1' || ticketLine.id === 'lot-2'
+            ? { ...ticketLine, note: '' }
+            : ticketLine
+        )),
+        line({
+          grossWeight: '100',
+          grossWeightValue: 100,
+          id: 'lot-3',
+          lineNo: 5,
+          netWeight: 100,
+          note: '',
+          parentLineNo: 1,
+        }),
+      ],
+    }
+
+    const lotRows = buildPrintWeightRows(ticketWithThreeLots, true)
+      .filter((row) => row.className === 'lot-row')
+
+    expect(lotRows.map((row) => ({
+      detail: row.detail,
+      label: row.label,
+      productName: row.productName,
+    }))).toEqual([
+      { detail: '', label: '', productName: 'สินค้า A - 1' },
+      { detail: '', label: '', productName: 'สินค้า A - 2' },
+      { detail: '', label: '', productName: 'สินค้า A - 3' },
+    ])
+
+    const html = buildReceiptPrintHtml(ticketWithThreeLots, profile)
+    expect(html).toContain('สินค้า A - 1')
+    expect(html).toContain('สินค้า A - 2')
+    expect(html).toContain('สินค้า A - 3')
+    expect(html).not.toContain('เต๋าที่ 1')
+  })
+
+  it('shows WTO subtotals only for products with multiple detail lines', () => {
+    const wtoTicket: WeightTicketRecord = {
+      ...ticket,
+      documentNo: 'WTO190726-0001',
+      lines: [
+        line({
+          grossWeight: '100',
+          grossWeightValue: 100,
+          id: 'wto-line-a-1',
+          lineNo: 1,
+          netWeight: 100,
+          productId: 'wto-product-a',
+          productName: 'Product A',
+        }),
+        line({
+          grossWeight: '200',
+          grossWeightValue: 200,
+          id: 'wto-line-a-2',
+          lineNo: 2,
+          netWeight: 200,
+          productId: 'wto-product-a',
+          productName: 'Product A',
+        }),
+        line({
+          grossWeight: '150',
+          grossWeightValue: 150,
+          id: 'wto-line-b-1',
+          lineNo: 3,
+          netWeight: 150,
+          productId: 'wto-product-b',
+          productName: 'Product B',
+        }),
+      ],
+      productSummaries: [
+        {
+          ...ticket.productSummaries[0],
+          containerDeductionWeight: 0,
+          deductWeight: 0,
+          grossWeight: 300,
+          id: 'wto-summary-a',
+          lineCount: 2,
+          netWeight: 300,
+          productId: 'wto-product-a',
+          productName: 'Product A',
+          remainingWeight: 300,
+        },
+        {
+          ...ticket.productSummaries[1],
+          containerDeductionWeight: 0,
+          deductWeight: 0,
+          grossWeight: 150,
+          id: 'wto-summary-b',
+          lineCount: 1,
+          netWeight: 150,
+          productId: 'wto-product-b',
+          productName: 'Product B',
+          remainingWeight: 150,
+        },
+      ],
+      totals: {
+        containerDeductionWeight: 0,
+        deductionWeight: 0,
+        grossWeight: 450,
+        netWeight: 450,
+      },
+      type: 'WTO',
+    }
+
+    const mixedRows = buildPrintWeightRows(wtoTicket, false)
+    const mixedProductTotals = mixedRows.filter((row) => row.className === 'product-total')
+
+    expect(mixedProductTotals).toHaveLength(1)
+    expect(mixedProductTotals[0]).toMatchObject({
+      grossWeight: 300,
+      netWeight: 300,
+      productName: 'รวม Product A',
+    })
+    expect(mixedRows.filter((row) => row.productName === 'Product B' && row.className === 'product-total')).toHaveLength(0)
+
+    const singleLineWtoTicket: WeightTicketRecord = {
+      ...wtoTicket,
+      lines: wtoTicket.lines.filter((line) => line.id !== 'wto-line-a-2'),
+      productSummaries: wtoTicket.productSummaries.map((summary) => (
+        summary.productId === 'wto-product-a'
+          ? { ...summary, grossWeight: 100, lineCount: 1, netWeight: 100, remainingWeight: 100 }
+          : summary
+      )),
+      totals: { ...wtoTicket.totals, grossWeight: 250, netWeight: 250 },
+    }
+    const singleLineRows = buildPrintWeightRows(singleLineWtoTicket, false)
+
+    expect(singleLineRows).toHaveLength(2)
+    expect(singleLineRows.every((row) => row.className !== 'product-total')).toBe(true)
+    expect(singleLineRows.reduce((total, row) => total + row.netWeight, 0)).toBe(250)
+
+    const html = buildReceiptPrintHtml(singleLineWtoTicket, profile)
+    expect(html).not.toMatch(/<tr class="item-row product-total">/)
+    expect(html).toContain('รวมทั้งสิ้น')
+
+    const mixedPdfText = nodeText(WeightTicketDocument({ profile, ticket: wtoTicket }))
+    expect(mixedPdfText).toContain('รวม Product A')
+    expect(mixedPdfText).not.toContain('รวม Product B')
+    expect(mixedPdfText).toContain('รวมทั้งสิ้น')
+
+    const singleLinePdfText = nodeText(WeightTicketDocument({ profile, ticket: singleLineWtoTicket }))
+    expect(singleLinePdfText).not.toContain('รวม Product A')
+    expect(singleLinePdfText).not.toContain('รวม Product B')
+    expect(singleLinePdfText).toContain('รวมทั้งสิ้น')
+  })
+
+  it('keeps the summary and signatures on one main A4 page when the item rows fit', async () => {
+    await ensurePdfFontsRegistered()
+
+    const buffer = await renderToBuffer(WeightTicketDocument({ profile, ticket }))
+
+    expect(countPdfPages(Buffer.from(buffer))).toBe(1)
+  }, 30_000)
+
   it('renders every real lot with traceable raw arithmetic while keeping child impurity in the product subtotal', () => {
     const html = renderToStaticMarkup(createElement(WeightTicketProductBreakdownTable, {
       onOpenLineGallery: () => undefined,
       ticket,
     }))
     const mobileHtml = html.slice(html.indexOf('</table>'))
+
+    expect(mobileHtml).toContain('ดูรายละเอียดรายการ')
+    expect(mobileHtml).toContain('<details class="group')
+    expect(mobileHtml).not.toContain('<details open')
 
     expect(tableRowCells(html, 'เต๋าที่ 1').slice(0, 6)).toEqual([
       'เต๋าที่ 1', 'Lot 1', '205.00', '2.00', '0.00', '203.00',

@@ -13,7 +13,7 @@ import { appendWtoPendingOutEventsFromHolds, getWeightTicketPendingOutEvents } f
 import { buildWeightTicketEditChanges } from '@/lib/server/weight-ticket-write/edit-audit'
 import { assertWeightTicketImpurityRules, assertWeightTicketPartyForType, WeightTicketWriteValidationError } from '@/lib/server/weight-ticket-write/type-guards'
 import { applyWeightTicketCreateSideEffects, applyWeightTicketEditSideEffects, resolveWeightTicketWarehousesForWrite, validateWeightTicketStockForWrite, weightTicketPartySnapshot } from '@/lib/server/weight-ticket-write/handlers'
-import { buildWtoEditTimelineNote, prepareWtoEditPendingOutPlan } from '@/lib/server/weight-ticket-write/wto'
+import { buildWtoEditTimelineNote, shouldRebuildWtoPendingOutOnEdit } from '@/lib/server/weight-ticket-write/wto'
 import {
   releaseActiveWtoPendingOut,
   snapshotActiveWtoPendingOutCosts,
@@ -24,6 +24,7 @@ import {
   branchScopeIds,
   buildWeightTicketLineRows,
   buildWeightTicketProductSummaryRows,
+  canEditWeightTicket,
   canMutateWeightTicket,
   getWeightTicketTimeline,
   getWeightTicketDownstreamAllocations,
@@ -143,7 +144,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของที่ต้องการแก้ไข' }, { status: 404 })
 
     const usage = await getWeightTicketUsageCounts(prisma, existing.id)
-    if (!canMutateWeightTicket(existing, usage)) {
+    if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, usage)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: mutableTicketErrorMessage('edit', usage) }, { status: 400 })
     }
     if (values.type !== existing.doc_type) {
@@ -299,6 +300,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
       const warehouseNameById = new Map([...warehouseByCode.values()].map((warehouse) => [warehouse.id, warehouse.name] as const))
       const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
+      if (values.type === 'WTO') {
+        await validateWeightTicketStockForWrite(tx, {
+          branchId: branch.id,
+          excludeWeightTicketId: existing.status === 'delivered' ? existing.id : undefined,
+          lineRows,
+          type: values.type,
+        })
+      }
       const editChanges = buildWeightTicketEditChanges({
         branchName: branch.name,
         customerName: customer?.name ?? '',
@@ -310,36 +319,56 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         values,
         warehouseNameById,
       })
-      const {
-        auditLineEventTypeByLineNo,
-        auditQtyBeforeByLineNo,
-        preservedCostSnapshots,
-      } = await prepareWtoEditPendingOutPlan(tx, {
-        existing: existing as WeightTicketRow,
-        lineRows,
-        type: values.type,
+      const isDeliveredWtoEdit = existing.status === 'delivered' && values.type === 'WTO'
+      const shouldRebuildWtoPendingOut = isDeliveredWtoEdit && shouldRebuildWtoPendingOutOnEdit({
+        branchChanged: existing.branch_id !== branch.id,
+        existingLines: existing.weight_ticket_lines,
+        newLines: lineRows,
       })
-
-      await releaseActiveWtoPendingOut(tx, {
-        actor,
-        reason: 'edit',
-        weightTicketId: existing.id,
-      })
-      await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
-      await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
-      if (existing.status === 'delivered') {
-        await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
+      const releasedPendingOutHolds = shouldRebuildWtoPendingOut
+        ? await tx.stock_holds.findMany({
+          select: { id: true, qty: true },
+          where: { status: 'active', weight_ticket_id: existing.id },
+        })
+        : []
+      if (shouldRebuildWtoPendingOut) {
+        await releaseActiveWtoPendingOut(tx, {
+          actor,
+          reason: 'edit',
+          weightTicketId: existing.id,
+        })
       }
-      const createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
-      const createdPendingOutHoldIds = existing.status === 'delivered'
+      await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
+      let createdLines
+      if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
+        const existingLineByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
+        const retainedLineNos = new Set(lineRows.map((line) => line.line_no))
+        for (const data of lineRows) {
+          const existingLine = existingLineByLineNo.get(data.line_no)
+          if (existingLine) {
+            await tx.weight_ticket_lines.update({ data, where: { id: existingLine.id } })
+          } else {
+            await tx.weight_ticket_lines.create({ data })
+          }
+        }
+        const removedLineIds = existing.weight_ticket_lines
+          .filter((line) => !retainedLineNos.has(line.line_no))
+          .map((line) => line.id)
+        if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
+        createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
+      } else {
+        await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
+        createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
+      }
+      const createdPendingOutHoldIds = shouldRebuildWtoPendingOut
         ? await applyWeightTicketEditSideEffects(tx, {
           actor,
           branchId: branch.id,
           createdLines,
           documentNo: docNo,
-          preservedCostSnapshots,
+          preservedCostSnapshots: [],
           shouldSnapshotCost: true,
-          type: values.type,
+          type: 'WTO',
           weightTicketId: existing.id,
         })
         : []
@@ -382,21 +411,26 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         toStatus: nextStatus,
         weightTicketId: existing.id,
       })
-      if (values.type === 'WTO' && existing.status === 'delivered' && createdPendingOutHoldIds.length && auditLineEventTypeByLineNo.size) {
-        const auditHoldIds = (await tx.stock_holds.findMany({
-          select: { id: true },
-          where: {
-            id: { in: createdPendingOutHoldIds },
-            source_line_no: { in: [...auditLineEventTypeByLineNo.keys()] },
-            weight_ticket_id: existing.id,
-          },
-        })).map((hold) => hold.id)
-        await appendWtoPendingOutEventsFromHolds(tx, {
+      if (shouldRebuildWtoPendingOut && (createdPendingOutHoldIds.length || releasedPendingOutHolds.length)) {
+        const releaseOccurredAt = new Date()
+        if (releasedPendingOutHolds.length) await appendWtoPendingOutEventsFromHolds(tx, {
           actor,
-          eventTypeForHold: (hold) => hold.source_line_no == null ? 'edit_update_scale' : auditLineEventTypeByLineNo.get(hold.source_line_no) ?? 'edit_update_scale',
-          holdIds: auditHoldIds,
-          occurredAt: new Date(),
-          qtyBeforeForHold: (hold) => (hold.source_line_no == null ? null : auditQtyBeforeByLineNo.get(hold.source_line_no) ?? null),
+          eventTypeForHold: () => 'edit_release',
+          holdIds: releasedPendingOutHolds.map((hold) => hold.id),
+          occurredAt: releaseOccurredAt,
+          qtyAfterForHold: () => 0,
+          qtyBeforeForHold: (hold) => {
+            const released = releasedPendingOutHolds.find((item) => item.id === hold.id)
+            return released == null ? null : Number(released.qty)
+          },
+          statusLogEventKey,
+          weightTicketId: existing.id,
+        })
+        if (createdPendingOutHoldIds.length) await appendWtoPendingOutEventsFromHolds(tx, {
+          actor,
+          eventTypeForHold: () => 'edit_rebuild',
+          holdIds: createdPendingOutHoldIds,
+          occurredAt: new Date(releaseOccurredAt.getTime() + 1),
           statusLogEventKey,
           weightTicketId: existing.id,
         })

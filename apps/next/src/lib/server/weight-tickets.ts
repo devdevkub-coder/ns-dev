@@ -884,8 +884,14 @@ export function canMutateWeightTicket(row: { status: string | null }, usage: Wei
   return row.status !== 'cancelled' && usage.purchaseCount === 0 && usage.salesCount === 0
 }
 
+export function canEditWeightTicket(row: { docType: string; status: string | null }, usage: WeightTicketUsage) {
+  if (row.docType === 'WTI' && row.status !== 'draft' && row.status !== 'received') return false
+  return canMutateWeightTicket(row, usage)
+}
+
 export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsage) {
   const canMutate = canMutateWeightTicket(row, usage)
+  const canEdit = canEditWeightTicket({ docType: row.doc_type, status: row.status }, usage)
   const holdWarehouseByLineNo = new Map<number, { code: string | null; name: string; type: string | null }>()
   ;(row.stock_holds ?? []).forEach((hold) => {
     if (hold.source_line_no == null || holdWarehouseByLineNo.has(hold.source_line_no)) return
@@ -1035,7 +1041,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',
     canCancel: canMutate,
-    canEdit: canMutate,
+    canEdit,
     cancelNote: row.cancel_note ?? '',
     cancelledAt: row.cancelled_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),

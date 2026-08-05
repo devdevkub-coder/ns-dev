@@ -375,6 +375,9 @@ export function CostAllocatorPageClient() {
 
   const minUnitCost = data?.pool && data.pool.length > 0 ? Math.min(...data.pool.map((row) => row.unitCost)) : 0
   const maxUnitCost = data?.pool && data.pool.length > 0 ? Math.max(...data.pool.map((row) => row.unitCost)) : 0
+  const averageMatchCost = (data?.summary.totalToMatch ?? 0) > 0
+    ? (data?.summary.totalCostMatch ?? 0) / (data?.summary.totalToMatch ?? 1)
+    : 0
 
   const handleCalculateManualMatch = () => {
     const parsed = Number(targetCostInput)
@@ -821,11 +824,12 @@ export function CostAllocatorPageClient() {
             ))}
           </div>
           
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mt-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5 mt-4">
             <DualCostingStatCard icon="🔗" label="รวมที่จะจับคู่" tone="blue" value={`${formatMoney(data?.summary.totalToMatch ?? 0)} กก.`} />
             <DualCostingStatCard icon="💰" label="รายได้คาดการณ์" tone="emerald" value={formatMoney(data?.summary.expectedRevenue ?? 0)} />
             <DualCostingStatCard icon="💳" label="ต้นทุนที่จะตัด" tone="red" value={formatMoney(data?.summary.totalCostMatch ?? 0)} />
             <DualCostingStatCard icon="📈" label="กำไรคาดการณ์" tone={(data?.summary.expectedMargin ?? 0) >= 0 ? 'purple' : 'red'} value={formatMoney(data?.summary.expectedMargin ?? 0)} />
+            <DualCostingStatCard icon="⚖️" label="ต้นทุนเฉลี่ย/กก." tone="orange" value={formatMoney(averageMatchCost)} />
           </div>
           <div className="mt-4 flex justify-end gap-2">
             {isManualMode ? (

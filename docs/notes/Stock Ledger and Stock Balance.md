@@ -188,7 +188,7 @@ available_as_of = qty_as_of - pending_out_as_of
 | `GET /api/daily/weight-tickets/options` | ตรง target | เป็น page-scoped options สำหรับ branch/supplier/customer/impurity; warehouse options แยกตาม branch + product |
 | `GET /api/daily/weight-tickets/stock-options` | เพิ่มแล้ว | ส่งคลัง `RM/FG` ของสาขาและ `onHand/onHold/available` ตาม product ที่เลือก ใช้ใน WTO create/edit |
 | `GET /api/daily/weight-tickets/products` | ตรงบางส่วน | ส่ง product options พร้อม `thumbnailUrl` แล้ว; ไม่ควรส่ง stock ทุกคลังมากับ route นี้ เพราะจะหนักและขึ้นกับ branch/warehouse |
-| `POST /api/daily/weight-tickets` | ตรง target สำหรับ draft | สร้าง WTI/WTO header/line/summary เท่านั้น, ไม่เขียน stock ledger และ WTO draft ยังไม่ validate/สร้าง active hold |
+| `POST /api/daily/weight-tickets` | ตรง target สำหรับ draft | สร้าง WTI/WTO header/line/summary เท่านั้น, ไม่เขียน stock ledger; WTO draft ตรวจ stock ตอนบันทึกแต่ไม่สร้าง active hold |
 | `PUT /api/daily/weight-tickets/{id}` | ตรง target สำหรับ hold | edit เอกสารได้เมื่อยังไม่ถูกใช้; WTO release hold เดิมและ rebuild hold ใหม่ใน transaction |
 | `PATCH /api/daily/weight-tickets/{id}` | ตรง target สำหรับ hold | cancel/status action; WTO mark active hold เป็น `cancelled` |
 | `POST/PATCH /api/purchase/bills` | ตรง target หลักสำหรับ PB Stock ledger | create เขียน `PB`; cancel/supplier swap append `PB-CANCEL`; edit append `PB-EDIT-REV` แล้ว append `PB` state ใหม่ โดยไม่ delete/rebuild ledger เดิม |

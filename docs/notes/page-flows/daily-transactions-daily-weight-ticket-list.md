@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-08-03
+updated: 2026-08-05
 route: /daily/weight-ticket-list
 ---
 
@@ -72,6 +72,13 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 
 ## Current UI Behavior Summary
 
+### Mobile filter correction 2026-08-04
+
+- Date range selection remains part of the mobile filter sheet, but its shared calendar popover now renders above the sheet so the calendar can be seen and selected.
+- The calendar is rendered through a Radix portal outside the sheet DOM; the shared mobile focus trap treats only a portalled calendar whose trigger belongs to the active sheet as part of that filter surface. Month/day focus stays usable while unrelated external popovers remain outside the modal focus and pointer boundary.
+- Mobile document-status controls are shown directly below `ส่งออก Excel` in the list toolbar instead of being hidden inside the filter sheet. The same `status` query values still drive the list and Excel export.
+- What is what: the sheet contains lower-frequency scope filters (`วันที่` and `สาขา`), while status is a frequent list-view choice placed beside the export action. Why it has to be like this: users can change the visible document lifecycle without reopening the sheet, and the export link continues to use the same active status/date/branch query contract.
+
 - Customer-approved design decision (2026-07-12): the current rendered `/daily/weight-ticket-list` page is the canonical full-page UX/UI reference for the active Next app, covering page hierarchy, Light/Dark color roles, modal/dialog/mobile-sheet composition, filter layout, table/action/status treatment, pagination, responsive behavior, and spacing. Other pages copy this visual/interaction system while keeping their own business fields, statuses, permissions, labels, and actions.
 - ช่องแนบรูปของ WTI/WTO ทุกบริบท—รูปรถ, รูปเต๋า/สินค้า และรูปสินค้าที่ปนมา—ใช้ source chooser เดียวกัน เมื่อกด tile `เพิ่มรูป` ให้เปิดแผงจากด้านล่างและเลือกได้ชัดเจนระหว่าง `ถ่ายรูป` กับ `เลือกจากแกลเลอรี`; กล้องใช้ native file capture ฝั่งหลังครั้งละ 1 รูป ส่วนแกลเลอรีเลือกได้หลายรูป แล้วส่งไฟล์ทั้งสองทางเข้าสู่ upload/preview/save contract เดิม
 - source chooser ใช้ transform-only slide 400ms จังหวะเดียวกับ mobile product editor ไม่มี opacity effect มี visible dismiss action เพียง `ยกเลิก`, ปิดด้วย backdrop/Escape ได้ และคืน focus ไป tile เดิม; browser/desktop ที่ไม่รองรับ `capture` อาจ fallback เป็น native file picker โดยต้องไม่ทำให้การแนบรูปหรือ validation เดิมเสีย
@@ -84,6 +91,10 @@ What is what: source chooser เป็นเพียงทางเลือก
 - Desktop table ใช้ balanced default-width contract รวม `1,660px` ที่ viewport `1440px`: ให้พื้นที่ผู้ขายและ action ตามข้อมูลจริง แต่ลดช่องว่างเกินจำเป็นในวันที่สร้าง, สาขา, ทะเบียนรถ, น้ำหนัก, สถานะ และอัปเดตล่าสุด. คอลัมน์ `จัดการ` ใช้ default/minimum 390px เพราะชุด action สูงสุด 5 ปุ่มกว้าง 366px และต้องเหลือ body padding 12px ทั้งสองด้าน; saved width เดิมที่ต่ำกว่า 390px จะถูก clamp โดย resize hook เพื่อไม่ให้ปุ่มล้นซ้ายไปทับ `อัปเดตล่าสุด`. ตารางยังคง internal horizontal scroll เพราะ action set ของ WTI/WTO มีหลายปุ่ม.
 - Customer-approved readability follow-up (2026-07-14): ตารางรายการใช้เส้นแนวนอนบาง `1px` สี `--color-scrap-line` ระหว่างแถวจาก global `table.ns-table` rule เพื่อช่วยไล่อ่านรายการที่มีหลายคอลัมน์ โดยไม่เพิ่มเส้นตั้ง ไม่เปลี่ยน row hover และไม่ลดความเด่นของสถานะหรือแถวยกเลิก. สี `slate-100` จากรอบแรกถูกยกเลิกเพราะจางจนผู้ใช้มองไม่เห็นบนพื้นขาว.
 - modal create/edit ของใบรับ/ส่งของใช้รายการสินค้าเป็น card หลัก และในแต่ละ card แยกเป็น `เต๋าสินค้า`, `สรุปน้ำหนักเต๋า`, `ซื้อเพิ่มจากสิ่งเจือปน`, `สิ่งเจือปน`, และ summary รวมท้ายรายการ
+- UI follow-up 2026-08-05: ปุ่ม `+ เพิ่มสินค้า` ใช้สีเขียวทั้งในรายการและหัวแผงแก้ไขบนมือถือ/แท็บเล็ต ส่วน `+ เพิ่มสิ่งเจือปน` ใช้สีแดงเพื่อแยก action เพิ่มรายการหักออกจาก action เพิ่มสินค้า; แต่ละเต๋าแสดงเป็น section กรอบแยกพร้อมหัวข้อ `รายละเอียดเต๋าที่ ...` และยังยุบ/ขยายได้
+- WTI mobile follow-up 2026-08-05: ในหัวข้อเต๋า เมื่อขยายจะแสดงเฉพาะชื่อเต๋าและปุ่ม `ยุบ` โดยซ่อนบรรทัดสรุปน้ำหนัก/จำนวนรูป; เมื่อยุบจึงแสดงบรรทัดสรุปเดิมกลับมา. WTO คงพฤติกรรมเดิมที่แสดงสรุปทั้งตอนยุบและขยาย
+- WTI impurity evidence follow-up 2026-08-05: รายการหักสิ่งเจือปนของ WTI มีช่อง `รูปสิ่งเจือปน (ไม่บังคับ)` ที่ใช้ `WeightTicketAttachmentGrid` และ source chooser เดียวกับรูปเต๋า/รถ; ไม่เพิ่ม validation รูปและไม่เปลี่ยน payload หรือ storage contract เดิม. สำหรับ `สินค้าอื่น` ยังคงใช้ label `รูปสินค้าที่ปนมา` และส่งรูปต่อไปยังรายการซื้อเพิ่มเมื่อเลือกซื้อ
+What is what: สีปุ่มเป็นตัวแยก intent ของ action และ section เต๋าเป็นขอบเขตข้อมูลน้ำหนัก/รูปของเต๋าแต่ละใบ; รูปสิ่งเจือปนเป็นหลักฐานเสริม ไม่ใช่เงื่อนไขบันทึก. Why it has to be like this: ผู้ใช้หน้างานต้องแยกการเพิ่มสินค้าออกจากการหักสิ่งเจือปนได้ทันทีบนจอแคบ และแนบหลักฐานเฉพาะเมื่อมีประโยชน์โดยไม่ทำให้เอกสาร WTI บันทึกไม่ได้เมื่อไม่มีรูป
 - เอกสาร WTI/WTO ใหม่เริ่มด้วย `0 รายการสินค้า`; ผู้ใช้ต้องกด `+ เพิ่มสินค้า` ก่อนจึงสร้าง card/เต๋าสำหรับเลือกสินค้าและกรอกน้ำหนักได้ เพื่อไม่ให้หน้าจอหรือ draft นับบรรทัดว่างเป็นสินค้า 1 รายการ
 - หัวเอกสารบนมือถือจัดเป็น 2 คอลัมน์ 2 บรรทัดตามลำดับ `สาขา | ผู้ขาย/ลูกค้า` และ `ทะเบียนรถ | โกดัง` เพื่อลดการเลื่อนก่อนเข้ารายการสินค้า โดยยังใช้ field และ validation เดิมทั้งหมด
 - บนมือถือให้รายการสินค้าอยู่ด้านหลังเสมอ: แตะ card หรือกด `+ เพิ่มสินค้า` เพื่อเปิดแผงแก้ไขจากด้านล่างภายใน document modal เดิม (พื้นหลังมืดเฉพาะเพื่อคงบริบท ไม่สร้าง Dialog/Sheet ซ้อน). แผงมี drag handle, ชื่อ `แก้ไขสินค้า`/`เพิ่มสินค้า`, ปุ่ม `X` เป็นทางออกที่มองเห็นได้เพียงจุดเดียว, product context, พื้นที่กรอกแบบเลื่อน และ action bar ด้านล่างสำหรับเพิ่มเต๋า/เพิ่มสิ่งเจือปน/ลบสินค้า; ข้อมูลยังใช้ `form.lines` และกติกา parent/child เดิมทั้งหมด
@@ -91,8 +102,8 @@ What is what: source chooser เป็นเพียงทางเลือก
 - เมื่อเปิดแผงแก้ไขสินค้าบนมือถือ backdrop แสดงทันทีและคงอยู่จนแผงเลื่อนลงครบ 400ms แล้วจึงหายพร้อม unmount; แผงต้องเริ่มอยู่นอกจอด้านล่างทั้งแผงก่อนเลื่อนขึ้นใน 400ms ด้วย `cubic-bezier(.32,.72,0,1)` และตอนปิดต้องเลื่อนกลับลงด้วยจังหวะเดียวกันทุกทางออก (X, backdrop, Escape และลบสินค้า) ส่วน desktop คง split-panel แบบ static. ตามคำสั่งผู้ใช้เมื่อ 2026-07-29 แผงนี้ต้องแสดง effect แม้ browser จะรายงาน `prefers-reduced-motion: reduce` เพื่อให้เห็น feedback ของการเปิด/ปิดอย่างชัดเจนใน Codex Browser.
 - เมื่อกด `+ เพิ่มสินค้า` ให้สร้างรายการและเปิดแผงกรอกข้อมูลเท่านั้น ห้าม auto-focus ช่อง `เลือกสินค้า` เพราะ dropdown ต้องเปิดเมื่อผู้ใช้แตะช่องเอง; ยกเว้นการกดบันทึกแล้วพบข้อผิดพลาด ซึ่งยังต้อง scroll/focus ไปยังช่องแรกที่ผิดตามกติกา validation เดิม
 - ต้องเลือกสินค้าก่อนจึงจะกรอกน้ำหนัก เพิ่มเต๋า แนบรูป หรือเพิ่มสิ่งเจือปนได้
-- ถ้าเปลี่ยนสินค้าใน card หลัก ต้องล้างเต๋า รูป สิ่งเจือปน และรายการซื้อเพิ่มที่ผูกกับสินค้าเดิม
-- แต่ละเต๋ายุบ/ขยายได้; ตอนยุบยังเห็นน้ำหนักรวม หักภาชนะ น้ำหนักหลังหักภาชนะ และจำนวนรูป
+- WTI เปลี่ยนสินค้าใน card หลักได้ใน `draft` หรือ `received` ตราบใดที่ยังไม่มี Purchase Bill ใช้งาน และต้องคงเต๋า น้ำหนัก รูป สิ่งเจือปน และรายการซื้อเพิ่มที่ผูกกับรายการเดิมไว้; WTO draft ใช้กติกาเดียวกัน และตรวจ stock ใหม่เมื่อบันทึก
+- แต่ละเต๋ายุบ/ขยายได้ทั้ง WTI และ WTO; ตอนขยายแสดงชื่อเต๋ากับช่องกรอกโดยไม่แสดงข้อมูลสรุปซ้ำ ส่วนตอนยุบยังเห็นน้ำหนักรวม หักภาชนะ น้ำหนักหลังหักภาชนะ และจำนวนรูป
 - สิ่งเจือปนปกติบนมือถือเป็น card ที่ยุบ/ขยายได้: ตอนยุบแสดงลำดับ ชื่อสิ่งเจือปน ยอดหัก และสถานะครบ/ไม่ครบ; เพิ่มสิ่งเจือปนใหม่จะยุบ card ปกติเดิมของสินค้านั้นและเปิด card ใหม่ให้กรอกต่อ. ปุ่มลบมีเฉพาะขณะ card ขยาย เพื่อไม่ให้ลบผิดจากหน้าสรุป; `สินค้าอื่น` คงเปิดเต็มเสมอ เพราะมีสินค้า ซื้อ/ไม่ซื้อ คำเตือน และรูปประกอบเพิ่มเติม
 - card `สรุปน้ำหนักเต๋า` รวมเฉพาะเต๋าจริง ไม่รวมรายการซื้อเพิ่มจากสิ่งเจือปน
 - ถ้ายังไม่มีเต๋าจริงใน card นั้น ต้องเพิ่มสิ่งเจือปนไม่ได้
@@ -104,6 +115,7 @@ What is what: source chooser เป็นเพียงทางเลือก
 - หน้ารายละเอียดและ detail modal ต้องรวมตาราง `รายการสินค้าแยกตามเต๋า` กับ `สรุปต่อสินค้า` เป็นตารางเดียวที่เรียงตามสินค้า โดยในแต่ละสินค้าต้องเห็นที่มาจากเต๋าจริง, รายการหักสิ่งเจือปน, รายการซื้อเพิ่มจากสิ่งเจือปน, subtotal ของแต่ละที่มา และ total รวมของสินค้านั้น
 - ใบพิมพ์ WTI ต้องเรียงเป็นกลุ่มสินค้าเดียวกับหน้ารายละเอียด โดยแจกแจงราย `เต๋าที่ ...` ก่อนแถว `สรุปรวมจากเต๋า`; แถว `สรุปรวมจากเต๋า` ต้องรวมยอดหักสิ่งเจือปนไว้ในช่อง `หักสิ่งเจือปน` และแสดงรายละเอียดว่าหักอะไร/ซื้อหรือไม่ซื้อในช่องรายการสินค้าโดยไม่ซ้ำชื่อสินค้าหลัก; แถว `ซื้อเพิ่มจากสิ่งเจือปน` แสดงเฉพาะในกลุ่มสินค้าปลายทาง และบอกสั้นๆ ว่ามาจากสินค้าไหนกับสิ่งเจือปนอะไร; ปิดด้วย `รวมสินค้า`; หัวคอลัมน์ต้องใช้คำไทย `น้ำหนักรวม` และ `น้ำหนักสุทธิ`
 - รายละเอียดสิ่งเจือปนที่เป็นสินค้าในใบพิมพ์ต้องแสดงในแถว `สรุปรวมจากเต๋า` ของสินค้าต้นทาง โดยแจกแจงเป็นหลายบรรทัด เช่น `1. สินค้าอื่น 10 กก. ซื้อเป็น กระป๋องอลูมิเนียม` และ `2. สินค้าอื่น 20 กก. ไม่ซื้อ`; ไม่ต้องมีแถวสีเหลือง/แถว `หักสิ่งเจือปน` แยก
+- PDF/ใบพิมพ์ WTI/WTO ต้องจัดความสูงจากแถวข้อมูลจริงโดยไม่เติมแถวว่างให้ครบโควตา เพื่อให้ตาราง สรุป และลายเซ็นอยู่ใน A4 หน้าหลักเดียวกันเมื่อเนื้อหาพอดี; ส่วนลายเซ็นใช้พื้นที่ว่างที่เหลือเหนือช่วงล่างของหน้ากระดาษเพื่อเว้นพื้นที่เซ็นจริง โดยไม่วาดกรอบเพิ่มและไม่กำหนดช่องว่างตายตัวที่อาจดันเอกสารไปหน้าใหม่; ตัดเส้นประและข้อความท้ายเอกสาร `ขอบคุณที่ใช้บริการค่ะ/ครับ` ที่ไม่มีข้อมูลธุรกิจและอาจสร้างหน้าว่าง ส่วนหน้ารูปถ่ายแนบยังเริ่มหน้าใหม่ตามเดิม
 - เมื่อกดแก้ไขเอกสาร ต้องโหลดโครงสร้างกลับมาเหมือนตอนสร้าง: เต๋าจริงต้องยังเป็นเต๋า, รายการซื้อเพิ่มจากสิ่งเจือปนต้องไม่กลายเป็นเต๋าปลอม, และแถว `สินค้าอื่น` ต้องจำ `ซื้อ/ไม่ซื้อ` กับสินค้าที่ปนมาได้
 - Runtime update 2026-06-20: `weight_ticket_lines.parent_line_no` และ `weight_ticket_lines.impurity_source_line_no` เป็น source of truth สำหรับโหลดโครงสร้าง edit กลับมา ไม่เดาจากลำดับสินค้า/หมายเหตุเป็นหลักอีกต่อไป
 
@@ -135,12 +147,12 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 - WTI/WTO create/edit ต้องบังคับเลือก `สาขา` ก่อน `ผู้ขาย/ลูกค้า`; party selector ต้อง disabled จนกว่าจะเลือกสาขา
 - WTI supplier selector ต้องกรองจาก active `supplier_branches` ของสาขาเอกสาร และ WTO customer selector ต้องกรองจาก active `customer_branches` ของสาขาเอกสาร; เปลี่ยนสาขาแล้วคู่ค้าที่ไม่ตรง mapping ต้องถูก clear
 - WTO customer edit is allowed only while the document is still mutable. Before Sales Bill usage, changing customer updates only the document header (`customer_id` / `party_name`) and does not change stock/pending_out quantities or cost snapshots. After any active SB usage exists, the WTO must be edit-locked.
-- WTO เป็น `pending_out` source โดยตรงหลังยืนยัน: draft ยังไม่กัน stock และยังไม่แสดงเป็น `รอออก`; ตอนยืนยันต้องสร้าง hold และ snapshot ราคาต้นทุนเฉลี่ย ส่วนเพิ่ม/SKU ใหม่หลังยืนยันต้อง rebuild hold ตามกฎแก้ไขเอกสารที่ยืนยันแล้ว
+- WTO เป็น `pending_out` source โดยตรงหลังยืนยัน: draft ยังไม่สร้าง hold และยังไม่แสดงเป็น `รอออก`; แต่ทุกการบันทึก draft รวมถึง autosave ก่อนเพิ่มเต๋า/สินค้า ต้องตรวจ stock ของรายการ WTO ทั้งหมดโดยไม่สร้าง hold. ตอนยืนยันต้องตรวจซ้ำ สร้าง hold และ snapshot ราคาต้นทุนเฉลี่ย ส่วนเพิ่ม/SKU ใหม่หลังยืนยันต้อง rebuild hold ตามกฎแก้ไขเอกสารที่ยืนยันแล้ว
 - แสดง product thumbnail, เต๋า/summary, vehicle/image evidence และ downstream usage lock
 - WTI create/edit ต้องแยกข้อมูลในแต่ละเต๋าเป็น `ข้อมูลเต๋า` -> `ซื้อเพิ่มจากสิ่งเจือปน` -> `รายการหักสิ่งเจือปน`
-- ในแต่ละรายการต้องเลือกสินค้าก่อนกรอกข้อมูลเต๋า/น้ำหนัก/รูป/สิ่งเจือปน และเมื่อเปลี่ยนสินค้าต้องล้างข้อมูลเต๋า รูป สิ่งเจือปน และรายการซื้อเพิ่มที่ผูกกับสินค้าเดิม
+- ในแต่ละรายการต้องเลือกสินค้าก่อนกรอกข้อมูลเต๋า/น้ำหนัก/รูป/สิ่งเจือปน. WTI เปลี่ยนสินค้าได้ใน `draft` หรือ `received` ตราบใดที่ยังไม่มี Purchase Bill ใช้งาน และต้องคงข้อมูลเต๋า น้ำหนัก รูป สิ่งเจือปน รายการซื้อเพิ่ม และข้อมูลอื่นของรายการเดิมไว้ โดยเปลี่ยนเฉพาะค่าที่ผู้ใช้แก้. WTO draft เปลี่ยนสินค้า/จำนวน/สิ่งเจือปนได้โดยคงข้อมูลหลักฐานไว้ และตรวจ stock ใหม่ทุกครั้งที่บันทึก. WTO delivered ที่ยังไม่ถูกใช้ใน Sales Bill ต้องปล่อย pending_out เดิมแล้วตรวจและสร้าง pending_out/cost snapshot ชุดใหม่แบบ transaction เดียว; ถ้ามี downstream usage แล้วห้ามแก้
 - แต่ละเต๋าต้องแสดงค่าน้ำหนักหลังหักภาชนะจาก `น้ำหนักรวม - หักภาชนะ` เป็นค่าคำนวณอ่านอย่างเดียว
-- แต่ละเต๋าต้องยุบ/ขยายได้เพื่อรองรับรายการที่มีข้อมูลและรูปจำนวนมาก; ตอนยุบยังต้องเห็นสรุปน้ำหนักรวม หักภาชนะ น้ำหนักหลังหักภาชนะ และจำนวนรูป
+- แต่ละเต๋าต้องยุบ/ขยายได้เพื่อรองรับรายการที่มีข้อมูลและรูปจำนวนมากทั้ง WTI และ WTO; ตอนขยายต้องไม่แสดงข้อมูลสรุปน้ำหนัก/รูปซ้ำกับช่องกรอก ส่วนตอนยุบยังต้องเห็นสรุปน้ำหนักรวม หักภาชนะ น้ำหนักหลังหักภาชนะ และจำนวนรูป
 - ถ้ารายการสินค้านั้นยังไม่มีเต๋าจริง ต้องไม่สามารถเพิ่มรายการหักสิ่งเจือปนได้
 - รายการหักสิ่งเจือปนต้องรองรับตัวเลือกระบบ `สินค้าอื่น` เฉพาะ `WTI`; ตัวเลือกนี้ต้องไม่มาจาก master impurity และ `WTO` ต้องไม่เห็น/ใช้ตัวเลือกนี้
 
@@ -184,7 +196,7 @@ What is what: album เป็นภาพรวมหลักฐานทั้
   - must not write `stock_ledger`; ledger stock-out is owned by Sales Bill when it consumes the WTO `pending_out`
 - `PUT /api/daily/weight-tickets/[id]`
   - must append an `edited` timeline row to `weight_ticket_status_logs` with `meta.changes` for field-level before/after detail when submitted data differs from the existing document
-  - for editable draft `WTO`, must update document lines only and leave stock unreserved
+  - for editable draft `WTO`, must validate all current lines against current available stock, update document lines only, and leave stock unreserved
   - for confirmed `WTO`, must use the delta rule: release decreases back to on-hand/available stock, preserve existing cost snapshots for unchanged/decreased remaining qty, and snapshot current average cost only for increased qty or new SKU
   - after confirmed `WTO` edits that change pending_out, must append immutable rows to `weight_ticket_pending_out_events` for the changed/new portions and link them to the document timeline event
 - `POST/PATCH /api/daily/weight-tickets/[id]/confirm` or equivalent confirm action
@@ -222,7 +234,7 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 - ถ้าสินค้าที่ซื้อจากสิ่งปนมามีอยู่แล้วในรายการสินค้าหลักของเอกสาร ให้รวมเข้ากับ product summary ของสินค้านั้น แต่ UI ต้องยังแสดงแหล่งที่มาว่ามาจากเต๋าใด
 - ถ้าสินค้าที่ซื้อจากสิ่งปนมายังไม่มีในรายการสินค้าหลักของเอกสาร ให้สร้างรายการสินค้าหลักใหม่โดยใช้ weight จากรายการ `สินค้าอื่น` ที่เลือกซื้อ
 - รายการสินค้าซื้อเพิ่มจากสิ่งปนมาต้องไม่แสดงในรูปแบบตารางเต๋าหรือสร้างเต๋าว่าง และต้องแสดงแยกเป็น section readonly ต่อจากข้อมูลเต๋าแต่ละเต๋า ก่อน section รายการหักสิ่งเจือปน เพื่อให้เห็นชัดว่าน้ำหนักใดถูกซื้อเพิ่มจากเต๋าไหน
-- ใบพิมพ์ต้องแสดงสินค้าเดียวกันในกลุ่มเดียว แต่แยกแหล่งที่มาเป็นรายเต๋าจริงและรายการซื้อเพิ่มจากสิ่งเจือปน; รายการหักสิ่งเจือปนต้องไม่เป็น row แยก แต่รวมอยู่ในแถว `สรุปรวมจากเต๋า`; บรรทัด `รวมสินค้า` ต้องใช้ยอดจาก product summary ของ server
+- ใบพิมพ์ต้องแสดงสินค้าเดียวกันในกลุ่มเดียว แต่แยกแหล่งที่มาเป็นรายเต๋าจริงและรายการซื้อเพิ่มจากสิ่งเจือปน; แถวเต๋าย่อยใช้ชื่อสินค้าแบบ `{ชื่อสินค้า} - 1`, `- 2`, `- 3` ตามลำดับ โดยไม่แสดงบรรทัด `เต๋าที่ ...` และไม่แสดง `-` แทนหมายเหตุว่าง แต่ยังคงหมายเหตุจริงเมื่อมีข้อมูล; รายการหักสิ่งเจือปนต้องไม่เป็น row แยก แต่รวมอยู่ในแถว `สรุปรวมจากเต๋า`; บรรทัด `รวมสินค้า` ต้องใช้ยอดจาก product summary ของ server
 - ก่อน section `ซื้อเพิ่มจากสิ่งเจือปน` ต้องแสดง card สรุปน้ำหนักเต๋าจริงของสินค้านั้น โดยรวมเฉพาะเต๋าหลัก/เต๋าเพิ่มจริง ไม่รวมรายการที่สร้างจากการซื้อสิ่งเจือปน
 - card สินค้าที่ถูกสร้าง/รวมจากสิ่งปนมาต้องแสดง section readonly `ซื้อเพิ่มจากสิ่งเจือปน` โดยดึง source line ย้อนกลับมาแสดงน้ำหนัก ประเภทการหัก ที่มา และหมายเหตุ; section นี้ต้องอยู่ใน card ของสินค้าที่ซื้อเพิ่ม ไม่ใช่ card ของสินค้าต้นทางที่มีสิ่งปนมา
 - ถ้า card สินค้ามาจากสิ่งปนมาอย่างเดียวและไม่มีเต๋าจริง หมายเหตุรายการต้องแสดง summary ที่คำนวณจากรายการซื้อเพิ่มทั้งหมด เช่น จำนวน source และน้ำหนักรวม แทนการใช้ note ของแถวแรกเพียงแถวเดียว
@@ -275,7 +287,7 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 
 - WTI save สร้าง evidence/summary แต่ไม่ stock ledger
 - WTO draft save ยังไม่สร้าง `pending_out`; WTO confirm ตรวจ stock แล้วสร้าง pending_out พร้อม snapshot ราคาต้นทุนเฉลี่ยแบบแยกเต๋า/line
-- WTO edit หลัง confirm ต้องปิด/release เฉพาะ pending_out ส่วนที่ลด/ลบ/แก้, สร้างหรือ update snapshot ใหม่เฉพาะเต๋าที่แก้หรือเพิ่ม, เก็บประวัติ pending_out เดิมไว้, แล้ว recompute product-level weighted average cost summary จาก active pending_out ทุกเต๋าของ SKU นั้น
+- WTO delivered ที่ยังไม่ถูกใช้ใน Sales Bill ใช้วิธี release/rebuild ทั้งชุด: release active pending_out เดิมและเขียน immutable `edit_release` event ก่อนสร้าง pending_out ชุดใหม่จากรายการล่าสุด พร้อม snapshot ต้นทุนเฉลี่ยปัจจุบันและ immutable `edit_rebuild` event ใน transaction เดียวกัน. ไม่ใช้ Delta และไม่ preserve cost snapshot เดิม; ถ้ามี downstream usage แล้วห้ามแก้
 - WTO customer edit before SB usage must not release/recreate pending_out by itself unless line, product, warehouse, branch, or qty data also changes. The customer is a billing/customer ownership guard for later SB validation, not a stock movement dimension.
 - PB/SB เป็นผู้ consume source และเขียน ledger
 - WTO detail แสดงปุ่ม `รับของคืน` เฉพาะเมื่อ `GET /api/daily/weight-tickets/[id]/stock-returns` พบ active `pending_out` ที่ถูกนำไปออก `SB` แล้วบางส่วน; modal ให้กรอกน้ำหนักชั่งคืนจริง และถ้าคืนน้อยกว่ายอดค้างต้องระบุเหตุผลเพื่อให้ระบบบันทึก loss ledger ผ่าน Sales Bill stock-return API
@@ -333,3 +345,8 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
 - [ ] Filter/validate WTI Supplier and WTO Customer selectors by branch mapping
 - [ ] Update this file and canonical reference if contract changes
+# Department access boundary checkpoint — 2026-08-04
+
+What is what: WTI/WTO list visibility and lifecycle actions are shared operational work for the sorting and production departments. The API returns `canOpenPurchaseBill` / `canOpenSalesBill` only from `daily.weight_tickets.open_bill`; the list action menu renders the handoff links only when those server flags are true.
+
+Why it has to be like this: opening a Purchase/Sales Bill changes the business boundary from an operational weight ticket to an accounting document. The two department roles therefore keep view/create/update/confirm/cancel/share for WTI/WTO but receive no open-bill permission and no Purchase/Sales Bill permission. The target bill pages and APIs remain independently guarded as defense in depth.

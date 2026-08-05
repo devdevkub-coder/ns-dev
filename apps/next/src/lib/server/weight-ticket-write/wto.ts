@@ -1,26 +1,48 @@
 import { isOtherProductImpurityId, isOtherProductImpurityLabel, type WeightTicketFormValues } from '@/lib/weight-tickets'
 import { toNumber } from '@/lib/server/daily'
 import { assertCustomerEligibleForBranch, PartyBranchEligibilityError } from '@/lib/server/party-branch-eligibility'
-import { WtoPendingOutError, type WtoPreservedCostSnapshot } from '@/lib/server/stock-holds'
 import { WeightTicketWriteValidationError } from '@/lib/server/weight-ticket-write/shared'
 import { buildWeightTicketLineRows, type WeightTicketRow } from '@/lib/server/weight-tickets'
-import type { Prisma } from '../../../../generated/prisma/client'
 
 type CustomerReference = {
   id: bigint
   name: string
 } | null
-type TxClient = Prisma.TransactionClient
 type DecimalLike = Parameters<typeof toNumber>[0]
 type WeightTicketLineRows = ReturnType<typeof buildWeightTicketLineRows>
 type WeightTicketLineRow = WeightTicketLineRows[number]
 type ExistingWeightTicketLine = WeightTicketRow['weight_ticket_lines'][number]
-type WtoAuditLineEventType = 'edit_add_scale' | 'edit_update_scale'
 
 const EPSILON_QTY = 0.0001
 
-function lineQty(value: DecimalLike) {
-  return toNumber(value)
+type StockAffectingWeightTicketLine = {
+  line_no: number
+  net_weight: DecimalLike
+  product_id: bigint
+  warehouse_id: bigint | null
+}
+
+export function shouldRebuildWtoPendingOutOnEdit(input: {
+  branchChanged: boolean
+  existingLines: StockAffectingWeightTicketLine[]
+  newLines: StockAffectingWeightTicketLine[]
+}) {
+  if (input.branchChanged) return true
+
+  const oldByLineNo = new Map(input.existingLines.map((line) => [line.line_no, line] as const))
+  const newByLineNo = new Map(input.newLines.map((line) => [line.line_no, line] as const))
+  const lineNumbers = new Set([...oldByLineNo.keys(), ...newByLineNo.keys()])
+  for (const lineNo of lineNumbers) {
+    const oldLine = oldByLineNo.get(lineNo)
+    const newLine = newByLineNo.get(lineNo)
+    if (!oldLine || !newLine) {
+      if ((oldLine ? toNumber(oldLine.net_weight) : 0) > EPSILON_QTY || (newLine ? toNumber(newLine.net_weight) : 0) > EPSILON_QTY) return true
+      continue
+    }
+    if (oldLine.product_id !== newLine.product_id || (oldLine.warehouse_id ?? null) !== (newLine.warehouse_id ?? null)) return true
+    if (Math.abs(toNumber(oldLine.net_weight) - toNumber(newLine.net_weight)) > EPSILON_QTY) return true
+  }
+  return false
 }
 
 function sameNullableBigInt(left: bigint | null | undefined, right: bigint | null | undefined) {
@@ -33,30 +55,6 @@ function sameNullableString(left: string | null | undefined, right: string | nul
 
 function sameNullableNumber(left: DecimalLike, right: DecimalLike) {
   return Math.abs(toNumber(left) - toNumber(right)) <= EPSILON_QTY
-}
-
-function getPreservableWtoCostQty(input: {
-  oldLine: ExistingWeightTicketLine
-  newLine: WeightTicketLineRow
-}) {
-  if (input.oldLine.product_id !== input.newLine.product_id) return 0
-  if (!sameNullableBigInt(input.oldLine.warehouse_id, input.newLine.warehouse_id)) return 0
-
-  const oldNet = lineQty(input.oldLine.net_weight)
-  const newNet = lineQty(input.newLine.net_weight)
-  if (oldNet <= EPSILON_QTY || newNet <= EPSILON_QTY) return 0
-
-  const sameNet = Math.abs(oldNet - newNet) <= EPSILON_QTY
-  if (!sameNet) return Math.min(oldNet, newNet)
-
-  const sameScaleInputs =
-    sameNullableNumber(input.oldLine.gross_weight, input.newLine.gross_weight)
-    && sameNullableNumber(input.oldLine.container_deduction_weight, input.newLine.container_deduction_weight)
-    && sameNullableNumber(input.oldLine.deduct_weight, input.newLine.deduct_weight)
-    && sameNullableNumber(input.oldLine.deduction_value, input.newLine.deduction_value)
-    && sameNullableString(input.oldLine.deduction_mode, input.newLine.deduction_mode)
-
-  return sameScaleInputs ? oldNet : 0
 }
 
 function isSameWtoScaleLineForAudit(input: {
@@ -117,105 +115,6 @@ export function buildWtoEditTimelineNote(input: {
   if (Math.abs(netWeightDelta) > EPSILON_QTY) parts.push(`น้ำหนักสุทธิ ${formatSignedWeight(netWeightDelta)}`)
 
   return parts.length ? parts.join(', ') : 'มีการแก้ไขรายการสินค้า/เต๋า'
-}
-
-export async function prepareWtoEditPendingOutPlan(tx: TxClient, input: {
-  existing: WeightTicketRow
-  lineRows: WeightTicketLineRows
-  type: WeightTicketFormValues['type']
-}) {
-  const auditLineEventTypeByLineNo = new Map<number, WtoAuditLineEventType>()
-  const auditQtyBeforeByLineNo = new Map(input.existing.weight_ticket_lines
-    .filter(isRealScaleLine)
-    .map((line) => [line.line_no, toNumber(line.net_weight)] as const))
-  const preservedCostSnapshots: WtoPreservedCostSnapshot[] = []
-
-  if (input.type !== 'WTO' || input.existing.status !== 'delivered') {
-    return {
-      auditLineEventTypeByLineNo,
-      auditQtyBeforeByLineNo,
-      preservedCostSnapshots,
-    }
-  }
-
-  const oldRealLineByLineNo = new Map(input.existing.weight_ticket_lines.filter(isRealScaleLine).map((line) => [line.line_no, line] as const))
-  input.lineRows.filter(isRealScaleLine).forEach((newLine) => {
-    const oldLine = oldRealLineByLineNo.get(newLine.line_no)
-    if (!oldLine) {
-      auditLineEventTypeByLineNo.set(newLine.line_no, 'edit_add_scale')
-      return
-    }
-    if (!isSameWtoScaleLineForAudit({ newLine, oldLine })) {
-      auditLineEventTypeByLineNo.set(newLine.line_no, 'edit_update_scale')
-    }
-  })
-
-  const oldLineByLineNo = new Map(input.existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
-  const remainingPreservableQtyByLineNo = new Map<number, number>()
-  input.lineRows.forEach((newLine) => {
-    const oldLine = oldLineByLineNo.get(newLine.line_no)
-    if (!oldLine) return
-    const preservableQty = getPreservableWtoCostQty({ newLine, oldLine })
-    if (preservableQty > EPSILON_QTY) {
-      remainingPreservableQtyByLineNo.set(newLine.line_no, preservableQty)
-    }
-  })
-
-  const activeHolds = await tx.stock_holds.findMany({
-    orderBy: [{ source_line_no: 'asc' }, { id: 'asc' }],
-    select: {
-      cost_snapshot_at: true,
-      cost_snapshot_note: true,
-      cost_snapshot_source: true,
-      hold_key: true,
-      lot_no: true,
-      not_available_for_sale: true,
-      output_category: true,
-      product_id: true,
-      qty: true,
-      source_line_no: true,
-      unit_cost_snapshot: true,
-      value_snapshot: true,
-      warehouse_id: true,
-      weight_ticket_line_id: true,
-    },
-    where: {
-      status: 'active',
-      weight_ticket_id: input.existing.id,
-    },
-  })
-  for (const hold of activeHolds) {
-    if (hold.unit_cost_snapshot == null) {
-      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ ไม่สามารถแก้ไขใบส่งของหลังยืนยันได้`)
-    }
-    const sourceLineNo = hold.source_line_no ?? null
-    if (sourceLineNo == null) continue
-    const remainingPreservableQty = remainingPreservableQtyByLineNo.get(sourceLineNo) ?? 0
-    if (remainingPreservableQty <= EPSILON_QTY) continue
-    const preservedQty = Math.min(toNumber(hold.qty), remainingPreservableQty)
-    remainingPreservableQtyByLineNo.set(sourceLineNo, Number((remainingPreservableQty - preservedQty).toFixed(6)))
-    preservedCostSnapshots.push({
-      costSnapshotAt: hold.cost_snapshot_at,
-      costSnapshotNote: hold.cost_snapshot_note,
-      costSnapshotSource: hold.cost_snapshot_source,
-      lotNo: hold.lot_no,
-      notAvailableForSale: hold.not_available_for_sale,
-      outputCategory: hold.output_category,
-      productId: hold.product_id,
-      qty: preservedQty,
-      sourceLineNo,
-      unitCostSnapshot: hold.unit_cost_snapshot,
-      valueSnapshot: hold.value_snapshot,
-      warehouseId: hold.warehouse_id,
-      weightTicketLineId: hold.weight_ticket_line_id,
-    })
-  }
-
-  return {
-    auditLineEventTypeByLineNo,
-    auditQtyBeforeByLineNo,
-    preservedCostSnapshots,
-  }
 }
 
 export async function assertWtoCustomer(input: {

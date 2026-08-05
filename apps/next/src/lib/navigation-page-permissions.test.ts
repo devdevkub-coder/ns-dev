@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { permissionCodesForPath, permissionForPath } from './navigation'
+import { canAccessPath, permissionCodesForPath, permissionForPath } from './navigation'
 import { REPORT_PAGE_PERMISSIONS } from './report-permissions'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from './finance-debt-permissions'
 import { SUPPLIER_PAGE_PERMISSIONS } from './supplier-page-permissions'
@@ -75,6 +75,18 @@ describe('Transaction Ledger page permissions', () => {
   })
 })
 
+describe('Printable company profile permissions', () => {
+  it('allows weight-ticket creators to read the profile without granting settings access', () => {
+    expect(permissionCodesForPath('/api/admin/company-profile')).toEqual([
+      'system.settings.manage',
+      'daily.weight_tickets.view',
+      'daily.weight_tickets.create',
+    ])
+    expect(canAccessPath('/api/admin/company-profile', { permissions: ['daily.weight_tickets.create'] })).toBe(true)
+    expect(canAccessPath('/api/admin/company-profile', { permissions: ['daily.weight_tickets.view'] })).toBe(true)
+  })
+})
+
 describe('Supplier page permissions', () => {
   it('uses the supplier page permission for its options API', () => {
     expect(permissionForPath('/master-data/suppliers')).toBe(SUPPLIER_PAGE_PERMISSIONS.view)
@@ -83,6 +95,10 @@ describe('Supplier page permissions', () => {
     expect(permissionForPath('/api/master-data/products/options')).toBe(MASTER_DATA_PAGE_PERMISSIONS.products.view)
     expect(permissionForPath('/api/master-data/impurities')).toBe(MASTER_DATA_PAGE_PERMISSIONS.impurities.view)
     expect(permissionForPath('/api/master-data/impurities/IMP-001')).toBe(MASTER_DATA_PAGE_PERMISSIONS.impurities.status)
+    expect(permissionForPath('/api/master-data/product-types/PT001')).toBe('master.product_types.status')
+    expect(permissionForPath('/api/master-data/product-units/U001')).toBe('master.product_units.status')
+    expect(permissionCodesForPath('/api/master-data/product-types/PT001')).toEqual(['master.product_types.status'])
+    expect(permissionCodesForPath('/api/master-data/product-units/U001')).toEqual(['master.product_units.status'])
     expect(permissionForPath('/api/master-data/salespersons')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.view)
     expect(permissionForPath('/api/master-data/salespersons/SA001')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.update)
     expect(permissionForPath('/api/master-data/salespersons/SA001/status')).toBe(MASTER_DATA_PAGE_PERMISSIONS.salespersons.status)
@@ -97,5 +113,51 @@ describe('Supplier page permissions', () => {
       MASTER_DATA_PAGE_PERMISSIONS.customers.view,
       SUPPLIER_PAGE_PERMISSIONS.view,
     ])
+  })
+})
+
+describe('Sorting and production department boundaries', () => {
+  const sortingPermissions = [
+    'daily.weight_tickets.view',
+    'daily.weight_tickets.create',
+    'daily.weight_tickets.update',
+    'daily.weight_tickets.confirm',
+    'daily.weight_tickets.cancel',
+    'daily.weight_tickets.share',
+  ]
+  const productionPermissions = [
+    ...sortingPermissions,
+    'production.operations.view',
+    'production.orders.view',
+    'production.orders.create',
+    'production.orders.input',
+    'production.orders.input_return',
+    'production.orders.output',
+    'production.orders.reverse',
+    'production.orders.complete',
+    'production.orders.cancel',
+    'production.orders.export',
+    'production.reports.view',
+  ]
+
+  it('maps production product stock to the production-order permission', () => {
+    expect(permissionCodesForPath('/api/production/orders/product-stock')).toEqual(['production.orders.view'])
+    expect(canAccessPath('/api/production/orders/product-stock', { permissions: productionPermissions })).toBe(true)
+    expect(canAccessPath('/api/production/orders/product-stock', { permissions: sortingPermissions })).toBe(false)
+  })
+
+  it('keeps stock menus outside both department role contracts', () => {
+    for (const path of ['/stock/balance', '/stock/ledger', '/stock/transfer', '/stock/adjust', '/stock/convert', '/stock/status-convert']) {
+      expect(permissionCodesForPath(path)).toEqual(['stock.ledger.view'])
+      expect(canAccessPath(path, { permissions: sortingPermissions })).toBe(false)
+      expect(canAccessPath(path, { permissions: productionPermissions })).toBe(false)
+    }
+  })
+
+  it('keeps purchase and sales bills outside both department role contracts', () => {
+    for (const path of ['/purchase/bills', '/sales/bills']) {
+      expect(canAccessPath(path, { permissions: sortingPermissions })).toBe(false)
+      expect(canAccessPath(path, { permissions: productionPermissions })).toBe(false)
+    }
   })
 })

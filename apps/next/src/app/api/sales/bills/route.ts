@@ -9,7 +9,7 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-referen
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
-import { requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
+import { PURCHASE_BILL_ACTIVE_STATUSES, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import { derivePoSellFulfillmentStatus, isInactivePoSellStatus, PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
@@ -25,6 +25,7 @@ import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-r
 import { appendWtoPendingOutEventsForHoldKeys, appendWtoPendingOutEventsForSalesBill, appendWtoPendingOutEventsFromHoldIds } from '@/lib/server/weight-ticket-pending-out-events'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
+import { requiresWeightTicketOpenBillPermission, WEIGHT_TICKET_OPEN_BILL_PERMISSION } from '@/lib/server/weight-ticket-open-bill-permissions'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
 import { normalizeSalesBillProfitCostSource } from '@/lib/server/sales-bill-profit-cost-source'
@@ -34,6 +35,7 @@ import {
   requireSalesLineCosts,
 } from '@/lib/server/profit-cost-source-lines'
 import { validateDeliveryItemProductMatch } from '@/lib/server/sales-bill-delivery-validation'
+import { salesBillProductPresentation } from '@/lib/server/sales-bill-display-product'
 import { averageCostForStock, quantityForStock } from '@/lib/server/stock'
 import {
   listActiveBranches,
@@ -429,6 +431,7 @@ function salesItems(
   values: SalesBillFormValues,
   parsedProductIds: bigint[],
   productById: Map<bigint, { code: string | null; name: string; unit: string | null }>,
+  salesProductByItemIndex: Map<number, { code: string | null; name: string; unit: string | null }> = new Map(),
   deliverySummarySourceMap: Map<string, DeliverySummarySource> = new Map(),
   deliverySummaryIdByIndex: Map<number, string> = new Map(),
   stockIssueQtyByIndex: Map<number, number> = new Map(),
@@ -438,6 +441,17 @@ function salesItems(
     const lineNo = lineNoByIndex.get(index) ?? item.salesBillLineNo ?? index + 1
     const productId = parsedProductIds[index]
     const product = productById.get(productId)
+    const sourceProductCode = requireBusinessCode(product?.code, `สินค้า ${productId}`)
+    const salesProduct = salesProductByItemIndex.get(index) ?? product
+    const presentation = salesBillProductPresentation(
+      { code: sourceProductCode, name: product?.name ?? '' },
+      salesProductByItemIndex.has(index)
+        ? {
+            code: requireBusinessCode(salesProduct?.code, `สินค้าที่ขาย ${index + 1}`),
+            name: salesProduct?.name ?? '',
+          }
+        : null,
+    )
     const deliverySummaryId = item.deliveryTicketId ? deliverySummaryIdByIndex.get(index) ?? null : item.deliverySummaryId ?? null
     if (item.deliveryTicketId && !deliverySummaryId) {
       throw new Error(`Sales Bill item ${index + 1} missing validated WTO product summary`)
@@ -452,26 +466,56 @@ function salesItems(
       customerAdvanceId: values.customerAdvanceId,
       deliveryLineId: item.deliveryLineId,
       deliverySummaryId,
-      deliveryTicketDocNo: item.deliveryTicketDocNo,
+      // The form schema makes the display document number optional because the
+      // selected delivery ticket already identifies the WTO document. Keep the
+      // persisted stock-source reference complete when clients omit the
+      // duplicated display field.
+      deliveryTicketDocNo: item.deliveryTicketDocNo ?? item.deliveryTicketId,
       deliveryTicketId: item.deliveryTicketId,
       deductWeight: item.deductWeight,
       discount: item.discount,
-      grossWeight: deliverySummary ? item.netWeight : item.grossWeight,
+      grossWeight: item.grossWeight,
       id: `${String(lineNo).padStart(2, '0')}`,
       lineNo,
       netWeight: item.qty,
       note: item.note,
       poSellId: item.poSellId,
-      productCode: requireBusinessCode(product?.code, `สินค้า ${productId}`),
-      productId: requireBusinessCode(product?.code, `สินค้า ${productId}`),
-      productName: product?.name ?? '',
+      productCode: presentation.salesDisplayProductCode ?? presentation.sourceProductCode,
+      productId: presentation.salesDisplayProductCode ?? presentation.sourceProductCode,
+      productName: presentation.salesDisplayProductName ?? presentation.sourceProductName,
       qty: item.qty,
+      salesDisplayProductCode: presentation.salesDisplayProductCode,
+      salesDisplayProductName: presentation.salesDisplayProductName,
       stockIssueQty,
       tradingCostSourceId: item.tradingCostSourceId,
       unit: product?.unit ?? 'กก.',
       unitPrice: item.price,
     }
   })
+}
+
+function resolveSalesProducts(
+  values: SalesBillFormValues,
+  productByCode: Map<string, { code: string | null; name: string; unit: string | null }>,
+) {
+  const byItemIndex = new Map<number, { code: string | null; name: string; unit: string | null }>()
+  for (const [index, item] of values.items.entries()) {
+    const salesProductCode = item.salesProductId?.trim()
+    if (!salesProductCode) continue
+    if (!item.deliveryTicketId) {
+      return { error: `รายการที่ ${index + 1}: เปลี่ยนชื่อสินค้าในบิลขายได้เฉพาะรายการจาก WTO` }
+    }
+    const salesProduct = productByCode.get(salesProductCode)
+    if (!salesProduct) {
+      return { error: `รายการที่ ${index + 1}: สินค้าที่ขายไม่ถูกต้องหรือถูกปิดใช้งาน` }
+    }
+    const sourceProduct = productByCode.get(item.productId)
+    if (sourceProduct?.unit !== salesProduct.unit) {
+      return { error: `รายการที่ ${index + 1}: สินค้าที่ขายต้องมีหน่วยเดียวกับสินค้า WTO` }
+    }
+    byItemIndex.set(index, salesProduct)
+  }
+  return { byItemIndex }
 }
 
 type SalesItemSnapshot = ReturnType<typeof salesItems>[number]
@@ -654,6 +698,8 @@ function salesBillLineRows(input: {
       meta: {
         deliveryLineId: item.deliveryLineId ?? null,
         deliverySummaryId: item.deliverySummaryId ?? null,
+        salesDisplayProductCode: item.salesDisplayProductCode,
+        salesDisplayProductName: item.salesDisplayProductName,
         stockIssueQty: item.stockIssueQty,
         tradingCostSourceId: item.tradingCostSourceId ?? null,
       },
@@ -1195,8 +1241,8 @@ async function validateStockDeliverySelection(
     if (productMismatchError) {
       return { error: productMismatchError }
     }
-    const buyerAcceptedWeight = Math.max(0, item.netWeight)
-    if (item.deductWeight > buyerAcceptedWeight + 0.0001) {
+    const buyerAcceptedWeight = Math.max(0, item.qty)
+    if (item.deductWeight > item.grossWeight + 0.0001) {
       return { error: `หักสิ่งเจือปนของ ${summarySource.product_name} เกินจำนวนที่ขายได้` as const }
     }
     if (buyerAcceptedWeight <= 0.0001) {
@@ -1401,7 +1447,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
       take: 500,
       where: {
         ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
-        status: { in: [SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
         transaction_mode: 'TRADING',
       },
     }),
@@ -1773,6 +1819,12 @@ export async function POST(request: Request) {
 
     const rawPayload = await request.json()
     const values = salesBillFormSchema.parse(rawPayload)
+    if (requiresWeightTicketOpenBillPermission({
+      hasWeightTicketSource: Boolean(values.deliveryTicketId) || values.items.some((item) => Boolean(item.deliveryTicketId)),
+      transactionMode: values.transactionMode,
+    })) {
+      requirePermission(context, WEIGHT_TICKET_OPEN_BILL_PERMISSION)
+    }
     const actor = currentActor(context)
     const createdAt = new Date()
     const billDate = createdAt.toISOString().slice(0, 10)
@@ -1783,7 +1835,10 @@ export async function POST(request: Request) {
     if (invalidProductIndex >= 0) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้อง' }, { status: 400 })
     }
-    const productCodes = [...new Set(requestedProductCodes)]
+    const requestedSalesProductCodes = values.items
+      .map((item) => item.salesProductId?.trim() ?? '')
+      .filter(Boolean)
+    const productCodes = [...new Set([...requestedProductCodes, ...requestedSalesProductCodes])]
     const [branch, warehouse] = await Promise.all([
       findActiveBranchReferenceByCodeOrId(values.branchId),
       values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
@@ -1894,6 +1949,11 @@ export async function POST(request: Request) {
     const productById = new Map(products.map((product) => [product.id, product]))
     const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
     const parsedProductIdsByLine = values.items.map((item) => productByCode.get(item.productId)?.id ?? null)
+    const salesProducts = resolveSalesProducts(values, productByCode)
+    if ('error' in salesProducts) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: salesProducts.error }, { status: 400 })
+    }
+    const parsedSalesProductIdsByLine = values.items.map((item) => productByCode.get(item.salesProductId ?? item.productId)?.id ?? null)
     let deliverySummaryIdByItemIndex = new Map<number, string>()
     let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
     let stockIssueQtyByItemIndex = new Map<number, number>()
@@ -1917,7 +1977,7 @@ export async function POST(request: Request) {
     }
     const manualStockCostByItemIndex = manualStockValidation.manualStockCostByItemIndex
 
-    const items = salesItems(values, parsedProductIdsByLine as bigint[], productById, deliverySummarySourceMap, deliverySummaryIdByItemIndex, stockIssueQtyByItemIndex)
+    const items = salesItems(values, parsedProductIdsByLine as bigint[], productById, salesProducts.byItemIndex, deliverySummarySourceMap, deliverySummaryIdByItemIndex, stockIssueQtyByItemIndex)
     const poSellAllocations = new Map<string, ReturnType<typeof allocatePoSellForSalesBill>>()
     for (const poSellDocNo of requestedPoSellDocNos) {
       const poSell = poSellByDocNo.get(poSellDocNo)
@@ -1961,7 +2021,7 @@ export async function POST(request: Request) {
         where: {
           branch_id: branch.id,
           doc_no: { in: sourceDocNos },
-          status: { in: [SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED] },
+          status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
           transaction_mode: 'TRADING',
         },
       })
@@ -2192,7 +2252,7 @@ export async function POST(request: Request) {
           billId: createdBill.id,
           createdAt,
           items,
-          parsedProductIds: parsedProductIdsByLine as bigint[],
+          parsedProductIds: parsedSalesProductIdsByLine as bigint[],
           totals: salesLineTotalsAfterCustomerAdvance(totals, settledTotals),
         }),
       })
@@ -2256,7 +2316,7 @@ export async function POST(request: Request) {
         headerPoSellDocNo: values.poSellId?.trim() || undefined,
         items,
         lineIdByLineNo,
-        parsedProductIds: parsedProductIdsByLine as bigint[],
+        parsedProductIds: parsedSalesProductIdsByLine as bigint[],
         poSellByDocNo,
       })
       if (poSellRows.length) {
@@ -2669,6 +2729,8 @@ function salesBillPoAllocationSnapshot(allocation: ActiveSalesBillPoAllocation):
     productId: allocation.product_code_snapshot,
     productName: allocation.product_name_snapshot,
     qty: toNumber(allocation.allocated_qty),
+    salesDisplayProductCode: null,
+    salesDisplayProductName: null,
     stockIssueQty: 0,
     tradingCostSourceId: null,
     unit: 'กก.',
@@ -2810,7 +2872,10 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
       }
 
-      const requestedProductCodes = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
+      const requestedProductCodes = [...new Set([
+        ...values.items.map((item) => item.productId),
+        ...values.items.map((item) => item.salesProductId ?? ''),
+      ].filter(Boolean))]
       const products = await prisma.products.findMany({
         select: { active: true, code: true, id: true, name: true, unit: true },
         where: { code: { in: requestedProductCodes }, active: true },
@@ -2824,6 +2889,11 @@ export async function PATCH(request: Request) {
       const parsedProductIdsByLine = values.items.map((item) => productByCode.get(item.productId)?.id ?? null)
       const productById = new Map(products.map((product) => [product.id, product]))
       const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)] as const))
+      const salesProducts = resolveSalesProducts(values, productByCode)
+      if ('error' in salesProducts) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: salesProducts.error }, { status: 400 })
+      }
+      const parsedSalesProductIdsByLine = values.items.map((item) => productByCode.get(item.salesProductId ?? item.productId)?.id ?? null)
       const sourceAllocationByLineNo = new Map(bill.sales_bill_source_allocations.map((allocation) => [allocation.sales_line_no, allocation] as const))
       const activeLineByOriginalLineNo = new Map(bill.sales_bill_lines.map((line) => [line.line_no, line] as const))
       const invalidSubmittedLine = values.items.find((item) => item.salesBillLineNo != null && !activeLineByOriginalLineNo.has(item.salesBillLineNo))
@@ -2912,7 +2982,7 @@ export async function PATCH(request: Request) {
             || Math.abs(toNumber(line.deduct_weight) - item.deductWeight) > 0.0001)) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: `รายการที่ ${lineNo}: แก้ไขน้ำหนัก/จำนวนขายของบิล Trading ยังไม่เปิดในรอบนี้ ให้แก้ได้เฉพาะ PO Sell อ้างอิง ราคา ส่วนลด และหมายเหตุ` }, { status: 400 })
         }
-        if (item.deductWeight > item.netWeight + 0.0001) {
+        if (item.deductWeight > item.grossWeight + 0.0001) {
           return NextResponse.json({
             code: 'BAD_REQUEST',
             error: `รายการที่ ${index + 1}: หักสิ่งเจือปนต้องไม่เกินจำนวนที่ขายได้`,
@@ -2975,6 +3045,7 @@ export async function PATCH(request: Request) {
         values,
         parsedProductIdsByLine as bigint[],
         productById,
+        salesProducts.byItemIndex,
         deliverySummarySourceMap,
         deliverySummaryIdByItemIndex,
         stockIssueQtyByItemIndex,
@@ -3108,7 +3179,7 @@ export async function PATCH(request: Request) {
             billId: bill.id,
             createdAt,
             items,
-            parsedProductIds: parsedProductIdsByLine as bigint[],
+            parsedProductIds: parsedSalesProductIdsByLine as bigint[],
             totals: salesLineTotalsAfterCustomerAdvance(totals, settledTotals),
           })
           await tx.sales_bill_lines.createMany({
@@ -3506,20 +3577,27 @@ export async function PATCH(request: Request) {
           if (!activeLine) continue
           await tx.sales_bill_lines.update({
             data: {
+              // Recalculate the normalized line fact below after all commercial/stock deltas are applied.
+              // Keep the row temporarily uncoupled from the old amount so the equation check cannot
+              // reject a valid price/discount edit before normalizeSalesBillProfitCostSource runs.
+              cogs_amount: null,
               deduct_weight: item.deductWeight,
               discount_amount: item.discount,
               gross_weight: item.grossWeight,
+              gross_profit: null,
               line_amount: item.amount,
               meta: {
                 deliveryLineId: item.deliveryLineId ?? null,
                 deliverySummaryId: item.deliverySummaryId ?? null,
+                salesDisplayProductCode: item.salesDisplayProductCode,
+                salesDisplayProductName: item.salesDisplayProductName,
                 stockIssueQty: item.stockIssueQty,
                 tradingCostSourceId: item.tradingCostSourceId ?? null,
               },
               net_weight: item.netWeight,
               notes: item.note || null,
               product_code_snapshot: item.productCode,
-              product_id: parsedProductIdsByLine[index] ?? null,
+              product_id: parsedSalesProductIdsByLine[index] ?? null,
               product_name_snapshot: item.productName,
               qty: item.qty,
               unit_price: item.unitPrice,
@@ -3556,7 +3634,7 @@ export async function PATCH(request: Request) {
           headerPoSellDocNo,
           items,
           lineIdByLineNo,
-          parsedProductIds: parsedProductIdsByLine as bigint[],
+          parsedProductIds: parsedSalesProductIdsByLine as bigint[],
           poSellByDocNo,
         })
         if (poSellRows.length) {

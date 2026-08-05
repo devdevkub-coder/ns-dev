@@ -149,7 +149,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
   const supplierOptions = useMemo(() => {
     const list = (data?.filters.suppliers ?? []).filter((supplier) => !branchId || (supplier.branchIds ?? []).includes(branchId))
     return [
-      { id: '', label: 'ผู้ขายทั้งหมด' },
+      { id: '', label: 'ผู้ขาย' },
       ...list.map((s) => ({
         id: s.id,
         label: s.code ? `${s.code} - ${s.name}` : s.name,
@@ -331,18 +331,18 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
       {/* Filters Toolbar */}
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
-        <div className="hidden lg:block space-y-3">
+        <div className="hidden space-y-3 2xl:block">
           <div className="flex flex-wrap items-center gap-2">
-            <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลข PB / ผู้ขาย / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
-            
-            <div className="min-w-[260px]">
+            <input autoComplete="off" className="h-9 min-w-[220px] flex-1 rounded-md border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 2xl:min-w-[260px]" placeholder="ค้นหาเลข PB / ผู้ขาย / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
+
+            <div className="w-[105px] min-w-0 shrink-0">
               <SearchCombobox
                 hideLabel
                 inputClassName="h-9 text-sm rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
                 inputId="ap-supplier-filter"
                 label="ผู้ขาย"
                 options={supplierOptions}
-                placeholder="ผู้ขายทั้งหมด"
+                placeholder="ทุกผู้ขาย"
                 value={supplierId}
                 onChange={(value) => {
                   setPage(1)
@@ -350,8 +350,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 }}
               />
             </div>
-            
-            <Select className="h-9 px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
+            <Select className="h-9 w-[120px] shrink-0 px-3 py-2 text-sm [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
               <option value="">ทุกอายุหนี้</option>
               <option value="Current">วันนี้/อนาคต</option>
               <option value="1-30">1-30 วัน</option>
@@ -359,12 +358,17 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               <option value="61-90">61-90 วัน</option>
               <option value=">90">&gt;90 วัน</option>
             </Select>
-            
+            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-[105px] min-w-0 shrink-0" controlSize="filter" inputId="accounts-payable-branch-filter" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
+            <span className="shrink-0 whitespace-nowrap text-xs text-slate-500">วันที่บิล:</span>
+            <DatePickerInput className="w-[110px] shrink-0" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
+            <span className="shrink-0 text-slate-400">→</span>
+            <DatePickerInput className="w-[110px] shrink-0" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
+            {hasFilters && (
+              <button className="h-9 shrink-0 whitespace-nowrap rounded-md bg-slate-100 px-3 py-1 text-sm font-normal text-slate-700 transition-colors hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>ล้างตัวกรอง</button>
+            )}
           </div>
-          
-          <div className="flex flex-wrap items-center gap-2">
-            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-[12rem]" controlSize="filter" inputId="accounts-payable-branch-filter" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
-            
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">สถานะ:</span>
               {['', ...(data?.filters.statuses ?? [])].map((item) => {
@@ -382,25 +386,14 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 )
               })}
             </div>
-            
-            <span className="text-xs text-slate-500">วันที่บิล:</span>
-            <DatePickerInput className="h-9 w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
-            <span className="text-slate-400">→</span>
-            <DatePickerInput className="h-9 w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
-            
-            {hasFilters && (
-              <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-normal text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>✕ ล้าง</button>
-            )}
-            
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button className="flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}><Download aria-hidden="true" className="size-4" />{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
-              <span className="text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
+              <button className="flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}><Download aria-hidden="true" className="size-4" />{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
             </div>
           </div>
         </div>
 
         {/* Mobile View (Collapsible Filters) */}
-        <div className="block lg:hidden space-y-2.5">
+        <div className="block space-y-2.5 2xl:hidden">
           <div className="flex flex-wrap gap-2">
             <button
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
@@ -412,7 +405,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               ตัวกรอง
             </button>
             <button
-              className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
+              className="ml-auto inline-flex h-9 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
               disabled={isExporting}
               type="button"
               onClick={() => void exportXlsx()}
@@ -440,7 +433,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 inputId="ap-supplier-filter-mobile"
                 label="ผู้ขาย"
                 options={supplierOptions}
-                placeholder="ผู้ขายทั้งหมด"
+                placeholder="ทุกผู้ขาย"
                 value={supplierId}
                 onChange={(value) => {
                   setPage(1)
@@ -485,8 +478,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                   <DatePickerInput className="mt-1 h-9 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
                 </label>
               </div>
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
+              <div className="flex justify-end items-center pt-1">
                 <button className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>ล้างตัวกรอง</button>
               </div>
             </div>
