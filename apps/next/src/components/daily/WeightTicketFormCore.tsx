@@ -132,6 +132,22 @@ function createFormWeightTicketLine(id?: string): FormWeightTicketLine {
   }
 }
 
+export function resolvePersistedWeightTicketLotSource(
+  sourceLine: Pick<FormWeightTicketLine, 'productId' | 'warehouseId'>,
+  persistedLines: Array<Pick<FormWeightTicketLine, 'id' | 'productId' | 'warehouseId'>>,
+  sourceLineIndex: number,
+) {
+  const persistedSourceLine = persistedLines[sourceLineIndex]
+  if (!persistedSourceLine) return null
+  if (persistedSourceLine.productId !== sourceLine.productId) return null
+  if (persistedSourceLine.warehouseId !== sourceLine.warehouseId) return null
+  return persistedSourceLine
+}
+
+export function shouldPersistWeightTicketBeforeAdding(type: WeightTicketType, lineCount: number) {
+  return lineCount > 0 || type === 'WTI'
+}
+
 function initialForm(type: WeightTicketType = 'WTI'): FormState {
   return {
     branchId: '',
@@ -810,6 +826,7 @@ export function WeightTicketFormCore({
   const [isMobileProductEditorVisible, setMobileProductEditorVisible] = useState(false)
   const mobileProductEditorCloseTimeoutRef = useRef<number | null>(null)
   const mobileProductEditorOpenAnimationFrameRef = useRef<number | null>(null)
+  const saveInFlightRef = useRef<'auto_save' | 'save' | null>(null)
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
   const [collapsedImpurityIds, setCollapsedImpurityIds] = useState<Record<string, boolean>>({})
   const [pendingFocusField, setPendingFocusField] = useState<string | null>(null)
@@ -1345,9 +1362,9 @@ export function WeightTicketFormCore({
   }
 
   async function saveDraftBeforeAdding(): Promise<FormState | null> {
-    // A new/empty line cannot be persisted yet. Save the current complete
-    // document first so adding another line never loses the existing draft.
-    if (isSaving || isLoadingTicket) return null
+    // Save the current document before opening another product entry so the
+    // draft has a stable ticket identity and existing data is not lost.
+    if (isSaving || isLoadingTicket || saveInFlightRef.current) return null
     const headerErrorKeys = ['branchId', 'partyId', 'vehicleNo', 'godownName']
     const firstHeaderError = headerErrorKeys.find((key) => errors[key])
     if (firstHeaderError) {
@@ -1359,14 +1376,17 @@ export function WeightTicketFormCore({
     if (form.lines.length > 0 && firstLineError) {
       setTouched((current) => ({ ...current, [firstLineError]: true }))
       setPendingFocusField(firstLineError)
-      return null
+      // Keep the product workspace usable while a blank entry is being filled.
+      // A line with a selected product still must pass validation before the
+      // existing draft is persisted and another product is opened.
+      return form.lines.some((line) => !line.productId) ? form : null
     }
 
-    // The first product entry is local until the user has entered a complete
-    // line. There is no valid line payload to persist at this point, so do
-    // not call the strict save contract with an empty WTO document.
-    if (form.lines.length === 0) return form
+    // WTI may persist an empty draft before the first product editor opens.
+    // WTO must wait for a line because its save contract performs stock checks.
+    if (!shouldPersistWeightTicketBeforeAdding(form.type, form.lines.length)) return form
 
+    saveInFlightRef.current = 'auto_save'
     beginSaveStage('auto_save')
     try {
       const ticket = await saveWeightTicket({
@@ -1407,6 +1427,7 @@ export function WeightTicketFormCore({
       return null
     } finally {
       endSaveStage()
+      saveInFlightRef.current = null
     }
   }
 
@@ -1473,7 +1494,7 @@ export function WeightTicketFormCore({
     const sourceLineIndex = form.lines.findIndex((line) => line.id === sourceLine.id)
     const savedForm = await saveDraftBeforeAdding()
     if (!savedForm) return
-    const persistedSourceLine = savedForm.lines[sourceLineIndex]
+    const persistedSourceLine = resolvePersistedWeightTicketLotSource(sourceLine, savedForm.lines, sourceLineIndex)
     if (!persistedSourceLine) return
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = persistedSourceLine.productId
@@ -1490,7 +1511,17 @@ export function WeightTicketFormCore({
       ...Object.fromEntries(existingLotIds.map((lotId) => [lotId, true])),
       [nextLine.id]: false,
     }))
-    setForm((current) => ({ ...current, lines: [...savedForm.lines, nextLine] }))
+    setForm((current) => {
+      const currentSourceLine = current.lines.find((line) => line.id === persistedSourceLine.id)
+      if (!currentSourceLine) return current
+      const currentNextLine = {
+        ...nextLine,
+        parentId: currentSourceLine.id,
+        productId: currentSourceLine.productId,
+        warehouseId: currentSourceLine.warehouseId,
+      }
+      return { ...current, lines: [...current.lines, currentNextLine] }
+    })
     setPendingFocusField(`line-${nextLine.id}-gross`)
   }
 
@@ -1815,6 +1846,7 @@ export function WeightTicketFormCore({
   }, [backToList, onRequestClose])
 
   async function saveTicket() {
+    if (isSaving || saveInFlightRef.current) return
     const nextTouched: Record<string, boolean> = {
       branchId: true,
       partyId: true,
@@ -1851,6 +1883,7 @@ export function WeightTicketFormCore({
       return
     }
 
+    saveInFlightRef.current = 'save'
     beginSaveStage(form.type === 'WTO' ? 'stock_check' : 'save')
     try {
       const ticket = await saveWeightTicket({
@@ -1897,6 +1930,7 @@ export function WeightTicketFormCore({
       setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
       endSaveStage()
+      saveInFlightRef.current = null
     }
   }
 

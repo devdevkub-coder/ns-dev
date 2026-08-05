@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { FormSafetyProvider } from '@/components/ui/FormSafetyProvider'
 const mocks = vi.hoisted(() => ({
   cachedWeightTicketReferences: vi.fn(),
+  saveWeightTicket: vi.fn(),
   router: {
     push: vi.fn(),
     refresh: vi.fn(),
@@ -23,8 +24,12 @@ vi.mock('next/navigation', () => ({ useRouter: () => mocks.router }))
 vi.mock('@/lib/weight-ticket-reference-cache', () => ({
   cachedWeightTicketReferences: mocks.cachedWeightTicketReferences,
 }))
+vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/weight-tickets')>()),
+  saveWeightTicket: mocks.saveWeightTicket,
+}))
 
-import { changeWeightTicketProduct, getProductCardImages, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, getProductCardImages, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -39,18 +44,26 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
   })
 
-  it('keeps the first add local until a complete product line exists', () => {
-    expect(formSource).toContain('if (form.lines.length === 0) return form')
+  it('persists an empty WTI draft before the first product is added, but keeps WTO local', () => {
+    expect(shouldPersistWeightTicketBeforeAdding('WTI', 0)).toBe(true)
+    expect(shouldPersistWeightTicketBeforeAdding('WTO', 0)).toBe(false)
+    expect(shouldPersistWeightTicketBeforeAdding('WTI', 1)).toBe(true)
     expect(formSource).toContain('id: savedTicket?.id ?? editingTicketId')
     expect(formSource).toContain("beginSaveStage('auto_save')")
     expect(formSource).toContain('<WeightTicketSaveProgress stage={saveStage} type={form.type} />')
+    expect(formSource).toContain("saveInFlightRef.current = 'auto_save'")
+    expect(formSource).toContain("saveInFlightRef.current = 'save'")
+    expect(formSource).toContain('if (isSaving || saveInFlightRef.current) return')
   })
 
   it('rebinds a new lot to the persisted source line after auto-save', () => {
-    expect(formSource).toContain('const sourceLineIndex = form.lines.findIndex((line) => line.id === sourceLine.id)')
-    expect(formSource).toContain('const persistedSourceLine = savedForm.lines[sourceLineIndex]')
-    expect(formSource).toContain('nextLine.parentId = persistedSourceLine.id')
-    expect(formSource).toContain('lines: [...savedForm.lines, nextLine]')
+    const sourceLine = { id: 'client-line', productId: 'product-001', warehouseId: 'warehouse-001' }
+    const persistedLines = [{ id: '42', productId: 'product-001', warehouseId: 'warehouse-001' }]
+
+    expect(resolvePersistedWeightTicketLotSource(sourceLine, persistedLines, 0)).toEqual(persistedLines[0])
+    expect(resolvePersistedWeightTicketLotSource(sourceLine, [{ ...persistedLines[0], productId: 'product-002' }], 0)).toBeNull()
+    expect(resolvePersistedWeightTicketLotSource(sourceLine, persistedLines, 1)).toBeNull()
+    expect(formSource).toContain('disabled={!hasSelectedProduct}')
   })
 })
 
@@ -256,6 +269,44 @@ describe('weight-ticket mobile product workspace contract', () => {
 const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT
 let prefersReducedMotion = false
+const persistedDraftTicket = {
+  branchId: 'branch-001',
+  branchName: 'สาขาหลัก',
+  canCancel: true,
+  canEdit: true,
+  cancelNote: '',
+  cancelledAt: null,
+  createdAt: '2026-08-05T00:00:00.000Z',
+  documentDate: '2026-08-05',
+  documentNo: 'WTI-TEST-001',
+  enteredBy: 'ผู้ทดสอบ',
+  id: 'ticket-001',
+  imageCount: 0,
+  imageNames: [],
+  lines: [],
+  partyId: 'supplier-001',
+  partyName: 'ผู้ขายทดสอบ',
+  pendingOutEvents: [],
+  pendingOutHistory: [],
+  productSummaries: [],
+  remark: '',
+  status: 'draft',
+  totals: { containerDeductionWeight: 0, deductionWeight: 0, grossWeight: 0, netWeight: 0 },
+  downstreamAllocations: [],
+  timeline: [],
+  type: 'WTI',
+  updatedAt: null,
+  updatedBy: 'ผู้ทดสอบ',
+  usageTimeline: [],
+  usedInPurchaseBillCount: 0,
+  usedInPurchaseBillDocNos: [],
+  usedInSalesBillCount: 0,
+  usedInSalesBillDocNos: [],
+  vehicleImageCount: 0,
+  vehicleImageNames: [],
+  vehicleNo: '83-5476',
+  godownName: 'โกดัง A',
+}
 
 beforeAll(() => {
   actEnvironment.IS_REACT_ACT_ENVIRONMENT = true
@@ -302,9 +353,22 @@ describe('weight-ticket product editor behavior', () => {
             branches: [{ id: 'branch-001', name: 'สาขาหลัก' }],
             customers: [],
             impurities: [],
-            suppliers: [],
-          },
+            suppliers: [{ branchIds: ['branch-001'], id: 'supplier-001', name: 'ผู้ขายทดสอบ' }],
+        },
     ))
+    mocks.saveWeightTicket.mockImplementation(async (values: { lines: Array<Record<string, unknown>> }) => ({
+      ...persistedDraftTicket,
+      lines: values.lines.map((line, index) => ({
+        ...line,
+        impurityName: '',
+        impuritySourceLineNo: null,
+        lineNo: index + 1,
+        parentLineNo: null,
+        productName: '',
+        warehouseName: '',
+        warehouseType: '',
+      })),
+    }))
   })
 
   afterEach(() => {
@@ -316,16 +380,66 @@ describe('weight-ticket product editor behavior', () => {
     vi.unstubAllGlobals()
   })
 
-  async function renderForm() {
+  async function renderForm(initialType: 'WTI' | 'WTO' = 'WTI', options: { validHeader?: boolean } = {}) {
     await act(async () => {
       root.render(
         React.createElement(
           FormSafetyProvider,
           null,
-          React.createElement(WeightTicketFormCore),
+          React.createElement(WeightTicketFormCore, { initialType }),
         ),
       )
       await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    if (options.validHeader !== false) await fillValidWtiHeader()
+  }
+
+  async function fillValidWtiHeader() {
+    const chooseOption = (label: string) => {
+      const option = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((button) => button.textContent?.includes(label))
+      if (!option) throw new Error(`Missing combobox option: ${label}`)
+      option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+    }
+    await vi.waitFor(() => {
+      expect(mocks.cachedWeightTicketReferences).toHaveBeenCalled()
+    })
+    const branchInput = container.querySelector<HTMLInputElement>('#weight-ticket-branch')
+    await act(async () => {
+      branchInput?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      chooseOption('สาขาหลัก')
+      await Promise.resolve()
+    })
+    expect(branchInput?.value).toBe('สาขาหลัก')
+
+    const partyInput = container.querySelector<HTMLInputElement>('#weight-ticket-party')
+    expect(partyInput?.disabled).toBe(false)
+    await act(async () => {
+      partyInput?.click()
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => {
+      expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.includes('ผู้ขายทดสอบ'))).toBe(true)
+    })
+    await act(async () => {
+      chooseOption('ผู้ขายทดสอบ')
+      await Promise.resolve()
+    })
+
+    const setInput = (selector: string, value: string) => {
+      const input = container.querySelector<HTMLInputElement>(selector)
+      if (!input) throw new Error(`Missing input: ${selector}`)
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(input, value)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    setInput('#weight-ticket-vehicleNo', '83-5476')
+    setInput('input[placeholder="เช่น โกดัง A"]', 'โกดัง A')
+    await act(async () => {
+      await Promise.resolve()
     })
   }
 
@@ -415,7 +529,7 @@ describe('weight-ticket product editor behavior', () => {
   })
 
   it('still focuses the first invalid field after saving an incomplete product entry', async () => {
-    await renderForm()
+    await renderForm('WTI', { validHeader: false })
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
@@ -539,9 +653,9 @@ describe('weight-ticket product editor behavior', () => {
       await Promise.resolve()
     })
 
-    const addAnotherProductButton = Array.from(container.querySelectorAll('button')).find((button) => (
-      button !== addProductButton && button.textContent?.trim() === 'เพิ่มสินค้า'
-    ))
+    const addAnotherProductButton = Array.from(container.querySelectorAll('button')).filter((button) => (
+      button.textContent?.trim() === 'เพิ่มสินค้า' && button.id !== 'weight-ticket-add-product'
+    )).at(-1)
     expect(addAnotherProductButton).toBeDefined()
 
     await act(async () => {
@@ -549,6 +663,7 @@ describe('weight-ticket product editor behavior', () => {
       await Promise.resolve()
     })
 
+    expect(container.querySelectorAll('[id^="weight-ticket-line-card-"]')).toHaveLength(2)
     vi.useFakeTimers()
     const deleteButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'ลบสินค้า')
     expect(deleteButton).toBeDefined()
@@ -567,5 +682,37 @@ describe('weight-ticket product editor behavior', () => {
 
     expect(container.querySelectorAll('[id^="weight-ticket-line-card-"]')).toHaveLength(1)
     expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).toBeNull()
+  })
+
+  it('auto-saves an empty WTI draft once and ignores a duplicate add while saving', async () => {
+    let resolveSave: ((ticket: typeof persistedDraftTicket) => void) | undefined
+    mocks.saveWeightTicket.mockReturnValueOnce(new Promise((resolve) => {
+      resolveSave = resolve
+    }))
+
+    await renderForm('WTI')
+    await fillValidWtiHeader()
+
+    const addProductButton = container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')
+    expect(addProductButton).not.toBeNull()
+    await act(async () => {
+      addProductButton?.click()
+      addProductButton?.click()
+      await Promise.resolve()
+    })
+
+    expect(mocks.saveWeightTicket).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).toBeNull()
+
+    await act(async () => {
+      resolveSave?.(persistedDraftTicket)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.saveWeightTicket).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[aria-label="ปิดหน้ากรอกสินค้า"]')).not.toBeNull()
+    expect(container.querySelector('[id^="weight-product-"]')).not.toBeNull()
+    expect(container.querySelectorAll('[id^="weight-ticket-line-card-"]')).toHaveLength(1)
   })
 })
