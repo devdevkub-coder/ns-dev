@@ -1,3 +1,18 @@
+# Dual Costing Allocation Ledger Audit — 2026-08-05
+
+## Active implementation batch
+
+- ปรับ `/dual-costing/cost-allocation-ledger` ให้เป็นหน้าตรวจสอบรายการจัดสรรที่อ่านจาก API แบบแบ่งหน้าตามกลุ่ม `matchId` โดยไม่ตัดรายละเอียดของ Match เดียวกันข้ามหน้า
+- API รองรับ `page`, `pageSize` (`10/25`), `sortBy`, `sortDir`, ส่ง `pagination` metadata และคงการส่งออก Excel ตามผลลัพธ์ทั้งหมดของตัวกรอง ไม่จำกัดเฉพาะหน้าปัจจุบัน
+- UI desktop/mobile ใช้คำว่า `รายการ`, แสดงหน่วย `กก.`/`บาท`, ใช้ตาราง/รายละเอียดที่สอดคล้องกับ design baseline, แสดงสถานะ reversed ด้วยพื้นหลัง/ขอบแทนการลด opacity และไม่แสดงค่า `mixed` ดิบ
+- ปรับชื่อผู้ใช้ให้เป็น `สมุดรายวันจัดสรรต้นทุน` ใน sidebar, workflow, related link, filter และข้อความ API ที่เกี่ยวข้อง
+
+Expected write areas: API ledger/reverse, Allocation Ledger client, shared naming/navigation, targeted tests และ flow note ของหน้า
+
+Required validation: focused Vitest, full lint, type-check, production build และ `git diff --check`; browser UAT ยังไม่ทำเพราะผู้ใช้ยังไม่ได้สั่งทดสอบและ session ใน Codex Browser อยู่หน้า login
+
+Immediate next task: ตรวจ final diff/ไฟล์ที่ stage, fetch `sit-origin/main` ก่อน commit หรือ push และรายงานสถานะ deploy แยกจาก Git หากมีคำสั่ง promote
+
 # Department Role Access Boundary — 2026-08-04
 
 ## Active implementation batch

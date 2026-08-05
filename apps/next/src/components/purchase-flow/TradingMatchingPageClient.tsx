@@ -30,7 +30,7 @@ type RemainingColumnKey = 'date' | 'docNo' | 'matchedAmount' | 'remainingAmount'
 type SortDirection = 'asc' | 'desc'
 
 const allocationLinks = [
-  { href: '/dual-costing/cost-allocation-ledger', label: 'บัญชีการจัดสรรต้นทุน' },
+  { href: '/dual-costing/cost-allocation-ledger', label: 'สมุดรายวันจัดสรรต้นทุน' },
   { href: '/dual-costing/deal-margin', label: 'รายงานกำไรต่อดีล' },
   { href: '/dual-costing/waiting-allocations', label: 'รายการรอจัดสรร' },
 ]

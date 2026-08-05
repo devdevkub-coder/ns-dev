@@ -375,7 +375,7 @@ export const navigationItems: NavigationItem[] = [
   { href: '/dual-costing/cost-pool', icon: '🪣', label: 'Cost Pool', section: 'dual-costing' },
   { href: '/dual-costing/cost-allocator', icon: '🎯', label: 'Cost Allocator (ทอง/เหลือง)', section: 'dual-costing' },
   { href: '/dual-costing/waiting-allocations', icon: '⏳', label: 'Waiting Allocations', section: 'dual-costing' },
-  { href: '/dual-costing/cost-allocation-ledger', icon: '📒', label: 'Allocation Ledger', section: 'dual-costing' },
+  { href: '/dual-costing/cost-allocation-ledger', icon: '📒', label: 'สมุดรายวันจัดสรรต้นทุน', section: 'dual-costing' },
   { href: '/dual-costing/report', icon: '📊', label: 'Dual Costing Report', section: 'dual-costing' },
   { href: '/dual-costing/deal-margin', icon: '💎', label: 'Deal Margin Report', section: 'dual-costing' },
   { href: '/daily/payment-approval', icon: '✅', label: 'อนุมัติจ่ายเงิน', section: 'finance-debt' },

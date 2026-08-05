@@ -152,6 +152,54 @@ describe('GET /api/dual-costing/cost-allocation-ledger', () => {
     ])
   })
 
+  it('paginates complete match groups on the server and keeps export independent of the current page', async () => {
+    const rows = [
+      ledgerRow({ id: 'fact-1', matchId: 'ML2607-0001', sourceNo: 'PB2607-0001' }),
+      ledgerRow({ id: 'fact-2', matchId: 'ML2607-0001', sourceNo: 'PB2607-0002' }),
+      ...Array.from({ length: 10 }, (_, index) => ledgerRow({
+        id: `fact-${index + 3}`,
+        matchId: `ML2607-${String(index + 2).padStart(4, '0')}`,
+        sourceNo: `PB2607-${String(index + 3).padStart(4, '0')}`,
+      })),
+    ]
+    mocks.buildDualCostingManagement.mockResolvedValue({ ledgerRows: rows })
+
+    const firstPage = await GET(new Request(
+      'http://localhost/api/dual-costing/cost-allocation-ledger?page=1&pageSize=10&sortBy=matchId&sortDir=asc',
+    ))
+    const firstPayload = await firstPage.json()
+
+    expect(firstPayload.rows.map((row: { id: string }) => row.id)).toEqual([
+      'fact-1', 'fact-2', 'fact-3', 'fact-4', 'fact-5', 'fact-6', 'fact-7', 'fact-8', 'fact-9', 'fact-10', 'fact-11',
+    ])
+    expect(firstPayload.pagination).toEqual({ page: 1, pageSize: 10, totalGroups: 11, totalPages: 2, totalRows: 12 })
+
+    const secondPayload = await (await GET(new Request(
+      'http://localhost/api/dual-costing/cost-allocation-ledger?page=2&pageSize=10&sortBy=matchId&sortDir=asc',
+    ))).json()
+    expect(secondPayload.rows.map((row: { id: string }) => row.id)).toEqual(['fact-12'])
+    expect(secondPayload.pagination.page).toBe(2)
+
+    await GET(new Request(
+      'http://localhost/api/dual-costing/cost-allocation-ledger?page=1&pageSize=10&format=xlsx',
+    ))
+    expect(mocks.jsonToSheet).toHaveBeenLastCalledWith(expect.arrayContaining([
+      expect.objectContaining({ MatchId: 'ML2607-0001' }),
+      expect.objectContaining({ MatchId: 'ML2607-0011' }),
+    ]))
+    const exportedRows = (mocks.jsonToSheet.mock.calls.at(-1) as unknown[] | undefined)?.[0] as unknown[] | undefined
+    expect(exportedRows).toHaveLength(12)
+  })
+
+  it('rejects unsupported page sizes at the API boundary', async () => {
+    const response = await GET(new Request(
+      'http://localhost/api/dual-costing/cost-allocation-ledger?pageSize=20',
+    ))
+
+    expect(response.status).toBe(400)
+    expect(mocks.buildDualCostingManagement).not.toHaveBeenCalled()
+  })
+
   it('rejects a request outside the active Dual Costing branch before querying facts', async () => {
     mocks.canAccessBranchId.mockReturnValue(false)
 

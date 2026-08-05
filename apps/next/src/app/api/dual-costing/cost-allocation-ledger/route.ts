@@ -10,6 +10,99 @@ export const runtime = 'nodejs'
 
 type LedgerExportRow = Awaited<ReturnType<typeof buildDualCostingManagement>>['ledgerRows'][number]
 
+const LEDGER_PAGE_SIZES = [10, 25] as const
+type LedgerPageSize = (typeof LEDGER_PAGE_SIZES)[number]
+type LedgerSortKey = Exclude<keyof LedgerExportRow, 'canReallocate' | 'canReverse' | 'costPoolLotNo' | 'dealId' | 'id' | 'productId' | 'sourceNo' | 'targetLineNo' | 'targetRefId' | 'targetSourceType'>
+type LedgerSortDirection = 'asc' | 'desc'
+
+const LEDGER_SORT_KEYS = new Set<LedgerSortKey>([
+  'allocatedAt',
+  'allocatedBy',
+  'allocatedQty',
+  'allocatedRevenue',
+  'costPerKg',
+  'costPoolNo',
+  'date',
+  'gpPct',
+  'grossProfit',
+  'matchId',
+  'productCategory',
+  'productName',
+  'saleDocNo',
+  'saleQty',
+  'status',
+  'targetType',
+  'totalCost',
+])
+
+type LedgerMatchGroup = {
+  matchId: string
+  rows: LedgerExportRow[]
+}
+
+function compareLedgerSortValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function groupLedgerRows(rows: LedgerExportRow[]) {
+  const grouped = new Map<string, LedgerExportRow[]>()
+  rows.forEach((row) => {
+    const current = grouped.get(row.matchId) ?? []
+    current.push(row)
+    grouped.set(row.matchId, current)
+  })
+  return Array.from(grouped.entries()).map(([matchId, matchRows]) => ({ matchId, rows: matchRows }))
+}
+
+function getLedgerGroupSortValue(group: LedgerMatchGroup, key: LedgerSortKey): string | number {
+  const first = group.rows[0]
+  const totalCost = group.rows.reduce((sum, row) => sum + row.totalCost, 0)
+  const allocatedQty = group.rows.reduce((sum, row) => sum + row.allocatedQty, 0)
+  const allocatedRevenue = group.rows.reduce((sum, row) => sum + row.allocatedRevenue, 0)
+  const grossProfit = group.rows.reduce((sum, row) => sum + row.grossProfit, 0)
+
+  switch (key) {
+    case 'allocatedQty': return allocatedQty
+    case 'allocatedRevenue': return allocatedRevenue
+    case 'costPerKg': return allocatedQty > 0 ? totalCost / allocatedQty : 0
+    case 'grossProfit': return grossProfit
+    case 'gpPct': return allocatedRevenue > 0 ? (grossProfit / allocatedRevenue) * 100 : 0
+    case 'saleQty': return group.rows.reduce((sum, row) => sum + row.saleQty, 0)
+    case 'totalCost': return totalCost
+    case 'allocatedAt': return first.allocatedAt
+    case 'allocatedBy': return first.allocatedBy
+    case 'costPoolNo': return first.costPoolNo
+    case 'date': return first.date
+    case 'matchId': return group.matchId
+    case 'productCategory': return first.productCategory
+    case 'productName': return first.productName
+    case 'saleDocNo': return first.saleDocNo
+    case 'status': return first.status
+    case 'targetType': return first.targetType
+  }
+}
+
+function sortLedgerGroups(groups: LedgerMatchGroup[], sortBy: LedgerSortKey | null, sortDir: LedgerSortDirection) {
+  if (!sortBy) return groups
+  return [...groups].sort((left, right) => {
+    const result = compareLedgerSortValues(getLedgerGroupSortValue(left, sortBy), getLedgerGroupSortValue(right, sortBy))
+    return sortDir === 'asc' ? result : -result
+  })
+}
+
+function parsePositiveInteger(value: string | null, fallback: number) {
+  if (value == null || value === '') return fallback
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : null
+}
+
+function parsePageSize(value: string | null): LedgerPageSize | null {
+  if (value == null || value === '') return 25
+  const parsed = Number(value)
+  return LEDGER_PAGE_SIZES.includes(parsed as LedgerPageSize) ? parsed as LedgerPageSize : null
+}
+
 function filterLedgerRows(rows: LedgerExportRow[], filters: {
   category: string | null
   from: string | null
@@ -83,7 +176,7 @@ export async function GET(request: Request) {
     const branch = await getDualCostingBranch()
     const allowedBranchIds = await getAllowedBranchIds(context)
     if (!canAccessBranchId(allowedBranchIds, branch.id, { allowNull: false })) {
-      return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึง Allocation Ledger ของสาขานี้' }, { status: 403 })
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึงสมุดรายวันจัดสรรต้นทุนของสาขานี้' }, { status: 403 })
     }
 
     const url = new URL(request.url)
@@ -94,6 +187,19 @@ export async function GET(request: Request) {
     const status = url.searchParams.get('status')
     const category = url.searchParams.get('category')
     const targetType = url.searchParams.get('targetType')
+    const parsedPage = parsePositiveInteger(url.searchParams.get('page'), 1)
+    const parsedPageSize = parsePageSize(url.searchParams.get('pageSize'))
+    const rawSortBy = url.searchParams.get('sortBy')
+    const rawSortDir = url.searchParams.get('sortDir')
+    const sortBy = rawSortBy ? rawSortBy as LedgerSortKey : null
+    const sortDir = (rawSortDir || 'asc') as LedgerSortDirection
+
+    if (parsedPage == null || parsedPageSize == null || (rawSortBy != null && (sortBy == null || !LEDGER_SORT_KEYS.has(sortBy))) || !['asc', 'desc'].includes(sortDir)) {
+      return NextResponse.json(
+        { error: 'พารามิเตอร์การแบ่งหน้าหรือเรียงลำดับไม่ถูกต้อง' },
+        { headers: { 'Cache-Control': 'private, no-store' }, status: 400 },
+      )
+    }
 
     const payload = await buildDualCostingManagement()
     const rows = filterLedgerRows(payload.ledgerRows, { category, from, q, status, targetType, to })
@@ -106,6 +212,13 @@ export async function GET(request: Request) {
     const revenue = activeRows.reduce((sum, row) => sum + row.allocatedRevenue, 0)
     const cost = activeRows.reduce((sum, row) => sum + row.totalCost, 0)
     const gp = revenue - cost
+    const sortedGroups = sortLedgerGroups(groupLedgerRows(rows), sortBy, sortDir)
+    const totalGroups = sortedGroups.length
+    const totalPages = Math.max(1, Math.ceil(totalGroups / parsedPageSize))
+    const safePage = Math.min(parsedPage, totalPages)
+    const pageRows = sortedGroups
+      .slice((safePage - 1) * parsedPageSize, safePage * parsedPageSize)
+      .flatMap((group) => group.rows)
 
     return NextResponse.json({
       filters: {
@@ -113,7 +226,14 @@ export async function GET(request: Request) {
         statuses: ['approved', 'reversed'],
         targetTypes: Array.from(new Set(payload.ledgerRows.map((row) => row.targetType))).sort(),
       },
-      rows,
+      rows: pageRows,
+      pagination: {
+        page: safePage,
+        pageSize: parsedPageSize,
+        totalGroups,
+        totalPages,
+        totalRows: rows.length,
+      },
       summary: {
         active: activeRows.length,
         cost,
@@ -130,6 +250,6 @@ export async function GET(request: Request) {
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return apiErrorResponse(caught, 'โหลด Allocation Ledger ไม่ได้', 500)
+    return apiErrorResponse(caught, 'โหลดสมุดรายวันจัดสรรต้นทุนไม่ได้', 500)
   }
 }
