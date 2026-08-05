@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/Input'
 import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { WeightTicketAttachmentGrid as AttachmentProfileGrid, type WeightTicketAttachmentPreview as AttachmentPreview } from '@/components/daily/WeightTicketAttachmentGrid'
+import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/components/daily/WeightTicketTypeFormSections'
 import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
@@ -797,7 +798,7 @@ export function WeightTicketFormCore({
   const [impurities, setImpurities] = useState<OptionItem[]>([])
   const [loadedTicket, setLoadedTicket] = useState<WeightTicketRecord | null>(null)
   const [savedTicket, setSavedTicket] = useState<WeightTicketRecord | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
+  const { begin: beginSaveStage, end: endSaveStage, isSaving, stage: saveStage } = useWeightTicketSaveProgress()
   const [isLoadingTicket, setIsLoadingTicket] = useState(Boolean(editingTicketId))
   const [loadError, setLoadError] = useState('')
   const [attachmentError, setAttachmentError] = useState('')
@@ -1346,10 +1347,28 @@ export function WeightTicketFormCore({
   async function saveDraftBeforeAdding(): Promise<boolean> {
     // A new/empty line cannot be persisted yet. Save the current complete
     // document first so adding another line never loses the existing draft.
-    if (isSaving || isLoadingTicket || Object.keys(errors).length > 0) return false
-    if (form.lines.length === 0) return true
+    if (isSaving || isLoadingTicket) return false
+    const headerErrorKeys = ['branchId', 'partyId', 'vehicleNo', 'godownName']
+    const firstHeaderError = headerErrorKeys.find((key) => errors[key])
+    if (firstHeaderError) {
+      setTouched((current) => ({ ...current, [firstHeaderError]: true }))
+      setPendingFocusField(firstHeaderError)
+      return false
+    }
+    const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
+    if (form.lines.length > 0 && firstLineError) {
+      setTouched((current) => ({ ...current, [firstLineError]: true }))
+      setPendingFocusField(firstLineError)
+      return false
+    }
 
-    setIsSaving(true)
+    // WTI keeps its existing flow: the first product entry is still local
+    // until the user explicitly saves. WTO needs a persisted draft before
+    // the first product editor opens because subsequent line saves use the
+    // ticket id and must not create an orphan draft.
+    if (form.lines.length === 0 && form.type !== 'WTO') return true
+
+    beginSaveStage('auto_save')
     try {
       const ticket = await saveWeightTicket({
         branchId: form.branchId,
@@ -1388,7 +1407,7 @@ export function WeightTicketFormCore({
       setLoadError(getErrorMessage(caught, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้'))
       return false
     } finally {
-      setIsSaving(false)
+      endSaveStage()
     }
   }
 
@@ -1829,7 +1848,7 @@ export function WeightTicketFormCore({
       return
     }
 
-    setIsSaving(true)
+    beginSaveStage(form.type === 'WTO' ? 'stock_check' : 'save')
     try {
       const ticket = await saveWeightTicket({
         branchId: form.branchId,
@@ -1874,7 +1893,7 @@ export function WeightTicketFormCore({
       }
       setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
-      setIsSaving(false)
+      endSaveStage()
     }
   }
 
@@ -2006,6 +2025,7 @@ export function WeightTicketFormCore({
           {loadError}
         </div>
       ) : null}
+      <WeightTicketSaveProgress stage={saveStage} type={form.type} />
       {attachmentError ? (
         <div role="alert" aria-live="assertive" className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />

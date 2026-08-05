@@ -38,6 +38,12 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain("const firstErrorKey = errors.lines ? 'lines' : errorKeys[0]")
     expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
   })
+
+  it('auto-saves only the first WTO add and keeps the WTI first-add flow local', () => {
+    expect(formSource).toContain("if (form.lines.length === 0 && form.type !== 'WTO') return true")
+    expect(formSource).toContain("beginSaveStage('auto_save')")
+    expect(formSource).toContain('<WeightTicketSaveProgress stage={saveStage} type={form.type} />')
+  })
 })
 
 describe('weight-ticket product change behavior', () => {

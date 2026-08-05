@@ -20,6 +20,7 @@ import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/compon
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
 import { cancelWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, isPreviewableStoredImageAsset, notifyWeightTicketLine, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
 
@@ -109,7 +110,7 @@ export function WeightTicketDetailModal({
   const [cancelNote, setCancelNote] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [isCanceling, setIsCanceling] = useState(false)
-  const [isConfirming, setIsConfirming] = useState(false)
+  const { begin: beginSaveStage, end: endSaveStage, isSaving: isConfirming, stage: saveStage } = useWeightTicketSaveProgress()
   const [previewImage, setPreviewImage] = useState<{ fileName: string; url: string } | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [lineGallery, setLineGallery] = useState<{
@@ -227,7 +228,7 @@ export function WeightTicketDetailModal({
 
   async function handleConfirmTicket() {
     if (!ticket) return
-    setIsConfirming(true)
+    beginSaveStage('confirm')
     try {
       const updated = await confirmWeightTicket(ticket.id)
       setTicket(updated)
@@ -235,7 +236,7 @@ export function WeightTicketDetailModal({
     } catch (caught) {
       window.alert(getErrorMessage(caught, 'ยืนยันใบรับ-ส่งของไม่ได้'))
     } finally {
-      setIsConfirming(false)
+      endSaveStage()
     }
   }
 
@@ -383,6 +384,7 @@ export function WeightTicketDetailModal({
           </div>
         ) : (
           <div className="space-y-4 p-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:space-y-5 sm:p-4">
+            <WeightTicketSaveProgress stage={saveStage} type={ticket.type} />
             <div className="space-y-4">
               <Card className="p-4 sm:p-5">
                 <SectionTitle title="ข้อมูลเอกสาร" />

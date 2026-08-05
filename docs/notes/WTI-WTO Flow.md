@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
@@ -72,6 +72,19 @@ What is what: upload result คือสถานะของไฟล์แน�
 - รูปสินค้าที่ใช้เลือกในฟอร์มเป็นเพียง master-data thumbnail เพื่อช่วยเลือกสินค้า ไม่ใช่หลักฐานแทนรูปหน้างาน
 - PDF/LINE share ต้องให้หน้าแรกเป็นใบพิมพ์ A4 และต่อหน้า 2+ เป็นอัลบั้มรูปหลักฐานจากรูปรถและรูปสินค้า
 - history/timeline ของเอกสารต้องเป็น append-only ตาม [[Document Timeline Policy]]
+
+## Shared save-progress and WTO first-line flow (2026-08-05)
+
+ฟอร์ม WTI/WTO ใช้ `WeightTicketSaveProgress` เป็นส่วนกลางสำหรับสถานะการบันทึกทุกจุดที่ผู้ใช้ต้องรอผลจาก server โดยไม่ปิดหน้าฟอร์มและไม่ซ่อนข้อผิดพลาด:
+
+- `auto_save`: WTO บันทึกหัวเอกสารเป็น `draft` อัตโนมัติเมื่อหัวเอกสารผ่าน validation และผู้ใช้กดเพิ่มรายการแรก จากนั้นจึงเปิดตัวเลือกสินค้า/เต๋าในหน้าจอเดิม
+- `save`: WTI บันทึกข้อมูลตามปุ่มบันทึกเดิม
+- `stock_check`: WTO ตรวจ stock และข้อมูลทุกรายการใหม่ก่อนบันทึกทุกครั้ง
+- `confirm`: ยืนยันรับ/ส่งของจากหน้า detail หรือ modal
+
+การแสดงสถานะเป็น `role=status`, `aria-live=polite` และปิดปุ่มที่เรียก operation เดิมระหว่างรอ เพื่อป้องกันการกดซ้ำ. การ auto-save นี้เป็นข้อยกเว้นเฉพาะ WTO; WTI ยังคงไม่สร้าง draft จากการกดเพิ่มรายการแรก และสร้าง draft เมื่อมีรายการจริงตาม WTI flow เดิม. Server/database ยังคงเป็น source of truth และ UI ไม่ใช้ข้อมูลสำรองแบบ hard-code.
+
+เหตุผล: WTO ต้องมี `ticket_id` ก่อนบันทึกรายการต่อเนื่อง จึงต้อง persist draft ก่อนเปิด editor แต่ WTI มี contract เดิมที่อนุญาตให้กรอกข้อมูลหน้างานต่อก่อนสร้างเอกสารจริง. การแยกสองกรณีนี้ป้องกันไม่ให้การแก้ปัญหา WTO เปลี่ยน lifecycle ของ WTI โดยไม่ตั้งใจ.
 
 ## WTI Concurrent Draft / Auto-save Design (2026-07-23)
 
