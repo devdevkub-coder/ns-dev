@@ -408,6 +408,20 @@ function isImpurityPurchaseLine(line: FormWeightTicketLine) {
   return Boolean(line.impuritySourceLineId)
 }
 
+export function changeWeightTicketProduct(
+  lines: FormWeightTicketLine[],
+  lineId: string,
+  productId: string,
+  productName: string,
+) {
+  return lines.map((line) => (
+    line.id === lineId
+    || (line.parentId === lineId && !isImpurityPurchaseLine(line))
+      ? { ...line, productId, productName }
+      : line
+  ))
+}
+
 function getMainParentLines(lines: FormWeightTicketLine[]) {
   return lines.filter((line) => !line.parentId)
 }
@@ -1381,20 +1395,14 @@ export function WeightTicketFormCore({
       const targetLine = current.lines.find((line) => line.id === lineId)
       if (!targetLine || targetLine.productId === productId) return current
 
-      const childIds = current.lines
-        .filter((line) => line.parentId === lineId)
-        .map((line) => line.id)
-      const resetLine = {
-        ...createFormWeightTicketLine(lineId),
-        productId,
-        productName: products.find((product) => product.id === productId)?.label ?? '',
-      }
-
       return {
         ...current,
-        lines: current.lines
-          .filter((line) => line.id === lineId || (line.parentId !== lineId && !childIds.includes(line.impuritySourceLineId ?? '')))
-          .map((line) => line.id === lineId ? resetLine : line),
+        lines: changeWeightTicketProduct(
+          current.lines,
+          lineId,
+          productId,
+          products.find((product) => product.id === productId)?.label ?? '',
+        ),
       }
     })
   }
@@ -1553,8 +1561,8 @@ export function WeightTicketFormCore({
       {
         cancelLabel: 'ไม่เปลี่ยน',
         confirmLabel: 'เปลี่ยนสินค้า',
-        description: 'ข้อมูลสินค้า เต๋า และสิ่งเจือปนที่เกี่ยวข้องจะถูกล้างจากรายการนี้',
-        destructive: true,
+        description: 'น้ำหนักและรูปถ่ายเดิมจะคงไว้ ระบบจะตรวจคลังและ stock ใหม่ก่อนบันทึก',
+        destructive: false,
         title: 'เปลี่ยนสินค้า?',
       },
       () => changeLineProduct(lineId, productId),

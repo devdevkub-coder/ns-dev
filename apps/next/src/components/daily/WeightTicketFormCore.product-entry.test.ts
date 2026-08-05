@@ -24,7 +24,7 @@ vi.mock('@/lib/weight-ticket-reference-cache', () => ({
   cachedWeightTicketReferences: mocks.cachedWeightTicketReferences,
 }))
 
-import { getProductCardImages, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, getProductCardImages, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -37,6 +37,50 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain("if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
     expect(formSource).toContain("const firstErrorKey = errors.lines ? 'lines' : errorKeys[0]")
     expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
+  })
+})
+
+describe('weight-ticket product change behavior', () => {
+  it('changes the product without dropping weighing data or attached evidence', () => {
+    const evidence = { fileName: 'weighing.jpg', id: 'photo-1', rawValue: 'photo-1', url: 'https://example.test/photo-1.jpg' }
+    const mainLine = {
+      containerDeductionWeight: '10',
+      deductionMode: 'none',
+      deductionValue: '0',
+      grossWeight: '500',
+      id: 'main-line',
+      imageFiles: [evidence],
+      imageNames: ['photo-1'],
+      parentId: undefined,
+      productId: 'old-product',
+      productName: 'สินค้าเดิม',
+    } as Parameters<typeof changeWeightTicketProduct>[0][number]
+    const lotLine = {
+      ...mainLine,
+      id: 'lot-line',
+      parentId: 'main-line',
+      grossWeight: '250',
+    }
+    const purchasedImpurityLine = {
+      ...mainLine,
+      id: 'purchased-impurity-line',
+      impuritySourceLineId: 'impurity-line',
+      parentId: 'main-line',
+      productId: 'purchased-impurity-product',
+      productName: 'สินค้าที่ปนมา',
+    }
+
+    const changed = changeWeightTicketProduct(
+      [mainLine, lotLine, purchasedImpurityLine],
+      'main-line',
+      'new-product',
+      'สินค้าใหม่',
+    )
+
+    expect(changed).toHaveLength(3)
+    expect(changed[0]).toMatchObject({ grossWeight: '500', imageFiles: [evidence], imageNames: ['photo-1'], productId: 'new-product', productName: 'สินค้าใหม่' })
+    expect(changed[1]).toMatchObject({ grossWeight: '250', imageFiles: [evidence], imageNames: ['photo-1'], productId: 'new-product' })
+    expect(changed[2]).toMatchObject({ productId: 'purchased-impurity-product', productName: 'สินค้าที่ปนมา' })
   })
 })
 
