@@ -60,9 +60,9 @@ const salesFormSource = sectionSource(transactionBillsSource, "{showSalesForm &&
 describe('sales bill line-item field states', () => {
   it('keeps stock-sale inputs manual while calculated cells are visibly neutral', () => {
     expect(globalsSource).toContain('background-color: var(--ns-manual-entry-bg) !important;')
-    expect(stockTableSource).toContain("updateSalesStockSaleWeight(index, 'netWeight'")
+    expect(stockTableSource).toContain("updateSalesStockSaleWeight(index, 'grossWeight'")
     expect(stockTableSource).toContain("updateSalesStockSaleWeight(index, 'deductWeight'")
-    expect(transactionBillsSource).toContain('const qty = Number(Math.max(0, next.netWeight - next.deductWeight).toFixed(2))')
+    expect(transactionBillsSource).toContain('const qty = calculateSalesNetWeight(next.grossWeight, next.deductWeight)')
     expect(stockTableSource).toContain('disabled={hasSelectedPoSell}')
 
     expect(cellContaining(stockTableSource, 'data-error-key={`items.${index}.qty`}')).toContain('bg-slate-50')
