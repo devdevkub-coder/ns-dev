@@ -39,10 +39,18 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
   })
 
-  it('auto-saves only the first WTO add and keeps the WTI first-add flow local', () => {
-    expect(formSource).toContain("if (form.lines.length === 0 && form.type !== 'WTO') return true")
+  it('keeps the first add local until a complete product line exists', () => {
+    expect(formSource).toContain('if (form.lines.length === 0) return form')
+    expect(formSource).toContain('id: savedTicket?.id ?? editingTicketId')
     expect(formSource).toContain("beginSaveStage('auto_save')")
     expect(formSource).toContain('<WeightTicketSaveProgress stage={saveStage} type={form.type} />')
+  })
+
+  it('rebinds a new lot to the persisted source line after auto-save', () => {
+    expect(formSource).toContain('const sourceLineIndex = form.lines.findIndex((line) => line.id === sourceLine.id)')
+    expect(formSource).toContain('const persistedSourceLine = savedForm.lines[sourceLineIndex]')
+    expect(formSource).toContain('nextLine.parentId = persistedSourceLine.id')
+    expect(formSource).toContain('lines: [...savedForm.lines, nextLine]')
   })
 })
 

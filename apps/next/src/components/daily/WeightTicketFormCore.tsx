@@ -1344,29 +1344,28 @@ export function WeightTicketFormCore({
     return getLineImages(sourceParentLine ?? sourceLine ?? line)
   }
 
-  async function saveDraftBeforeAdding(): Promise<boolean> {
+  async function saveDraftBeforeAdding(): Promise<FormState | null> {
     // A new/empty line cannot be persisted yet. Save the current complete
     // document first so adding another line never loses the existing draft.
-    if (isSaving || isLoadingTicket) return false
+    if (isSaving || isLoadingTicket) return null
     const headerErrorKeys = ['branchId', 'partyId', 'vehicleNo', 'godownName']
     const firstHeaderError = headerErrorKeys.find((key) => errors[key])
     if (firstHeaderError) {
       setTouched((current) => ({ ...current, [firstHeaderError]: true }))
       setPendingFocusField(firstHeaderError)
-      return false
+      return null
     }
     const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
     if (form.lines.length > 0 && firstLineError) {
       setTouched((current) => ({ ...current, [firstLineError]: true }))
       setPendingFocusField(firstLineError)
-      return false
+      return null
     }
 
-    // WTI keeps its existing flow: the first product entry is still local
-    // until the user explicitly saves. WTO needs a persisted draft before
-    // the first product editor opens because subsequent line saves use the
-    // ticket id and must not create an orphan draft.
-    if (form.lines.length === 0 && form.type !== 'WTO') return true
+    // The first product entry is local until the user has entered a complete
+    // line. There is no valid line payload to persist at this point, so do
+    // not call the strict save contract with an empty WTO document.
+    if (form.lines.length === 0) return form
 
     beginSaveStage('auto_save')
     try {
@@ -1402,10 +1401,10 @@ export function WeightTicketFormCore({
       setForm(nextForm)
       setFormBaseline(formSafetySnapshot(nextForm))
       setLoadError('')
-      return true
+      return nextForm
     } catch (caught) {
       setLoadError(getErrorMessage(caught, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้'))
-      return false
+      return null
     } finally {
       endSaveStage()
     }
@@ -1471,15 +1470,19 @@ export function WeightTicketFormCore({
 
   async function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
-    if (!await saveDraftBeforeAdding()) return
+    const sourceLineIndex = form.lines.findIndex((line) => line.id === sourceLine.id)
+    const savedForm = await saveDraftBeforeAdding()
+    if (!savedForm) return
+    const persistedSourceLine = savedForm.lines[sourceLineIndex]
+    if (!persistedSourceLine) return
     const nextLine = createFormWeightTicketLine()
-    nextLine.productId = sourceLine.productId
-    nextLine.warehouseId = sourceLine.warehouseId
-    nextLine.parentId = sourceLine.id
-    const existingLotIds = form.lines
+    nextLine.productId = persistedSourceLine.productId
+    nextLine.warehouseId = persistedSourceLine.warehouseId
+    nextLine.parentId = persistedSourceLine.id
+    const existingLotIds = savedForm.lines
       .filter((line) => (
-        line.id === sourceLine.id
-        || (line.parentId === sourceLine.id && !isImpurityPurchaseLine(line) && line.deductionMode === 'none')
+        line.id === persistedSourceLine.id
+        || (line.parentId === persistedSourceLine.id && !isImpurityPurchaseLine(line) && line.deductionMode === 'none')
       ))
       .map((line) => line.id)
     setCollapsedLotIds((current) => ({
@@ -1487,7 +1490,7 @@ export function WeightTicketFormCore({
       ...Object.fromEntries(existingLotIds.map((lotId) => [lotId, true])),
       [nextLine.id]: false,
     }))
-    setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
+    setForm((current) => ({ ...current, lines: [...savedForm.lines, nextLine] }))
     setPendingFocusField(`line-${nextLine.id}-gross`)
   }
 
@@ -1852,7 +1855,7 @@ export function WeightTicketFormCore({
     try {
       const ticket = await saveWeightTicket({
         branchId: form.branchId,
-        id: editingTicketId || undefined,
+        id: savedTicket?.id ?? editingTicketId,
         lines: form.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
