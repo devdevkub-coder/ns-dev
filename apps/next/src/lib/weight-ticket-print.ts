@@ -162,18 +162,19 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
         })
       })
 
-      // Add subtotal row for this product group
-      rows.push({
-        className: 'product-total',
-        containerDeductionWeight: summary.containerDeductionWeight,
-        deductionWeight: summary.deductWeight,
-        detail: '',
-        grossWeight: summary.grossWeight,
-        label: '',
-        netWeight: summary.netWeight,
-        productName: `รวม ${summary.productName}`,
-        rank: '',
-      })
+      if (productLines.length > 1) {
+        rows.push({
+          className: 'product-total',
+          containerDeductionWeight: summary.containerDeductionWeight,
+          deductionWeight: summary.deductWeight,
+          detail: '',
+          grossWeight: summary.grossWeight,
+          label: '',
+          netWeight: summary.netWeight,
+          productName: `รวม ${summary.productName}`,
+          rank: '',
+        })
+      }
     })
     return rows
   }
