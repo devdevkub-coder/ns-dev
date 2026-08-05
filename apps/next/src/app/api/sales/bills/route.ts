@@ -474,7 +474,7 @@ function salesItems(
       deliveryTicketId: item.deliveryTicketId,
       deductWeight: item.deductWeight,
       discount: item.discount,
-      grossWeight: deliverySummary ? item.netWeight : item.grossWeight,
+      grossWeight: item.grossWeight,
       id: `${String(lineNo).padStart(2, '0')}`,
       lineNo,
       netWeight: item.qty,
@@ -1241,8 +1241,8 @@ async function validateStockDeliverySelection(
     if (productMismatchError) {
       return { error: productMismatchError }
     }
-    const buyerAcceptedWeight = Math.max(0, item.netWeight)
-    if (item.deductWeight > buyerAcceptedWeight + 0.0001) {
+    const buyerAcceptedWeight = Math.max(0, item.qty)
+    if (item.deductWeight > item.grossWeight + 0.0001) {
       return { error: `หักสิ่งเจือปนของ ${summarySource.product_name} เกินจำนวนที่ขายได้` as const }
     }
     if (buyerAcceptedWeight <= 0.0001) {
@@ -2982,7 +2982,7 @@ export async function PATCH(request: Request) {
             || Math.abs(toNumber(line.deduct_weight) - item.deductWeight) > 0.0001)) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: `รายการที่ ${lineNo}: แก้ไขน้ำหนัก/จำนวนขายของบิล Trading ยังไม่เปิดในรอบนี้ ให้แก้ได้เฉพาะ PO Sell อ้างอิง ราคา ส่วนลด และหมายเหตุ` }, { status: 400 })
         }
-        if (item.deductWeight > item.netWeight + 0.0001) {
+        if (item.deductWeight > item.grossWeight + 0.0001) {
           return NextResponse.json({
             code: 'BAD_REQUEST',
             error: `รายการที่ ${index + 1}: หักสิ่งเจือปนต้องไม่เกินจำนวนที่ขายได้`,

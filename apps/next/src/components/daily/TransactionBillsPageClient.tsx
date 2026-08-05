@@ -33,7 +33,7 @@ import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCanc
 import { calculatePurchaseBillPostAdvanceTotals } from '@/lib/purchase-advance'
 import { calculateSupplierAdvanceAllocation } from '@/lib/purchase-advance'
 import { openPurchaseBillPrint, openPurchaseBillPrintWindow } from '@/lib/purchase-bill-print'
-import { salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
+import { calculateSalesNetWeight, salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
 import { openSalesBillPrint, openSalesBillPrintWindow } from '@/lib/sales-bill-print'
 import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 
@@ -718,7 +718,7 @@ function salesStockQtyVariance(sentQty: number, acceptedQty: number) {
   const diff = sentQty - acceptedQty
   if (Math.abs(diff) < 0.001) return { className: 'text-emerald-700', text: 'ขายครบตามใบส่งของ' }
   if (diff > 0) return { className: 'text-amber-700', text: `เหลือรอรับคืน ${formatMoney(diff)} กก.` }
-  return { className: 'text-sky-700', text: `ลูกค้าชั่งเกิน ${formatMoney(Math.abs(diff))} กก. ตัด stock เท่าใบส่งของ` }
+  return { className: 'text-sky-700', text: `ลูกค้าชั่งเกิน ${formatMoney(Math.abs(diff))} กก. บันทึกยอดขายตามจริง แต่ตัด stock เท่าใบส่งของ` }
 }
 
 function salesItemSourceGroupKey(item: SalesBillFormValues['items'][number]) {
@@ -1815,8 +1815,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       const overQty = acceptedQty - summary.remainingWeight
       if (overQty <= 0.001) return []
       return [{
-        className: 'text-red-700',
-        message: `${summary.productName}: ขายเกินใบส่งของ ${formatMoney(overQty)} กก.`,
+        className: 'text-sky-700',
+        message: `${summary.productName}: ลูกค้าชั่งเกินใบส่งของ ${formatMoney(overQty)} กก. บันทึกยอดขายตามจริง แต่ตัด stock เท่าใบส่งของ`,
         rowIndex: state?.rowIndices[0] ?? null,
         summaryId: summary.id,
       }]
@@ -2921,14 +2921,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSalesFieldErrors({})
   }
 
-  function updateSalesStockSaleWeight(index: number, key: 'deductWeight' | 'netWeight', value: number) {
+  function updateSalesStockSaleWeight(index: number, key: 'deductWeight' | 'grossWeight', value: number) {
     setSalesForm((current) => ({
       ...current,
       items: current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
         const next = { ...item, [key]: value }
-        const qty = Number(Math.max(0, next.netWeight).toFixed(2))
-        return { ...next, qty }
+        const qty = calculateSalesNetWeight(next.grossWeight, next.deductWeight)
+        return { ...next, netWeight: qty, qty }
       }),
     }))
     setSalesFieldErrors({})
@@ -3295,21 +3295,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       setSalesFieldErrors((current) => ({ ...current, exportOrderNo: 'กรอกเลขที่ order ส่งออก' }))
       setError('กรอกเลขที่ order ส่งออกสำหรับบิลขายต่างประเทศ')
       focusFieldError('exportOrderNo')
-      return
-    }
-
-    if (salesStockAllocationIssues.length > 0) {
-      const nextFieldErrors = salesStockAllocationIssues.reduce<Record<string, string>>((errors, issue) => {
-        if (issue.rowIndex != null) {
-          errors[`items.${issue.rowIndex}.qty`] = issue.message
-        }
-        return errors
-      }, { items: 'รายการจากใบส่งของ WTO ต้องไม่ขายเกินน้ำหนักคงเหลือ' })
-      const firstIssue = salesStockAllocationIssues[0]
-      const firstErrorKey = firstIssue?.rowIndex != null ? `items.${firstIssue.rowIndex}.qty` : 'items'
-      setSalesFieldErrors(nextFieldErrors)
-      setError(firstIssue?.message ?? 'รายการจากใบส่งของ WTO ต้องไม่ขายเกินน้ำหนักคงเหลือ')
-      focusFieldError(firstErrorKey)
       return
     }
 
@@ -4617,9 +4602,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                ) : null}
 	                                <td className="p-2">
 	                                  <div className="ml-auto w-17">
-                                    <input data-error-key={`items.${index}.netWeight`} className={`w-full rounded-md border px-2 py-2 text-right font-bold tabular-nums text-slate-900 ${salesFieldErrors[`items.${index}.netWeight`] || salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'bg-[var(--ns-manual-entry-bg)]'} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.netWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'netWeight', Number(event.target.value || 0))} />
+	                                  <input data-error-key={`items.${index}.grossWeight`} className={`w-full rounded-md border px-2 py-2 text-right font-bold tabular-nums text-slate-900 ${salesFieldErrors[`items.${index}.grossWeight`] || salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'bg-[var(--ns-manual-entry-bg)]'} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.grossWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'grossWeight', Number(event.target.value || 0))} />
 	                                  </div>
-	                                  {salesFieldErrors[`items.${index}.netWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.netWeight`]}</div> : null}
+	                                  {salesFieldErrors[`items.${index}.grossWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.grossWeight`]}</div> : null}
 	                                  {salesFieldErrors[`items.${index}.qty`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.qty`]}</div> : null}
 	                                </td>
 	                                <td className="p-2">
@@ -4701,7 +4686,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                           <tr>
                             <td className="p-2 text-right text-slate-700">รวม</td>
 	                            <td className="p-2 text-right tabular-nums text-slate-900">{formatMoney((selectedDelivery?.productSummaries ?? []).reduce((sum, summary) => sum + summary.remainingWeight, 0))}</td>
-	                            <td className="p-2 text-right tabular-nums">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.netWeight, 0))}</td>
+	                            <td className="p-2 text-right tabular-nums">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.grossWeight, 0))}</td>
 	                            <td className="p-2 text-right tabular-nums text-slate-700">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.deductWeight, 0))}</td>
 	                            <td className="p-2 text-right tabular-nums text-slate-900">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.qty, 0))}</td>
 	                            <td></td>
