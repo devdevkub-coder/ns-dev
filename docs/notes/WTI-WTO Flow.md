@@ -232,7 +232,7 @@ Server เป็นผู้สร้าง `line_id`, ตรวจสิทธ�
 - [ ] `WTI-42` ป้องกันการส่ง request ซ้ำจากการกดเร็ว, debounce เฉพาะ field น้ำหนักที่กำลังพิมพ์ และคง stable row/line identity
 - [ ] `WTI-43` เมื่อ event จากตราชั่งอื่นเข้ามา ให้ merge รายการและ summary โดยไม่ล้างข้อมูลที่ผู้ใช้กำลังกรอก
 - [ ] `WTI-44` แยก dirty state ของ manual fields ออกจาก auto-save state; ถ้ากดยกเลิกขณะ manual fields ยังไม่บันทึก ให้ถามยืนยัน
-- [ ] `WTI-45` หลัง WTI ถูก `received` หรือ `cancelled` ให้เปลี่ยนทั้งสองเครื่องเป็น read-only และหยุด auto-save
+- [ ] `WTI-45` หลัง WTI ถูก `cancelled` หรือถูกใช้ใน Purchase Bill ให้เปลี่ยนทั้งสองเครื่องเป็น read-only และหยุด auto-save; WTI ที่ `received` แต่ยังไม่มี PB ยังแก้ไขได้ตามสิทธิ์
 
 #### Phase 5: Validation และ rollout
 
