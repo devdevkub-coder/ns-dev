@@ -9,9 +9,11 @@ const noUsage = {
 }
 
 describe('weight ticket edit policy', () => {
-  it('allows WTI edits only while the ticket is a draft', () => {
+  it('allows WTI edits while draft or received before Purchase Bill usage', () => {
     expect(canEditWeightTicket({ docType: 'WTI', status: 'draft' }, noUsage)).toBe(true)
-    expect(canEditWeightTicket({ docType: 'WTI', status: 'received' }, noUsage)).toBe(false)
+    expect(canEditWeightTicket({ docType: 'WTI', status: 'received' }, noUsage)).toBe(true)
+    expect(canEditWeightTicket({ docType: 'WTI', status: 'received' }, { ...noUsage, purchaseCount: 1 })).toBe(false)
+    expect(canEditWeightTicket({ docType: 'WTI', status: 'cancelled' }, noUsage)).toBe(false)
   })
 
   it('allows an unbilled delivered WTO edit for the pending-out replacement flow', () => {

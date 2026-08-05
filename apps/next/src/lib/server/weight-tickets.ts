@@ -885,7 +885,7 @@ export function canMutateWeightTicket(row: { status: string | null }, usage: Wei
 }
 
 export function canEditWeightTicket(row: { docType: string; status: string | null }, usage: WeightTicketUsage) {
-  if (row.docType === 'WTI' && row.status !== 'draft') return false
+  if (row.docType === 'WTI' && row.status !== 'draft' && row.status !== 'received') return false
   return canMutateWeightTicket(row, usage)
 }
 
