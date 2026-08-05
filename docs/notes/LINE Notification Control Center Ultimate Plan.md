@@ -868,6 +868,7 @@ LINE Messaging API **ไม่มี endpoint ลิสต์ทุกกลุ�
 - request จากผู้ใช้ต้องใช้ branch scope ตามสิทธิ์ของผู้ใช้ แต่ worker ที่อ่าน job ซึ่งผ่านการตรวจสิทธิ์และบันทึกลง outbox แล้วใช้ trusted lookup แบบไม่จำกัดสาขา โดยค่า `null` หมายถึง trusted unscoped lookup; ค่า `[]` หมายถึงไม่มีสาขาที่มองเห็นและต้องไม่ใช้แทนกัน
 - ผลส่งจริงถือว่าสำเร็จเมื่อ LINE ตอบ 2xx พร้อม `x-line-request-id` เท่านั้น ส่วน retry ที่ LINE ตอบ 409 ต้องมี `x-line-accepted-request-id` หรือ request ID ที่ยอมรับได้ จึงบันทึกเป็น `skipped/accepted` ได้
 - API และปุ่ม Retry ต้องถือทั้ง `sent` และ `skipped/accepted` เป็นผลสำเร็จที่ตรวจสอบได้; ห้ามแปลง accepted 409 กลับเป็น HTTP 502
+- worker กลางต้องตรวจ request ID ซ้ำแม้ renderer จะคืน 2xx/409; หากไม่มี ID ยืนยัน ให้คง job เป็น `pending` และบันทึก attempt เป็น transient แทนการรายงานว่าส่งสำเร็จ
 
 ### Why it has to work this way
 

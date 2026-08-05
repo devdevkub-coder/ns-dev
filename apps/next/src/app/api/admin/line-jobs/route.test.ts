@@ -59,4 +59,20 @@ describe('LINE job retry response', () => {
       ok: true,
     })
   })
+
+  it.each(['sent', 'skipped'])('rejects an unverifiable %s retry result without a LINE request ID', async (status) => {
+    jobs.execute.mockResolvedValue({
+      lineRequestId: null,
+      status,
+    })
+
+    const response = await PATCH(new Request('https://erp.example.com/api/admin/line-jobs', {
+      body: JSON.stringify({ action: 'retry', id: '7' }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH',
+    }))
+
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({ code: 'FAILED' })
+  })
 })

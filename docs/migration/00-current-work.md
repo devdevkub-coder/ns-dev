@@ -2,7 +2,7 @@
 
 Objective: ทำให้ Connection/Webhook, Targets, Routing, Test Send, Queue/Retry และเอกสาร WTI/WTO/PB/SB/PMT/RCP ใช้ contract เดียวกันและรายงานผลตรงกับ LINE จริง
 
-Active batch: แก้ trusted WTI/WTO queue lookup, branch-scoped admin test send, permanent/transient HTTP classification, accepted 409 retry response, mandatory LINE request ID และ timeout 10 วินาทีของ LINE transports; เพิ่ม focused tests และบันทึก flow ใน `docs/notes/LINE Notification Control Center Ultimate Plan.md`
+Active batch: แก้ trusted WTI/WTO queue lookup, branch-scoped admin test send, permanent/transient HTTP classification, accepted 409 retry response, shared-worker fail-closed เมื่อไม่มี LINE request ID และ timeout 10 วินาทีของ LINE transports; เพิ่ม focused tests และบันทึก flow ใน `docs/notes/LINE Notification Control Center Ultimate Plan.md`
 
 Expected write areas: LINE server services/routes, focused tests และ LINE flow note เท่านั้น; ห้าม stage local logs/reports/config หรือทับ Dual Costing commit ที่อยู่ก่อนหน้า
 

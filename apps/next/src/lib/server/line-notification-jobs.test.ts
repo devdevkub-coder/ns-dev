@@ -282,6 +282,32 @@ describe('financial LINE notification jobs', () => {
     })
   })
 
+  it.each([200, 409])('does not accept LINE %s without a verifiable request ID', async (httpStatus) => {
+    const weightJob = job({
+      document_no: 'WTI012608-0021',
+      document_type: 'WTI',
+      source_type: 'weight_ticket',
+      target_id: 'C-WEIGHT',
+    })
+    db.findJob.mockResolvedValue(weightJob)
+    db.updateJob.mockResolvedValue({ ...weightJob, attempt_count: 1 })
+    weightLine.notify.mockResolvedValue({
+      lineRequestId: null,
+      status: httpStatus,
+    })
+
+    const result = await executeNotificationJob(String(weightJob.id))
+
+    expect(result).toMatchObject({ status: 'pending' })
+    expect(db.createAttempt).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        error_code: 'TRANSIENT_ERROR',
+        http_status: httpStatus,
+        status: 'pending',
+      }),
+    })
+  })
+
   it.each([408, 409, 429])('keeps retryable LINE %s responses pending', async (httpStatus) => {
     const weightJob = job({
       document_no: 'WTI012608-0021',

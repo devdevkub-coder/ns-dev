@@ -130,7 +130,9 @@ export async function PATCH(request: Request) {
     if (action === 'retry') {
       // Re-trigger execution immediately
       const result = await executeNotificationJob(id, { force: true })
-      if (result.status === 'sent' || result.status === 'skipped') {
+      const isVerifiedSuccess = (result.status === 'sent' || result.status === 'skipped')
+        && Boolean(result.lineRequestId)
+      if (isVerifiedSuccess) {
         return NextResponse.json({
           ok: true,
           deliveryStatus: result.status,

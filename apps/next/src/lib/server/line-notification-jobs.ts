@@ -334,6 +334,10 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
 
     const isConflict = result.status === 409
     const lineRequestId = result.lineRequestId || result.sentResults?.[0]?.lineRequestId || null
+    if (!lineRequestId) {
+      failureHttpStatus = result.status
+      throw new Error(`LINE ตอบ ${result.status} แต่ไม่มี request ID ยืนยันการรับข้อความ`)
+    }
 
     // 4. Record success
     await prisma.line_notification_jobs.update({
