@@ -7,7 +7,7 @@ import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTick
 import type { CompanyProfilePrintValues } from './company-profile'
 import { ensurePdfFontsRegistered } from './server/pdf/fonts'
 import { WeightTicketDocument } from './server/pdf/weight-ticket-document'
-import { buildReceiptPrintHtml } from './weight-ticket-print'
+import { buildPrintWeightRows, buildReceiptPrintHtml } from './weight-ticket-print'
 import type { WeightTicketRecord } from './weight-tickets'
 
 vi.mock('server-only', () => ({}))
@@ -249,6 +249,47 @@ describe('weight ticket print HTML', () => {
     expect(text).toContain('4.00 kg')
     expect(text).toContain('32.00 kg')
     expect(text).toContain('429.00 kg')
+  })
+
+  it('numbers WTI lot rows in the product name without empty lot captions', () => {
+    const ticketWithThreeLots: WeightTicketRecord = {
+      ...ticket,
+      lines: [
+        ...ticket.lines.map((ticketLine) => (
+          ticketLine.id === 'lot-1' || ticketLine.id === 'lot-2'
+            ? { ...ticketLine, note: '' }
+            : ticketLine
+        )),
+        line({
+          grossWeight: '100',
+          grossWeightValue: 100,
+          id: 'lot-3',
+          lineNo: 5,
+          netWeight: 100,
+          note: '',
+          parentLineNo: 1,
+        }),
+      ],
+    }
+
+    const lotRows = buildPrintWeightRows(ticketWithThreeLots, true)
+      .filter((row) => row.className === 'lot-row')
+
+    expect(lotRows.map((row) => ({
+      detail: row.detail,
+      label: row.label,
+      productName: row.productName,
+    }))).toEqual([
+      { detail: '', label: '', productName: 'สินค้า A - 1' },
+      { detail: '', label: '', productName: 'สินค้า A - 2' },
+      { detail: '', label: '', productName: 'สินค้า A - 3' },
+    ])
+
+    const html = buildReceiptPrintHtml(ticketWithThreeLots, profile)
+    expect(html).toContain('สินค้า A - 1')
+    expect(html).toContain('สินค้า A - 2')
+    expect(html).toContain('สินค้า A - 3')
+    expect(html).not.toContain('เต๋าที่ 1')
   })
 
   it('keeps the summary and signatures on one main A4 page when the item rows fit', async () => {

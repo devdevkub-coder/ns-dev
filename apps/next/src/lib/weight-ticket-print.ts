@@ -217,15 +217,16 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
       })
 
       realLotLines.forEach((line, lotIndex) => {
+        const detail = cleanNote(line.note)
         rows.push({
           className: 'lot-row',
           containerDeductionWeight: line.containerDeductionWeightValue,
           deductionWeight: line.deductionWeight,
-          detail: cleanNote(line.note),
+          detail: detail === '-' ? '' : detail,
           grossWeight: line.grossWeightValue,
-          label: `เต๋าที่ ${lotIndex + 1}`,
+          label: '',
           netWeight: Math.max(0, line.grossWeightValue - line.containerDeductionWeightValue - line.deductionWeight),
-          productName: summary.productName,
+          productName: `${summary.productName} - ${lotIndex + 1}`,
         })
       })
     }
