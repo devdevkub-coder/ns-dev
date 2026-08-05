@@ -1561,7 +1561,9 @@ export function WeightTicketFormCore({
       {
         cancelLabel: 'ไม่เปลี่ยน',
         confirmLabel: 'เปลี่ยนสินค้า',
-        description: 'น้ำหนักและรูปถ่ายเดิมจะคงไว้ ระบบจะตรวจคลังและ stock ใหม่ก่อนบันทึก',
+        description: form.type === 'WTO'
+          ? 'ข้อมูลเดิมจะคงไว้ ระบบจะตรวจ stock ของรายการทั้งหมดใหม่ก่อนบันทึก'
+          : 'เปลี่ยนเฉพาะสินค้า น้ำหนัก และสิ่งเจือปน ข้อมูลและรูปถ่ายอื่นจะคงเดิม',
         destructive: false,
         title: 'เปลี่ยนสินค้า?',
       },

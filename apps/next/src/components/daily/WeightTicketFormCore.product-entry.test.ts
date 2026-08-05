@@ -41,6 +41,13 @@ describe('weight-ticket product entry start contract', () => {
 })
 
 describe('weight-ticket product change behavior', () => {
+  it('keeps the confirmation contract non-destructive for WTI and WTO', () => {
+    expect(formSource).toContain("description: form.type === 'WTO'")
+    expect(formSource).toContain('ข้อมูลเดิมจะคงไว้ ระบบจะตรวจ stock ของรายการทั้งหมดใหม่ก่อนบันทึก')
+    expect(formSource).toContain('เปลี่ยนเฉพาะสินค้า น้ำหนัก และสิ่งเจือปน ข้อมูลและรูปถ่ายอื่นจะคงเดิม')
+    expect(formSource).not.toContain('ข้อมูลสินค้า เต๋า และสิ่งเจือปนที่เกี่ยวข้องจะถูกล้างจากรายการนี้')
+  })
+
   it('changes the product without dropping weighing data or attached evidence', () => {
     const evidence = { fileName: 'weighing.jpg', id: 'photo-1', rawValue: 'photo-1', url: 'https://example.test/photo-1.jpg' }
     const mainLine = {

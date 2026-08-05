@@ -320,6 +320,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         type: values.type,
       })
 
+      if (existing.status === 'delivered') {
+        await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
+      }
       await releaseActiveWtoPendingOut(tx, {
         actor,
         reason: 'edit',
@@ -327,9 +330,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       })
       await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
       await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
-      if (existing.status === 'delivered') {
-        await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
-      }
       const createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
       const createdPendingOutHoldIds = existing.status === 'delivered'
         ? await applyWeightTicketEditSideEffects(tx, {
