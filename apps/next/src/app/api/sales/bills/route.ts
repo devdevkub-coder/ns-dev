@@ -2718,6 +2718,8 @@ function salesBillPoAllocationSnapshot(allocation: ActiveSalesBillPoAllocation):
     productId: allocation.product_code_snapshot,
     productName: allocation.product_name_snapshot,
     qty: toNumber(allocation.allocated_qty),
+    salesDisplayProductCode: null,
+    salesDisplayProductName: null,
     stockIssueQty: 0,
     tradingCostSourceId: null,
     unit: 'กก.',
