@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   noteText: { fontSize: 9, color: TEXT_DARK },
 
   // Signatures
-  signatures: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  signatures: { flexDirection: 'row', gap: 12, marginTop: 'auto', marginBottom: 14 },
   sig: { flex: 1 },
   sigLine: {
     borderTopWidth: 1,
@@ -467,7 +467,7 @@ function ItemRow({ row, isReceipt }: { row: PrintWeightRow; isReceipt: boolean }
       <View style={[styles.tableCell, { width: isReceipt ? COL_ITEM : `${100 - 4 - 12 - 12 - 26}%` }]}>
         <Text style={styles.itemName}>{nt(row.productName)}</Text>
         {row.label ? <Text style={styles.muted}>{nt(row.label)}</Text> : null}
-        <Text style={styles.muted}>{nt(row.detail)}</Text>
+        {row.detail ? <Text style={styles.muted}>{nt(row.detail)}</Text> : null}
       </View>
       <View style={[styles.tableCellRight, { width: COL_GROSS }]}>
         <Text>{formatPrintableNumber(row.grossWeight)}</Text>
