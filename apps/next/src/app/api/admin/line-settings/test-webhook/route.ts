@@ -60,6 +60,7 @@ export async function POST(request: Request) {
         'x-line-signature': signature,
       },
       body: rawBody,
+      signal: AbortSignal.timeout(10_000),
     })
 
     const status = response.status

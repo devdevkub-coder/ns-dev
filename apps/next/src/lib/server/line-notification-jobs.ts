@@ -232,6 +232,7 @@ export async function enqueueAndExecuteNotification(source: LineNotificationSour
 export async function executeNotificationJob(jobId: string, options?: { force?: boolean; lockedBy?: string }) {
   const startTime = Date.now()
   const jobBigInt = BigInt(jobId)
+  let failureHttpStatus: number | null = null
 
   const job = await prisma.line_notification_jobs.findUnique({
     where: { id: jobBigInt }
@@ -298,7 +299,7 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
         customMessage: job.custom_message || undefined,
         requestedBy,
         origin: appUrl,
-        scopedBranchIds: [],
+        scopedBranchIds: null,
         retryKey: String(job.retry_key)
       })
     } else if (job.source_type === 'purchase_bill' || job.source_type === 'sales_bill') {
@@ -327,6 +328,7 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
     }
 
     if (result.status !== 200 && result.status !== 201 && result.status !== 409) {
+      failureHttpStatus = result.status
       throw new Error(result.error || 'ส่ง LINE Notification ไม่สำเร็จ')
     }
 
@@ -368,8 +370,12 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
     const errorMsg = caught instanceof Error ? caught.message : String(caught)
     console.error(`[Job ${jobId}] Failed:`, errorMsg)
 
-    // Check if error is permanent (e.g. invalid target group id, token expired)
-    const isPermanent = errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') || errorMsg.includes('404')
+    const messageHttpStatus = Number(errorMsg.match(/\(([45]\d{2})\)/)?.[1]) || null
+    const httpStatus = messageHttpStatus ?? failureHttpStatus
+    const isPermanent = httpStatus !== null
+      && httpStatus >= 400
+      && httpStatus < 500
+      && ![408, 409, 429].includes(httpStatus)
     const hasReachedMax = attemptNo >= job.max_attempts
     const finalStatus = (isPermanent || hasReachedMax) ? 'failed' : 'pending'
 
@@ -395,6 +401,7 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
         job_id: jobBigInt,
         attempt_no: attemptNo,
         status: finalStatus,
+        http_status: httpStatus,
         error_code: isPermanent ? 'PERMANENT_ERROR' : 'TRANSIENT_ERROR',
         error_message: errorMsg.slice(0, 500),
         duration_ms: Date.now() - startTime

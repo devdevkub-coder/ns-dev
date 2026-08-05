@@ -12,6 +12,7 @@ import { prisma } from '@/lib/server/prisma'
  */
 
 const LINE_API_BASE = 'https://api.line.me/v2/bot'
+const LINE_API_TIMEOUT_MS = 10_000
 const SYNC_DELAY_MS = 120 // เคารพ rate limit ระหว่างแต่ละ target
 
 export type LineTargetType = 'group' | 'room' | 'user'
@@ -42,6 +43,7 @@ export async function fetchLineBotInfo(token: string): Promise<LineBotInfo> {
   const response = await fetch(`${LINE_API_BASE}/info`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(LINE_API_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -117,10 +119,21 @@ async function enrichTarget(
       ? `${LINE_API_BASE}/group/${encodeURIComponent(targetId)}/summary`
       : `${LINE_API_BASE}/profile/${encodeURIComponent(targetId)}`
 
-  const response = await fetch(endpoint, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  let response: Response
+  try {
+    response = await fetch(endpoint, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(LINE_API_TIMEOUT_MS),
+    })
+  } catch {
+    return {
+      name: null,
+      pictureUrl: null,
+      status: 'error',
+      unauthorized: false,
+    }
+  }
 
   // 401/403 ที่ /info หรือ /summary/profile: token ใช้ไม่ได้ → หยุดทั้งลูป
   if (response.status === 401 || response.status === 403) {

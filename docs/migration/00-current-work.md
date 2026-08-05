@@ -1,3 +1,15 @@
+# LINE Notification Reliability — 2026-08-05
+
+Objective: ทำให้ Connection/Webhook, Targets, Routing, Test Send, Queue/Retry และเอกสาร WTI/WTO/PB/SB/PMT/RCP ใช้ contract เดียวกันและรายงานผลตรงกับ LINE จริง
+
+Active batch: แก้ trusted WTI/WTO queue lookup, branch-scoped admin test send, permanent/transient HTTP classification, mandatory LINE request ID และ timeout 10 วินาทีของ LINE transports; เพิ่ม focused tests และบันทึก flow ใน `docs/notes/LINE Notification Control Center Ultimate Plan.md`
+
+Expected write areas: LINE server services/routes, focused tests และ LINE flow note เท่านั้น; ห้าม stage local logs/reports/config หรือทับ Dual Costing commit ที่อยู่ก่อนหน้า
+
+Required validation: focused Vitest, full lint, type-check, production build, `git diff --check`, independent acceptance audit, fresh `sit-origin/main` integration, deploy SHA verification และ Codex Browser runtime checks หลัง deploy
+
+Immediate next task: รัน full validation, ตรวจ intended diff, fetch/integrate SIT, commit/push/deploy แล้ว retry job จริงและทดสอบ target send; automatic frequent retry ยังต้องใช้ Vercel Pro หรือ external scheduler เพราะ SIT อยู่ Hobby plan
+
 # Dual Costing Allocation Ledger Audit — 2026-08-05
 
 ## Active implementation batch

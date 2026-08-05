@@ -856,3 +856,34 @@ LINE Messaging API **ไม่มี endpoint ลิสต์ทุกกลุ�
 | `app/admin/line-settings/LineSettingsPageClient.tsx` | tab + content ถูก disable ด้วย `false &&` |
 | `app/api/admin/line-templates/route.ts` | คงไว้ (GET/POST/PATCH ยังทำงาน เผื่อ API call ตรงๆ) |
 | `lib/server/line-notification-routing.ts` `buildFlexMessageFromTemplate` | คงไว้ (ใช้ใน Preview) |
+
+---
+
+## Reliability checkpoint 2026-08-05
+
+### What is what
+
+- `line_targets` คือปลายทาง LINE ที่ webhook รู้จักแล้ว และ `line_notification_rules` เป็นกฎเลือกปลายทางตามประเภทเอกสาร
+- `line_notification_jobs` คือ outbox ของ WTI, WTO, PB, SB, PMT และ RCP ส่วน `line_notification_attempts` เก็บผลของแต่ละครั้งที่ worker พยายามส่ง
+- request จากผู้ใช้ต้องใช้ branch scope ตามสิทธิ์ของผู้ใช้ แต่ worker ที่อ่าน job ซึ่งผ่านการตรวจสิทธิ์และบันทึกลง outbox แล้วใช้ trusted lookup แบบไม่จำกัดสาขา โดยค่า `null` หมายถึง trusted unscoped lookup; ค่า `[]` หมายถึงไม่มีสาขาที่มองเห็นและต้องไม่ใช้แทนกัน
+- ผลส่งจริงถือว่าสำเร็จเมื่อ LINE ตอบ 2xx พร้อม `x-line-request-id` เท่านั้น ส่วน retry ที่ LINE ตอบ 409 ต้องมี `x-line-accepted-request-id` หรือ request ID ที่ยอมรับได้ จึงบันทึกเป็น `skipped/accepted` ได้
+
+### Why it has to work this way
+
+- แยก user scope ออกจาก trusted worker scope เพื่อไม่ให้คิวหาเอกสารไม่พบหลังธุรกรรมถูก commit โดยยังคงตรวจสิทธิ์ที่จุดสร้าง/ทดสอบ job
+- บังคับ request ID เพื่อไม่ให้หน้าเว็บหรือ outbox รายงาน `sent` จาก HTTP response ที่ยืนยันการรับข้อความไม่ได้
+- HTTP 4xx ที่แก้ด้วยการส่งซ้ำไม่ได้เป็น permanent failure ทันที ยกเว้น 408, 409 และ 429 ที่ยัง retry ได้; HTTP status ต้องถูกเก็บใน attempt เพื่อให้ตรวจสอบย้อนหลังได้
+- ทุก request ที่ออกจากระบบไป LINE และ webhook self-test มี timeout 10 วินาที เพื่อไม่ให้ request ของผู้ใช้หรือ worker ค้างไม่สิ้นสุด
+- target sync ที่ timeout ให้เพิ่มยอด `failed`, คงข้อมูล target เดิม และทำรายการถัดไปต่อ ห้ามปิด target หรือยกเลิกทั้งรอบจาก network error รายการเดียว
+- PB, SB, PMT, RCP และการยืนยัน WTI/WTO ต้อง enqueue หลัง transaction commit เท่านั้น เพื่อให้ LINE ล่มแล้วไม่ทำให้ธุรกรรม ERP rollback
+
+### Queue scheduling boundary
+
+- การส่งครั้งแรก, ปุ่มประมวลผลคิว และปุ่ม retry ทำงานผ่าน outbox/worker เดียวกัน
+- SIT Vercel ใช้ Hobby plan ซึ่ง cron รันได้ถี่สุดวันละครั้ง จึงไม่สามารถรับประกัน automatic retry ตามช่วง 30 วินาที / 5 นาที / 15 นาที / 1 ชั่วโมงด้วย Vercel Cron ปัจจุบัน
+- หากต้องการ automatic retry ตามเวลาจริง ต้องใช้ Vercel Pro หรือ external scheduler ที่เรียก process endpoint ตามรอบ; ห้ามอ้างว่า retry อัตโนมัติครบถ้วนจนกว่าจะมี scheduler และ runtime evidence
+
+### Verification contract
+
+- Focused tests ต้องครอบคลุม routing/dispatch ของ WTI, WTO, PB, SB, PMT และ RCP, post-commit trigger, branch-scoped admin test send, permanent/transient error classification, request ID contract และ timeout ของ LINE transports
+- หลัง deploy ต้องทดสอบ connection, webhook signature, target send และ retry job จริง พร้อมตรวจ `line_request_id`/attempt ใหม่ในหน้า `/admin/line-settings`
