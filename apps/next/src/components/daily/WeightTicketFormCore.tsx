@@ -2411,6 +2411,7 @@ export function WeightTicketFormCore({
                               const lotGrossWeight = Math.max(0, Number(lot.grossWeight || 0))
                               const lotContainerWeight = Math.max(0, Number(lot.containerDeductionWeight || 0))
                               const lotNetBeforeImpurityWeight = Math.max(0, lotGrossWeight - lotContainerWeight)
+                              const showLotSummary = form.type !== 'WTI' || isCollapsed
                               return (
                                 <section
                                   aria-labelledby={`weight-ticket-lot-title-${lot.id}`}
@@ -2428,12 +2429,14 @@ export function WeightTicketFormCore({
                                       <ChevronDown className={cn("size-4 shrink-0 text-slate-500 transition-transform", isCollapsed ? "-rotate-90" : "rotate-0")} />
                                       <div className="min-w-0">
                                         <span className="block truncate text-sm font-bold text-slate-800" id={`weight-ticket-lot-title-${lot.id}`}>รายละเอียดเต๋าที่ {lotIndex + 1}</span>
-                                        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500">
-                                          <span>รวม {formatWeight(lotGrossWeight)} กก.</span>
-                                          <span>ภาชนะ {formatWeight(lotContainerWeight)} กก.</span>
-                                          <span className="text-emerald-700 font-bold">หลังหัก {formatWeight(lotNetBeforeImpurityWeight)} กก.</span>
-                                          <span>{getLineImages(lot).length} รูป</span>
-                                        </div>
+                                        {showLotSummary ? (
+                                          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500">
+                                            <span>รวม {formatWeight(lotGrossWeight)} กก.</span>
+                                            <span>ภาชนะ {formatWeight(lotContainerWeight)} กก.</span>
+                                            <span className="text-emerald-700 font-bold">หลังหัก {formatWeight(lotNetBeforeImpurityWeight)} กก.</span>
+                                            <span>{getLineImages(lot).length} รูป</span>
+                                          </div>
+                                        ) : null}
                                       </div>
                                     </button>
                                     <div className="flex items-center gap-1">

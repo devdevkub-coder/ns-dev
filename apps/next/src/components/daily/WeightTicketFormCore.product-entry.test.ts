@@ -155,6 +155,13 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('border-slate-300 bg-white p-3 shadow-sm')
   })
 
+  it('hides the WTI lot summary only while expanded and keeps WTO unchanged', () => {
+    expect(formSource).toContain("const showLotSummary = form.type !== 'WTI' || isCollapsed")
+    expect(formSource).toContain('{showLotSummary ? (')
+    expect(formSource).toContain('รวม {formatWeight(lotGrossWeight)} กก.')
+    expect(formSource).toContain('หลังหัก {formatWeight(lotNetBeforeImpurityWeight)} กก.')
+  })
+
   it('keeps WTI impurity evidence optional and reuses the shared attachment grid', () => {
     expect(formSource).toContain("const showImpurityImageField = form.type === 'WTI' || isOtherProductImpurity")
     expect(formSource).toContain("label={isOtherProductImpurity ? 'รูปสินค้าที่ปนมา' : 'รูปสิ่งเจือปน (ไม่บังคับ)'}")
