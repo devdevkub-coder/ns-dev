@@ -1859,6 +1859,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       price: 0,
       productId: summary.productId,
       qty: summary.remainingWeight,
+      salesProductId: null,
       tradingCostSourceId: null,
     }))
   }
@@ -1879,6 +1880,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       price: 0,
       productId: source.product_id ?? '',
       qty: remainingQty,
+      salesProductId: null,
       tradingCostSourceId: source.id,
     }
   }
