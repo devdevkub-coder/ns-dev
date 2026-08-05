@@ -1278,6 +1278,61 @@ export function WeightTicketFormCore({
     })
   }
 
+  function getLineEvidenceImagesForState(sourceForm: FormState, line: FormWeightTicketLine) {
+    if (!isImpurityPurchaseLine(line)) return getLineImages(line)
+    const sourceLine = sourceForm.lines.find((entry) => entry.id === line.impuritySourceLineId)
+    const sourceParentLine = sourceLine?.parentId
+      ? sourceForm.lines.find((entry) => entry.id === sourceLine.parentId)
+      : null
+    return getLineImages(sourceParentLine ?? sourceLine ?? line)
+  }
+
+  async function saveDraftBeforeAdding() {
+    // A new/empty line cannot be persisted yet. Save the current complete
+    // document first so adding another line never loses the existing draft.
+    if (isSaving || isLoadingTicket || Object.keys(errors).length > 0) return
+
+    setIsSaving(true)
+    try {
+      const ticket = await saveWeightTicket({
+        branchId: form.branchId,
+        id: savedTicket?.id ?? editingTicketId || undefined,
+        lines: form.lines.map((line) => ({
+          containerDeductionWeight: Number(line.containerDeductionWeight || 0),
+          deductionMode: line.deductionMode,
+          deductionValue: Number(line.deductionValue || 0),
+          grossWeight: Number(line.grossWeight || 0),
+          id: line.id,
+          imageNames: getLineEvidenceImagesForState(form, line).map((file) => file.rawValue),
+          impurityId: getLineImpurityId(line),
+          impurityProductId: line.impurityProductId ?? '',
+          impuritySourceLineId: line.impuritySourceLineId,
+          note: line.note,
+          productId: line.productId,
+          warehouseId: line.warehouseId,
+          parentId: line.parentId,
+        })),
+        partyId: form.partyId,
+        remark: form.remark.trim(),
+        type: form.type,
+        vehicleImageNames: form.vehicleImageFiles.map((file) => file.rawValue),
+        vehicleNo: form.vehicleNo.trim(),
+        godownName: form.godownName.trim(),
+      })
+      invalidatePurchaseBillOptionsCache()
+      const nextForm = ticketToFormState(ticket)
+      setLoadedTicket(ticket)
+      setSavedTicket(ticket)
+      setForm(nextForm)
+      setFormBaseline(formSafetySnapshot(nextForm))
+      setLoadError('')
+    } catch (caught) {
+      setLoadError(getErrorMessage(caught, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้'))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   function changeLineProduct(lineId: string, productId: string) {
     setMergeNotice('')
     setForm((current) => {
@@ -1302,8 +1357,9 @@ export function WeightTicketFormCore({
     })
   }
 
-  function addLine() {
+  async function addLine() {
     setMergeNotice('')
+    await saveDraftBeforeAdding()
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)
@@ -1341,8 +1397,9 @@ export function WeightTicketFormCore({
     return () => document.removeEventListener('keydown', handleMobileProductEditorKeyDown)
   }, [closeMobileProductEditor, mobileProductView])
 
-  function addSameProductLot(sourceLine: FormWeightTicketLine) {
+  async function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
+    await saveDraftBeforeAdding()
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = sourceLine.productId
     nextLine.warehouseId = sourceLine.warehouseId
