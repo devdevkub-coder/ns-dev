@@ -2411,7 +2411,7 @@ export function WeightTicketFormCore({
                               const lotGrossWeight = Math.max(0, Number(lot.grossWeight || 0))
                               const lotContainerWeight = Math.max(0, Number(lot.containerDeductionWeight || 0))
                               const lotNetBeforeImpurityWeight = Math.max(0, lotGrossWeight - lotContainerWeight)
-                              const showLotSummary = form.type !== 'WTI' || isCollapsed
+                              const showLotSummary = isCollapsed
                               return (
                                 <section
                                   aria-labelledby={`weight-ticket-lot-title-${lot.id}`}

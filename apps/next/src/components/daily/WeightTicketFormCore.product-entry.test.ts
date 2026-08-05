@@ -155,8 +155,9 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('border-slate-300 bg-white p-3 shadow-sm')
   })
 
-  it('hides the WTI lot summary only while expanded and keeps WTO unchanged', () => {
-    expect(formSource).toContain("const showLotSummary = form.type !== 'WTI' || isCollapsed")
+  it('hides the lot summary while expanded for both WTI and WTO', () => {
+    expect(formSource).toContain('const showLotSummary = isCollapsed')
+    expect(formSource).not.toContain("const showLotSummary = form.type !== 'WTI' || isCollapsed")
     expect(formSource).toContain('{showLotSummary ? (')
     expect(formSource).toContain('รวม {formatWeight(lotGrossWeight)} กก.')
     expect(formSource).toContain('หลังหัก {formatWeight(lotNetBeforeImpurityWeight)} กก.')
