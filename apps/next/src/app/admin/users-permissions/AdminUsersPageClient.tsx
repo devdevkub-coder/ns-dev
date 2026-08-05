@@ -820,7 +820,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     const sent = await sendUserPasswordLink(activationUser)
     if (sent) setActivationUser(null)
   }
-
   function openCredentialDialog(user: AdminUser) {
     if (user.accountStatus !== 'active') return
     setTemporaryPasswordResult(null)
