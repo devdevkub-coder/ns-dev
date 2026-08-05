@@ -200,7 +200,7 @@ Customer/Supplier branch eligibility เป็นส่วนหนึ่งข�
 - รองรับต้นทุนแบบ FIFO
 - แสดงกำไรต่อบรรทัด/ต่อบิลตามสิทธิ์ผู้ใช้
 - `WTO` เป็นเอกสารกันของออกจาก available โดยตรง และเป็น source สำหรับเปิด `Sales Bill`
-- เมื่อสร้าง `WTO` ระบบต้องสร้าง `pending_out` และทำให้ Stock Balance แสดงยอด `รอออก`; ขั้นนี้ยังไม่เขียน `stock_ledger` และยังไม่เกิด AR/revenue/COGS
+- เมื่อสร้างร่าง `WTO` ระบบต้องตรวจสอบน้ำหนัก/สต็อกโดยยังไม่สร้าง `pending_out`; เมื่อยืนยัน `WTO` แล้วจึงสร้าง `pending_out` และทำให้ Stock Balance แสดงยอด `รอออก`. ขั้นนี้ยังไม่เขียน `stock_ledger` และยังไม่เกิด AR/revenue/COGS
 - เมื่อ `Sales Bill` ดึง `WTO` ไปใช้ ระบบต้อง consume `pending_out`, เขียน `stock_ledger.ref_type = SB` เป็น stock-out, คำนวณ COGS จาก `stock_ledger.value_out`, และเปลี่ยนสถานะ WTO เป็นออกบิลแล้ว
 - เมื่อยกเลิก `Sales Bill` ที่ใช้ `WTO` ระบบต้องเขียน reversal แบบ append-only ด้วย `stock_ledger.ref_type = SB-CANCEL`, คืน `pending_out` กลับมา, และคืน WTO เป็นสถานะรอเปิดบิล
 - รองรับ sales plan และการอ้างอิงราคา LME

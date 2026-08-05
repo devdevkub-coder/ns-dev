@@ -30,7 +30,7 @@ async function resolveWeightTicketBucket() {
 export async function POST(request: Request) {
   try {
     const auth = await getCurrentAuthContext()
-    if (!hasPermission(auth, 'daily.weight_tickets.create') && !hasPermission(auth, 'daily.weight_tickets.edit')) {
+    if (!hasPermission(auth, 'daily.weight_tickets.create') && !hasPermission(auth, 'daily.weight_tickets.update')) {
       throw new AuthContextError('ไม่มีสิทธิ์อัปโหลดไฟล์แนบใบรับ-ส่งของ', 403)
     }
 
@@ -62,8 +62,11 @@ export async function POST(request: Request) {
     })
     if (error) throw new Error(`Storage upload failed: ${error.message}`)
 
-    const { data } = supabase.storage.from(bucket).getPublicUrl(storageKey)
-    return NextResponse.json({ bucket, fileName, storageKey, url: data.publicUrl }, { status: 201 })
+    const { data, error: signedUrlError } = await supabase.storage.from(bucket).createSignedUrl(storageKey, 60 * 60 * 24 * 365)
+    if (signedUrlError || !data?.signedUrl) {
+      throw new Error(`Storage signed URL failed: ${signedUrlError?.message ?? 'ไม่สามารถสร้าง signed URL ได้'}`)
+    }
+    return NextResponse.json({ bucket, fileName, storageKey, url: data.signedUrl }, { status: 201 })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'อัปโหลดไฟล์แนบ WTI/WTO ไม่สำเร็จ', 500)

@@ -669,7 +669,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           holdIds: cancellingHoldIds,
           occurredAt: cancelledAt,
           statusLogEventKey,
-          statusSnapshot: 'released',
+          statusSnapshot: 'cancelled',
           weightTicketId: existing.id,
         })
       }

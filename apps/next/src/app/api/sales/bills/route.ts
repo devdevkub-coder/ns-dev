@@ -1402,7 +1402,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
         ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
         cancelled_at: null,
         doc_type: 'WTO',
-        status: 'delivered',
+        status: { in: ['delivered', 'partially_billed'] },
       },
     }),
     prisma.po_sells.findMany({

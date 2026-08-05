@@ -26,6 +26,15 @@ updated: 2026-08-05
 
 What is what: upload result คือสถานะของไฟล์แนบแต่ละไฟล์ ไม่ใช่สถานะของเอกสาร WTI/WTO. Why it has to be like this: หน้างานต้องรู้ทันทีว่าหลักฐานรูปใดหายไป และไม่ควรเสียรูปที่อัปโหลดสำเร็จเพียงเพราะอีกรูปหนึ่งมีปัญหา.
 
+## WTO downstream integrity review (2026-08-05)
+
+- ร่าง WTO ตรวจน้ำหนัก/สต็อกก่อนบันทึก แต่ยังไม่กันของออกจาก available; `pending_out` จะถูกสร้างเมื่อผู้ใช้กด `ยืนยันส่งของ` เท่านั้น. เหตุผลคือร่างที่ยังไม่ยืนยันไม่ควรทำให้ยอดสต็อกที่รอออกเปลี่ยน และจุดยืนยันเป็น transaction boundary ของการกันของ.
+- Sales Bill ยกเลิกหลังมี usage log `returned_from_sales_bill` หรือ `loss_from_sales_bill` ได้โดยเขียน `SB-CANCEL` แบบ append-only เพื่อคืน stock ตาม movement เดิม แต่ต้องไม่ reopen/recreate `pending_out` ซ้ำ.
+- WTO ที่ถูกเปิดบิลบางส่วน (`partially_billed`) ยังเป็นตัวเลือกของ Sales Bill ได้ โดยระบบต้องใช้ remaining quantity/weight ของแต่ละบรรทัด ไม่เปิดให้ตัดยอดเดิมซ้ำ.
+- การยกเลิก WTO บันทึก audit snapshot เป็น `cancelled` ให้ตรงกับสถานะ hold ที่ถูกยกเลิก. ไฟล์แนบ WTI/WTO ตรวจสิทธิ์ `daily.weight_tickets.update` และคืน signed URL จาก bucket ที่ตั้งค่าไว้ แทน public URL เพื่อไม่เปิดหลักฐานธุรกรรมเป็นสาธารณะ.
+
+What is what: `pending_out` คือ reservation ของ stock ที่ยืนยันแล้ว, usage log คือประวัติการนำ WTO ไปใช้/คืน/สูญเสีย, และ attachment URL คือสิทธิ์อ่านหลักฐานที่มีอายุจำกัด. Why it has to be like this: downstream cancellation ต้องคืน stock ด้วย ledger reversal เสมอ แต่การคืน/สูญเสียก่อนหน้าไม่ควรทำให้ reservation ถูกสร้างซ้ำ และรูปภายในต้องไม่เผยแพร่ผ่าน URL สาธารณะ.
+
 ## Attachment chooser scroll stability and weight-field alignment (2026-08-03)
 
 - ตัวเลือกแหล่งรูปของรูปรถ รูปสินค้า/เต๋า และรูปสิ่งเจือปนใน WTI/WTO ต้องเปิดทับฟอร์มโดยไม่เลื่อนเนื้อหาด้านหลัง: ก่อนเปิดให้เก็บตำแหน่งของ scroll container ที่ครอบ tile รูป ล็อก container เหล่านั้นตลอดช่วงเปิดและ animation ปิด 400ms ใช้ focus แบบ `preventScroll` และคืนทั้งตำแหน่งกับ focus เดิมเมื่อปิดด้วยปุ่ม `ยกเลิก`, backdrop หรือ `Escape`.
