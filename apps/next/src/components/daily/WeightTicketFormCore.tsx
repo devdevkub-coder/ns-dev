@@ -1418,7 +1418,9 @@ export function WeightTicketFormCore({
       const nextForm = ticketToFormState(ticket)
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
-      setForm(nextForm)
+      // This is a background save started by "เพิ่มสินค้า". Keep the live
+      // form untouched because the user may already be editing the newly
+      // opened line while this response is in flight.
       setFormBaseline(formSafetySnapshot(nextForm))
       setLoadError('')
       return nextForm
@@ -1451,7 +1453,19 @@ export function WeightTicketFormCore({
 
   async function addLine() {
     setMergeNotice('')
-    if (!await saveDraftBeforeAdding()) return
+    const headerErrorKeys = ['branchId', 'partyId', 'vehicleNo', 'godownName']
+    const firstHeaderError = headerErrorKeys.find((key) => errors[key])
+    const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
+    const hasBlockingLineError = form.lines.length > 0
+      && Boolean(firstLineError)
+      && !form.lines.some((line) => !line.productId)
+
+    if (isSaving || isLoadingTicket || firstHeaderError || hasBlockingLineError || saveInFlightRef.current) {
+      if (!await saveDraftBeforeAdding()) return
+    } else {
+      void saveDraftBeforeAdding()
+    }
+
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)

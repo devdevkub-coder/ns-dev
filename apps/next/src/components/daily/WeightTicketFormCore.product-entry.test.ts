@@ -702,7 +702,18 @@ describe('weight-ticket product editor behavior', () => {
     })
 
     expect(mocks.saveWeightTicket).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).toBeNull()
+    expect(container.querySelector('[aria-label="ปิดหน้ากรอกสินค้า"]')).not.toBeNull()
+    expect(container.querySelector('[id^="weight-product-"]')).not.toBeNull()
+
+    const remarkInput = container.querySelector<HTMLTextAreaElement>('textarea[placeholder="ระบุหมายเหตุเพิ่มเติม"]')
+    expect(remarkInput).not.toBeNull()
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      setter?.call(remarkInput, 'แก้ไขระหว่างกำลังบันทึก')
+      remarkInput?.dispatchEvent(new Event('input', { bubbles: true }))
+      remarkInput?.dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
 
     await act(async () => {
       resolveSave?.(persistedDraftTicket)
@@ -713,6 +724,7 @@ describe('weight-ticket product editor behavior', () => {
     expect(mocks.saveWeightTicket).toHaveBeenCalledTimes(1)
     expect(container.querySelector('[aria-label="ปิดหน้ากรอกสินค้า"]')).not.toBeNull()
     expect(container.querySelector('[id^="weight-product-"]')).not.toBeNull()
+    expect(remarkInput?.value).toBe('แก้ไขระหว่างกำลังบันทึก')
     expect(container.querySelectorAll('[id^="weight-ticket-line-card-"]')).toHaveLength(1)
   })
 })
