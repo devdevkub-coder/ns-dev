@@ -2132,6 +2132,7 @@ export function WeightTicketFormCore({
                   <div className="text-sm font-medium text-slate-700">รายการทั้งหมด {getMainParentLines(form.lines).length} รายการ</div>
                   <Button
                     aria-describedby={showError('lines') ? 'weight-ticket-lines-error' : undefined}
+                    className="h-9 border-emerald-600 bg-emerald-600 px-3 font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
                     id="weight-ticket-add-product"
                     size="xs"
                     type="button"
@@ -2267,10 +2268,9 @@ export function WeightTicketFormCore({
                           {products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
                         </div>
                         <Button
-                          className="h-8 shrink-0 px-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                          className="h-8 shrink-0 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 hover:text-white"
                           size="xs"
                           type="button"
-                          variant="ghost"
                           onClick={addLine}
                         >
                           <Plus className="mr-1 size-3" />
@@ -2409,8 +2409,13 @@ export function WeightTicketFormCore({
                               const lotContainerWeight = Math.max(0, Number(lot.containerDeductionWeight || 0))
                               const lotNetBeforeImpurityWeight = Math.max(0, lotGrossWeight - lotContainerWeight)
                               return (
-                                <div key={lot.id} className="bg-white p-3 rounded-xl border border-slate-200/60 space-y-3">
-                                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <section
+                                  aria-labelledby={`weight-ticket-lot-title-${lot.id}`}
+                                  className="space-y-3 rounded-xl border border-slate-300 bg-white p-3 shadow-sm ring-1 ring-slate-200/60 sm:p-4"
+                                  data-testid={`weight-ticket-lot-${lot.id}`}
+                                  key={lot.id}
+                                >
+                                  <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                                     <button
                                       type="button"
                                       className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none"
@@ -2419,7 +2424,7 @@ export function WeightTicketFormCore({
                                     >
                                       <ChevronDown className={cn("size-4 shrink-0 text-slate-500 transition-transform", isCollapsed ? "-rotate-90" : "rotate-0")} />
                                       <div className="min-w-0">
-                                        <div className="text-sm font-bold text-slate-700">เต๋าที่ {lotIndex + 1}</div>
+                                        <span className="block truncate text-sm font-bold text-slate-800" id={`weight-ticket-lot-title-${lot.id}`}>รายละเอียดเต๋าที่ {lotIndex + 1}</span>
                                         <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500">
                                           <span>รวม {formatWeight(lotGrossWeight)} กก.</span>
                                           <span>ภาชนะ {formatWeight(lotContainerWeight)} กก.</span>
@@ -2502,7 +2507,7 @@ export function WeightTicketFormCore({
                                       </FieldBlock>
                                     </>
                                   ) : null}
-                                </div>
+                                </section>
                               )
                             })
                           })()}
@@ -2657,6 +2662,7 @@ export function WeightTicketFormCore({
                                 const selectedImpurityId = getLineImpurityId(child)
                                 const hasSelectedImpurity = Boolean(selectedImpurityId)
                                 const isOtherProductImpurity = isOtherProductImpurityOption(selectedImpurityId)
+                                const showImpurityImageField = form.type === 'WTI' || isOtherProductImpurity
                                 const impurityOptionsForChild = optionsWithCurrentValue(impurityOptions, selectedImpurityId, child.impurityName)
                                 const impurityPurchaseProducts = optionsWithCurrentValue(
                                   normalProducts.filter((product) => product.id !== line.productId),
@@ -2869,9 +2875,9 @@ export function WeightTicketFormCore({
                                         เลือกสินค้าที่ปนมาก่อน จึงจะกรอกน้ำหนักหักและเลือกซื้อ/ไม่ซื้อได้
                                       </div>
                                     ) : null}
-                                    {isOtherProductImpurity ? (
+                                    {showImpurityImageField ? (
                                       <div className="mt-2 border-t border-slate-100 pt-2">
-                                        <FieldBlock label="รูปสินค้าที่ปนมา">
+                                        <FieldBlock label={isOtherProductImpurity ? 'รูปสินค้าที่ปนมา' : 'รูปสิ่งเจือปน (ไม่บังคับ)'}>
                                           <AttachmentProfileGrid
                                             id={`weight-images-${child.id}`}
                                             addLabel="เพิ่มรูป"
@@ -2948,7 +2954,7 @@ export function WeightTicketFormCore({
                           เพิ่มเต๋า
                         </Button>
                         <Button
-                          className="h-10 border-blue-200 bg-white text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:border-slate-200 disabled:text-slate-400"
+                          className="h-10 border-red-600 bg-red-600 text-sm font-semibold text-white hover:border-red-700 hover:bg-red-700 hover:text-white disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                           disabled={!activeLine.productId || calculateRealLotSummary(activeLine, form.lines).lotCount === 0}
                           type="button"
                           variant="outline"

@@ -132,6 +132,23 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4')
   })
 
+  it('uses the requested action colors and gives each lot a distinct detail section', () => {
+    expect(formSource).toContain('border-emerald-600 bg-emerald-600')
+    expect(formSource).toContain('border-red-600 bg-red-600')
+    expect(formSource).toContain('data-testid={`weight-ticket-lot-${lot.id}`}')
+    expect(formSource).toContain('รายละเอียดเต๋าที่ {lotIndex + 1}')
+    expect(formSource).toContain('border-slate-300 bg-white p-3 shadow-sm')
+  })
+
+  it('keeps WTI impurity evidence optional and reuses the shared attachment grid', () => {
+    expect(formSource).toContain("const showImpurityImageField = form.type === 'WTI' || isOtherProductImpurity")
+    expect(formSource).toContain("label={isOtherProductImpurity ? 'รูปสินค้าที่ปนมา' : 'รูปสิ่งเจือปน (ไม่บังคับ)'}")
+    expect(formSource).toContain('onAppend={(files) => void appendLineImages(child.id, files)}')
+    expect(formSource).toContain('if (isParent || isSecondaryLot) {')
+    expect(formSource).toContain('if (getLineImages(line).length === 0)')
+    expect(formSource).not.toContain('รูปสิ่งเจือปน (ไม่บังคับ)*')
+  })
+
   it('shows each product card a compact thumbnail from its real-lot evidence only', () => {
     expect(formSource).toContain('export function getProductCardImages(line: FormWeightTicketLine, allLines: FormWeightTicketLine[])')
     expect(formSource).toContain('...(isImpurityPurchaseLine(line) ? [] : [line])')
