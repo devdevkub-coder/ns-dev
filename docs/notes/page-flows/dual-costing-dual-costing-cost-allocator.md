@@ -5,7 +5,7 @@ tags:
   - menu
   - dual-costing
 status: accepted-baseline
-updated: 2026-07-27
+updated: 2026-08-05
 route: /dual-costing/cost-allocator
 ---
 
@@ -61,6 +61,7 @@ Target write behavior เมื่อ implement จริง:
 - แสดง target sale rows ที่ยังค้าง allocate
 - preview lots ตาม allocation mode
 - แสดง expected revenue, total cost, expected margin
+- แสดงต้นทุนเฉลี่ยต่อกิโลกรัมของ preview จาก `totalCostMatch / totalToMatch`
 - เปิดทางให้ confirm allocation จาก preview ปัจจุบัน
 - validate ว่า preview รวมครบ target qty ก่อนเปิดให้ Confirm
 
