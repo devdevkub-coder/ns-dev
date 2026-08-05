@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-31
+updated: 2026-08-05
 route: /sales/bills
 ---
 
@@ -96,6 +96,7 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - รายการที่ระบบดึงจาก source เอกสารจริง (`PB Trading` หรือ `WTO`) ห้ามลบรายแถวจาก item table; ต้องลบผ่าน selector/source owner เท่านั้น และถ้าเปลี่ยนแถวที่ผูก PO Sell กลับเป็น Spot Sale ต้อง reset ราคาเป็นว่าง/0 พร้อมรวม child Spot Sale ที่ระบบเคย split กลับเข้ารายการเดิม
 - Sales Bill contracts must use direct WTO source allocation for stock sale lines
 - When editing a WTO-backed Stock SB, the edit form and read model must preserve the original WTO `deliveryLineId` and `deliverySummaryId` from durable allocation facts. The UI must not generate edit-only source ids, because the PATCH validation resolves against the original WTO summary keys before saving price/discount/weight changes.
+- เมื่อกด `เพิ่มแถว` เพื่อ split รายการ WTO ผู้ใช้เลือก `สินค้าในบิลขาย` จาก Product Master ที่ active ได้ เพื่อให้ชื่อใน detail/print ของ SB สะท้อนเกรดที่ลูกค้าเรียกจริง; ระบบบันทึกเป็น sales-display snapshot ใน `sales_bill_lines.meta` เท่านั้น ส่วน `product_id`, `product_code_snapshot`, `product_name_snapshot`, `sales_bill_source_allocations`, `pending_out`, stock ledger, COGS และ PO Sell allocation ยังคงอ้างสินค้า source ของ WTO เดิมทั้งหมด จึงไม่ใช่การแปลงสต็อกหรือเปลี่ยนสินค้าในรายงาน source-product.
 - receipt active แล้วต้อง lock cancel/edit field การเงิน ทั้ง legacy `receipts` และ new `customer_receipt_allocations` ที่ parent `customer_receipts` ยัง active
 
 ## Side Effects
