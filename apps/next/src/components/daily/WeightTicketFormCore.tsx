@@ -1338,7 +1338,7 @@ export function WeightTicketFormCore({
     try {
       const ticket = await saveWeightTicket({
         branchId: form.branchId,
-        id: savedTicket?.id ?? editingTicketId || undefined,
+        id: savedTicket?.id ?? editingTicketId,
         lines: form.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
