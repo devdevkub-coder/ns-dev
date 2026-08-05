@@ -8,10 +8,13 @@ import {
 
 describe('browser login completion contract', () => {
   it('accepts only a successful response with the expected login contract', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(Response.json({ lastLoginAt: '2026-07-19T00:00:00.000Z' }))
+    const fetchImpl = vi.fn().mockResolvedValue(Response.json({ authUserId: 'auth-user-id', lastLoginAt: '2026-07-19T00:00:00.000Z' }))
     const signOut = vi.fn().mockResolvedValue(undefined)
 
-    await expect(completeBrowserLoginSession({ fetchImpl, signOut })).resolves.toEqual({ ok: true })
+    await expect(completeBrowserLoginSession({ expectedAuthUserId: 'auth-user-id', fetchImpl, signOut })).resolves.toEqual({
+      lastLoginAt: '2026-07-19T00:00:00.000Z',
+      ok: true,
+    })
     expect(fetchImpl).toHaveBeenCalledWith('/api/auth/login-complete', {
       cache: 'no-store',
       credentials: 'include',
@@ -24,13 +27,14 @@ describe('browser login completion contract', () => {
     let receiver: unknown = 'not called'
     const fetchImpl = function (this: unknown) {
       receiver = this
-      return Promise.resolve(Response.json({ lastLoginAt: '2026-07-19T00:00:00.000Z' }))
+      return Promise.resolve(Response.json({ authUserId: 'auth-user-id', lastLoginAt: '2026-07-19T00:00:00.000Z' }))
     } as typeof fetch
 
     await expect(completeBrowserLoginSession({
+      expectedAuthUserId: 'auth-user-id',
       fetchImpl,
       signOut: vi.fn().mockResolvedValue(undefined),
-    })).resolves.toEqual({ ok: true })
+    })).resolves.toEqual({ lastLoginAt: '2026-07-19T00:00:00.000Z', ok: true })
     expect(receiver).toBeUndefined()
   })
 
@@ -42,6 +46,7 @@ describe('browser login completion contract', () => {
     const signOut = vi.fn().mockResolvedValue(undefined)
 
     await expect(completeBrowserLoginSession({
+      expectedAuthUserId: 'auth-user-id',
       fetchImpl: vi.fn().mockResolvedValue(response),
       signOut,
     })).resolves.toEqual({ ok: false, message })
@@ -52,9 +57,21 @@ describe('browser login completion contract', () => {
     const signOut = vi.fn().mockResolvedValue(undefined)
 
     await expect(completeBrowserLoginSession({
+      expectedAuthUserId: 'auth-user-id',
       fetchImpl: vi.fn().mockRejectedValue(new Error('network down')),
       signOut,
     })).resolves.toEqual({ ok: false, message: 'เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' })
+    expect(signOut).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a successful response bound to a different auth user', async () => {
+    const signOut = vi.fn().mockResolvedValue(undefined)
+
+    await expect(completeBrowserLoginSession({
+      expectedAuthUserId: 'expected-user-id',
+      fetchImpl: vi.fn().mockResolvedValue(Response.json({ authUserId: 'different-user-id', lastLoginAt: '2026-07-19T00:00:00.000Z' })),
+      signOut,
+    })).resolves.toEqual({ ok: false, message: 'Session เข้าสู่ระบบไม่ตรงกับบัญชีที่เลือก กรุณาลองใหม่' })
     expect(signOut).toHaveBeenCalledTimes(1)
   })
 })

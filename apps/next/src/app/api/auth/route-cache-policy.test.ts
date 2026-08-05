@@ -67,6 +67,7 @@ describe('auth route cache policy', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ authUserId: 'auth-user-id' }))
   })
 
   it('marks POST /api/auth/password-changed as private no-store without changing its payload contract', async () => {

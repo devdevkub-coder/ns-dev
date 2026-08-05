@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { permissionCodesForPath } from '@/lib/navigation'
+import { preserveAuthResponseHeaders } from '@/lib/proxy-auth-headers'
 
 const publicPaths = new Set(['/login', '/forgot-password', '/reset-password', '/api/auth/forgot-password', '/api/health', '/api/line/webhook'])
 
@@ -17,6 +18,11 @@ function loginRedirect(request: NextRequest) {
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
+}
+
+function authErrorResponse(source: NextResponse, target: NextResponse) {
+  preserveAuthResponseHeaders(source.headers, target.headers)
+  return target
 }
 
 function isPasswordChangeAllowedPath(pathname: string) {
@@ -63,25 +69,27 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (authError) {
-    return pathname.startsWith('/api/') ? jsonError('ตรวจสอบ session ไม่สำเร็จ', 401) : loginRedirect(request)
+    return authErrorResponse(response, pathname.startsWith('/api/')
+      ? jsonError('ตรวจสอบ session ไม่สำเร็จ', 401)
+      : loginRedirect(request))
   }
 
   if (!user) {
-    return pathname.startsWith('/api/') ? jsonError('กรุณาเข้าสู่ระบบ', 401) : loginRedirect(request)
+    return authErrorResponse(response, pathname.startsWith('/api/') ? jsonError('กรุณาเข้าสู่ระบบ', 401) : loginRedirect(request))
   }
 
   const { data: appUserAccessRows, error: appUserError } = await supabase.rpc('current_app_user_access_context')
 
   if (appUserError) {
-    return pathname.startsWith('/api/')
+    return authErrorResponse(response, pathname.startsWith('/api/')
       ? jsonError('ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ', 500)
-      : new NextResponse('ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ', { status: 500 })
+      : new NextResponse('ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ', { status: 500 }))
   }
 
   if (!Array.isArray(appUserAccessRows)) {
-    return pathname.startsWith('/api/')
+    return authErrorResponse(response, pathname.startsWith('/api/')
       ? jsonError('รูปแบบข้อมูลบัญชีผู้ใช้งานไม่ถูกต้อง', 500)
-      : new NextResponse('รูปแบบข้อมูลบัญชีผู้ใช้งานไม่ถูกต้อง', { status: 500 })
+      : new NextResponse('รูปแบบข้อมูลบัญชีผู้ใช้งานไม่ถูกต้อง', { status: 500 }))
   }
 
   const currentAppUser = appUserAccessRows[0] as {
@@ -91,12 +99,12 @@ export async function proxy(request: NextRequest) {
 
   if (currentAppUser?.must_change_password === true && !isPasswordChangeAllowedPath(pathname)) {
     if (pathname.startsWith('/api/')) {
-      return jsonError('ต้องเปลี่ยน password ก่อนใช้งาน', 403)
+      return authErrorResponse(response, jsonError('ต้องเปลี่ยน password ก่อนใช้งาน', 403))
     }
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/admin/change-password'
     redirectUrl.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
-    return NextResponse.redirect(redirectUrl)
+    return authErrorResponse(response, NextResponse.redirect(redirectUrl))
   }
 
   const requiredPermissions = permissionCodesForPath(pathname)
@@ -109,9 +117,9 @@ export async function proxy(request: NextRequest) {
     const hasPermission = permissionResults.some((result) => result.data === true)
 
     if (permissionError) {
-      return pathname.startsWith('/api/')
+      return authErrorResponse(response, pathname.startsWith('/api/')
         ? jsonError('ตรวจสอบสิทธิ์ไม่สำเร็จ', 500)
-        : new NextResponse('ตรวจสอบสิทธิ์ไม่สำเร็จ', { status: 500 })
+        : new NextResponse('ตรวจสอบสิทธิ์ไม่สำเร็จ', { status: 500 }))
     }
 
     if (hasPermission === true) {
@@ -124,7 +132,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const message = requiredPermissions.length > 0 ? 'ไม่มีสิทธิ์ใช้งานส่วนนี้' : 'ต้องใช้บัญชีที่เปิดใช้งาน'
-  return pathname.startsWith('/api/') ? jsonError(message, 403) : NextResponse.redirect(new URL('/login', request.url))
+  return authErrorResponse(response, pathname.startsWith('/api/') ? jsonError(message, 403) : NextResponse.redirect(new URL('/login', request.url)))
 }
 
 export const config = {

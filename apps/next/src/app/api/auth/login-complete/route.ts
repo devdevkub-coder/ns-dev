@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     })
 
     return authJson({
+      authUserId: context.authUser.id,
       lastLoginAt: loggedInAt.toISOString(),
     })
   } catch (caught) {

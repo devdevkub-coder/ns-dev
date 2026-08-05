@@ -1,4 +1,4 @@
-export type LoginContractResult = { ok: true } | { ok: false; message: string }
+export type LoginContractResult = { ok: true; lastLoginAt: string } | { ok: false; message: string }
 export type PasswordChangedAcknowledgementResult = { ok: true } | { ok: false; message: string }
 
 export const PASSWORD_CHANGE_ACKNOWLEDGEMENT_ERROR = 'บันทึกสถานะรหัสผ่านไม่สำเร็จ กรุณาลองใหม่'
@@ -16,6 +16,7 @@ async function signOutLocal(signOut: () => Promise<unknown>) {
 export async function completeBrowserLoginSession(input: {
   fetchImpl: typeof fetch
   signOut: () => Promise<unknown>
+  expectedAuthUserId: string
 }): Promise<LoginContractResult> {
   const fetchImpl = input.fetchImpl
 
@@ -32,7 +33,12 @@ export async function completeBrowserLoginSession(input: {
       return { ok: false, message: loginContractErrorMessage(response.status) }
     }
 
-    return { ok: true }
+    if (!('authUserId' in payload) || payload.authUserId !== input.expectedAuthUserId) {
+      await signOutLocal(input.signOut)
+      return { ok: false, message: 'Session เข้าสู่ระบบไม่ตรงกับบัญชีที่เลือก กรุณาลองใหม่' }
+    }
+
+    return { ok: true, lastLoginAt: payload.lastLoginAt }
   } catch {
     await signOutLocal(input.signOut)
     return { ok: false, message: 'เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' }

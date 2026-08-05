@@ -37,7 +37,7 @@ describe('LoginPageClient existing session', () => {
         signOut: vi.fn().mockResolvedValue({}),
       },
     })
-    mocks.getSessionSafely.mockResolvedValue({ access_token: 'existing-session' })
+    mocks.getSessionSafely.mockResolvedValue({ access_token: 'existing-session', user: { id: 'existing-user-id' } })
     mocks.completeBrowserLoginSession.mockResolvedValue({
       ok: false,
       message: 'ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ กรุณาลองใหม่',
