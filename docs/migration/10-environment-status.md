@@ -1,5 +1,10 @@
 # 10 Environment Status
 
+### WTI Optional Header Godown 2026-08-05
+
+- Applied and recorded `20260805110000_allow_empty_wti_godown.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the verified PostgreSQL connection. It replaces only `weight_tickets_godown_name_required_check`; no WTI/WTO rows were changed.
+- The guard now permits a blank header godown only for `WTI`. `WTO` continues to require a non-blank header godown, and its existing per-line stock-warehouse validation remains unchanged. Postflight confirmed the new conditional constraint and its migration-history row.
+
 ### Trading Allocation Fact Schema Parity 2026-08-01
 
 - Applied and recorded existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the verified non-pooling PostgreSQL connection. Dev-target already had the same migration, columns, FK, and indexes.
