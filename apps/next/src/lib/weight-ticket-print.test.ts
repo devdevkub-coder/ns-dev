@@ -1,9 +1,11 @@
+import { renderToBuffer } from '@react-pdf/renderer'
 import { Children, createElement, isValidElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTicketProductBreakdownTable'
 import type { CompanyProfilePrintValues } from './company-profile'
+import { ensurePdfFontsRegistered } from './server/pdf/fonts'
 import { WeightTicketDocument } from './server/pdf/weight-ticket-document'
 import { buildReceiptPrintHtml } from './weight-ticket-print'
 import type { WeightTicketRecord } from './weight-tickets'
@@ -16,7 +18,7 @@ const profile: CompanyProfilePrintValues = {
   branchCode: '00000',
   email: null,
   fax: null,
-  footerNote: null,
+  footerNote: 'ขอบคุณที่ใช้บริการค่ะ/ครับ',
   logoUrl: null,
   name: 'NS Scrap',
   nameEn: null,
@@ -207,6 +209,10 @@ function tableRowCells(html: string, label: string) {
   ))
 }
 
+function countPdfPages(buffer: Buffer) {
+  return buffer.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length ?? 0
+}
+
 describe('weight ticket print HTML', () => {
   it('loads the existing local Thai fonts without external stylesheets', () => {
     const html = buildReceiptPrintHtml(ticket, profile)
@@ -218,6 +224,8 @@ describe('weight ticket print HTML', () => {
     expect(html).toContain("url('/fonts/NotoSansThai-Regular.ttf')")
     expect(html).toContain("url('/fonts/NotoSansThai-Bold.ttf')")
     expect(html).toContain("font-family: 'Noto Sans Thai', Arial, sans-serif")
+    expect(html).not.toContain('ขอบคุณที่ใช้บริการค่ะ/ครับ')
+    expect(html).not.toContain('class="footer"')
   })
 
   it('uses the complete ticket totals in Weight Info when impurity is purchased as another product', () => {
@@ -242,6 +250,14 @@ describe('weight ticket print HTML', () => {
     expect(text).toContain('32.00 kg')
     expect(text).toContain('429.00 kg')
   })
+
+  it('keeps the summary and signatures on one main A4 page when the item rows fit', async () => {
+    await ensurePdfFontsRegistered()
+
+    const buffer = await renderToBuffer(WeightTicketDocument({ profile, ticket }))
+
+    expect(countPdfPages(Buffer.from(buffer))).toBe(1)
+  }, 30_000)
 
   it('renders every real lot with traceable raw arithmetic while keeping child impurity in the product subtotal', () => {
     const html = renderToStaticMarkup(createElement(WeightTicketProductBreakdownTable, {

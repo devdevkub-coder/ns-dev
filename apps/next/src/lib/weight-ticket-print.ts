@@ -331,15 +331,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     `
   }
 
-  function emptyRows(count: number) {
-    const tds = isReceipt
-      ? '<td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>'
-      : '<td>&nbsp;</td><td></td><td></td><td></td><td></td>'
-    return Array.from({ length: Math.max(0, count) }, () => (
-      `<tr class="empty">${tds}</tr>`
-    )).join('')
-  }
-
   const printRows = buildPrintWeightRows(ticket, isReceipt)
   const pages: Array<{ capacity: number; items: PrintWeightRow[] }> = []
   let cursor = 0
@@ -356,7 +347,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   const pageHtml = pages.map((page, pageIndex) => {
     const isLastPage = pageIndex === totalPages - 1
     const rows = page.items.map((row) => rowHtml(row)).join('')
-    const fillerRows = emptyRows(page.capacity - page.items.length)
     const totalAfterContainer = Math.max(0, ticket.totals.grossWeight - ticket.totals.containerDeductionWeight)
 
     return `
@@ -416,7 +406,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </thead>
           <tbody>
             ${rows}
-            ${fillerRows}
           </tbody>
           ${isLastPage ? `
             <tfoot>
@@ -473,11 +462,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
           </section>
         ` : '<div class="continued">ต่อหน้าถัดไป</div>'}
-
-        <footer class="footer">
-          <span>${escapeHtml(profile.footerNote || '')}</span>
-          <span>หน้า ${pageIndex + 1} / ${totalPages}</span>
-        </footer>
       </main>
     `
   }).join('')
@@ -551,7 +535,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 16px; font-weight: 700; color: #1e293b; }
       .continued { margin-top: auto; padding-top: 8px; text-align: right; color: #64748b; font-weight: 700; }
-      .footer { margin-top: auto; padding-top: 5px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 10px; flex: 0 0 auto; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
         body { background: white; font-size: 10.5px; line-height: 1.18; }
@@ -586,7 +569,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .summary-card .value { font-size: 10.5px; }
         .signatures { gap: 12px; margin-top: 18px; }
         .sig-line { margin-top: 12px; padding-top: 3px; }
-        .footer { padding-top: 3px; }
       }
     </style>
   </head><body>

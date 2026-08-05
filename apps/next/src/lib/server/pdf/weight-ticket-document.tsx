@@ -109,6 +109,7 @@ const styles = StyleSheet.create({
     color: TEXT_DARK,
     lineHeight: 1.24,
   },
+  mainPage: { paddingTop: 12, paddingBottom: 8 },
   accent: {
     height: 3,
     backgroundColor: ACCENT_GREEN,
@@ -174,8 +175,8 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
   },
   tableHeaderCell: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 3,
     paddingRight: 3,
     fontSize: 9,
@@ -185,8 +186,8 @@ const styles = StyleSheet.create({
     borderRightColor: BORDER,
   },
   tableHeaderCellLast: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 3,
     paddingRight: 3,
     fontSize: 9,
@@ -200,8 +201,8 @@ const styles = StyleSheet.create({
     borderColor: BORDER_LIGHT,
   },
   tableCell: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 3,
     paddingRight: 3,
     fontSize: 9,
@@ -209,15 +210,15 @@ const styles = StyleSheet.create({
     borderRightColor: BORDER_LIGHT,
   },
   tableCellLast: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 3,
     paddingRight: 3,
     fontSize: 9,
   },
   tableCellRight: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 3,
     paddingRight: 3,
     fontSize: 9,
@@ -226,16 +227,16 @@ const styles = StyleSheet.create({
     borderRightColor: BORDER_LIGHT,
   },
   tableCellRightLast: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 3,
     paddingRight: 3,
     fontSize: 9,
     textAlign: 'right',
   },
   tableCellStrong: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 3,
     paddingRight: 3,
     fontSize: 9,
@@ -246,8 +247,8 @@ const styles = StyleSheet.create({
     borderRightColor: BORDER_LIGHT,
   },
   tableCellStrongLast: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 3,
     paddingRight: 3,
     fontSize: 9,
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
   bgProductTotal: { backgroundColor: BG_PRODUCT_TOTAL, fontWeight: 700 },
 
   // Bottom section
-  bottomGrid: { flexDirection: 'row', gap: 7, marginTop: 8 },
+  bottomGrid: { flexDirection: 'row', gap: 7, marginTop: 6 },
   bottomPanelBody: { padding: 4, flexDirection: 'row', flexWrap: 'wrap' },
   bottomField: { width: '50%', marginBottom: 1, paddingRight: 5 },
   weightInfoBody: { paddingBottom: 7 },
@@ -281,13 +282,13 @@ const styles = StyleSheet.create({
   noteText: { fontSize: 9, color: TEXT_DARK },
 
   // Signatures
-  signatures: { flexDirection: 'row', gap: 12, marginTop: 18 },
+  signatures: { flexDirection: 'row', gap: 12, marginTop: 8 },
   sig: { flex: 1 },
   sigLine: {
     borderTopWidth: 1,
     borderTopColor: '#94a3b8',
     paddingTop: 4,
-    marginTop: 18,
+    marginTop: 10,
     fontSize: 9,
     fontWeight: 700,
     textAlign: 'center',
@@ -297,19 +298,6 @@ const styles = StyleSheet.create({
     color: TEXT_MUTED,
     marginTop: 2,
     textAlign: 'center',
-  },
-
-  // Footer
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-    paddingTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: BORDER,
-    borderTopStyle: 'dashed' as any,
-    fontSize: 7.2,
-    color: TEXT_MUTED,
   },
 
   // Continued marker
@@ -504,24 +492,6 @@ function ItemRow({ row, isReceipt }: { row: PrintWeightRow; isReceipt: boolean }
   )
 }
 
-function FillerRow({ isReceipt }: { isReceipt: boolean }) {
-  return (
-    <View style={[styles.tableRow, { height: 14 }]}>
-      <View style={[styles.tableCell, { width: COL_RANK }]}><Text> </Text></View>
-      <View style={[styles.tableCell, { width: isReceipt ? COL_ITEM : `${100 - 4 - 12 - 12 - 26}%` }]}><Text> </Text></View>
-      <View style={[styles.tableCellRight, { width: COL_GROSS }]}><Text> </Text></View>
-      <View style={[styles.tableCellRight, { width: COL_CONTAINER }]}><Text> </Text></View>
-      {isReceipt ? (
-        <>
-          <View style={[styles.tableCellRight, { width: COL_AFTER_CONTAINER }]}><Text> </Text></View>
-          <View style={[styles.tableCellRight, { width: COL_DEDUCTION }]}><Text> </Text></View>
-        </>
-      ) : null}
-      <View style={[styles.tableCellStrongLast, { width: isReceipt ? COL_NET : COL_NET_WTO }]}><Text> </Text></View>
-    </View>
-  )
-}
-
 function TableHeader({ isReceipt }: { isReceipt: boolean }) {
   return (
     <View style={styles.tableHeader}>
@@ -670,7 +640,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
       {pages.map((page, pageIndex) => {
         const isLastPage = pageIndex === totalPages - 1
         return (
-          <Page key={pageIndex} size="A4" style={styles.page}>
+          <Page key={pageIndex} size="A4" style={[styles.page, styles.mainPage]}>
             {/* Accent */}
             <View style={styles.accent} />
 
@@ -750,10 +720,6 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
               {page.items.map((row, idx) => (
                 <ItemRow key={idx} row={row} isReceipt={isReceipt} />
               ))}
-              {/* Filler rows to align height exactly with printed output */}
-              {Array.from({ length: Math.max(0, page.capacity - page.items.length) }).map((_, idx) => (
-                <FillerRow key={`filler-${idx}`} isReceipt={isReceipt} />
-              ))}
               {isLastPage ? <TableFooter ticket={ticket} isReceipt={isReceipt} /> : null}
             </View>
 
@@ -812,7 +778,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                 </View>
 
                 {/* Signatures */}
-                <View style={styles.signatures}>
+                <View style={styles.signatures} wrap={false}>
                   <View style={styles.sig}>
                     <Text style={styles.sigLine}>{nt(signatureLeft)}</Text>
                     <Text style={styles.sigDate}>{nt('วันที่ ____ / ____ / ______')}</Text>
@@ -835,11 +801,6 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
               <Text style={styles.continued}>{nt('ต่อหน้าถัดไป')}</Text>
             )}
 
-            {/* Footer */}
-            <View style={styles.footer}>
-              <Text>{nt(profile.footerNote || '')}</Text>
-              <Text render={({ pageNumber, totalPages }) => `${nt('หน้า')} ${pageNumber} / ${totalPages}`} />
-            </View>
           </Page>
         )
       })}
@@ -891,12 +852,6 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                 </View>
               )
             })}
-          </View>
-
-          <View style={styles.spacer} />
-          <View style={styles.footer}>
-            <Text>{nt(profile.footerNote || '')}</Text>
-            <Text render={({ pageNumber, totalPages }) => `${nt('หน้า')} ${pageNumber} / ${totalPages}`} />
           </View>
         </Page>
       ))}
