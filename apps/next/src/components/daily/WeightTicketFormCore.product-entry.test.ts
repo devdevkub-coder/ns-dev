@@ -41,6 +41,21 @@ describe('weight-ticket product entry start contract', () => {
 })
 
 describe('weight-ticket product change behavior', () => {
+  it('uses the save boundary for WTO draft stock validation', () => {
+    const editRouteSource = readFileSync(
+      resolve(process.cwd(), 'src/app/api/daily/weight-tickets/[id]/route.ts'),
+      'utf8',
+    )
+    const createRouteSource = readFileSync(
+      resolve(process.cwd(), 'src/app/api/daily/weight-tickets/route.ts'),
+      'utf8',
+    )
+
+    expect(editRouteSource).toContain("if (values.type === 'WTO')")
+    expect(createRouteSource).toContain("if (values.type === 'WTO')")
+    expect(editRouteSource).toContain('excludeWeightTicketId')
+  })
+
   it('keeps the confirmation contract non-destructive for WTI and WTO', () => {
     expect(formSource).toContain("description: form.type === 'WTO'")
     expect(formSource).toContain('ข้อมูลเดิมจะคงไว้ ระบบจะตรวจ stock ของรายการทั้งหมดใหม่ก่อนบันทึก')

@@ -356,6 +356,7 @@ export async function resolveWtoWarehousesForLines(tx: TxClient, input: {
 
 async function loadSaleableBuckets(tx: TxClient, input: {
   branchId: bigint
+  excludeWeightTicketId?: bigint
   productIds: bigint[]
   warehouseIds: bigint[]
 }) {
@@ -383,6 +384,7 @@ async function loadSaleableBuckets(tx: TxClient, input: {
         not_available_for_sale: false,
         product_id: { in: input.productIds },
         status: 'active',
+        ...(input.excludeWeightTicketId == null ? {} : { weight_ticket_id: { not: input.excludeWeightTicketId } }),
         warehouse_id: { in: input.warehouseIds },
       },
     }),
@@ -535,6 +537,7 @@ async function loadAverageCostByBucketKey(tx: TxClient, input: {
 
 export async function validateWtoStockAvailability(tx: TxClient, input: {
   branchId: bigint
+  excludeWeightTicketId?: bigint
   lines: WtoAvailabilityLine[]
 }) {
   const required = new Map<string, { indexes: number[]; productId: bigint; productName: string; qty: number; warehouseId: bigint }>()
@@ -565,7 +568,12 @@ export async function validateWtoStockAvailability(tx: TxClient, input: {
   const warehouseIds = [...new Set([...required.values()].map((row) => row.warehouseId))]
   const [warehouses, buckets] = await Promise.all([
     tx.warehouses.findMany({ select: { id: true, type: true }, where: { id: { in: warehouseIds } } }),
-    loadSaleableBuckets(tx, { branchId: input.branchId, productIds, warehouseIds }),
+    loadSaleableBuckets(tx, {
+      branchId: input.branchId,
+      excludeWeightTicketId: input.excludeWeightTicketId,
+      productIds,
+      warehouseIds,
+    }),
   ])
   const warehouseTypeById = new Map(warehouses.map((warehouse: Awaited<typeof warehouses>[number]) => [warehouse.id, warehouse.type] as const))
   const availableByKey = new Map<string, number>()

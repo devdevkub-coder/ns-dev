@@ -44,6 +44,7 @@ export async function resolveWeightTicketWarehousesForWrite(tx: TxClient, input:
 
 export async function validateWeightTicketStockForWrite(tx: TxClient, input: {
   branchId: bigint
+  excludeWeightTicketId?: bigint
   lineRows: Array<{
     net_weight: Prisma.Decimal | number
     product_id: bigint
@@ -55,6 +56,7 @@ export async function validateWeightTicketStockForWrite(tx: TxClient, input: {
   if (input.type !== 'WTO') return
   await validateWtoStockAvailability(tx, {
     branchId: input.branchId,
+    excludeWeightTicketId: input.excludeWeightTicketId,
     lines: input.lineRows.map((line, index) => ({
       index,
       netWeight: Number(line.net_weight),

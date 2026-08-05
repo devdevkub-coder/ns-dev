@@ -1343,10 +1343,11 @@ export function WeightTicketFormCore({
     return getLineImages(sourceParentLine ?? sourceLine ?? line)
   }
 
-  async function saveDraftBeforeAdding() {
+  async function saveDraftBeforeAdding(): Promise<boolean> {
     // A new/empty line cannot be persisted yet. Save the current complete
     // document first so adding another line never loses the existing draft.
-    if (isSaving || isLoadingTicket || Object.keys(errors).length > 0) return
+    if (isSaving || isLoadingTicket || Object.keys(errors).length > 0) return false
+    if (form.lines.length === 0) return true
 
     setIsSaving(true)
     try {
@@ -1382,8 +1383,10 @@ export function WeightTicketFormCore({
       setForm(nextForm)
       setFormBaseline(formSafetySnapshot(nextForm))
       setLoadError('')
+      return true
     } catch (caught) {
       setLoadError(getErrorMessage(caught, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้'))
+      return false
     } finally {
       setIsSaving(false)
     }
@@ -1409,7 +1412,7 @@ export function WeightTicketFormCore({
 
   async function addLine() {
     setMergeNotice('')
-    await saveDraftBeforeAdding()
+    if (!await saveDraftBeforeAdding()) return
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)
@@ -1449,7 +1452,7 @@ export function WeightTicketFormCore({
 
   async function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
-    await saveDraftBeforeAdding()
+    if (!await saveDraftBeforeAdding()) return
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = sourceLine.productId
     nextLine.warehouseId = sourceLine.warehouseId

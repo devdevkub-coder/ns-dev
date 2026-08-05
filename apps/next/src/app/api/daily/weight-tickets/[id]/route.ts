@@ -24,6 +24,7 @@ import {
   branchScopeIds,
   buildWeightTicketLineRows,
   buildWeightTicketProductSummaryRows,
+  canEditWeightTicket,
   canMutateWeightTicket,
   getWeightTicketTimeline,
   getWeightTicketDownstreamAllocations,
@@ -143,7 +144,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของที่ต้องการแก้ไข' }, { status: 404 })
 
     const usage = await getWeightTicketUsageCounts(prisma, existing.id)
-    if (!canMutateWeightTicket(existing, usage)) {
+    if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, usage)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: mutableTicketErrorMessage('edit', usage) }, { status: 400 })
     }
     if (values.type !== existing.doc_type) {
@@ -299,6 +300,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
       const warehouseNameById = new Map([...warehouseByCode.values()].map((warehouse) => [warehouse.id, warehouse.name] as const))
       const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
+      if (values.type === 'WTO') {
+        await validateWeightTicketStockForWrite(tx, {
+          branchId: branch.id,
+          excludeWeightTicketId: existing.status === 'delivered' ? existing.id : undefined,
+          lineRows,
+          type: values.type,
+        })
+      }
       const editChanges = buildWeightTicketEditChanges({
         branchName: branch.name,
         customerName: customer?.name ?? '',
@@ -320,9 +329,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         type: values.type,
       })
 
-      if (existing.status === 'delivered') {
-        await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
-      }
       await releaseActiveWtoPendingOut(tx, {
         actor,
         reason: 'edit',

@@ -98,7 +98,7 @@ What is what: source chooser เป็นเพียงทางเลือก
 - เมื่อเปิดแผงแก้ไขสินค้าบนมือถือ backdrop แสดงทันทีและคงอยู่จนแผงเลื่อนลงครบ 400ms แล้วจึงหายพร้อม unmount; แผงต้องเริ่มอยู่นอกจอด้านล่างทั้งแผงก่อนเลื่อนขึ้นใน 400ms ด้วย `cubic-bezier(.32,.72,0,1)` และตอนปิดต้องเลื่อนกลับลงด้วยจังหวะเดียวกันทุกทางออก (X, backdrop, Escape และลบสินค้า) ส่วน desktop คง split-panel แบบ static. ตามคำสั่งผู้ใช้เมื่อ 2026-07-29 แผงนี้ต้องแสดง effect แม้ browser จะรายงาน `prefers-reduced-motion: reduce` เพื่อให้เห็น feedback ของการเปิด/ปิดอย่างชัดเจนใน Codex Browser.
 - เมื่อกด `+ เพิ่มสินค้า` ให้สร้างรายการและเปิดแผงกรอกข้อมูลเท่านั้น ห้าม auto-focus ช่อง `เลือกสินค้า` เพราะ dropdown ต้องเปิดเมื่อผู้ใช้แตะช่องเอง; ยกเว้นการกดบันทึกแล้วพบข้อผิดพลาด ซึ่งยังต้อง scroll/focus ไปยังช่องแรกที่ผิดตามกติกา validation เดิม
 - ต้องเลือกสินค้าก่อนจึงจะกรอกน้ำหนัก เพิ่มเต๋า แนบรูป หรือเพิ่มสิ่งเจือปนได้
-- ถ้าเปลี่ยนสินค้าใน card หลัก ต้องล้างเต๋า รูป สิ่งเจือปน และรายการซื้อเพิ่มที่ผูกกับสินค้าเดิม
+- WTI เปลี่ยนสินค้าใน card หลักได้เฉพาะ draft และต้องคงเต๋า น้ำหนัก รูป สิ่งเจือปน และรายการซื้อเพิ่มที่ผูกกับรายการเดิมไว้; WTO draft ใช้กติกาเดียวกัน และตรวจ stock ใหม่เมื่อบันทึก
 - แต่ละเต๋ายุบ/ขยายได้; ตอนยุบยังเห็นน้ำหนักรวม หักภาชนะ น้ำหนักหลังหักภาชนะ และจำนวนรูป
 - สิ่งเจือปนปกติบนมือถือเป็น card ที่ยุบ/ขยายได้: ตอนยุบแสดงลำดับ ชื่อสิ่งเจือปน ยอดหัก และสถานะครบ/ไม่ครบ; เพิ่มสิ่งเจือปนใหม่จะยุบ card ปกติเดิมของสินค้านั้นและเปิด card ใหม่ให้กรอกต่อ. ปุ่มลบมีเฉพาะขณะ card ขยาย เพื่อไม่ให้ลบผิดจากหน้าสรุป; `สินค้าอื่น` คงเปิดเต็มเสมอ เพราะมีสินค้า ซื้อ/ไม่ซื้อ คำเตือน และรูปประกอบเพิ่มเติม
 - card `สรุปน้ำหนักเต๋า` รวมเฉพาะเต๋าจริง ไม่รวมรายการซื้อเพิ่มจากสิ่งเจือปน
@@ -142,10 +142,10 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 - WTI/WTO create/edit ต้องบังคับเลือก `สาขา` ก่อน `ผู้ขาย/ลูกค้า`; party selector ต้อง disabled จนกว่าจะเลือกสาขา
 - WTI supplier selector ต้องกรองจาก active `supplier_branches` ของสาขาเอกสาร และ WTO customer selector ต้องกรองจาก active `customer_branches` ของสาขาเอกสาร; เปลี่ยนสาขาแล้วคู่ค้าที่ไม่ตรง mapping ต้องถูก clear
 - WTO customer edit is allowed only while the document is still mutable. Before Sales Bill usage, changing customer updates only the document header (`customer_id` / `party_name`) and does not change stock/pending_out quantities or cost snapshots. After any active SB usage exists, the WTO must be edit-locked.
-- WTO เป็น `pending_out` source โดยตรงหลังยืนยัน: draft ยังไม่กัน stock และยังไม่แสดงเป็น `รอออก`; ตอนยืนยันต้องสร้าง hold และ snapshot ราคาต้นทุนเฉลี่ย ส่วนเพิ่ม/SKU ใหม่หลังยืนยันต้อง rebuild hold ตามกฎแก้ไขเอกสารที่ยืนยันแล้ว
+- WTO เป็น `pending_out` source โดยตรงหลังยืนยัน: draft ยังไม่สร้าง hold และยังไม่แสดงเป็น `รอออก`; แต่ทุกการบันทึก draft รวมถึง autosave ก่อนเพิ่มเต๋า/สินค้า ต้องตรวจ stock ของรายการ WTO ทั้งหมดโดยไม่สร้าง hold. ตอนยืนยันต้องตรวจซ้ำ สร้าง hold และ snapshot ราคาต้นทุนเฉลี่ย ส่วนเพิ่ม/SKU ใหม่หลังยืนยันต้อง rebuild hold ตามกฎแก้ไขเอกสารที่ยืนยันแล้ว
 - แสดง product thumbnail, เต๋า/summary, vehicle/image evidence และ downstream usage lock
 - WTI create/edit ต้องแยกข้อมูลในแต่ละเต๋าเป็น `ข้อมูลเต๋า` -> `ซื้อเพิ่มจากสิ่งเจือปน` -> `รายการหักสิ่งเจือปน`
-- ในแต่ละรายการต้องเลือกสินค้าก่อนกรอกข้อมูลเต๋า/น้ำหนัก/รูป/สิ่งเจือปน และเมื่อเปลี่ยนสินค้าต้องล้างข้อมูลเต๋า รูป สิ่งเจือปน และรายการซื้อเพิ่มที่ผูกกับสินค้าเดิม
+- ในแต่ละรายการต้องเลือกสินค้าก่อนกรอกข้อมูลเต๋า/น้ำหนัก/รูป/สิ่งเจือปน. WTI เปลี่ยนสินค้าได้เฉพาะ draft และต้องคงข้อมูลเต๋า น้ำหนัก รูป สิ่งเจือปน รายการซื้อเพิ่ม และข้อมูลอื่นของรายการเดิมไว้ โดยเปลี่ยนเฉพาะค่าที่ผู้ใช้แก้. WTO draft เปลี่ยนสินค้า/จำนวน/สิ่งเจือปนได้โดยคงข้อมูลหลักฐานไว้ และตรวจ stock ใหม่ทุกครั้งที่บันทึก. WTO delivered ที่ยังไม่ถูกใช้ใน Sales Bill ต้องปล่อย pending_out เดิมแล้วตรวจและสร้าง pending_out/cost snapshot ชุดใหม่แบบ transaction เดียว; ถ้ามี downstream usage แล้วห้ามแก้
 - แต่ละเต๋าต้องแสดงค่าน้ำหนักหลังหักภาชนะจาก `น้ำหนักรวม - หักภาชนะ` เป็นค่าคำนวณอ่านอย่างเดียว
 - แต่ละเต๋าต้องยุบ/ขยายได้เพื่อรองรับรายการที่มีข้อมูลและรูปจำนวนมาก; ตอนยุบยังต้องเห็นสรุปน้ำหนักรวม หักภาชนะ น้ำหนักหลังหักภาชนะ และจำนวนรูป
 - ถ้ารายการสินค้านั้นยังไม่มีเต๋าจริง ต้องไม่สามารถเพิ่มรายการหักสิ่งเจือปนได้
@@ -191,7 +191,7 @@ What is what: album เป็นภาพรวมหลักฐานทั้
   - must not write `stock_ledger`; ledger stock-out is owned by Sales Bill when it consumes the WTO `pending_out`
 - `PUT /api/daily/weight-tickets/[id]`
   - must append an `edited` timeline row to `weight_ticket_status_logs` with `meta.changes` for field-level before/after detail when submitted data differs from the existing document
-  - for editable draft `WTO`, must update document lines only and leave stock unreserved
+  - for editable draft `WTO`, must validate all current lines against current available stock, update document lines only, and leave stock unreserved
   - for confirmed `WTO`, must use the delta rule: release decreases back to on-hand/available stock, preserve existing cost snapshots for unchanged/decreased remaining qty, and snapshot current average cost only for increased qty or new SKU
   - after confirmed `WTO` edits that change pending_out, must append immutable rows to `weight_ticket_pending_out_events` for the changed/new portions and link them to the document timeline event
 - `POST/PATCH /api/daily/weight-tickets/[id]/confirm` or equivalent confirm action
