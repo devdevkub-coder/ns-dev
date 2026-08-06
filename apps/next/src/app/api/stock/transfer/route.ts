@@ -9,6 +9,7 @@ import { currentActor, documentBranchCode, normalizeDate, toBangkokDateOnly, toD
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveWarehouses, listProductReferences } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot } from '@/lib/server/stock'
+import { availableStockForTransferCancel, normalizeNotAvailableForSale } from '@/lib/stock-transfer-cancel'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 
 export const runtime = 'nodejs'
@@ -284,7 +285,7 @@ function transferLedgerPairKey(row: TransferLedgerRow) {
     row.product_id?.toString() ?? '',
     row.lot_no ?? '',
     row.output_category ?? '',
-    String(row.not_available_for_sale ?? false),
+    String(normalizeNotAvailableForSale(row.not_available_for_sale)),
     toNumber(row.unit_cost).toFixed(8),
   ].join('\u001f')
 }
@@ -412,7 +413,7 @@ async function assertTransferDestinationStockAvailable(
     const bucket: TransferReversalBucket = {
       branchId: row.branch_id,
       lotNo: row.lot_no,
-      notAvailableForSale: row.not_available_for_sale ?? false,
+      notAvailableForSale: normalizeNotAvailableForSale(row.not_available_for_sale),
       outputCategory: row.output_category,
       productId: row.product_id,
       qty,
@@ -453,7 +454,11 @@ async function assertTransferDestinationStockAvailable(
     ])
     const ledger = ledgerRows[0]
     const holds = holdRows[0]
-    const readyQty = toNumber(ledger?.qty_in) - toNumber(ledger?.qty_out) - toNumber(holds?.held_qty)
+    const readyQty = availableStockForTransferCancel({
+      heldQty: toNumber(holds?.held_qty),
+      ledgerIn: toNumber(ledger?.qty_in),
+      ledgerOut: toNumber(ledger?.qty_out),
+    })
     if (readyQty + 0.000001 < bucket.qty) {
       throw new Error(`สินค้าในคลังปลายทางไม่พอสำหรับยกเลิกโอน (ต้องการ ${bucket.qty.toLocaleString('th-TH')} กก. เหลือพร้อมใช้ ${Math.max(0, readyQty).toLocaleString('th-TH')} กก.)`)
     }
@@ -507,7 +512,7 @@ async function createTransferReversal(
       movement_type: 'ยกเลิกโอนระหว่างสาขา-ตีกลับต้นทาง',
       note: reason,
       notes: `Reverse ST ${transfer.doc_no}${transfer.notes ? `: ${transfer.notes}` : ''}`,
-      not_available_for_sale: row.not_available_for_sale ?? false,
+      not_available_for_sale: normalizeNotAvailableForSale(row.not_available_for_sale),
       output_category: row.output_category,
       product_id: row.product_id,
       qty_in: qtyOut,
