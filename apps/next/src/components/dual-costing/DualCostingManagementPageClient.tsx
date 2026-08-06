@@ -157,6 +157,8 @@ type ReportPayload = {
 type ReportMetric = { cost: number; count: number; gp: number; gpPct: number; qty: number; revenue: number }
 type ReportCategoryRow = ReportPayload['report']['byCategory'][number]
 type ReportColumnKey = 'allocatedQty' | 'category' | 'cost' | 'gp' | 'gpPct' | 'pendingQty' | 'pendingRevenue' | 'revenue'
+type ReportAllocatedDetailColumnKey = 'allocatedQty' | 'cost' | 'date' | 'gp' | 'gpPct' | 'matchId' | 'productName' | 'revenue' | 'saleDocNo' | 'targetType' | 'costPool'
+type ReportPendingDetailColumnKey = 'customerName' | 'date' | 'docNo' | 'pendingQty' | 'pendingRevenue' | 'productName' | 'unitPrice'
 type WaitingSummaryRow = WaitingPayload['summary']['byCategory'][number]
 type WaitingSummaryColumnKey = 'count' | 'name' | 'partial' | 'qty' | 'revenue'
 
@@ -177,6 +179,30 @@ const reportColumns: Array<ResizableColumnDefinition<ReportColumnKey> & { align?
   { key: 'gpPct', label: 'GP%', defaultWidth: 90, minWidth: 80, align: 'right' },
   { key: 'pendingQty', label: 'น้ำหนักรอจัดสรร', defaultWidth: 135, minWidth: 120, align: 'right' },
   { key: 'pendingRevenue', label: 'มูลค่าขายรอจัดสรร', defaultWidth: 150, minWidth: 130, align: 'right' },
+]
+
+const reportAllocatedDetailColumns: Array<ResizableColumnDefinition<ReportAllocatedDetailColumnKey> & { align?: 'center' | 'left' | 'right'; className?: string; label: string }> = [
+  { key: 'date', label: 'วันที่', defaultWidth: 110, minWidth: 100, align: 'center' },
+  { key: 'matchId', label: 'Match ID', defaultWidth: 155, minWidth: 135, align: 'center' },
+  { key: 'targetType', label: 'ประเภท', defaultWidth: 105, minWidth: 95, align: 'center' },
+  { key: 'saleDocNo', label: 'เอกสารขาย', defaultWidth: 150, minWidth: 125, align: 'center' },
+  { key: 'costPool', label: 'ชุดต้นทุน', defaultWidth: 165, minWidth: 145, align: 'center' },
+  { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 180, align: 'left', className: 'ns-table-textual-column' },
+  { key: 'allocatedQty', label: 'น้ำหนัก', defaultWidth: 125, minWidth: 110, align: 'right' },
+  { key: 'revenue', label: 'รายได้', defaultWidth: 130, minWidth: 115, align: 'right' },
+  { key: 'cost', label: 'ต้นทุน', defaultWidth: 130, minWidth: 115, align: 'right' },
+  { key: 'gp', label: 'GP', defaultWidth: 130, minWidth: 115, align: 'right' },
+  { key: 'gpPct', label: 'GP%', defaultWidth: 90, minWidth: 80, align: 'right' },
+]
+
+const reportPendingDetailColumns: Array<ResizableColumnDefinition<ReportPendingDetailColumnKey> & { align?: 'center' | 'left' | 'right'; className?: string; label: string }> = [
+  { key: 'date', label: 'วันที่', defaultWidth: 110, minWidth: 100, align: 'center' },
+  { key: 'docNo', label: 'เอกสาร', defaultWidth: 150, minWidth: 125, align: 'center' },
+  { key: 'customerName', label: 'ลูกค้า', defaultWidth: 200, minWidth: 170, align: 'left', className: 'ns-table-textual-column' },
+  { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 180, align: 'left', className: 'ns-table-textual-column' },
+  { key: 'pendingQty', label: 'ค้างจัดสรร', defaultWidth: 135, minWidth: 115, align: 'right' },
+  { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 120, minWidth: 105, align: 'right' },
+  { key: 'pendingRevenue', label: 'มูลค่าค้าง', defaultWidth: 145, minWidth: 125, align: 'right' },
 ]
 
 function today() {
@@ -1346,6 +1372,8 @@ function DualCostingReportView() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [toDate, setToDate] = useState(today())
   const reportResize = useResizableColumns('dual-costing.report.by-category.v1', reportColumns)
+  const allocatedDetailResize = useResizableColumns('dual-costing.report.detail.allocated.v1', reportAllocatedDetailColumns)
+  const pendingDetailResize = useResizableColumns('dual-costing.report.detail.pending.v1', reportPendingDetailColumns)
   const queryString = useMemo(() => new URLSearchParams({ from: fromDate, to: toDate }).toString(), [fromDate, toDate])
   const hasActiveFilters = fromDate !== monthStart() || toDate !== today()
 
@@ -1397,16 +1425,16 @@ function DualCostingReportView() {
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
       <Dialog open={selectedCategory != null} onOpenChange={(open) => { if (!open) setSelectedCategory(null) }}>
-        <DialogContent className="max-h-[85vh] max-w-6xl overflow-hidden border border-slate-200 bg-white p-0">
+        <DialogContent fallbackTitle="รายละเอียดหมวดสินค้า" hideClose mobileAppShell={false} className="flex max-h-[90vh] max-w-6xl flex-col overflow-hidden rounded-md border-0 bg-white !p-0 shadow-2xl">
           {selectedCategory ? (
             <>
-              <DialogHeader>
+              <DialogHeader className="shrink-0">
                 <DialogTitle>รายละเอียดหมวดสินค้า: {selectedCategory.category}</DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-xs">
                   ดูที่มาของกำไร/ขาดทุนและรายการค้างจัดสรรในช่วงวันที่ {fromDate} → {toDate}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 overflow-y-auto bg-slate-50 p-4">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4">
                 <div className="grid gap-3 md:grid-cols-4">
                   <DualCostingStatCard icon="💰" label="รายได้" tone="emerald" value={formatMoney(selectedCategory.revenue)} />
                   <DualCostingStatCard icon="💳" label="ต้นทุน" tone="red" value={formatMoney(selectedCategory.cost)} />
@@ -1414,22 +1442,26 @@ function DualCostingReportView() {
                   <DualCostingStatCard icon="%" label="GP%" tone={selectedCategory.gp >= 0 ? 'emerald' : 'red'} value={`${selectedCategory.gpPct.toFixed(2)}%`} />
                 </div>
 
-                <DualCostingPanel title={`ชุดที่สร้างกำไร/ขาดทุน (${selectedCategory.detail.allocatedRows.length} รายการ)`}>
-                  <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                    <Table className="min-w-[980px] text-sm">
+                <DualCostingPanel
+                  title={`ชุดที่สร้างกำไร/ขาดทุน (${selectedCategory.detail.allocatedRows.length} รายการ)`}
+                  titleAction={allocatedDetailResize.hasCustomWidths ? <Button className="h-9 px-3 text-sm" size="sm" type="button" variant="outline" onClick={allocatedDetailResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+                >
+                  <div className="min-w-0 overflow-x-auto">
+                    <Table className="min-w-full text-sm" style={{ minWidth: allocatedDetailResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                      <colgroup>
+                        {reportAllocatedDetailColumns.map((column) => <col key={column.key} style={allocatedDetailResize.getColumnStyle(column.key)} />)}
+                      </colgroup>
                       <TableHeader className="bg-slate-100">
                         <tr>
-                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">วันที่</TableCell>
-                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">Match ID</TableCell>
-                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">ประเภท</TableCell>
-                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">เอกสารขาย</TableCell>
-                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">ชุดต้นทุน</TableCell>
-                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">สินค้า</TableCell>
-                          <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">น้ำหนัก</TableCell>
-                          <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">รายได้</TableCell>
-                          <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ต้นทุน</TableCell>
-                          <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">GP</TableCell>
-                          <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">GP%</TableCell>
+                          {reportAllocatedDetailColumns.map((column) => (
+                            <ResizableTableHead
+                              key={column.key}
+                              align={column.align}
+                              className={column.className}
+                              label={column.label}
+                              resizeProps={allocatedDetailResize.getResizeHandleProps(column.key, column.label)}
+                            />
+                          ))}
                         </tr>
                       </TableHeader>
                       <TableBody className="divide-y divide-slate-100">
@@ -1438,20 +1470,20 @@ function DualCostingReportView() {
                         ) : null}
                         {selectedCategory.detail.allocatedRows.map((row) => (
                           <TableRow key={`${row.matchId}-${row.saleDocNo}-${row.sourceNo}`}>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.matchId}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-700">{row.targetType}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.saleDocNo}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-center">
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(row.date)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs text-slate-700">{row.matchId}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-center text-slate-700">{row.targetType}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs text-slate-700">{row.saleDocNo}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-center">
                               <div className="font-mono text-xs text-slate-700">{row.costPoolNo}</div>
                               <div className="text-xs text-slate-500">{row.sourceNo}</div>
                             </TableCell>
-                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.productName}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.revenue)}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-red-600">{formatMoney(row.cost)}</TableCell>
-                            <TableCell className={`whitespace-nowrap px-3 py-2 text-right font-mono font-bold tabular-nums ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
+                            <TableCell className="ns-table-textual-column break-words px-3 py-3 text-left text-slate-700">{row.productName}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.revenue)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-red-600">{formatMoney(row.cost)}</TableCell>
+                            <TableCell className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1459,18 +1491,26 @@ function DualCostingReportView() {
                   </div>
                 </DualCostingPanel>
 
-                <DualCostingPanel title={`รายการค้างจัดสรร (${selectedCategory.detail.pendingRows.length} รายการ)`}>
-                  <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                    <Table className="min-w-[760px] text-sm">
+                <DualCostingPanel
+                  title={`รายการค้างจัดสรร (${selectedCategory.detail.pendingRows.length} รายการ)`}
+                  titleAction={pendingDetailResize.hasCustomWidths ? <Button className="h-9 px-3 text-sm" size="sm" type="button" variant="outline" onClick={pendingDetailResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+                >
+                  <div className="min-w-0 overflow-x-auto">
+                    <Table className="min-w-full text-sm" style={{ minWidth: pendingDetailResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                      <colgroup>
+                        {reportPendingDetailColumns.map((column) => <col key={column.key} style={pendingDetailResize.getColumnStyle(column.key)} />)}
+                      </colgroup>
                       <TableHeader className="bg-slate-100">
                         <tr>
-                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">วันที่</TableCell>
-                          <TableCell className="px-3 py-2 text-center font-semibold text-slate-700">เอกสาร</TableCell>
-                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">ลูกค้า</TableCell>
-                          <TableCell className="ns-table-textual-column px-3 py-2 text-left font-semibold text-slate-700">สินค้า</TableCell>
-                          <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ค้างจัดสรร</TableCell>
-                          <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">ราคา/กก.</TableCell>
-                          <TableCell className="px-3 py-2 text-right font-semibold text-slate-700">มูลค่าค้าง</TableCell>
+                          {reportPendingDetailColumns.map((column) => (
+                            <ResizableTableHead
+                              key={column.key}
+                              align={column.align}
+                              className={column.className}
+                              label={column.label}
+                              resizeProps={pendingDetailResize.getResizeHandleProps(column.key, column.label)}
+                            />
+                          ))}
                         </tr>
                       </TableHeader>
                       <TableBody className="divide-y divide-slate-100">
@@ -1479,13 +1519,13 @@ function DualCostingReportView() {
                         ) : null}
                         {selectedCategory.detail.pendingRows.map((row) => (
                           <TableRow key={`${row.docNo}-${row.productName}-${row.date}`}>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-center text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-center font-mono text-xs text-slate-700">{row.docNo}</TableCell>
-                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.customerName}</TableCell>
-                            <TableCell className="ns-table-textual-column px-3 py-2 text-left text-slate-700">{row.productName}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitPrice)}</TableCell>
-                            <TableCell className="whitespace-nowrap px-3 py-2 text-right font-mono font-semibold tabular-nums text-amber-700">{formatMoney(row.pendingRevenue)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(row.date)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs text-slate-700">{row.docNo}</TableCell>
+                            <TableCell className="ns-table-textual-column break-words px-3 py-3 text-left text-slate-700">{row.customerName}</TableCell>
+                            <TableCell className="ns-table-textual-column break-words px-3 py-3 text-left text-slate-700">{row.productName}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitPrice)}</TableCell>
+                            <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-amber-700">{formatMoney(row.pendingRevenue)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1493,6 +1533,11 @@ function DualCostingReportView() {
                   </div>
                 </DualCostingPanel>
               </div>
+              <DialogFooter className="shrink-0">
+                <DialogClose asChild>
+                  <Button className="h-9 px-3 font-normal" type="button" variant="outline">ปิด</Button>
+                </DialogClose>
+              </DialogFooter>
             </>
           ) : null}
         </DialogContent>
