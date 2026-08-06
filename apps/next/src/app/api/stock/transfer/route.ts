@@ -119,7 +119,8 @@ async function lockTransferSourceProducts(
     if (!product.productId) throw new Error(`สินค้า ${item.productId} ไม่ถูกต้องหรือถูกปิดใช้งาน`)
     productIds.add(product.productId)
   }
-  for (const productId of productIds) {
+  const orderedProductIds = Array.from(productIds).sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+  for (const productId of orderedProductIds) {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock-transfer:source:${input.branchId}:${input.warehouseId}:${productId}`}, 0))`
   }
 }
