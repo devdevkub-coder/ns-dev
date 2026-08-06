@@ -99,6 +99,12 @@ What is what: report service อ่าน business facts สดจากฐา�
 - WTI/WTO attachment URL ยังใช้ versioned storage key และโหลด original เฉพาะ preview; thumbnail/original split และ signed URL สำหรับ bucket private ยังเป็นงาน image-delivery แยก ไม่รวมใน reference cache
 - What is what: options/products เป็น master reference สำหรับ selector ส่วน stock-options เป็นยอดคงเหลือจริงของ WTO และรูปแนบเป็นหลักฐานเอกสาร
 - Why it has to be like this: การ reuse master reference ลด request ตอนเปิดฟอร์มซ้ำ แต่การ reuse stock/เอกสาร/รูปหลักฐานอาจทำให้แสดงหรือบันทึกข้อมูลเก่าข้าม scope
+- WTI/WTO fresh-reference checkpoint 2026-08-06: `/api/daily/weight-tickets/options` เหลือเฉพาะ branch options; Customer/Supplier โหลดจาก `/api/daily/weight-tickets/party-options?branchId=...&type=...` ตามสาขาที่เลือก, Product โหลดจาก `/api/daily/weight-tickets/products`, และ Impurity โหลดจาก `/api/daily/weight-tickets/impurity-options` แยกกัน
+- Customer/Supplier/Product/Impurity ไม่ถูกเก็บใน browser memory TTL 5 นาทีแล้ว; client เก็บเฉพาะ in-flight request dedupe ส่วน server memory/Redis reference cache ยังคงทำหน้าที่ read-through เพื่อความเร็ว และ response ทุก endpoint ยังคง `private, no-store`
+- Customer/Supplier branch options ยังคงใช้ active branch mapping เป็น source สำหรับ selector; WTI/WTO backend ตรวจ party กับ branch ซ้ำตอน save และไม่ใช้ client cache เป็น source of truth
+- Customer/Supplier import เพิ่ม server cache invalidation หลัง transaction commit สำเร็จ ครอบคลุมข้อมูลหลักและ branch mapping ที่ import เปลี่ยน
+- What is what: Branch เป็นตัวเลือกขอบเขตเอกสารที่ cache สั้นได้; Customer/Supplier เป็นข้อมูลคู่ค้าที่ต้องสดตาม branch; Product และ Impurity เป็น reference ที่แยก request เพื่อไม่ให้การเปลี่ยน master หนึ่งชุดทำให้ payload/อายุ cache ของอีกชุดปนกัน
+- Why it has to be like this: ผู้ใช้บางคนเคยเห็นคู่ค้าเก่าจาก browser Map อายุ 5 นาที แม้ API จะเป็น `no-store`; การเหลือเพียง in-flight dedupe ทำให้เปิด/เปลี่ยนสาขาแล้วอ่าน server cache/DB รอบใหม่โดยยังไม่ยิง DB ซ้ำระหว่าง request ที่กำลังวิ่ง
 - targeted validation ของ batch `sales/bills` ปิดได้บางส่วน:
   - `git diff --check` ของไฟล์ batch นี้ผ่าน
   - แต่ `sales/bills/route.ts` ยังมี TypeScript debt เดิมจำนวนมากทั้งไฟล์ จึงยังปิด targeted typecheck ของ route นี้ไม่ได้ใน batch cache รอบนี้

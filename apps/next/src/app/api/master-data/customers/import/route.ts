@@ -6,7 +6,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveBranches } from '@/lib/server/reference-master-cache'
+import { invalidateCustomerReferenceCache, listActiveBranches } from '@/lib/server/reference-master-cache'
 import { findActiveSalespersonReferenceByCodeOrId } from '@/lib/server/salesperson-reference'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
@@ -398,6 +398,7 @@ export async function POST(request: Request) {
         })
       }
     })
+    await invalidateCustomerReferenceCache()
 
     const updated = existingReferences.filter(Boolean).length
     return NextResponse.json({

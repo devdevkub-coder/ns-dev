@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { FormSafetyProvider } from '@/components/ui/FormSafetyProvider'
 const mocks = vi.hoisted(() => ({
   cachedWeightTicketReferences: vi.fn(),
+  fetchFreshWeightTicketReferences: vi.fn(),
   saveWeightTicket: vi.fn(),
   router: {
     push: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('next/link', () => ({ default: 'a' }))
 vi.mock('next/navigation', () => ({ useRouter: () => mocks.router }))
 vi.mock('@/lib/weight-ticket-reference-cache', () => ({
   cachedWeightTicketReferences: mocks.cachedWeightTicketReferences,
+  fetchFreshWeightTicketReferences: mocks.fetchFreshWeightTicketReferences,
 }))
 vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/weight-tickets')>()),
@@ -374,6 +376,17 @@ describe('weight-ticket product editor behavior', () => {
             impurities: [],
             suppliers: [{ branchIds: ['branch-001'], id: 'supplier-001', name: 'ผู้ขายทดสอบ' }],
         },
+    ))
+    mocks.fetchFreshWeightTicketReferences.mockImplementation((url: string) => Promise.resolve(
+      url.endsWith('/products')
+        ? { rows: [{ code: 'P-001', id: 'product-001', name: 'เหล็ก', type: 'เศษเหล็ก', unit: 'กก.' }] }
+        : url.endsWith('/impurity-options')
+          ? { options: [] }
+        : {
+            options: url.includes('type=WTI')
+              ? [{ branchIds: ['branch-001'], id: 'supplier-001', name: 'ผู้ขายทดสอบ' }]
+              : [{ branchIds: ['branch-001'], id: 'customer-001', name: 'ลูกค้าทดสอบ' }],
+          },
     ))
     mocks.saveWeightTicket.mockImplementation(async (values: {
       lines: Array<Record<string, unknown>>

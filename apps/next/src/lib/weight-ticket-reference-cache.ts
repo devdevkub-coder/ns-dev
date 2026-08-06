@@ -12,6 +12,7 @@ type CacheEntry = {
 
 const cache = new Map<string, CacheEntry>()
 const pending = new Map<string, Promise<unknown>>()
+const freshReferencePending = new Map<string, Promise<unknown>>()
 
 async function cacheKey(url: string) {
   const supabase = getSupabaseClient()
@@ -35,6 +36,21 @@ export async function cachedWeightTicketReferences<T>(url: string) {
     })
     .finally(() => pending.delete(key))
   pending.set(key, request)
+  return request
+}
+
+/**
+ * Fresh reference payloads are not retained in the browser. Keep only an
+ * in-flight request dedupe so a fast render or branch change cannot issue
+ * duplicate requests while the server cache still provides the speedup.
+ */
+export async function fetchFreshWeightTicketReferences<T>(url: string) {
+  const existing = freshReferencePending.get(url)
+  if (existing) return existing as Promise<T>
+
+  const request = dailyFetchJson<T>(url)
+    .finally(() => freshReferencePending.delete(url))
+  freshReferencePending.set(url, request)
   return request
 }
 

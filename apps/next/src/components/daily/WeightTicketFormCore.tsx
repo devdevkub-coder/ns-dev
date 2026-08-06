@@ -20,7 +20,7 @@ import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/compon
 import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 import { cn } from '@/lib/utils'
-import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
+import { cachedWeightTicketReferences, fetchFreshWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import {
   calculateWeightTicketLineTotals,
@@ -72,9 +72,14 @@ type FormState = {
 
 type WeightTicketOptionsPayload = {
   branches?: Array<{ code?: string | null; id: string; name: string }>
-  customers?: Array<{ branchIds?: string[]; code?: string | null; id: string; name: string }>
-  impurities?: Array<{ id: string; label: string }>
-  suppliers?: Array<{ branchIds?: string[]; code?: string | null; id: string; name: string }>
+}
+
+type WeightTicketPartyOptionsPayload = {
+  options?: Array<{ branchIds?: string[]; code?: string | null; id: string; name: string }>
+}
+
+type WeightTicketImpurityOptionsPayload = {
+  options?: Array<{ id: string; label: string }>
 }
 
 type WeightTicketProductsPayload = {
@@ -1037,7 +1042,7 @@ export function WeightTicketFormCore({
       try {
         const [data, productData] = await Promise.all([
           cachedWeightTicketReferences<WeightTicketOptionsPayload>('/api/daily/weight-tickets/options'),
-          cachedWeightTicketReferences<WeightTicketProductsPayload>('/api/daily/weight-tickets/products'),
+          fetchFreshWeightTicketReferences<WeightTicketProductsPayload>('/api/daily/weight-tickets/products'),
         ])
 
         if (!cancelled && !controller.signal.aborted) {
@@ -1047,29 +1052,6 @@ export function WeightTicketFormCore({
             id: branch.id,
             label: branch.name,
           })))
-          setSuppliers((data.suppliers ?? []).map((supplier) => {
-            const code = supplier.code?.trim() ?? ''
-            return {
-              code: code || undefined,
-              description: code ? `Supplier · ${code}` : 'Supplier',
-              branchIds: supplier.branchIds ?? [],
-              id: supplier.id,
-              label: supplier.name,
-              searchText: [code, supplier.name].filter(Boolean).join(' '),
-            }
-          }))
-          setCustomers((data.customers ?? []).map((customer) => {
-            const code = customer.code?.trim() ?? ''
-            return {
-              code: code || undefined,
-              description: code ? `Customer · ${code}` : 'Customer',
-              branchIds: customer.branchIds ?? [],
-              id: customer.id,
-              label: customer.name,
-              searchText: [code, customer.name].filter(Boolean).join(' '),
-            }
-          }))
-          setImpurities((data.impurities ?? []).filter((impurity) => !isOtherProductImpurityLabel(impurity.label)))
           setProducts((productData.rows ?? []).map((product) => ({
             category: product.type ?? undefined,
             code: product.code ?? undefined,
@@ -1137,6 +1119,65 @@ export function WeightTicketFormCore({
       controller.abort()
     }
   }, [form.branchId, form.type, wtoProductKeys])
+
+  useEffect(() => {
+    if (!form.branchId) {
+      setSuppliers([])
+      setCustomers([])
+      return
+    }
+
+    const controller = new AbortController()
+    let cancelled = false
+    const params = new URLSearchParams({ branchId: form.branchId, type: form.type })
+
+    async function loadPartyOptions() {
+      try {
+        const data = await fetchFreshWeightTicketReferences<WeightTicketPartyOptionsPayload>(
+          `/api/daily/weight-tickets/party-options?${params.toString()}`,
+        )
+        if (cancelled || controller.signal.aborted) return
+        const options = (data.options ?? []).map((party) => {
+          const code = party.code?.trim() ?? ''
+          return {
+            code: code || undefined,
+            description: code ? `${form.type === 'WTI' ? 'Supplier' : 'Customer'} · ${code}` : form.type === 'WTI' ? 'Supplier' : 'Customer',
+            branchIds: party.branchIds ?? [],
+            id: party.id,
+            label: party.name,
+            searchText: [code, party.name].filter(Boolean).join(' '),
+          }
+        })
+        if (form.type === 'WTI') setSuppliers(options)
+        else setCustomers(options)
+      } catch {
+        if (!cancelled && !controller.signal.aborted) {
+          if (form.type === 'WTI') setSuppliers([])
+          else setCustomers([])
+        }
+      }
+    }
+
+    void loadPartyOptions()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [form.branchId, form.type])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadImpurityOptions() {
+      try {
+        const data = await fetchFreshWeightTicketReferences<WeightTicketImpurityOptionsPayload>('/api/daily/weight-tickets/impurity-options')
+        if (!cancelled) setImpurities((data.options ?? []).filter((impurity) => !isOtherProductImpurityLabel(impurity.label)))
+      } catch {
+        if (!cancelled) setImpurities([])
+      }
+    }
+    void loadImpurityOptions()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (!editingTicketId) {
