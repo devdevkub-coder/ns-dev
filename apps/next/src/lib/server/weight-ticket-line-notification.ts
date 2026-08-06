@@ -30,6 +30,8 @@ type NotifyOptions = {
 
 type NotificationLogStatus = 'failed' | 'sent'
 
+const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7
+
 async function resolveNotificationConfigs() {
   const dbSettings = await prisma.system_settings.findMany({
     where: {
@@ -177,6 +179,7 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
   if (process.env.NODE_ENV === 'test' && process.env.MOCK_PDF_UPLOAD === 'true') {
     return {
       pdfUrl: `https://test.invalid/storage/${bucketName}/dummy-test-ticket.pdf`,
+      pdfDownloadUrl: `https://test.invalid/storage/${bucketName}/dummy-test-ticket.pdf?download=1`,
       storageKey: 'dummy-test-ticket.pdf'
     }
   }
@@ -192,8 +195,22 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
   if (error) {
     throw new Error(`อัปโหลด PDF ไป Supabase Storage ไม่สำเร็จ: ${error.message}`)
   }
-  const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
-  return { pdfUrl: data.publicUrl, storageKey }
+  const storage = supabase.storage.from(bucketName)
+  const [{ data: viewData, error: viewError }, { data: downloadData, error: downloadError }] = await Promise.all([
+    storage.createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS),
+    storage.createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS, { download: `${safeStorageSegment(ticket.documentNo)}.pdf` }),
+  ])
+  if (viewError || !viewData?.signedUrl) {
+    throw new Error(`สร้างลิงก์ดู PDF ไม่สำเร็จ: ${viewError?.message ?? 'ไม่พบ signed URL'}`)
+  }
+  if (downloadError || !downloadData?.signedUrl) {
+    throw new Error(`สร้างลิงก์ดาวน์โหลด PDF ไม่สำเร็จ: ${downloadError?.message ?? 'ไม่พบ signed URL'}`)
+  }
+  return {
+    pdfDownloadUrl: downloadData.signedUrl,
+    pdfUrl: viewData.signedUrl,
+    storageKey,
+  }
 }
 
 async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, pageIdx: number, bucketName: string) {
@@ -212,8 +229,11 @@ async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, page
   if (error) {
     throw new Error(`อัปโหลดรูปภาพอัลบั้มไป Supabase Storage ไม่สำเร็จ: ${error.message}`)
   }
-  const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
-  return data.publicUrl
+  const { data, error: signedUrlError } = await supabase.storage.from(bucketName).createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS)
+  if (signedUrlError || !data?.signedUrl) {
+    throw new Error(`สร้างลิงก์รูปภาพอัลบั้มไม่สำเร็จ: ${signedUrlError?.message ?? 'ไม่พบ signed URL'}`)
+  }
+  return data.signedUrl
 }
 
 function buildDetailUrl(origin: string, documentNo: string, type: 'WTI' | 'WTO') {
@@ -307,9 +327,37 @@ function buildProductDetailRows(ticket: WeightTicketRecord) {
   return rows
 }
 
+export function buildWeightTicketPdfActions(pdfUrl: string, pdfDownloadUrl: string) {
+  return [
+    ...(pdfUrl ? [{
+      type: 'button' as const,
+      style: 'primary' as const,
+      color: '#0f172a',
+      height: 'sm' as const,
+      margin: 'md' as const,
+      action: {
+        type: 'uri' as const,
+        label: 'ดู PDF',
+        uri: pdfUrl,
+      },
+    }] : []),
+    ...(pdfDownloadUrl ? [{
+      type: 'button' as const,
+      style: 'secondary' as const,
+      height: 'sm' as const,
+      action: {
+        type: 'uri' as const,
+        label: 'ดาวน์โหลด PDF',
+        uri: pdfDownloadUrl,
+      },
+    }] : []),
+  ]
+}
+
 function buildFlexMessage(
   ticket: WeightTicketRecord,
   pdfUrl: string,
+  pdfDownloadUrl: string,
   detailUrl: string,
   imagePublicUrls: string[],
   albumImageUrls: string[],
@@ -543,7 +591,8 @@ function buildFlexMessage(
               wrap: true
             }
           ]
-        }
+        },
+        ...buildWeightTicketPdfActions(pdfUrl, pdfDownloadUrl),
       ]
     },
     footer: {
@@ -1060,8 +1109,13 @@ async function resolveImagePublicUrls(ticket: WeightTicketRecord, bucketName: st
           if (error) {
             console.error('Failed to upload ticket image to Supabase:', error.message)
           } else {
-            const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
-            publicUrls.push(data.publicUrl)
+            const { data, error: signedUrlError } = await supabase.storage.from(bucketName).createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS)
+            if (signedUrlError || !data?.signedUrl) {
+              console.error('Failed to create signed ticket image URL:', signedUrlError?.message ?? 'missing signed URL')
+              publicUrls.push('')
+            } else {
+              publicUrls.push(data.signedUrl)
+            }
           }
         } else {
           publicUrls.push('')
@@ -1135,6 +1189,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     let albumImageUrls: string[] = []
     let pdfStorageBucket = configs.pdfBucket
     let pdfStorageKey: string | undefined
+    let pdfDownloadUrl = ''
 
     try {
       // ใช้ module ใหม่ react-pdf + @napi-rs/canvas (แทน Playwright)
@@ -1146,6 +1201,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       })
       const uploaded = await uploadPdf(loaded.record, pdfBuffer, configs.pdfBucket)
       pdfUrl = uploaded.pdfUrl
+      pdfDownloadUrl = uploaded.pdfDownloadUrl
       pdfStorageKey = uploaded.storageKey
 
       // Upload album images
@@ -1160,7 +1216,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     }
 
     const imagePublicUrls = await resolveImagePublicUrls(loaded.record, configs.pdfBucket)
-    const flexMessage = buildFlexMessage(loaded.record, pdfUrl, detailUrl, imagePublicUrls, albumImageUrls, options.customMessage)
+    const flexMessage = buildFlexMessage(loaded.record, pdfUrl, pdfDownloadUrl, detailUrl, imagePublicUrls, albumImageUrls, options.customMessage)
     const customTemplate = loaded.record.type === 'WTI' ? configs.wtiTemplate : configs.wtoTemplate
     const textMessage = {
       type: 'text',

@@ -9,6 +9,19 @@ import { decodeStoredImageAsset, type StoredImageAsset } from '@/lib/weight-tick
 
 export const runtime = 'nodejs'
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
+
+function allowedRemoteImageHost() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (!supabaseUrl) return null
+  try {
+    return new URL(supabaseUrl).hostname
+  } catch {
+    return null
+  }
+}
+
 function safeFileName(value: string, fallback: string) {
   const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
   return cleaned || fallback
@@ -29,18 +42,31 @@ function dataUrlBytes(url: string) {
 
 async function loadImageBytes(asset: StoredImageAsset, bucket: string, supabase: ReturnType<typeof getSupabaseAdminClient>) {
   const dataBytes = asset.url ? dataUrlBytes(asset.url) : null
-  if (dataBytes) return dataBytes
+  if (dataBytes) {
+    if (dataBytes.byteLength > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
+    return dataBytes
+  }
 
   if (asset.storageKey && supabase && bucket) {
     const { data, error } = await supabase.storage.from(bucket).download(asset.storageKey)
     if (error || !data) throw new Error(error?.message ?? `ไม่พบไฟล์ ${asset.fileName}`)
+    if (data.size > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
     return Buffer.from(await data.arrayBuffer())
   }
 
-  if (asset.url?.startsWith('https://')) {
-    const response = await fetch(asset.url, { cache: 'no-store' })
+  const allowedHost = allowedRemoteImageHost()
+  if (asset.url?.startsWith('https://') && allowedHost) {
+    const remoteUrl = new URL(asset.url)
+    if (remoteUrl.hostname !== allowedHost) {
+      throw new Error(`ไม่อนุญาตให้โหลดรูปจาก ${remoteUrl.hostname}`)
+    }
+    const response = await fetch(remoteUrl, { cache: 'no-store', signal: AbortSignal.timeout(30_000) })
     if (!response.ok) throw new Error(`โหลดไฟล์ ${asset.fileName} ไม่สำเร็จ (${response.status})`)
-    return Buffer.from(await response.arrayBuffer())
+    const contentLength = Number(response.headers.get('content-length') ?? 0)
+    if (contentLength > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
+    const bytes = Buffer.from(await response.arrayBuffer())
+    if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
+    return bytes
   }
 
   throw new Error(`ไม่พบแหล่งไฟล์สำหรับ ${asset.fileName}`)
@@ -74,9 +100,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = getSupabaseAdminClient()
     const files: Record<string, Uint8Array> = {}
     const usedNames = new Set<string>()
+    let totalBytes = 0
 
     for (const [index, asset] of assets.entries()) {
       const bytes = await loadImageBytes(asset, bucket, supabase)
+      totalBytes += bytes.byteLength
+      if (totalBytes > MAX_ARCHIVE_BYTES) {
+        throw new Error('รูปภาพรวมมีขนาดใหญ่เกินกว่าที่ดาวน์โหลดเป็น ZIP ได้')
+      }
       const baseName = safeFileName(asset.fileName, `image-${index + 1}`)
       let fileName = baseName
       let suffix = 2
