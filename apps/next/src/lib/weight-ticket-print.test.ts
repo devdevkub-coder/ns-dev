@@ -218,6 +218,23 @@ function countPdfPages(buffer: Buffer) {
   return buffer.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length ?? 0
 }
 
+function emptyDraftTicket(type: 'WTI' | 'WTO'): WeightTicketRecord {
+  return {
+    ...ticket,
+    documentNo: `${type}190726-DRAFT`,
+    lines: [],
+    productSummaries: [],
+    status: 'draft',
+    totals: {
+      containerDeductionWeight: 0,
+      deductionWeight: 0,
+      grossWeight: 0,
+      netWeight: 0,
+    },
+    type,
+  }
+}
+
 describe('weight ticket print HTML', () => {
   it('loads the existing local Thai fonts without external stylesheets', () => {
     const html = buildReceiptPrintHtml(ticket, profile)
@@ -269,6 +286,20 @@ describe('weight ticket print HTML', () => {
     expect(text).toContain('32.00 kg')
     expect(text).toContain('429.00 kg')
   })
+
+  it('renders empty WTI and WTO drafts with a draft badge in HTML and one PDF page', async () => {
+    await ensurePdfFontsRegistered()
+
+    for (const type of ['WTI', 'WTO'] as const) {
+      const draft = emptyDraftTicket(type)
+      const html = buildReceiptPrintHtml(draft, profile)
+      const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: draft }))
+
+      expect(html).toContain('class="draft-badge"')
+      expect(html).toContain(type === 'WTI' ? 'แบบร่าง - ยังไม่ยืนยันรับของ' : 'แบบร่าง - ยังไม่ยืนยันส่งของ')
+      expect(countPdfPages(Buffer.from(pdf))).toBeGreaterThan(0)
+    }
+  }, 30_000)
 
   it('numbers WTI lot rows in the product name without empty lot captions', () => {
     const ticketWithThreeLots: WeightTicketRecord = {
