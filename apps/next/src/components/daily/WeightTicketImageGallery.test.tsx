@@ -56,6 +56,8 @@ describe('WeightTicketImageGallery', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('renders the combined ticket images and opens the existing gallery at the clicked image', () => {
@@ -84,6 +86,57 @@ describe('WeightTicketImageGallery', () => {
       ]),
       title: 'รูปภาพประกอบ',
     }))
+  })
+
+  it('downloads all previewable images through the document ZIP endpoint', async () => {
+    const onOpen = vi.fn()
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new Blob(['zip']), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const createObjectUrl = vi.fn().mockReturnValue('blob:weight-ticket-images')
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    const imageNames = [
+      encodeStoredImageReference('evidence.jpg', 'https://example.com/evidence.jpg', 'weight-ticket/evidence.jpg'),
+    ]
+
+    act(() => root.render(
+      <WeightTicketImageGallery
+        downloadUrl="/api/daily/weight-tickets/WTI-001/images/download"
+        imageNames={imageNames}
+        onOpen={onOpen}
+      />,
+    ))
+
+    const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('ดาวน์โหลดรูปทั้งหมด'))
+    expect(downloadButton).not.toBeUndefined()
+    await act(async () => {
+      downloadButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/daily/weight-tickets/WTI-001/images/download', { cache: 'no-store' })
+    expect(createObjectUrl).toHaveBeenCalled()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: undefined })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: undefined })
+  })
+
+  it('keeps the download button enabled when only vehicle images are downloadable', () => {
+    const onOpen = vi.fn()
+    const vehicleImage = encodeStoredImageReference('vehicle.jpg', 'https://example.com/vehicle.jpg', 'weight-ticket/vehicle.jpg')
+
+    act(() => root.render(
+      <WeightTicketImageGallery
+        downloadImageNames={[vehicleImage]}
+        downloadUrl="/api/daily/weight-tickets/WTI-001/images/download"
+        imageNames={[]}
+        onOpen={onOpen}
+      />,
+    ))
+
+    const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('ดาวน์โหลดรูปทั้งหมด'))
+    expect(downloadButton).not.toBeUndefined()
+    expect(downloadButton?.disabled).toBe(false)
+    expect(container.textContent).toContain('1 รูปทั้งหมด')
   })
 
   it('shows an empty evidence state when the ticket has no images', () => {

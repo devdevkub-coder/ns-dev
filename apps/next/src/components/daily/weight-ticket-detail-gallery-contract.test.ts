@@ -5,7 +5,6 @@ import { buildWeightTicketLineGallery } from './WeightTicketProductBreakdownTabl
 
 const detailSources = [
   'src/components/daily/WeightTicketDetailModal.tsx',
-  'src/components/daily/WeightTicketDetailPageClient.tsx',
 ].map((file) => ({
   file,
   source: readFileSync(resolve(process.cwd(), file), 'utf8').replaceAll('\r\n', '\n'),
@@ -18,7 +17,6 @@ const imageEntryPointSources = [
   'src/components/daily/WeightTicketImageGallery.tsx',
   'src/components/daily/WeightTicketProductBreakdownTable.tsx',
   'src/components/daily/WeightTicketDetailModal.tsx',
-  'src/components/daily/WeightTicketDetailPageClient.tsx',
 ].map((file) => ({
   file,
   source: readFileSync(resolve(process.cwd(), file), 'utf8').replaceAll('\r\n', '\n'),

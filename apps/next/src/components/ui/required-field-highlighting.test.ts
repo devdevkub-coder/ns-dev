@@ -170,7 +170,6 @@ describe('manual-entry field highlighting contract', () => {
     const moneyMovement = source('../daily/MoneyMovementPageClient.tsx')
     const costAllocator = source('../dual-costing/CostAllocatorPageClient.tsx')
     const receiptVouchers = source('../daily/ReceiptVouchersPageClient.tsx')
-    const weightTicketDetail = source('../daily/WeightTicketDetailPageClient.tsx')
     const weightTicketList = source('../daily/WeightTicketListPageClient.tsx')
 
     expect(masterData).toContain('required={field.required}')
@@ -193,7 +192,6 @@ describe('manual-entry field highlighting contract', () => {
     expect(costAllocator).toContain('<option disabled value="">{sourceType')
     expect(costAllocator).toContain('aria-invalid={Boolean(targetCostError)}')
     expect(receiptVouchers).toContain('const noteInvalid = Boolean(error && !note.trim())')
-    expect(weightTicketDetail).toContain('aria-invalid={Boolean(cancelError && !cancelNote.trim())}')
     expect(weightTicketList).toContain('aria-invalid={Boolean(cancelError && !cancelNote.trim())}')
   })
 

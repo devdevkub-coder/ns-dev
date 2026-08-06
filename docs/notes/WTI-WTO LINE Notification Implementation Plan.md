@@ -3,6 +3,7 @@
 > เอกสารนี้เป็นแผนงานย้อนหลังเพื่ออ้างอิงการออกแบบเดิมเท่านั้น ไม่ใช่ contract ปัจจุบัน
 > Google Sheets ถูกยกเลิกจาก flow WTI/WTO แล้ว ให้ยึด `docs/notes/WTI-WTO Flow.md` เป็น source of truth
 > สำหรับพฤติกรรมปัจจุบัน
+> สรุปปัจจุบัน: auto-send เกิดเฉพาะหลังยืนยัน (`WTI -> received`, `WTO -> delivered`); manual share และ PDF ใช้ได้กับสถานะยืนยันที่ยังไม่ถูกยกเลิกเท่านั้น. `draft` และ `cancelled` ห้ามแชร์/พิมพ์ และ WTI ไม่มี `partially_billed`.
 
 > แผนสำหรับให้ Antigravity หรือ agent ถัดไป implement งานส่ง LINE หลังสร้างใบรับ-ส่งของ  
 > Scope หลัก: `/daily/weight-ticket-list` และเอกสาร `WTI/WTO` ใน active Next app `apps/next/`  

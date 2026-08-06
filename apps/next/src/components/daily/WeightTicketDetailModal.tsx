@@ -19,7 +19,7 @@ import { WeightTicketImageGallery } from '@/components/daily/WeightTicketImageGa
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, isPreviewableStoredImageAsset, notifyWeightTicketLine, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
@@ -165,7 +165,7 @@ export function WeightTicketDetailModal({
   }, [ticketId])
 
   useEffect(() => {
-    if (ticket?.type !== 'WTO') {
+    if (ticket?.type !== 'WTO' || ticket.status !== 'partially_billed') {
       setCanReturnStock(false)
       return
     }
@@ -187,7 +187,7 @@ export function WeightTicketDetailModal({
     return () => {
       cancelled = true
     }
-  }, [ticket?.documentNo, ticket?.type])
+  }, [ticket?.documentNo, ticket?.status, ticket?.type])
 
   const vehicleImages = useMemo(
     () => (ticket?.vehicleImageNames ?? []).map(decodeStoredImageAsset),
@@ -241,7 +241,7 @@ export function WeightTicketDetailModal({
   }
 
   async function handlePrintReceipt() {
-    if (!ticket) return
+    if (!ticket || !canPrintWeightTicket(ticket.status)) return
     setIsPrinting(true)
     let printWindow: Window | null = null
     try {
@@ -267,7 +267,7 @@ export function WeightTicketDetailModal({
   }
 
   async function handleSendLineNotification() {
-    if (!ticket) return
+    if (!ticket || !canShareWeightTicket(ticket.status)) return
     setIsSendingLine(true)
     setShareError('')
     try {
@@ -283,7 +283,7 @@ export function WeightTicketDetailModal({
   }
 
   function handleManualLineShare() {
-    if (!ticket) return
+    if (!ticket || !canShareWeightTicket(ticket.status)) return
     openWeightTicketLineShare(ticket)
     setShowShareDialog(false)
     setShareNote('')
@@ -309,7 +309,7 @@ export function WeightTicketDetailModal({
             <div className="flex flex-wrap items-center justify-end gap-2">
               {ticket ? (
                 <>
-                  {ticket.status === 'draft' ? (
+                  {canConfirmWeightTicket(ticket) ? (
                     <div className="flex items-center gap-3">
                       {ticket.type === 'WTO' ? <span className="text-xs text-current">ยังไม่จอง stock</span> : null}
                       <Button
@@ -359,14 +359,16 @@ export function WeightTicketDetailModal({
                     </Button>
                   )
                 ) : null}
-                {ticket.status !== 'draft' ? <Button aria-label="แชร์" className="h-10 w-10 shrink-0 gap-0 px-0 font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" type="button" variant="outline" onClick={() => setShowShareDialog(true)}>
+                {canShareWeightTicket(ticket.status) ? <Button aria-label="แชร์" className="h-10 w-10 shrink-0 gap-0 px-0 font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" type="button" variant="outline" onClick={() => setShowShareDialog(true)}>
                   <Share2 className="size-4" />
                   <span className="sr-only sm:not-sr-only">แชร์</span>
                 </Button> : null}
-                <Button aria-label={isPrinting ? 'กำลังเตรียมพิมพ์' : 'พิมพ์'} className="h-10 w-10 shrink-0 gap-0 border-emerald-600 bg-emerald-600 px-0 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" disabled={isPrinting} type="button" variant="outline" onClick={() => void handlePrintReceipt()}>
-                  <Printer className="size-4" />
-                  <span className="sr-only sm:not-sr-only">{isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}</span>
-                </Button>
+                {canPrintWeightTicket(ticket.status) ? (
+                  <Button aria-label={isPrinting ? 'กำลังเตรียมพิมพ์' : 'พิมพ์'} className="h-10 w-10 shrink-0 gap-0 border-emerald-600 bg-emerald-600 px-0 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" disabled={isPrinting} type="button" variant="outline" onClick={() => void handlePrintReceipt()}>
+                    <Printer className="size-4" />
+                    <span className="sr-only sm:not-sr-only">{isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}</span>
+                  </Button>
+                ) : null}
                 </>
               ) : null}
               <Button className="h-10 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white sm:h-9" disabled={isCanceling} type="button" variant="outline" onClick={requestClose}>ปิด</Button>
@@ -518,6 +520,8 @@ export function WeightTicketDetailModal({
               </div>
 
               <WeightTicketImageGallery
+                downloadUrl={`/api/daily/weight-tickets/${encodeURIComponent(ticket.documentNo)}/images/download`}
+                downloadImageNames={[...ticket.vehicleImageNames, ...ticket.imageNames]}
                 imageNames={ticket.imageNames}
                 onOpen={(gallery) => setLineGallery(gallery)}
               />
@@ -950,14 +954,14 @@ function ImageGrid({
   images,
   onOpen,
 }: {
-  images: Array<{ fileName: string; rawValue: string; url: string | null }>
+  images: StoredImageAsset[]
   onOpen: (image: { fileName: string; url: string }) => void
 }) {
   if (images.length === 0) {
     return <div className="text-sm text-slate-400">ยังไม่มีรูปภาพ</div>
   }
 
-  const previewable = images.filter(isPreviewableStoredImageAsset)
+  const previewable = images.filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
   const unavailableCount = images.length - previewable.length
 
   return (

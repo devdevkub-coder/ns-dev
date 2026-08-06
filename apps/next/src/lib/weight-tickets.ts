@@ -175,6 +175,7 @@ export type WeightTicketSortDir = 'asc' | 'desc'
 export type StoredImageAsset = {
   fileName: string
   rawValue: string
+  storageKey?: string | null
   url: string | null
 }
 
@@ -749,6 +750,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
     return {
       fileName: mimeType || trimmed.slice(0, 32),
       rawValue,
+      storageKey: null,
       url: trimmed,
     }
   }
@@ -762,17 +764,19 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
       return {
         fileName,
         rawValue,
+        storageKey: null,
         url,
       }
     }
   }
 
   try {
-    const parsed = JSON.parse(trimmed) as { dataUrl?: unknown; fileName?: unknown; url?: unknown }
+    const parsed = JSON.parse(trimmed) as { dataUrl?: unknown; fileName?: unknown; storageKey?: unknown; url?: unknown }
     if (typeof parsed.fileName === 'string' && typeof parsed.dataUrl === 'string' && parsed.dataUrl.startsWith('data:image/')) {
       return {
         fileName: parsed.fileName,
         rawValue,
+        storageKey: typeof parsed.storageKey === 'string' && parsed.storageKey.trim() ? parsed.storageKey.trim() : null,
         url: parsed.dataUrl,
       }
     }
@@ -784,6 +788,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
       return {
         fileName: parsed.fileName,
         rawValue,
+        storageKey: typeof parsed.storageKey === 'string' && parsed.storageKey.trim() ? parsed.storageKey.trim() : null,
         url: parsed.url,
       }
     }
@@ -794,6 +799,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
   return {
     fileName: trimmed,
     rawValue,
+    storageKey: null,
     url: null,
   }
 }
@@ -991,12 +997,33 @@ export const statusLabels: Record<WeightTicketStatus, string> = {
   received: 'รับของแล้ว',
 }
 
+export function canPrintWeightTicket(status: WeightTicketStatus) {
+  return status !== 'draft' && status !== 'cancelled'
+}
+
+export function canShareWeightTicket(status: WeightTicketStatus) {
+  return status !== 'draft' && status !== 'cancelled'
+}
+
+export function canConfirmWeightTicket(ticket: Pick<WeightTicketRecord, 'status' | 'productSummaries' | 'usedInPurchaseBillCount' | 'usedInSalesBillCount'>) {
+  return ticket.status === 'draft'
+    && ticket.productSummaries.length > 0
+    && ticket.usedInPurchaseBillCount === 0
+    && ticket.usedInSalesBillCount === 0
+}
+
+export function canReturnWeightTicket(ticket: Pick<WeightTicketRecord, 'type' | 'status' | 'usedInSalesBillCount' | 'productSummaries'>) {
+  return ticket.type === 'WTO'
+    && ticket.status === 'partially_billed'
+    && ticket.usedInSalesBillCount > 0
+    && ticket.productSummaries.some((summary) => summary.remainingWeight > 0.0001)
+}
+
 export function displayWeightTicketStatus(type: WeightTicketType, status: WeightTicketStatus) {
   if (status === 'draft') {
     return type === 'WTO' ? 'ร่าง' : 'แบบร่าง'
   }
   if (type === 'WTI') {
-    if (status === 'partially_billed') return 'ออกบิลแล้วบางส่วน'
     if (status === 'billed') return 'เสร็จสิ้น'
     if (status === 'cancelled') return 'ยกเลิก'
     return 'รับของแล้ว'
@@ -1018,7 +1045,6 @@ export function weightTicketStatusBadgeClass(type: WeightTicketType, status: Wei
   }
   if (status === 'cancelled') return 'text-rose-700'
   if (type === 'WTI') {
-    if (status === 'partially_billed') return 'text-amber-700'
     if (status === 'billed') return 'text-blue-700'
     return 'text-emerald-700'
   }

@@ -33,6 +33,10 @@ import {
 } from './weight-ticket-table-layout'
 import {
   cancelWeightTicket,
+  canConfirmWeightTicket,
+  canPrintWeightTicket,
+  canReturnWeightTicket,
+  canShareWeightTicket,
   confirmWeightTicket,
   displayWeightTicketStatus,
   formatWeight,
@@ -172,9 +176,7 @@ function canOpenSalesBillFromTicket(ticket: WeightTicketRecord, canOpenBill: boo
 }
 
 function canConfirmTicket(ticket: WeightTicketRecord) {
-  return ticket.status === 'draft'
-    && ticket.usedInPurchaseBillCount === 0
-    && ticket.usedInSalesBillCount === 0
+  return canConfirmWeightTicket(ticket)
 }
 
 function confirmTicketLabel(ticket: WeightTicketRecord) {
@@ -182,15 +184,14 @@ function confirmTicketLabel(ticket: WeightTicketRecord) {
 }
 
 function canReturnWtoStock(ticket: WeightTicketRecord) {
-  return ticket.type === 'WTO'
-    && ticket.usedInSalesBillCount > 0
-    && ticket.productSummaries.some((summary) => summary.remainingWeight > 0.0001)
+  return canReturnWeightTicket(ticket)
 }
 
 export function WeightTicketListPageClient() {
   const router = useRouter()
   const { requestConfirmation } = useActionConfirmation()
   const guardedFormCloseRef = useRef<() => void>(() => {})
+  const autoOpenDetailRef = useRef('')
   const [tickets, setTickets] = useState<WeightTicketRecord[]>([])
   const [canOpenPurchaseBill, setCanOpenPurchaseBill] = useState(false)
   const [canOpenSalesBill, setCanOpenSalesBill] = useState(false)
@@ -267,7 +268,11 @@ export function WeightTicketListPageClient() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const type = new URLSearchParams(window.location.search).get('type')
+    const params = new URLSearchParams(window.location.search)
+    const type = params.get('type')
+    const search = params.get('search')
+    const detail = params.get('detail')
+    if (search || detail) setQuery(detail || search || '')
     if (type === 'WTO') {
       setTypeFilter('WTO')
       setStatusFilter([])
@@ -320,6 +325,19 @@ export function WeightTicketListPageClient() {
       cancelled = true
     }
   }, [branchFilter, dateFrom, dateTo, page, pageSize, query, sortBy, sortDir, statusFilter, typeFilter, refreshKey])
+
+  useEffect(() => {
+    if (isLoading || tickets.length === 0 || typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const detail = params.get('detail')?.trim()
+    if (!detail) return
+    const key = `${typeFilter}:${detail}`
+    if (autoOpenDetailRef.current === key) return
+    const ticket = tickets.find((row) => row.documentNo === detail)
+    if (!ticket) return
+    autoOpenDetailRef.current = key
+    setActiveDetailId(ticket.id)
+  }, [isLoading, tickets, typeFilter])
 
   function clearFilters() {
     setQuery('')
@@ -402,6 +420,7 @@ export function WeightTicketListPageClient() {
   }
 
   async function handlePrintTicket(ticket: WeightTicketRecord) {
+    if (!canPrintWeightTicket(ticket.status)) return
     setPrintingTicketId(ticket.id)
     let printWindow: Window | null = null
     try {
@@ -416,13 +435,14 @@ export function WeightTicketListPageClient() {
   }
 
   function openShareDialog(ticket: WeightTicketRecord) {
+    if (!canShareWeightTicket(ticket.status)) return
     setShareTicket(ticket)
     setShareNote('')
     setShareError('')
   }
 
   async function handleSendLineNotification() {
-    if (!shareTicket) return
+    if (!shareTicket || !canShareWeightTicket(shareTicket.status)) return
     setIsSendingLine(true)
     setShareError('')
     try {
@@ -439,7 +459,7 @@ export function WeightTicketListPageClient() {
   }
 
   function handleManualLineShare() {
-    if (!shareTicket) return
+    if (!shareTicket || !canShareWeightTicket(shareTicket.status)) return
     openWeightTicketLineShare(shareTicket)
     setShareTicket(null)
     setShareNote('')
@@ -754,12 +774,13 @@ export function WeightTicketListPageClient() {
                   mobileLabel
                   menu={(
                     <>
+                      <TableActionMenuItem onSelect={() => setActiveDetailId(ticket.id)}>รายละเอียด</TableActionMenuItem>
                       {canOpenPurchaseBillFromTicket(ticket, canOpenPurchaseBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลซื้อ</TableActionMenuItem> : null}
                       {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
                       {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                       {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
-                      <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem>
-                      <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem>
+                      {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                      {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                       {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                       {ticket.canCancel ? (
                         <TableActionMenuItem onSelect={() => {
@@ -868,12 +889,13 @@ export function WeightTicketListPageClient() {
                         busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id}
                         menu={(
                           <>
+                            <TableActionMenuItem onSelect={() => setActiveDetailId(ticket.id)}>รายละเอียด</TableActionMenuItem>
                             {canOpenPurchaseBillFromTicket(ticket, canOpenPurchaseBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลซื้อ</TableActionMenuItem> : null}
                             {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
                             {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                             {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
-                            <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem>
-                            <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem>
+                            {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                            {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                             {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                             {ticket.canCancel ? (
                               <TableActionMenuItem onSelect={() => {

@@ -253,14 +253,14 @@ export async function GET(request: Request) {
       }
 
       if (row.doc_type === 'WTI') {
-        const isConfirmed = row.status === 'received' || row.status === 'partially_billed'
+        const isConfirmed = row.status === 'received'
         const needsPurchaseBill = isConfirmed && wtiRemainingWeight > 0.0001
         wtiRows.push({
           branchName: branchBucket.branchName,
           date: toDateOnly(row.document_date),
           docNo: row.doc_no,
           followUpWeight: isConfirmed ? wtiRemainingWeight : 0,
-          href: `/daily/weight-ticket-list/${encodeURIComponent(row.doc_no)}`,
+          href: `/daily/weight-ticket-list?detail=${encodeURIComponent(row.doc_no)}&type=${row.doc_type}`,
           netWeight,
           partyName: row.party_name,
           status: row.status ?? '',
@@ -269,7 +269,7 @@ export async function GET(request: Request) {
         })
       }
 
-      if (row.doc_type === 'WTI' && wtiRemainingWeight > 0.0001 && (row.status === 'received' || row.status === 'partially_billed')) {
+      if (row.doc_type === 'WTI' && wtiRemainingWeight > 0.0001 && row.status === 'received') {
         summary.wtiWaitingBillCount += 1
         summary.wtiWaitingBillWeight += wtiRemainingWeight
         branchBucket.wtiWaitingBillWeight += wtiRemainingWeight
@@ -277,7 +277,7 @@ export async function GET(request: Request) {
           branchName: branchBucket.branchName,
           date: toDateOnly(row.document_date),
           docNo: row.doc_no,
-          href: `/daily/weight-ticket-list/${encodeURIComponent(row.doc_no)}`,
+          href: `/daily/weight-ticket-list?detail=${encodeURIComponent(row.doc_no)}&type=${row.doc_type}`,
           netWeight,
           partyName: row.party_name,
           remainingWeight: wtiRemainingWeight,
@@ -316,7 +316,7 @@ export async function GET(request: Request) {
           date: toDateOnly(row.document_date),
           docNo: row.doc_no,
           followUpWeight: isConfirmed ? wtoPendingOutWeight : 0,
-          href: `/daily/weight-ticket-list/${encodeURIComponent(row.doc_no)}`,
+          href: `/daily/weight-ticket-list?detail=${encodeURIComponent(row.doc_no)}&type=${row.doc_type}`,
           netWeight,
           partyName: row.party_name,
           status: row.status ?? '',
@@ -333,7 +333,7 @@ export async function GET(request: Request) {
           branchName: branchBucket.branchName,
           date: toDateOnly(row.document_date),
           docNo: row.doc_no,
-          href: `/daily/weight-ticket-list/${encodeURIComponent(row.doc_no)}`,
+          href: `/daily/weight-ticket-list?detail=${encodeURIComponent(row.doc_no)}&type=${row.doc_type}`,
           netWeight,
           partyName: row.party_name,
           remainingWeight: wtoPendingOutWeight,

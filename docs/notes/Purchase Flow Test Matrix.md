@@ -62,7 +62,7 @@ updated: 2026-06-08
 | `UC-PUR-03` | PO | PO รับของบางส่วน | `/purchase/po-buy`, `/purchase/bills` | Medium | `Pass` |
 | `UC-PUR-04` | PO | PO ใช้ครบ | `/purchase/po-buy`, `/purchase/bills` | Medium | `Pass` |
 | `UC-PUR-05` | PO | ปิดรับไม่ครบ | `/purchase/po-buy` | Medium | `Not Run` |
-| `UC-PUR-06` | WTI | WTI สินค้าเดียวหลาย lot | `/daily/weight-ticket-list/[id]`, `/purchase/bills` | Medium | `Not Run` |
+| `UC-PUR-06` | WTI | WTI สินค้าเดียวหลาย lot | `/daily/weight-ticket-list?detail={documentNo}&type=WTI`, `/purchase/bills` | Medium | `Not Run` |
 | `UC-PUR-07` | WTI | WTI ที่เลือกใน PB ต้องจัดสรรครบก่อนบันทึก | `/purchase/bills`, `/daily/weight-ticket-list` | High | `Pass` |
 | `UC-PUR-08` | Allocation | 1 summary แตกหลายแถวใน PB | `/purchase/bills` | High | `Pass` |
 | `UC-PUR-09` | Approval | PB ต้องไปโผล่หน้าอนุมัติโอนเงิน | `/daily/payment-approval` | High | `Pass` |

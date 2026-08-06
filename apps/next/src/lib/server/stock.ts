@@ -312,7 +312,7 @@ export async function stockBalanceSnapshot(input: {
   // Build unbilled weight query clauses
   const awaitingBillWhere: Prisma.Sql[] = [
     Prisma.sql`wt.doc_type = 'WTI'`,
-    Prisma.sql`wt.status in ('received', 'partially_billed')`,
+    Prisma.sql`wt.status = 'received'`,
     Prisma.sql`wt.cancelled_at is null`
   ]
   if (normalizedInput.branchId) {

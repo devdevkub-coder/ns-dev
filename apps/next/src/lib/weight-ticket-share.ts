@@ -1,10 +1,11 @@
 'use client'
 
-import { formatWeight, type WeightTicketRecord, typeLabels } from '@/lib/weight-tickets'
+import { formatWeight, type WeightTicketRecord, type WeightTicketType, typeLabels } from '@/lib/weight-tickets'
 
-export function buildWeightTicketDetailUrl(documentNo: string) {
-  if (typeof window === 'undefined') return `/daily/weight-ticket-list/${encodeURIComponent(documentNo)}`
-  return new URL(`/daily/weight-ticket-list/${encodeURIComponent(documentNo)}`, window.location.origin).toString()
+export function buildWeightTicketDetailUrl(documentNo: string, type: WeightTicketType) {
+  const path = `/daily/weight-ticket-list?detail=${encodeURIComponent(documentNo)}&type=${encodeURIComponent(type)}`
+  if (typeof window === 'undefined') return path
+  return new URL(path, window.location.origin).toString()
 }
 
 function formatDateTime(value?: string | null) {
@@ -21,7 +22,7 @@ function formatDateTime(value?: string | null) {
 }
 
 function buildWeightTicketShareMessage(ticket: Pick<WeightTicketRecord, 'branchName' | 'createdAt' | 'documentNo' | 'partyName' | 'totals' | 'type'>) {
-  const documentUrl = buildWeightTicketDetailUrl(ticket.documentNo)
+  const documentUrl = buildWeightTicketDetailUrl(ticket.documentNo, ticket.type)
   const partyLabel = ticket.type === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'
   return [
     `${typeLabels[ticket.type]} ${ticket.documentNo}`,
