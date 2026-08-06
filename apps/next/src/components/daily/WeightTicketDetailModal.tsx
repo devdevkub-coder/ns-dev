@@ -795,7 +795,7 @@ export function WeightTicketDetailModal({
                 </div>
               </DialogHeader>
               <div className="space-y-4 p-4 bg-slate-950">
-                <div className="relative h-[min(70vh,48rem)] w-full overflow-hidden rounded-md bg-slate-950">
+                <div className="relative flex h-[min(65vh,48rem)] w-full items-center justify-center overflow-hidden rounded-md bg-slate-950">
                   <Image
                     alt={activeGalleryImage.fileName}
                     className="object-contain"
