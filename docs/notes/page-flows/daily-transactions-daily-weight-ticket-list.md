@@ -118,6 +118,9 @@ What is what: สีปุ่มเป็นตัวแยก intent ของ 
 - PDF/ใบพิมพ์ WTI/WTO ต้องจัดความสูงจากแถวข้อมูลจริงโดยไม่เติมแถวว่างให้ครบโควตา เพื่อให้ตาราง สรุป และลายเซ็นอยู่ใน A4 หน้าหลักเดียวกันเมื่อเนื้อหาพอดี; ส่วนลายเซ็นใช้พื้นที่ว่างที่เหลือเหนือช่วงล่างของหน้ากระดาษเพื่อเว้นพื้นที่เซ็นจริง โดยไม่วาดกรอบเพิ่มและไม่กำหนดช่องว่างตายตัวที่อาจดันเอกสารไปหน้าใหม่; ตัดเส้นประและข้อความท้ายเอกสาร `ขอบคุณที่ใช้บริการค่ะ/ครับ` ที่ไม่มีข้อมูลธุรกิจและอาจสร้างหน้าว่าง ส่วนหน้ารูปถ่ายแนบยังเริ่มหน้าใหม่ตามเดิม
 - เมื่อกดแก้ไขเอกสาร ต้องโหลดโครงสร้างกลับมาเหมือนตอนสร้าง: เต๋าจริงต้องยังเป็นเต๋า, รายการซื้อเพิ่มจากสิ่งเจือปนต้องไม่กลายเป็นเต๋าปลอม, และแถว `สินค้าอื่น` ต้องจำ `ซื้อ/ไม่ซื้อ` กับสินค้าที่ปนมาได้
 - Runtime update 2026-06-20: `weight_ticket_lines.parent_line_no` และ `weight_ticket_lines.impurity_source_line_no` เป็น source of truth สำหรับโหลดโครงสร้าง edit กลับมา ไม่เดาจากลำดับสินค้า/หมายเหตุเป็นหลักอีกต่อไป
+- Multi-user draft editing follow-up 2026-08-06: WTI/WTO draft สามารถเปิดให้หลายคนช่วยกรอกเอกสารเดียวกันได้. แต่ละ save ส่ง `collaborationBaseUpdatedAt` และ `collaborationBaseLineIds` จาก snapshot ล่าสุดของผู้ใช้; server ล็อกเฉพาะ ticket ระหว่างจัดสรร line number, อัปเดต line เดิมแยกกัน, เก็บ line ที่ผู้ใช้อื่นเพิ่มหลัง snapshot และลบเฉพาะ line เดิมที่ผู้ใช้ปัจจุบันลบ. การ save ยังเป็น background และไม่บังคับปิดช่องกรอก.
+
+What is what: `collaborationBase*` คือหลักฐานว่า request เริ่มจากเอกสาร/รายการชุดใด ส่วน `weight_ticket_lines` เป็นข้อมูลรายการปัจจุบันที่ผู้ใช้ทุกคนร่วมกันแก้. Why it has to be like this: การส่งทั้ง snapshot แล้วลบ/สร้าง line ใหม่ทำให้ผู้ใช้คนหลังทับรายการของคนแรก; การ merge ตาม base และล็อก ticket ทำให้การเพิ่มสินค้า/เต๋าพร้อมกันไม่ทำข้อมูลหาย ขณะที่การลบรายการยังคงเป็นเจตนาของผู้ใช้คนที่กดลบเอง
 
 ### Detail Image Album
 
@@ -196,6 +199,8 @@ What is what: album เป็นภาพรวมหลักฐานทั้
   - must save the WTO draft without creating `pending_out`
   - must not write `stock_ledger`; ledger stock-out is owned by Sales Bill when it consumes the WTO `pending_out`
 - `PUT /api/daily/weight-tickets/[id]`
+  - must accept optional `collaborationBaseUpdatedAt` and `collaborationBaseLineIds` from the editor snapshot
+  - when the ticket changed after that snapshot, must merge current-user line updates with remote-added lines under a per-ticket transaction lock; it must not delete/recreate the entire line set
   - must append an `edited` timeline row to `weight_ticket_status_logs` with `meta.changes` for field-level before/after detail when submitted data differs from the existing document
   - for editable draft `WTO`, must validate all current lines against current available stock, update document lines only, and leave stock unreserved
   - for confirmed `WTO`, must use the delta rule: release decreases back to on-hand/available stock, preserve existing cost snapshots for unchanged/decreased remaining qty, and snapshot current average cost only for increased qty or new SKU

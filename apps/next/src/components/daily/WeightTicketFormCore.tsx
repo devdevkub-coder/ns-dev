@@ -1540,6 +1540,8 @@ export function WeightTicketFormCore({
       }
       const ticket = await saveWeightTicket({
         branchId: snapshotToSave.branchId,
+        collaborationBaseLineIds: snapshotToSave.lines.map((line) => line.id),
+        collaborationBaseUpdatedAt: (savedTicket ?? loadedTicket)?.updatedAt ?? null,
         id: savedTicket?.id ?? editingTicketId,
         lines: snapshotToSave.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
@@ -2100,6 +2102,8 @@ export function WeightTicketFormCore({
       const saveSnapshot = formSafetySnapshot(formToSave)
       const ticket = await saveWeightTicket({
         branchId: formToSave.branchId,
+        collaborationBaseLineIds: formToSave.lines.map((line) => line.id),
+        collaborationBaseUpdatedAt: (savedTicket ?? loadedTicket)?.updatedAt ?? null,
         id: savedTicket?.id ?? editingTicketId,
         lines: formToSave.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),

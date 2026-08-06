@@ -265,7 +265,16 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       productId: line.productId,
     })))
 
+    const collaborationBaseUpdatedAt = values.collaborationBaseUpdatedAt ?? null
+    const collaborationBaseLineIds = new Set(values.collaborationBaseLineIds ?? [])
     const updated = await prisma.$transaction(async (tx) => {
+      if (collaborationBaseUpdatedAt) {
+        // Serialize saves for this ticket before reading any line or summary.
+        await tx.$executeRaw`select pg_advisory_xact_lock(${existing.id})`
+      }
+      const collaborationCurrentUpdatedAt = collaborationBaseUpdatedAt
+        ? (await tx.weight_tickets.findUniqueOrThrow({ select: { updated_at: true }, where: { id: existing.id } })).updated_at
+        : existing.updated_at
       const branchCode = requireWeightTicketBranchDocumentCode(branch.code)
       const mustRenumber = existing.branch_id !== branch.id
       const docNo = mustRenumber
@@ -353,7 +362,64 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       }
       await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
       let createdLines
-      if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
+      // The request may have read the ticket before another save committed;
+      // compare against the locked version, not the outer request snapshot.
+      const hasRemoteLineChanges = Boolean(
+        collaborationBaseUpdatedAt
+        && collaborationBaseUpdatedAt !== (collaborationCurrentUpdatedAt?.toISOString() ?? null),
+      )
+      if (hasRemoteLineChanges && !isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
+        // Multiple users may be editing the same draft. Serialize line-number
+        // allocation for this ticket, then preserve lines created by another
+        // user after this editor's base snapshot.
+        const latestLines = await tx.weight_ticket_lines.findMany({
+          include: {
+            products: { select: { code: true, id: true, metal_group: true } },
+            warehouses: { select: { code: true, id: true, name: true, type: true } },
+          },
+          orderBy: { line_no: 'asc' },
+          where: { weight_ticket_id: existing.id },
+        })
+        const incomingLineIds = new Set(values.lines.map((line) => line.id))
+        const latestLineByClientId = new Map<string, (typeof latestLines)[number]>(latestLines.map((line) => [
+          `${existing.doc_no}:${line.line_no}`,
+          line,
+        ] as const))
+        const lineNoByIncomingId = new Map<string, number>()
+        let nextLineNo = latestLines.reduce((max, line) => Math.max(max, line.line_no), 0) + 1
+        values.lines.forEach((line) => {
+          const currentLine = latestLineByClientId.get(line.id)
+          lineNoByIncomingId.set(line.id, currentLine?.line_no ?? nextLineNo++)
+        })
+        const mergedLineRows = lineRows.map((data, index) => {
+          const valueLine = values.lines[index]
+          return {
+            ...data,
+            line_no: lineNoByIncomingId.get(valueLine.id) ?? data.line_no,
+            parent_line_no: valueLine.parentId ? lineNoByIncomingId.get(valueLine.parentId) ?? null : null,
+            impurity_source_line_no: valueLine.impuritySourceLineId
+              ? lineNoByIncomingId.get(valueLine.impuritySourceLineId) ?? null
+              : null,
+          }
+        })
+        const removedLineIds = latestLines
+          .filter((line) => {
+            const clientId = `${existing.doc_no}:${line.line_no}`
+            return collaborationBaseLineIds.has(clientId) && !incomingLineIds.has(clientId)
+          })
+          .map((line) => line.id)
+        if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
+        await Promise.all(mergedLineRows.map(async (data, index) => {
+          const valueLine = values.lines[index]
+          const currentLine = latestLineByClientId.get(valueLine.id)
+          if (currentLine) {
+            await tx.weight_ticket_lines.update({ data, where: { id: currentLine.id } })
+          } else {
+            await tx.weight_ticket_lines.create({ data })
+          }
+        }))
+        createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
+      } else if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
         const existingLineByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
         const retainedLineNos = new Set(lineRows.map((line) => line.line_no))
         await Promise.all(lineRows.map(async (data) => {

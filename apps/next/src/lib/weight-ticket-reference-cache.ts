@@ -45,12 +45,13 @@ export async function cachedWeightTicketReferences<T>(url: string) {
  * duplicate requests while the server cache still provides the speedup.
  */
 export async function fetchFreshWeightTicketReferences<T>(url: string) {
-  const existing = freshReferencePending.get(url)
+  const key = await cacheKey(url)
+  const existing = freshReferencePending.get(key)
   if (existing) return existing as Promise<T>
 
   const request = dailyFetchJson<T>(url)
-    .finally(() => freshReferencePending.delete(url))
-  freshReferencePending.set(url, request)
+    .finally(() => freshReferencePending.delete(key))
+  freshReferencePending.set(key, request)
   return request
 }
 
