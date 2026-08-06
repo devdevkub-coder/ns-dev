@@ -432,6 +432,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </div>
         </section>
 
+        <div class="items-frame">
         <table class="items">
           <thead>
             <tr>
@@ -468,6 +469,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             </tfoot>
           ` : ''}
         </table>
+        </div>
 
         ${isLastPage ? `
           <section class="bottom-grid">
@@ -568,7 +570,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .kv .value, .field-value { font-size: 10.5px; font-weight: 600; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
       .field-value.strong { font-size: 12.5px; color: #059669; font-weight: 700; }
       .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; flex: 0 0 auto; }
-      .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+      .panel { border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
       .panel-title { padding: 4px 7px; background: #f1f5f9; color: #334155; font-weight: 700; }
       .panel-body { padding: 5px 7px; }
       .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; }
@@ -577,7 +579,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .weight-info-net { grid-column: 2; min-width: 0; }
       .weight-info-net .field-value { margin-top: 1px; white-space: nowrap; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 8px; font-size: 10.5px; table-layout: fixed; flex: 0 0 auto; }
+      .items-frame { margin: 8px 1px 0; border-radius: 6px; box-shadow: 0 0 0 1px #cbd5e1; overflow: hidden; flex: 0 0 auto; }
+      .items { margin-top: 0; font-size: 10.5px; table-layout: fixed; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 4px 3px; text-align: left; font-weight: 700; }
       .items td { border: 1px solid #dbe3ea; padding: 4px 3px; vertical-align: top; }
       .items .empty td { height: 24px; color: transparent; }
@@ -599,7 +602,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .bottom-grid { display: grid; grid-template-columns: 1.15fr 0.8fr 1.05fr; gap: 8px; margin-top: 8px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 28px; color: #334155; white-space: pre-wrap; }
       .summary-cards { display: grid; gap: 8px; }
-      .summary-card { border: 1px solid #dbe3ea; border-radius: 8px; padding: 5px; background: #f8fafc; }
+      .summary-card { border: 1px solid #dbe3ea; border-radius: 6px; padding: 5px; background: #f8fafc; }
       .summary-card .value { font-size: 10.5px; font-weight: 700; color: #0f172a; margin-top: 2px; }
       .attachment-page { padding-top: 6mm; }
       .album-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
@@ -641,7 +644,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .panel-body { padding: 5px 7px; }
         .two-col { gap: 4px 8px; }
         .weight-info-grid { gap: 3px 8px; padding-bottom: 6px; }
-        .items { font-size: 10px; margin-top: 6px; }
+        .items-frame { margin-top: 6px; }
+        .items { font-size: 10px; }
         .items th, .items td { padding: 2.5px; }
         .items .empty td { height: 18px; }
         .muted { font-size: 9px; }
