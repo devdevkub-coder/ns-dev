@@ -982,7 +982,9 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     deductionWeight: toNumber(line.deduct_weight),
     grossWeight: toNumber(line.gross_weight).toString(),
     grossWeightValue: toNumber(line.gross_weight),
-    id: `${row.doc_no}:${line.line_no}`,
+    // Persisted line identity must survive document renumbering and branch
+    // changes. The DB line id is immutable; line_no remains presentation/order.
+    id: String(line.id),
     imageCount: line.image_count ?? 0,
     imageNames: line.image_names ?? [],
     impurityId: line.impurity_id == null

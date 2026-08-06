@@ -327,6 +327,7 @@ const weightTicketLinePayloadSchema = z.object({
 
 export const weightTicketFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
+  collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
   collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
   id: z.string().trim().max(80).optional(),

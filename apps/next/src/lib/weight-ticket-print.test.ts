@@ -7,7 +7,7 @@ import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTick
 import type { CompanyProfilePrintValues } from './company-profile'
 import { ensurePdfFontsRegistered } from './server/pdf/fonts'
 import { WeightTicketDocument } from './server/pdf/weight-ticket-document'
-import { buildPrintWeightRows, buildReceiptPrintHtml } from './weight-ticket-print'
+import { buildPrintWeightRows, buildReceiptPrintHtml, buildWeightTicketAttachmentImages } from './weight-ticket-print'
 import { encodeStoredImageReference, type WeightTicketRecord } from './weight-tickets'
 
 vi.mock('server-only', () => ({}))
@@ -262,6 +262,44 @@ describe('weight ticket print HTML', () => {
 
     expect(html).toContain(signedUrl)
     expect(html).not.toContain('data:image/jpeg;base64,AAAA')
+  })
+
+  it('puts vehicle images before product evidence in the shared print/PDF attachment album', () => {
+    const vehicle = encodeStoredImageReference('vehicle-first.jpg', 'https://storage.example/vehicle-first.jpg?token=short', 'tickets/vehicle-first.jpg', 'weight-ticket-images')
+    const product = encodeStoredImageReference('product-second.jpg', 'https://storage.example/product-second.jpg?token=short', 'tickets/product-second.jpg', 'weight-ticket-images')
+    const ticketWithAttachments = { ...ticket, imageNames: [product], vehicleImageNames: [vehicle] }
+
+    expect(buildWeightTicketAttachmentImages(ticketWithAttachments).map((image) => image.fileName)).toEqual([
+      'vehicle-first.jpg',
+      'product-second.jpg',
+    ])
+
+    const html = buildReceiptPrintHtml(ticketWithAttachments, profile)
+    expect(html).toContain('ใบรับสินค้า (รูปถ่ายแนบ)')
+    expect(html).not.toContain('รูปรถส่งของ')
+    expect(html.indexOf('vehicle-first.jpg')).toBeLessThan(html.indexOf('product-second.jpg'))
+
+    const pdfDocumentText = nodeText(WeightTicketDocument({ profile, ticket: ticketWithAttachments }))
+    expect(pdfDocumentText.indexOf('vehicle-first.jpg')).toBeLessThan(pdfDocumentText.indexOf('product-second.jpg'))
+  })
+
+  it('does not add receive or dispatch tags to attachment photos', () => {
+    const ticketWithAttachments = {
+      ...ticket,
+      imageNames: [
+        encodeStoredImageReference(
+          'product-photo.jpg',
+          'https://storage.example/product-photo.jpg?token=short',
+          'tickets/product-photo.jpg',
+          'weight-ticket-images',
+        ),
+      ],
+    }
+
+    const html = buildReceiptPrintHtml(ticketWithAttachments, profile)
+    expect(html).not.toContain('album-badge')
+    expect(html).not.toContain('>รับเข้า<')
+    expect(html).not.toContain('>ขาออก<')
   })
 
   it('uses the complete ticket totals in Weight Info when impurity is purchased as another product', () => {

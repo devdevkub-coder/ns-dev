@@ -643,12 +643,12 @@ function buildFlexMessage(
 
         // Column 1
         const idx1 = pageIdx * chunkSize + r * 2 + 1
-        rowContents.push(buildPhotoTile(img1, idx1, ticket.createdAt, isWti, albumUrl))
+        rowContents.push(buildPhotoTile(img1, idx1, ticket.createdAt, albumUrl))
 
         // Column 2
         if (img2) {
           const idx2 = pageIdx * chunkSize + r * 2 + 2
-          rowContents.push(buildPhotoTile(img2, idx2, ticket.createdAt, isWti, albumUrl))
+          rowContents.push(buildPhotoTile(img2, idx2, ticket.createdAt, albumUrl))
         } else {
           rowContents.push({
             type: 'box' as const,
@@ -799,14 +799,8 @@ function buildPhotoTile(
   asset: { fileName: string; url: string },
   index: number,
   ticketCreatedAt: string,
-  isWti: boolean,
   albumUrl: string
 ) {
-  const isOut = asset.fileName.toLowerCase().includes('out') ||
-                asset.fileName.toLowerCase().includes('exit') ||
-                asset.fileName.includes('ขาออก')
-  const badgeText = isOut ? 'ขาออก' : (isWti ? 'รับเข้า' : 'ขาออก')
-  const badgeColor = isOut ? '#10b981' : '#0ea5e9'
   const photoTime = getPhotoTimestamp(asset.fileName, ticketCreatedAt)
 
   return {
@@ -831,28 +825,6 @@ function buildPhotoTile(
               uri: albumUrl
             }
           },
-          {
-            type: 'box' as const,
-            layout: 'vertical' as const,
-            position: 'absolute' as const,
-            offsetTop: '4px',
-            offsetStart: '4px',
-            backgroundColor: badgeColor,
-            cornerRadius: 'xs' as const,
-            paddingStart: '4px',
-            paddingEnd: '4px',
-            paddingTop: '2px',
-            paddingBottom: '2px',
-            contents: [
-              {
-                type: 'text' as const,
-                text: badgeText,
-                color: '#ffffff',
-                size: 'xxs' as const,
-                weight: 'bold' as const
-              }
-            ]
-          }
         ]
       },
       {

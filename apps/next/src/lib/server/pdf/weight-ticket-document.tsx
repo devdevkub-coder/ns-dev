@@ -1,10 +1,11 @@
 /* eslint-disable jsx-a11y/alt-text */
 import 'server-only'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
-import { type WeightTicketRecord, decodeStoredImageAsset, type StoredImageAsset } from '@/lib/weight-tickets'
+import { type WeightTicketRecord, type StoredImageAsset } from '@/lib/weight-tickets'
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import {
   buildPrintWeightRows,
+  buildWeightTicketAttachmentImages,
   formatPrintableNumber,
   FIRST_PAGE_ITEM_ROWS,
   CONTINUATION_PAGE_ITEM_ROWS,
@@ -366,21 +367,6 @@ const styles = StyleSheet.create({
     height: '100%',
     objectFit: 'cover',
   },
-  albumBadge: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    paddingTop: 2,
-    paddingBottom: 2,
-    paddingLeft: 6,
-    paddingRight: 6,
-    borderRadius: 4,
-  },
-  albumBadgeText: {
-    fontSize: 9,
-    fontWeight: 700,
-    color: '#ffffff',
-  },
   albumCardBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -585,10 +571,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
   const lotLines = ticket.lines.filter(isLotLine)
   const lotCount = lotLines.length
 
-  const ticketImages = ticket.imageNames || []
-  const decodedImages = ticketImages
-    .map((img) => decodeStoredImageAsset(img))
-    .filter((img) => img.url && (img.url.startsWith('http') || img.url.startsWith('data:')))
+  const decodedImages = buildWeightTicketAttachmentImages(ticket)
 
   const albumChunks: Array<StoredImageAsset[]> = []
   const albumChunkSize = 8
@@ -827,20 +810,12 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
           <View style={styles.albumGrid}>
             {chunk.map((img, imgIdx) => {
               const globalIdx = chunkIdx * albumChunkSize + imgIdx + 1
-              const isOut = img.fileName.toLowerCase().includes('out') ||
-                img.fileName.toLowerCase().includes('exit') ||
-                img.fileName.includes('ขาออก')
-              const badgeText = isOut ? 'ขาออก' : (isReceipt ? 'รับเข้า' : 'ขาออก')
-              const badgeColor = isOut ? '#10b981' : '#0ea5e9'
               const photoTime = getPhotoTimestamp(img.fileName, ticket.createdAt)
 
               return (
                 <View key={imgIdx} style={styles.albumCard}>
                   <View style={styles.albumImageWrapper}>
                     <Image src={img.url || ''} style={styles.albumImage} />
-                    <View style={[styles.albumBadge, { backgroundColor: badgeColor }]}>
-                      <Text style={styles.albumBadgeText}>{nt(badgeText)}</Text>
-                    </View>
                   </View>
 
                   <View style={styles.albumCardBar}>
