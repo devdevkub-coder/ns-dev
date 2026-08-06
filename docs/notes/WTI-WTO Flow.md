@@ -709,9 +709,12 @@ WTI/WTO มีรูป 2 ระดับ:
 ### Contract รูปใน detail gallery
 
 - รูปหลักฐานเป็นข้อมูลเอกสารระดับ L5: Database เก็บ attachment metadata/storage key เป็น source of truth และ binary อยู่ใน object storage ตาม bucket/privacy policy
+- รูปหลักฐาน WTI/WTO ใช้ bucket private ที่ตั้งค่าผ่าน `WEIGHT_TICKET_IMAGE_BUCKET`; reference ใหม่ต้องเก็บ `bucket`, `storageKey`, `fileName` และ signed URL สำหรับ preview เท่านั้น ห้ามใช้ public URL ของรูปต้นฉบับ
+- PDF ที่สร้างเพื่อส่งออกและรูปอัลบั้มที่สร้างเพื่อ LINE ใช้ bucket public แยกต่างหากผ่าน `WEIGHT_TICKET_PDF_BUCKET`; รูปอัลบั้มเป็น outbound artifact ไม่ใช่ source evidence ของเอกสาร
 - ทุก entry point ของ detail gallery ทั้งรูปรถ รูปรายการสินค้า และอัลบั้มรวม สร้าง preview/open payload เฉพาะ absolute `http://` หรือ `https://` URL ที่ parse ได้ รวม signed URL; `data:image` แบบ raw/pipe/JSON, URL ที่ผิดรูปแบบ และ filename-only เป็น legacy metadata ที่ unavailable จึงแสดงได้เพียงจำนวนแจ้งเตือนโดยไม่สร้าง `<img>` หรือ runtime fallback
 - หน้า detail โหลด stored/original asset เมื่อผู้ใช้เปิดดู ส่วน list/picker ยังคงใช้ thumbnail; รอบนี้ไม่เพิ่ม browser/Redis cache และอายุ signed URL/cache headers เป็น contract ของ Storage
 - รูป legacy ต้องย้ายด้วย migration/backfill ไป object storage ไม่อ่าน base64 ย้อนกลับใน runtime; focused test ครอบ 0/1/many, signed HTTPS และ payload legacy ที่ unavailable
+- การดาวน์โหลดรูปทั้งหมดจาก detail เป็น ZIP ต้องจำกัดรูปแต่ละไฟล์ไม่เกิน 5 MB และรวมก่อนบีบ ZIP ไม่เกิน 100 MB; ถ้ามีรูปเกินขนาด ระบบจะแจ้งดาวน์โหลดไม่สำเร็จเพื่อไม่ส่งไฟล์เกิน contract
 
 ### Legacy attachment backfill checkpoint (2026-07-19)
 
@@ -720,6 +723,7 @@ WTI/WTO มีรูป 2 ระดับ:
 - รูปที่ย้ายต้องเป็น JPEG/PNG/WebP จริง ขนาด decoded ไม่เกิน 10 MB และใช้ immutable key ที่มี SHA-256 โดย hash document token แทนเลขเอกสารใน public path; Storage upload ใช้ `cacheControl=31536000`, `upsert=false` จากนั้นจึง compare-and-swap ค่า array ใน DB ภายใน transaction โดยไม่เปลี่ยน business `updated_at`/audit timeline
 - ถ้า upload ผ่านแต่ DB เปลี่ยนระหว่างทาง ระบบไม่ลบ object หรือ reference เดิม แต่รายงาน CAS conflict/orphan แบบ sanitized เพื่อให้ operator ตรวจและตัดสินใจเอง
 - วันที่ 2026-07-19 apply สำเร็จทั้ง dev/SIT: ย้าย JSON data URL 214 รูปไป `weight-ticket-pdfs` และ CAS-remove exact 15-byte `mock image data` 2 รายการต่อ environment โดยไม่มี failure, CAS conflict, missing key หรือ orphan; rollback manifest แยกอยู่นอก repo และไม่เปลี่ยน business `updated_at`/audit timeline
+- checkpoint เดิมย้ายรูปไป bucket public ก่อนมีการแยก privacy; migration `20260806120000_split_weight_ticket_image_and_pdf_buckets.sql` จัดเตรียม `weight-ticket-images` แบบ private และคง `weight-ticket-pdfs` แบบ public. ต้องรัน `migrate:weight-ticket-image-bucket --apply --manifest=<absolute path outside repo>` แบบ dry-run/review ก่อน และยังไม่ลบ source object จนกว่าจะตรวจ reference และ rollback manifest ครบ
 - post-apply audit ยืนยัน data URL, invalid reference และ known mock เป็น `0`; canonical storage-key เป็น dev `219` / SIT `218`, Storage objects เป็น dev `625` / SIT `631`, ส่วน filename-only ยังคง 23 รายการต่อ environment เพราะไม่มี binary/source mapping ให้ย้าย จึงแสดง unavailable ตาม contract โดยไม่เดา path
 - WTI/WTO attachment ใน #151 เป็น L5 original ที่โหลดเฉพาะ detail/preview ไม่มี list/picker consumer จึงไม่สร้าง thumbnail ใน backfill นี้; thumbnail/compression เป็น migration แยกเมื่อมี consumer และ quality contract ที่ยืนยันแล้ว
 
@@ -898,7 +902,7 @@ Implementation separation checkpoint 2026-06-30:
 |---|---|
 | dedicated `weight_ticket_status_logs` / `weight_ticket_usage_logs` | ให้ timeline/read model แยกจาก audit log รวม |
 | policy รายละเอียดของ partial unlock หลัง downstream cancel/reversal | ต้อง finalize จาก usage facts ของ PB/SB ทุกกรณี |
-| image cleanup/orphan policy ของรูปหน้างาน | ต้องกำหนด lifecycle ตอน edit/cancel/replace ให้ชัด |
+| image cleanup/orphan policy ของรูปหน้างาน | ต้องกำหนด lifecycle ตอน edit/cancel/replace ให้ชัด และตรวจ source object เก่าหลังแยก private image bucket |
 | report/reconciliation และ aging เอกสาร WTI/WTO แยกหน้า | flow หลักมีแล้ว แต่รายงานตรวจสอบและ aging ต้องอิง [[Document Aging Policy]] เพิ่ม |
 
 ## Remaining Implementation Gaps

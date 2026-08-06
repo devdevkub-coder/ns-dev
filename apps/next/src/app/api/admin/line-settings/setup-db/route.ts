@@ -198,8 +198,23 @@ export async function GET(request: Request) {
 
     // 10. Storage Bucket Setup
     await prisma.$executeRawUnsafe(`
+      INSERT INTO public.system_settings (key, description, value)
+      VALUES
+        ('WEIGHT_TICKET_IMAGE_BUCKET', 'Private Supabase Storage bucket for WTI/WTO evidence images', 'weight-ticket-images'),
+        ('WEIGHT_TICKET_PDF_BUCKET', 'Public Supabase Storage bucket for generated WTI/WTO PDFs and LINE album artifacts', 'weight-ticket-pdfs')
+      ON CONFLICT (key) DO UPDATE
+      SET description = EXCLUDED.description,
+          value = COALESCE(NULLIF(BTRIM(public.system_settings.value), ''), EXCLUDED.value);
+
       INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-      VALUES ('weight-ticket-pdfs', 'weight-ticket-pdfs', true, 10485760, ARRAY['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+      VALUES ('weight-ticket-images', 'weight-ticket-images', false, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+      ON CONFLICT (id) DO UPDATE
+      SET public = false,
+          file_size_limit = EXCLUDED.file_size_limit,
+          allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+      INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      VALUES ('weight-ticket-pdfs', 'weight-ticket-pdfs', true, 10485760, ARRAY['application/pdf', 'image/jpeg'])
       ON CONFLICT (id) DO UPDATE
       SET public = EXCLUDED.public,
           file_size_limit = EXCLUDED.file_size_limit,

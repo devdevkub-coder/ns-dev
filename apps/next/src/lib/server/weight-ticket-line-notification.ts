@@ -40,6 +40,7 @@ async function resolveNotificationConfigs() {
           'LINE_CHANNEL_ACCESS_TOKEN',
           'LINE_CHANNEL_SECRET',
           'LINE_DEFAULT_TARGET_ID',
+          'WEIGHT_TICKET_IMAGE_BUCKET',
           'WEIGHT_TICKET_PDF_BUCKET',
           'NEXT_PUBLIC_APP_URL',
           'LINE_NOTIFY_TEXT_TEMPLATE_WTI',
@@ -58,11 +59,18 @@ async function resolveNotificationConfigs() {
 
   const wtoDefaultTemplate = `ใบส่งของ WTO [DocumentNo]\n━━━━━━━━━━━━━━━\nลูกค้า: [PartyName]\nสาขา: [BranchName]\nวันที่/เวลาเอกสาร: [DocDateTime]\nน้ำหนักรวม: [GrossWeight] กก.\nหักภาชนะ: [ContainerWeight] กก.\nหักสิ่งเจือปน: [DeductionWeight] กก.\nน้ำหนักสุทธิ: [NetWeight] กก.\n━━━━━━━━━━━━━━━\nลิงค์โหลด pdf:\n[PdfUrl]`
 
+  const imageBucket = configMap.WEIGHT_TICKET_IMAGE_BUCKET || process.env.WEIGHT_TICKET_IMAGE_BUCKET || ''
+  const pdfBucket = configMap.WEIGHT_TICKET_PDF_BUCKET || process.env.WEIGHT_TICKET_PDF_BUCKET || ''
+  if (!imageBucket || !pdfBucket) {
+    throw new Error('ยังไม่ได้ตั้งค่า Storage Bucket สำหรับรูปหลักฐานและ PDF WTI/WTO')
+  }
+
   return {
     lineChannelAccessToken: configMap.LINE_CHANNEL_ACCESS_TOKEN || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     lineChannelSecret: configMap.LINE_CHANNEL_SECRET || process.env.LINE_CHANNEL_SECRET || '',
     lineDefaultTargetId: configMap.LINE_DEFAULT_TARGET_ID || process.env.LINE_DEFAULT_TARGET_ID || '',
-    pdfBucket: configMap.WEIGHT_TICKET_PDF_BUCKET || process.env.WEIGHT_TICKET_PDF_BUCKET || 'weight-ticket-pdfs',
+    imageBucket,
+    pdfBucket,
     appUrl: configMap.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || '',
     wtiTemplate: configMap.LINE_NOTIFY_TEXT_TEMPLATE_WTI || wtiDefaultTemplate,
     wtoTemplate: configMap.LINE_NOTIFY_TEXT_TEMPLATE_WTO || wtoDefaultTemplate,
@@ -195,20 +203,10 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
   if (error) {
     throw new Error(`อัปโหลด PDF ไป Supabase Storage ไม่สำเร็จ: ${error.message}`)
   }
-  const storage = supabase.storage.from(bucketName)
-  const [{ data: viewData, error: viewError }, { data: downloadData, error: downloadError }] = await Promise.all([
-    storage.createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS),
-    storage.createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS, { download: `${safeStorageSegment(ticket.documentNo)}.pdf` }),
-  ])
-  if (viewError || !viewData?.signedUrl) {
-    throw new Error(`สร้างลิงก์ดู PDF ไม่สำเร็จ: ${viewError?.message ?? 'ไม่พบ signed URL'}`)
-  }
-  if (downloadError || !downloadData?.signedUrl) {
-    throw new Error(`สร้างลิงก์ดาวน์โหลด PDF ไม่สำเร็จ: ${downloadError?.message ?? 'ไม่พบ signed URL'}`)
-  }
+  const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
   return {
-    pdfDownloadUrl: downloadData.signedUrl,
-    pdfUrl: viewData.signedUrl,
+    pdfDownloadUrl: `${data.publicUrl}?download=${encodeURIComponent(`${safeStorageSegment(ticket.documentNo)}.pdf`)}`,
+    pdfUrl: data.publicUrl,
     storageKey,
   }
 }
@@ -229,11 +227,8 @@ async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, page
   if (error) {
     throw new Error(`อัปโหลดรูปภาพอัลบั้มไป Supabase Storage ไม่สำเร็จ: ${error.message}`)
   }
-  const { data, error: signedUrlError } = await supabase.storage.from(bucketName).createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS)
-  if (signedUrlError || !data?.signedUrl) {
-    throw new Error(`สร้างลิงก์รูปภาพอัลบั้มไม่สำเร็จ: ${signedUrlError?.message ?? 'ไม่พบ signed URL'}`)
-  }
-  return data.signedUrl
+  const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
+  return data.publicUrl
 }
 
 function buildDetailUrl(origin: string, documentNo: string, type: 'WTI' | 'WTO') {
@@ -1087,16 +1082,26 @@ async function resolveImagePublicUrls(ticket: WeightTicketRecord, bucketName: st
       continue
     }
 
-    if (asset.url.startsWith('http://') || asset.url.startsWith('https://')) {
-      publicUrls.push(asset.url)
-      continue
-    }
-
     try {
+      const supabase = getSupabaseAdminClient()
+      if (asset.storageKey && supabase) {
+        if (asset.bucket && asset.bucket !== bucketName) {
+          publicUrls.push('')
+          continue
+        }
+        const { data, error } = await supabase.storage.from(bucketName).createSignedUrl(asset.storageKey, SIGNED_URL_TTL_SECONDS)
+        publicUrls.push(error || !data?.signedUrl ? '' : data.signedUrl)
+        continue
+      }
+
+      if (asset.url.startsWith('http://') || asset.url.startsWith('https://')) {
+        publicUrls.push(asset.url)
+        continue
+      }
+
       const imgData = imageFromDataUrl(asset.url)
       if (imgData) {
         if (process.env.MOCK_PDF_UPLOAD !== 'true') {
-          const supabase = getSupabaseAdminClient()
           if (!supabase) {
             publicUrls.push('')
             continue
@@ -1215,7 +1220,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       console.warn('[notifyWeightTicketLine] PDF generation failed, sending message without PDF attachment:', errMsg)
     }
 
-    const imagePublicUrls = await resolveImagePublicUrls(loaded.record, configs.pdfBucket)
+    const imagePublicUrls = await resolveImagePublicUrls(loaded.record, configs.imageBucket)
     const flexMessage = buildFlexMessage(loaded.record, pdfUrl, pdfDownloadUrl, detailUrl, imagePublicUrls, albumImageUrls, options.customMessage)
     const customTemplate = loaded.record.type === 'WTI' ? configs.wtiTemplate : configs.wtoTemplate
     const textMessage = {

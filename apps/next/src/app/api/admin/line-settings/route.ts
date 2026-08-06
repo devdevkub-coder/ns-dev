@@ -71,7 +71,7 @@ export async function GET() {
       lineChannelAccessToken: maskSecret(configMap.LINE_CHANNEL_ACCESS_TOKEN),
       lineChannelSecret: maskSecret(configMap.LINE_CHANNEL_SECRET),
       lineDefaultTargetId: configMap.LINE_DEFAULT_TARGET_ID || '',
-      pdfBucket: configMap.WEIGHT_TICKET_PDF_BUCKET || 'weight-ticket-pdfs',
+      pdfBucket: configMap.WEIGHT_TICKET_PDF_BUCKET || '',
       appUrl: configMap.NEXT_PUBLIC_APP_URL || '',
       lineAutoSend: lineAutoSendWti && lineAutoSendWto,
       lineAutoSendWti,

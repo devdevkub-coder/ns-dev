@@ -101,6 +101,7 @@ describe('LINE notification trigger contracts', () => {
     expect(permissionStart).toBeGreaterThanOrEqual(0)
     expect(scopeStart).toBeGreaterThan(permissionStart)
     expect(enqueueStart).toBeGreaterThan(scopeStart)
+    expect(source.slice(enqueueStart)).toContain('enqueueNotificationJob(ticket.doc_no')
     expect(source.slice(enqueueStart)).toContain('force: true')
   })
 })

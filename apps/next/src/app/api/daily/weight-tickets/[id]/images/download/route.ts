@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import { zipSync } from 'fflate'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { prisma } from '@/lib/server/prisma'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
 import { branchScopeIds, findScopedWeightTicket } from '@/lib/server/weight-tickets'
+import { resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { decodeStoredImageAsset, type StoredImageAsset } from '@/lib/weight-tickets'
 
 export const runtime = 'nodejs'
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
 
 function allowedRemoteImageHost() {
@@ -27,14 +27,6 @@ function safeFileName(value: string, fallback: string) {
   return cleaned || fallback
 }
 
-async function resolveWeightTicketBucket() {
-  const setting = await prisma.system_settings.findUnique({
-    select: { value: true },
-    where: { key: 'WEIGHT_TICKET_PDF_BUCKET' },
-  })
-  return setting?.value?.trim() || process.env.WEIGHT_TICKET_PDF_BUCKET?.trim() || ''
-}
-
 function dataUrlBytes(url: string) {
   const match = url.match(/^data:image\/(?:png|jpe?g|webp);base64,(.+)$/i)
   return match ? Buffer.from(match[1], 'base64') : null
@@ -48,6 +40,9 @@ async function loadImageBytes(asset: StoredImageAsset, bucket: string, supabase:
   }
 
   if (asset.storageKey && supabase && bucket) {
+    if (asset.bucket && asset.bucket !== bucket) {
+      throw new Error(`ไม่อนุญาตให้ดาวน์โหลดรูปจาก bucket ${asset.bucket}`)
+    }
     const { data, error } = await supabase.storage.from(bucket).download(asset.storageKey)
     if (error || !data) throw new Error(error?.message ?? `ไม่พบไฟล์ ${asset.fileName}`)
     if (data.size > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
@@ -96,7 +91,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ code: 'NO_IMAGES', error: 'เอกสารนี้ยังไม่มีรูปภาพที่ดาวน์โหลดได้' }, { status: 404 })
     }
 
-    const bucket = await resolveWeightTicketBucket()
+    const bucket = await resolveWeightTicketImageBucket()
     const supabase = getSupabaseAdminClient()
     const files: Record<string, Uint8Array> = {}
     const usedNames = new Set<string>()

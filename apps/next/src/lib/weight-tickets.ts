@@ -173,6 +173,7 @@ export type WeightTicketSortBy = 'createdAt' | 'documentNo' | 'partyName' | 'net
 export type WeightTicketSortDir = 'asc' | 'desc'
 
 export type StoredImageAsset = {
+  bucket?: string | null
   fileName: string
   rawValue: string
   storageKey?: string | null
@@ -738,8 +739,8 @@ export function encodeStoredImageAsset(fileName: string, dataUrl: string) {
   return JSON.stringify({ dataUrl, fileName })
 }
 
-export function encodeStoredImageReference(fileName: string, url: string, storageKey: string) {
-  return JSON.stringify({ fileName, storageKey, url })
+export function encodeStoredImageReference(fileName: string, url: string, storageKey: string, bucket?: string) {
+  return JSON.stringify({ bucket, fileName, storageKey, url })
 }
 
 export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
@@ -771,11 +772,12 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
   }
 
   try {
-    const parsed = JSON.parse(trimmed) as { dataUrl?: unknown; fileName?: unknown; storageKey?: unknown; url?: unknown }
+    const parsed = JSON.parse(trimmed) as { bucket?: unknown; dataUrl?: unknown; fileName?: unknown; storageKey?: unknown; url?: unknown }
     if (typeof parsed.fileName === 'string' && typeof parsed.dataUrl === 'string' && parsed.dataUrl.startsWith('data:image/')) {
       return {
         fileName: parsed.fileName,
         rawValue,
+        bucket: typeof parsed.bucket === 'string' && parsed.bucket.trim() ? parsed.bucket.trim() : null,
         storageKey: typeof parsed.storageKey === 'string' && parsed.storageKey.trim() ? parsed.storageKey.trim() : null,
         url: parsed.dataUrl,
       }
@@ -788,6 +790,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
       return {
         fileName: parsed.fileName,
         rawValue,
+        bucket: typeof parsed.bucket === 'string' && parsed.bucket.trim() ? parsed.bucket.trim() : null,
         storageKey: typeof parsed.storageKey === 'string' && parsed.storageKey.trim() ? parsed.storageKey.trim() : null,
         url: parsed.url,
       }

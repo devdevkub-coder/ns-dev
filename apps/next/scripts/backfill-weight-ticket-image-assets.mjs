@@ -49,12 +49,12 @@ async function resolveBucket(pool) {
   const setting = await pool.query(`
     select nullif(trim(value), '') as value
     from public.system_settings
-    where key = 'WEIGHT_TICKET_PDF_BUCKET'
+    where key = 'WEIGHT_TICKET_IMAGE_BUCKET'
     limit 1
   `)
   if (setting.rows[0]?.value) return { name: setting.rows[0].value, source: 'system_settings' }
-  if (process.env.WEIGHT_TICKET_PDF_BUCKET?.trim()) {
-    return { name: process.env.WEIGHT_TICKET_PDF_BUCKET.trim(), source: 'environment' }
+  if (process.env.WEIGHT_TICKET_IMAGE_BUCKET?.trim()) {
+    return { name: process.env.WEIGHT_TICKET_IMAGE_BUCKET.trim(), source: 'environment' }
   }
   throw new Error('Missing configured weight-ticket bucket')
 }
@@ -92,7 +92,7 @@ function collect(rows, ownerType, report, invalidMocks) {
   return candidates
 }
 
-function candidateValues(candidate, bucket, supabase) {
+async function candidateValues(candidate, bucket, supabase) {
   const owner = candidate.ownerType === 'vehicle'
     ? 'vehicle'
     : `line-${String(candidate.row.line_no).padStart(3, '0')}`
@@ -105,9 +105,10 @@ function candidateValues(candidate, bucket, supabase) {
   })
   const fileName = candidate.parsed.fileName
     || `${owner}-${String(candidate.imageIndex + 1).padStart(3, '0')}.${candidate.parsed.extension}`
-  const { data } = supabase.storage.from(bucket).getPublicUrl(storageKey)
-  const replacement = encodeStoredWeightTicketImageReference(fileName, storageKey, data.publicUrl)
-  return { fileName, replacement, storageKey, url: data.publicUrl }
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storageKey, 60 * 60 * 24 * 365)
+  if (error || !data?.signedUrl) throw Object.assign(new Error('Unable to create signed image URL'), { code: 'signedUrlFailed' })
+  const replacement = encodeStoredWeightTicketImageReference(fileName, storageKey, data.signedUrl, bucket)
+  return { fileName, replacement, storageKey, url: data.signedUrl }
 }
 
 async function uploadOrVerify(supabase, bucket, candidate, storageKey) {
@@ -316,7 +317,7 @@ async function main() {
     if (!APPLY && report.references.invalid) process.exitCode = 2
 
     if (APPLY) {
-      if (!config || !config.public) throw new Error('Configured weight-ticket bucket must exist and be public before --apply')
+      if (!config || config.public) throw new Error('Configured weight-ticket image bucket must exist and be private before --apply')
       const unsupportedInvalidCount = report.references.invalid - report.references.knownInvalidMock
       if (unsupportedInvalidCount > 0) throw new Error('Unsupported invalid image references must be resolved before --apply')
       if (invalidMocks.length > 0 && !REMOVE_INVALID_MOCKS) {
@@ -325,10 +326,13 @@ async function main() {
       const supabase = createClient(supabaseUrl, requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
         auth: { autoRefreshToken: false, persistSession: false },
       })
-      const plans = candidates.map((candidate) => ({
-        candidate,
-        values: candidateValues(candidate, bucket.name, supabase),
-      }))
+      const plans = []
+      for (const candidate of candidates) {
+        plans.push({
+          candidate,
+          values: await candidateValues(candidate, bucket.name, supabase),
+        })
+      }
       const manifest = {
         createdAt: new Date().toISOString(),
         projectRef,
