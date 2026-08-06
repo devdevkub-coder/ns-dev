@@ -52,7 +52,7 @@ MOC สำหรับชุดเอกสาร `docs/migration/` ใช้ค
 - ฐานข้อมูลเดิมเป็น baseline และ migration source ไม่ใช่ target model สุดท้าย
 - ใช้ relational structure, foreign keys และ header/line tables สำหรับ transaction-critical data
 - ใช้ `auth.users` เป็น authentication source of truth และไม่เก็บ password ใน application tables
-- ใช้ `dev-target` สำหรับ schema/Auth/RLS/frontend integration testing
+- ใช้ `production` สำหรับ schema/Auth/RLS/frontend integration testing
 - ใช้ `legacy-prod-source` แบบ read-only เว้นแต่มีคำสั่ง explicit พร้อมขอบเขตชัดเจน
 
 ## Related Maps

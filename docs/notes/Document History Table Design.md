@@ -239,7 +239,7 @@ field เฉพาะที่ควรมี:
 Implementation checkpoint 2026-06-06:
 
 - `supplier_advance_status_logs` และ `supplier_advance_allocation_logs` ถูกเพิ่มใน schema/migration แล้ว
-- dev-target apply ของ `20260606093705_add_supplier_advance_timeline_logs.sql` สำเร็จด้วย direct `psql`; backfill ได้ status log `3` rows และ allocation log `0` rows ตามข้อมูล ADV ปัจจุบัน และ `supabase migration repair 20260606093705 --status applied` mark remote migration history แล้ว
+- production apply ของ `20260606093705_add_supplier_advance_timeline_logs.sql` สำเร็จด้วย direct `psql`; backfill ได้ status log `3` rows และ allocation log `0` rows ตามข้อมูล ADV ปัจจุบัน และ `supabase migration repair 20260606093705 --status applied` mark remote migration history แล้ว
 - `/api/purchase/advance-payments` และ `/api/purchase/advance-payments/[id]` append lifecycle log สำหรับ create/edit/cancel
 - `/api/daily/payment-approval`, `/api/purchase/payments`, `/api/purchase/payments/cancel`, และ `/api/purchase/payments/cancel-approved` append status log สำหรับ approve/void/paid/reverse
 - `/api/purchase/bills` append allocation log สำหรับ ADV ถูกใช้หัก PB และถูก release เมื่อ PB edit/cancel ก่อน active allocation fact ถูก refresh

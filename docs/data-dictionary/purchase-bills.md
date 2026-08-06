@@ -8,8 +8,8 @@ Current source of truth:
 - Active page: `/purchase/bills`
 - Active API: `/api/purchase/bills`
 - Supplier payment API: `/api/purchase/payments`
-- DB environment for development: dev-target Supabase
-- Latest local dev-target schema-only dump: `reports/db_audit/dev_target_schema_20260522.sql`
+- DB environment for development: SIT Supabase (`vbjlkxbytccklhqvxjuu`)
+- Latest local SIT schema-only dump: `reports/db_audit/production_schema_20260522.sql`
 - Canonical purchase flow requirement: `docs/notes/Purchase Flow.md`
 
 ## Table Summary

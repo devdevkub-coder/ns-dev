@@ -8,7 +8,7 @@ This project is an existing NS Scrap ERP system that must be rehabilitated and r
 - Use Thai for user-facing explanations unless the user explicitly requests another language.
 - Active implementation/deploy target is the Next.js app under `apps/next/`.
 - Treat `old-apps/legacy/` and `old-apps/vue/` as source material only. Do not route to, import, or execute them from the active app.
-- Use `dev-target` Supabase for development and schema work. Do not develop directly against `legacy-prod-source`.
+- Use the SIT Supabase project for development, Auth/RLS testing, and schema work. Treat the Production Supabase project as read-only unless the user explicitly approves a Production operation. Do not develop directly against `legacy-prod-source`.
 - Never commit secrets, production dumps, raw sensitive exports, or `.env.local`.
 - Do not store user passwords in application tables. Use `auth.users` as the authentication source of truth.
 - Do not use destructive git commands or revert user changes unless explicitly requested.

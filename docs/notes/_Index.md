@@ -86,7 +86,7 @@ created: 2026-05-16
 
 - Refactor ระบบเดิมแบบเป็นขั้น ไม่ rewrite ทั้งหมด
 - active implementation/deploy target ปัจจุบันคือ Next.js ใน `apps/next/`; legacy/Vue baseline อยู่ใต้ `old-apps/` เพื่ออ้างอิงเท่านั้น
-- ใช้ Supabase `dev-target` สำหรับ development, Auth, RLS และ schema migration testing
+- ใช้ Supabase `production` สำหรับ development, Auth, RLS และ schema migration testing
 - ใช้ `legacy-prod-source` เป็น read-only migration source เท่านั้น
 - ห้ามแตะ secrets, production dumps หรือ `.env.local` เว้นแต่ได้รับคำสั่งชัดเจน
 - สถานะปัจจุบันให้ดู `docs/migration/00-current-work.md` และ tracker เฉพาะหมวด

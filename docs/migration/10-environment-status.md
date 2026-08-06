@@ -26,7 +26,7 @@
 
 ### Trading Allocation Fact Schema Parity 2026-08-01
 
-- Applied and recorded existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the verified non-pooling PostgreSQL connection. Dev-target already had the same migration, columns, FK, and indexes.
+- Applied and recorded existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the verified non-pooling PostgreSQL connection. Production already had the same migration, columns, FK, and indexes.
 - Preflight confirmed SIT had neither migration history nor the two columns, `trading_allocation_facts` contained `0` rows, and `stock_cost_pool_entries` contained `403` rows. The migration added nullable `cost_pool_entry_id bigint` and `target_ref_id text`, the restrictive Cost Pool FK, and both partial indexes without backfilling or changing business rows.
 - Postflight confirmed both columns, the FK, both indexes, and migration history. Authenticated runtime smoke returned HTTP 200 for Customer Tracking, Product Tracking, Allocation Ledger, Trading Matching, and Trading Dashboard; this closes the former Dev/SIT difference recorded below without adding a runtime fallback.
 
@@ -50,48 +50,48 @@
 
 ### Dev/SIT Product Image Schema And Migration-History Reconciliation 2026-07-30
 
-- Applied and recorded `20260730190000_reconcile_legacy_product_image_names_schema.sql` in dev-target and SIT. It verifies that any remaining `public.products.image_names` values are empty before dropping the legacy column; Dev had the column with zero legacy values, while SIT already had no column. Postflight confirms the column is absent in both environments.
+- Applied and recorded `20260730190000_reconcile_legacy_product_image_names_schema.sql` in production and SIT. It verifies that any remaining `public.products.image_names` values are empty before dropping the legacy column; Dev had the column with zero legacy values, while SIT already had no column. Postflight confirms the column is absent in both environments.
 - Repaired SIT migration history through Supabase CLI using its non-pooling connection: `20260608094500` is now recorded as `add_product_image_names`, and `20260725100000` is now recorded as `add_user_profile_image_storage`, matching Dev. The old pooler URL cannot run this CLI repair because it reuses prepared statements.
 - The former intentional Dev/SIT difference for `20260727110000_add_trading_allocation_fact_cost_pool_entry` was closed on 2026-08-01 after Customer Tracking and Allocation Ledger exposed the shared Prisma schema drift at runtime.
 
 ### FCD Account Currency Opening-Balance Retirement 2026-07-30
 
-- Applied and recorded `20260730180000_retire_account_currency_opening_balances.sql` in dev-target and SIT after approval to discard test-only legacy values. It drops `public.account_currency_balances.opening_balance`; no row was reset, inferred, or written into a ledger.
+- Applied and recorded `20260730180000_retire_account_currency_opening_balances.sql` in production and SIT after approval to discard test-only legacy values. It drops `public.account_currency_balances.opening_balance`; no row was reset, inferred, or written into a ledger.
 - Postflight confirms the column is absent in both environments. `account_currency_balances` now only declares the active currency capability of an account; Bank Statement and FCD ledger facts remain the balance source of truth.
 
 ### Foreign Customer Advance Receipt Contract 2026-07-30
 
-- Applied and recorded `20260730170000_allow_foreign_customer_advance_receipts.sql` in dev-target and SIT. It extends the deferred foreign receipt guard to source type `CADV`: only CADV allocations may exist, allocation THB/native totals must reconcile to the persisted receipt facts, and the receipt cannot contain AR settlement FX by construction.
+- Applied and recorded `20260730170000_allow_foreign_customer_advance_receipts.sql` in production and SIT. It extends the deferred foreign receipt guard to source type `CADV`: only CADV allocations may exist, allocation THB/native totals must reconcile to the persisted receipt facts, and the receipt cannot contain AR settlement FX by construction.
 - Preflight found zero foreign CADV receipts and zero invalid source-type rows in both environments. No business transaction, rate, currency, or account-master row was backfilled or rewritten.
 
 ### Foreign Customer Receipt Database Guard 2026-07-30
 
-- Applied and recorded `20260730160000_enforce_foreign_customer_receipt_contract.sql` in dev-target and SIT. It validates foreign Customer Receipt reconciliation and links only at transaction commit, so the normal header -> Bank Statement -> FCD ledger -> split write order remains valid but incomplete or mismatched facts cannot commit.
+- Applied and recorded `20260730160000_enforce_foreign_customer_receipt_contract.sql` in production and SIT. It validates foreign Customer Receipt reconciliation and links only at transaction commit, so the normal header -> Bank Statement -> FCD ledger -> split write order remains valid but incomplete or mismatched facts cannot commit.
 - Preflight found zero foreign receipts and zero invalid split rows in each environment. No transaction, currency, rate, or account-master data was backfilled or rewritten.
 
 ### Finance Currency Policy 2026-07-30
 
 ### Canonical Bank Statement Facts 2026-07-30
 
-- Applied and recorded `20260730140000_enforce_canonical_bank_statement_facts.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through controlled `psql` transactions. The SIT connection URL required removal of its client-only `uselibpqcompat` parameter before `psql` could connect.
+- Applied and recorded `20260730140000_enforce_canonical_bank_statement_facts.sql` in production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through controlled `psql` transactions. The SIT connection URL required removal of its client-only `uselibpqcompat` parameter before `psql` could connect.
 - Preflight in each environment found `0` Bank Statement rows and `0` incomplete rows, so no statement was rewritten or backfilled. Both environments have exactly one functional-currency policy row.
 - New Bank Statement rows must persist currency, native amount, book amount, source event, and idempotency facts. The constraint rejects invalid direction/precision/book mismatch; the deferred account guard rejects no account/branch, virtual/inactive/non-bank accounts, unsupported account currency, and non-functional movements outside FCD or without a persisted rate. Customer UAT has not received this migration.
 
-- Applied and recorded migration `20260730110000_create_finance_currency_policy.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through Supabase CLI using temporary migration-history workdirs. SIT first failed before applying because its pooled URL reused a prepared statement; retry used the non-pooling URL with only client-specific query parameters removed.
+- Applied and recorded migration `20260730110000_create_finance_currency_policy.sql` in production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through Supabase CLI using temporary migration-history workdirs. SIT first failed before applying because its pooled URL reused a prepared statement; retry used the non-pooling URL with only client-specific query parameters removed.
 - Each environment now has exactly one `public.finance_currency_policies` row: `functional_currency_code = THB`, joined and verified against `public.currencies`. RLS is enabled. This is configuration data, not an application fallback or migration seed.
 - Customer UAT has not received this migration or configuration.
 
 ### FCD Transaction Ledger Contract 2026-07-30
 
-- Applied and recorded `20260730120000_add_fcd_transaction_ledger_contract.sql` in dev-target and SIT through Supabase CLI temporary migration-history workdirs. The migration is additive: it creates FCD ledger/conversion/revaluation tables and projection, and adds nullable native/book/rate/source/reversal facts to Bank Statement and Customer Receipt tables.
-- Applied and recorded `20260730130000_persist_customer_receipt_fx_rate_type.sql` in dev-target and SIT through controlled `psql` transactions. Preflight confirmed zero persisted foreign Receipt Vouchers, so the new guard `customer_receipts_foreign_fx_rate_type_chk` did not require any data rewrite. Both environments now have nullable `customer_receipts.fx_rate_type` plus the constraint that any foreign receipt header must persist a nonblank rate type.
+- Applied and recorded `20260730120000_add_fcd_transaction_ledger_contract.sql` in production and SIT through Supabase CLI temporary migration-history workdirs. The migration is additive: it creates FCD ledger/conversion/revaluation tables and projection, and adds nullable native/book/rate/source/reversal facts to Bank Statement and Customer Receipt tables.
+- Applied and recorded `20260730130000_persist_customer_receipt_fx_rate_type.sql` in production and SIT through controlled `psql` transactions. Preflight confirmed zero persisted foreign Receipt Vouchers, so the new guard `customer_receipts_foreign_fx_rate_type_chk` did not require any data rewrite. Both environments now have nullable `customer_receipts.fx_rate_type` plus the constraint that any foreign receipt header must persist a nonblank rate type.
 - No transaction data, account currency, FX rate, or account opening balance was backfilled. Dev preflight reports two unreconciled legacy FCD opening-balance master rows; SIT reports none. These are intentionally excluded from `fcd_ledger_entries` until an explicit reconciliation/import flow exists.
 - Dev DB rollback probes confirmed an active FCD account with active USD currency can write the ledger/projection; a non-FCD account is rejected and a posted ledger row cannot be updated. Probes were rolled back. Current dev master has no active FCD/USD account, so runtime must continue to fail closed rather than selecting an inactive account.
 - Customer UAT has not received this migration.
 
 ### Company Account Database Guards 2026-07-30
 
-- Applied migration `20260730100000_enforce_company_account_business_guards.sql` to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through Supabase CLI using temporary migration-history workdirs; the CLI recorded the migration history rows. The migration does not write migration history itself.
+- Applied migration `20260730100000_enforce_company_account_business_guards.sql` to production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through Supabase CLI using temporary migration-history workdirs; the CLI recorded the migration history rows. The migration does not write migration history itself.
 - Normalized six legacy `accounts.od_limit` NULL values to canonical zero in each environment. No opening balance, account currency, account code, or transaction row was rewritten. Pre-apply backups: Dev `/tmp/ns-erp-dev-before-account-guards-20260729-235547`; SIT `/tmp/ns-erp-sit-before-account-guards-20260730-001132`.
 - Added account shape/currency constraints and deferred guards for currency cardinality and Bank Statement account eligibility. FCD current accounts may use OD; savings accounts may not. Cash/virtual accounts cannot carry bank/FCD/OD fields or be linked to Bank Statement.
 - Dev transactional postflight passed: rejected savings+OD, virtual Statement links, non-FCD multi-currency, and conversion of a Statement-linked bank account to virtual; accepted FCD current+OD. SIT postflight confirmed all three constraints and all three deferred guards, rejected savings+OD, and accepted FCD current+OD. All probe transactions were rolled back.
@@ -99,14 +99,14 @@
 
 ### Company Account Data Normalization 2026-07-30
 
-- Applied and recorded migration `20260730090000_normalize_company_accounts_to_current_design.sql` in dev-target and SIT.
+- Applied and recorded migration `20260730090000_normalize_company_accounts_to_current_design.sql` in production and SIT.
 - `ACC01-002` FCD now has ordinary bank subtype `savings`, keeps `is_fcd = true`, and has both `THB:0` and `USD:0` currency-balance rows.
 - `ACC01-009` and `ACC01-011` are now company-level `virtual` reimbursement-payable accounts with no bank identity, no OD, THB currency, and zero opening balance. The future advance/loan flow will create their negative balance.
 - Account codes, branches, and transaction rows were not rewritten. Postflight matched Dev and SIT for the normalized rows.
 
 ### Company Account Classification And Reimbursement Payable 2026-07-29
 
-- Applied and recorded migration `20260729170000_restructure_company_account_classification.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
+- Applied and recorded migration `20260729170000_restructure_company_account_classification.sql` in production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
 - Applied and recorded migration `20260729180000_create_account_categories_master.sql` in both environments. The form now reads account categories from `public.account_categories`; seeded categories are cash, bank, and virtual reimbursement payable.
 - Added canonical account classification fields for cash, bank, and virtual reimbursement-payable accounts, including bank type, FCD, cheque capability, and branch/currency index support. Reimbursement payable is a company-level virtual account; the person relationship will be owned by the future director-loan flow.
 - Existing account rows were classified from the current account/payment-method data; no transaction data was changed. The virtual account is excluded from Customer Receipt, bank statement, FCD ledger, and bank reconciliation account options.
@@ -117,7 +117,7 @@
 
 ### Dev/SIT Transaction Reset 2026-07-29
 
-- ลบ transaction และ derived transaction data ด้วย transactional `TRUNCATE ... RESTART IDENTITY` จำนวน 79 ตารางบน dev-target (`fhglqymcdmrgbsbadnwr`) และ SIT (`vbjlkxbytccklhqvxjuu`) แล้ว.
+- ลบ transaction และ derived transaction data ด้วย transactional `TRUNCATE ... RESTART IDENTITY` จำนวน 79 ตารางบน production (`fhglqymcdmrgbsbadnwr`) และ SIT (`vbjlkxbytccklhqvxjuu`) แล้ว.
 - ครอบคลุม bank statement, PO/PB/SB, payments/advances/receipts, production, WTI/WTO, stock ledger/holds/transfers, trading และ profit-cost read models รวมถึง status/allocation/draft/notification rows ที่ผูก FK.
 - ไม่ลบ master data, auth/app users, roles/permissions, settings หรือ `supabase_migrations.schema_migrations`.
 - Postflight ทั้งสอง environment: transaction tables เป้าหมาย 0 rows; accounts 12, products 236, branches 2; migration history คงอยู่ (Dev 155, SIT 153). App users คงอยู่ (Dev 27, SIT 24).
@@ -129,64 +129,64 @@
 
 ### Branch-Coded Payment Approval PMA 2026-07-28
 
-- Applied and recorded `20260728100000_add_branch_to_payment_approvals.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
+- Applied and recorded `20260728100000_add_branch_to_payment_approvals.sql` directly to production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
 - Added nullable `payment_approvals.branch_id` and `idx_payment_approvals_branch_approved_doc`; new PMA splits persist the source branch and PMA list filtering uses the PMA branch snapshot.
 - Removed the PMA `00` branch fallback. Petty-advance-return approvals now require the advance branch before generating PMA/BST numbers.
 - Postflight confirms the column, index, and migration history version `20260728100000` exist in both environments. Existing PMA rows were not backfilled.
 
 ### Branch-Coded Document Numbers BST/TRF/TCS/SP 2026-07-28
 
-- Applied and recorded `20260728090000_add_branch_to_bst_trf_tcs_sp.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments retain pre-existing migration-history drift.
+- Applied and recorded `20260728090000_add_branch_to_bst_trf_tcs_sp.sql` directly to production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments retain pre-existing migration-history drift.
 - Added nullable `branch_id` and branch-scoped indexes to `bank_statement`, `transfers`, `trading_cost_sources`, and `sales_plans`. Existing rows were not backfilled or rewritten; new flows require a valid active branch.
 - Runtime document generators now require branch code and emit `BST<branch><YYMM>-####`, `TRF<branch><YYMM>-####`, `TCS<branch><YYMM>-####`, and `SP<branch><YYMM>-####`. TCS and Sales Plan forms/API now require branch selection; Sales Plan and Accounts list flows support branch filtering.
 - Postflight confirms all four columns, four indexes, and migration history version `20260728090000` exist in both environments.
 
 ### Petty Advance Branch Migration 2026-07-27
 
-- Applied `20260727150000_add_branch_to_petty_advances.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments have pre-existing migration-history drift that blocks a blanket `supabase db push`.
+- Applied `20260727150000_add_branch_to_petty_advances.sql` directly to production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments have pre-existing migration-history drift that blocks a blanket `supabase db push`.
 - Postflight confirms `public.petty_advances.branch_id`, `idx_petty_advances_branch`, `petty_advances_branch_id_fkey`, and migration history version `20260727150000` exist in both environments.
 - No existing petty-advance business rows were backfilled or rewritten; new PADV records require a valid active branch from the application flow.
 
 ### Company Account Code Cutover 2026-07-27
 
-- Applied `20260727120000_assign_branch_scoped_account_codes.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`). The migration remapped 12 `public.accounts` rows in each environment to deterministic codes in the form `ACC<branch code>-<3-digit sequence>`, ordered by `branch_id, id`.
+- Applied `20260727120000_assign_branch_scoped_account_codes.sql` directly to production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`). The migration remapped 12 `public.accounts` rows in each environment to deterministic codes in the form `ACC<branch code>-<3-digit sequence>`, ordered by `branch_id, id`.
 - Postflight for both environments: 12/12 valid branch-scoped codes, 12/12 distinct codes, and 0 accounts without `branch_id`. Migration history row `20260727120000` is present in both environments.
 - `bank_statement.account_id` was not changed because it remains the internal FK to `accounts.id`; bank statement outward `accountId` now resolves only through the new `accounts.code` contract. No historical snapshot fields were rewritten in this accounts-only cutover.
 - Runtime flow now rejects numeric internal ids and unknown account codes instead of silently falling back to an unfiltered account/bank-statement flow.
 
 ### Production Input Return Permission Fix 2026-07-23
 
-- Applied `20260723173500_add_production_input_return_permission.sql` and `20260723200000_grant_production_input_return_to_system_admin.sql` to dev-target using the local dev database connection after confirming the local database had neither the permission catalog row nor its role grants.
+- Applied `20260723173500_add_production_input_return_permission.sql` and `20260723200000_grant_production_input_return_to_system_admin.sql` to production using the local dev database connection after confirming the local database had neither the permission catalog row nor its role grants.
 - Postflight confirms `production.orders.input_return` is active and granted to `admin`, `owner`, `production_department`, and `system_admin`. No production order, stock, or ledger rows were changed.
-- Applied and recorded `20260723190000_separate_production_and_stock_receipt_costs.sql` to dev-target after the first authorized return attempt exposed missing `production_input_returns` stock-receipt cost columns. Postflight confirms `stock_receipt_unit_cost`, `stock_receipt_total_cost`, and `cost_variance` exist; no business rows were changed.
-- Applied and recorded `20260724100000_add_production_output_wip_source.sql` to dev-target. `production_outputs` now stores the selected WIP source product, RM/FG category, and source warehouse for production-round traceability; no existing business rows were changed.
-- SIT parity apply on 2026-07-24: backed up SIT schemas `public`, `maintenance`, and `supabase_migrations` to `/tmp/ns-erp-sit-before-dev-apply-20260724-155927`, then applied and recorded SIT migrations `20260723173000`, `20260723173500`, `20260723190000`, `20260723200000`, `20260724100000`, `20260724110000`, and `20260724150000`. Also applied schema parity DDL from dev for `production_output_drafts`, `weight_ticket_form_drafts`, `app_roles.default_landing_path`, `get_godown_daily(date,date)`, product image storage policies, and RLS enablement where dev had it. Dev-target already had the `20260716190000_add_customer_advance_vat_breakdown.sql` schema, so after validating its columns, constraints, and zero invalid rows, migration history `20260716190000` was recorded in dev-target to match SIT. Follow-up backed up SIT permission/role/history data to `/tmp/ns-erp-sit-before-history-data-sync-20260724-163104`, synced missing dev permission catalog rows, role grants, role landing defaults, and 12 migration-history versions to SIT, then backed up dev role grants to `/tmp/ns-erp-dev-before-sit-extra-grants-20260724-163251` and copied the 11 SIT-only role grants back to dev. Final comparison found no drift between dev-target and SIT for checked schema catalog rows, auth seed rows, or migration-history versions/names.
+- Applied and recorded `20260723190000_separate_production_and_stock_receipt_costs.sql` to production after the first authorized return attempt exposed missing `production_input_returns` stock-receipt cost columns. Postflight confirms `stock_receipt_unit_cost`, `stock_receipt_total_cost`, and `cost_variance` exist; no business rows were changed.
+- Applied and recorded `20260724100000_add_production_output_wip_source.sql` to production. `production_outputs` now stores the selected WIP source product, RM/FG category, and source warehouse for production-round traceability; no existing business rows were changed.
+- SIT parity apply on 2026-07-24: backed up SIT schemas `public`, `maintenance`, and `supabase_migrations` to `/tmp/ns-erp-sit-before-dev-apply-20260724-155927`, then applied and recorded SIT migrations `20260723173000`, `20260723173500`, `20260723190000`, `20260723200000`, `20260724100000`, `20260724110000`, and `20260724150000`. Also applied schema parity DDL from dev for `production_output_drafts`, `weight_ticket_form_drafts`, `app_roles.default_landing_path`, `get_godown_daily(date,date)`, product image storage policies, and RLS enablement where dev had it. Production already had the `20260716190000_add_customer_advance_vat_breakdown.sql` schema, so after validating its columns, constraints, and zero invalid rows, migration history `20260716190000` was recorded in production to match SIT. Follow-up backed up SIT permission/role/history data to `/tmp/ns-erp-sit-before-history-data-sync-20260724-163104`, synced missing dev permission catalog rows, role grants, role landing defaults, and 12 migration-history versions to SIT, then backed up dev role grants to `/tmp/ns-erp-dev-before-sit-extra-grants-20260724-163251` and copied the 11 SIT-only role grants back to dev. Final comparison found no drift between production and SIT for checked schema catalog rows, auth seed rows, or migration-history versions/names.
 
-Development database and auth testing should use a separate Supabase dev/target project.
+Development database and Auth/RLS testing use the separate Supabase SIT project `vbjlkxbytccklhqvxjuu`.
 
 The customer's old production Supabase remains the legacy source system for read-only audit and migration-source dumps.
 
 ### Access Control Migration Checkpoint 2026-07-19
 
-- Applied with Supabase CLI to dev-target `fhglqymcdmrgbsbadnwr` and SIT `vbjlkxbytccklhqvxjuu`: `20260719010334_access_control_finance_action_grants` and `20260719011602_access_control_advance_expense_actions`.
+- Applied with Supabase CLI to production `fhglqymcdmrgbsbadnwr` and SIT `vbjlkxbytccklhqvxjuu`: `20260719010334_access_control_finance_action_grants` and `20260719011602_access_control_advance_expense_actions`.
 - Postflight confirmed both environments contain the six required action catalog permissions and twelve admin/owner role grants for the checked action set.
 - Because both environments have pre-existing migration-history drift, the apply used temporary migration workdirs containing remote-history placeholders and only the two intended SQL migrations. No legacy migration was re-run.
 
 ### Cache/Image Checkpoint 2026-07-18
 
-- Dev-target, SIT และ customer UAT ตรวจ `products` 236 รายการเท่ากัน: 62 รายการมี original+thumbnail ครบ 124 Storage objects, 174 รายการไม่มีรูป, missing/orphan asset `0`
+- Production, SIT และ customer UAT ตรวจ `products` 236 รายการเท่ากัน: 62 รายการมี original+thumbnail ครบ 124 Storage objects, 174 รายการไม่มีรูป, missing/orphan asset `0`
 - Applied and recorded migrations `20260718140000_clear_legacy_product_image_names` and `20260718143000_drop_legacy_product_image_names` in all three environments; `products.image_names` no longer exists
 - Product/impurity product upload now uses versioned Storage keys with `Cache-Control: 31536000`; WTI/WTO attachment upload already uses the same max-age policy
 - Runtime Redis/browser hit/miss/latency/request-reduction evidence still requires traffic from the deployed SIT/UAT code with observability enabled; no browser UAT was run in this coding batch
 
 ### Access-Control Checkpoint 2026-07-19
 
-- Applied and recorded `20260719005346_access_control_action_permissions`, `20260719005635_access_control_split_admin_permissions`, `20260719010334_access_control_finance_action_grants`, and `20260719011602_access_control_advance_expense_actions` in dev-target and SIT only; customer UAT was not changed.
+- Applied and recorded `20260719005346_access_control_action_permissions`, `20260719005635_access_control_split_admin_permissions`, `20260719010334_access_control_finance_action_grants`, and `20260719011602_access_control_advance_expense_actions` in production and SIT only; customer UAT was not changed.
 - Dry-run and postflight checks found all 34 permission codes from the first catalog batch, both new view grants (`system.users.view`, `system.roles.view`), and all 28 split finance/advance/expense action grants for the existing `admin`, `owner`, and `system_admin` roles in both environments.
 - A fresh authenticated dev probe confirmed `/admin/users` and `/admin/roles-permissions` returned HTTP 200 after the migrations. The legacy manage grants remain in place for compatibility while route checks move to the split permissions.
 
 Important account boundary:
-- `legacy-prod-source`, `dev-target`, and future `staging-uat` should be separate Supabase account/project contexts where practical.
+- `legacy-prod-source`, `production`, and future `staging-uat` should be separate Supabase account/project contexts where practical.
 - Do not assume access tokens, Auth users, API keys, Storage buckets, or project settings are shared between them.
 - A future `new-prod` project has not been created yet.
 
@@ -214,11 +214,11 @@ Git branch boundary:
 - Supabase context: new development Supabase account/project context
 - MCP server name: `supabase`
 - Purpose: development, Supabase Auth testing, RLS testing, schema migration testing, frontend integration
-- Status: project-level `.mcp.json` has been added so this repo points `supabase` to the dev project by default
+- Status: project-level `.mcp.json` points `supabase` to the current Production project; local development uses the SIT project through `.env.local`/CLI configuration
 - Note: global Supabase MCP entries were removed to avoid cross-project confusion
 - Note: restart the Codex session before verifying MCP runtime tools
-- LINE config update on 2026-07-13: dev-target has independent active `PMT` and `RCP` rules routed to the single active group `ทดสอบ`, both with stop-after-match enabled. The RCP rule is named `รับเงิน Customer → กลุ่มทดสอบ`; real loader/resolver verification returned only that group, official LINE validation returned HTTP 200, and live RCP job `168` reached `sent` on attempt 1 without a duplicate job.
-- LINE link caveat on 2026-07-13: dev-target still has no `NEXT_PUBLIC_APP_URL`, so financial Flex messages fall back to `http://localhost:3000` for the open-system button. Do not copy the UAT URL into dev by assumption; configure the actual public dev URL when one exists.
+- LINE config update on 2026-07-13: production has independent active `PMT` and `RCP` rules routed to the single active group `ทดสอบ`, both with stop-after-match enabled. The RCP rule is named `รับเงิน Customer → กลุ่มทดสอบ`; real loader/resolver verification returned only that group, official LINE validation returned HTTP 200, and live RCP job `168` reached `sent` on attempt 1 without a duplicate job.
+- LINE link caveat on 2026-07-13: production still has no `NEXT_PUBLIC_APP_URL`, so financial Flex messages fall back to `http://localhost:3000` for the open-system button. Do not copy the UAT URL into dev by assumption; configure the actual public dev URL when one exists.
 
 ### System Integration Test / SIT
 
@@ -226,12 +226,12 @@ Git branch boundary:
 - Current meaning in this project: `devkub1/ns-dev` Vercel SIT database/environment
 - Local ignored env reference: `apps/next/.env.sit.local`
 - Purpose: integration deployment smoke/UAT-before-customer checks for the separate `devdevkub-coder/ns-dev` repository and Vercel project
-- Should remain separate from `dev-target`, customer UAT, legacy production, and future new production.
+- Should remain separate from `production`, customer UAT, legacy production, and future new production.
 
 Status update on 2026-07-15:
 - The Vercel project `devkub1/ns-dev` was configured with SIT Supabase/Postgres/KV env values from `apps/next/.env.sit.local`, plus derived `NEXT_PUBLIC_SUPABASE_*` values.
 - The Vercel project output directory was corrected to `apps/next/.next`, then production redeploy `dpl_J583TfDv8PQjZi3UUrGbY29ML1qS` completed with `READY`.
-- SIT database project `vbjlkxbytccklhqvxjuu` was refreshed from dev-target `fhglqymcdmrgbsbadnwr`.
+- SIT database project `vbjlkxbytccklhqvxjuu` was refreshed from production `fhglqymcdmrgbsbadnwr`.
 - Before the refresh, a local SIT backup was written under `/tmp/ns-erp-dev-to-sit-20260715-034341`.
 - Restored scope: application schemas `public`, `maintenance`, `supabase_migrations`, plus required Supabase Auth identity tables `auth.users` and `auth.identities`.
 - Post-refresh reconciliation matched dev exactly for the checked scope: 202 tables, 67,008 rows, and 0 row-count differences.
@@ -242,7 +242,7 @@ Status update on 2026-07-15:
 - Latest SIT production redeploy `dpl_CAnQTGKviTNEdM4gHp9e9WdSHGi5` completed with `READY` and `ns-erp-sit.vercel.app` points to it. Browser smoke verification returned Supabase token `200`, `/api/auth/login-complete` `200`, and redirected to `/`.
 
 Status update on 2026-07-16:
-- Applied `20260716190000_add_customer_advance_vat_breakdown.sql` to dev-target `fhglqymcdmrgbsbadnwr`. Existing CADV rows: 2; invalid targets before migration: 0; post-migration valid tax breakdowns: 2/2; VAT constraints present: 3/3. Existing rows are explicitly `NONE`; new VAT-inclusive CADV records snapshot the master VAT rate by document date.
+- Applied `20260716190000_add_customer_advance_vat_breakdown.sql` to production `fhglqymcdmrgbsbadnwr`. Existing CADV rows: 2; invalid targets before migration: 0; post-migration valid tax breakdowns: 2/2; VAT constraints present: 3/3. Existing rows are explicitly `NONE`; new VAT-inclusive CADV records snapshot the master VAT rate by document date.
 - Applied the CADV create/branch migrations and the Supplier ADV base-credit normalization migration directly to SIT with transactional error stopping.
 - Applied `20260716190000_add_customer_advance_vat_breakdown.sql` to SIT `vbjlkxbytccklhqvxjuu` and recorded migration history. Postflight confirms all 4 VAT-breakdown columns, all 3 VAT arithmetic/type constraints, and 0 invalid CADV rows; SIT currently has no CADV business rows to backfill.
 - SIT now has the CADV tables with required document branch support and validated ADV arithmetic constraints. `ADV012607-0004` reconciles to gross cash 10,700, allocated base 4,900, and remaining base 5,100.
@@ -268,7 +268,7 @@ Migration `20260718100000_add_customer_receipt_advance_allocations.sql` was appl
 - Current meaning in this project: customer-facing UAT database/environment
 - Purpose: user testing, customer UAT, migration rehearsal, release validation
 - Expected usage:
-  - deploy tested schema from `dev-target`
+  - deploy tested schema from `production`
   - seed sanitized or approved snapshot data
   - let customer/user validate business flow
   - run reconciliation checks before any production cutover
@@ -280,7 +280,7 @@ Current Git policy as of 2026-07-17:
 
 Schema parity checkpoint on 2026-07-17:
 - Before the SIT-to-UAT promotion, direct schema dumps of `public`, `maintenance`, `auth`, and `supabase_migrations` found UAT missing Customer Advance allocation breakdown migration `20260716082726`, Supplier ADV monetary precision, `sales_plans` RLS, and two `app_users` lifecycle comments.
-- Existing migration `20260716082726_add_customer_advance_allocation_breakdown.sql` was applied and recorded in UAT. New migration `20260717093000_align_finance_precision_and_sales_plan_rls.sql` was applied and recorded in dev-target, SIT, and UAT after confirming no Supplier ADV value had more than two decimal places.
+- Existing migration `20260716082726_add_customer_advance_allocation_breakdown.sql` was applied and recorded in UAT. New migration `20260717093000_align_finance_precision_and_sales_plan_rls.sql` was applied and recorded in production, SIT, and UAT after confirming no Supplier ADV value had more than two decimal places.
 - Postflight normalized schema dumps for SIT and UAT are identical. UAT retains two historical CADV migration-history rows (`20260715133000`, `20260715143000`) not present in SIT because SIT received the equivalent schema through its database refresh; this is history-only and not schema drift.
 - Promotion completed at commit `77786f70`: `new-origin/dev`, `sit-origin/main`, and customer `uat-origin/main` now point to the same commit. Remote branch `new-origin/uat` was deleted and must not be recreated.
 - Later on 2026-07-17, CADV edit/cancel and ADV credit UI commit `14429b45` was promoted from `sit-origin/main` to customer `uat-origin/main` by fast-forward. A fresh normalized schema dump comparison for SIT `vbjlkxbytccklhqvxjuu` and UAT `ekeomeumqjvbhgwyaqwe` across `public`, `maintenance`, `auth`, and `supabase_migrations` was identical, so no additional UAT database migration was required. Migration-history difference remains history-only: UAT has `20260715133000` and `20260715143000` while SIT does not.
@@ -295,8 +295,8 @@ Status update on 2026-07-14:
 - Runtime schema sync was applied directly to UAT from the current dev database contract: `public.app_users` now includes `username`, lifecycle columns, defaults, and indexes; `public.sales_plans` now exists; and the `maintenance` schema/tables were recreated in UAT for parity with dev backups/admin support.
 - Post-sync verification passed: a real Supabase password sign-in for `watcharathat@gmail.com` followed by `POST https://ns-erp-uat.vercel.app/api/auth/login-complete` returned HTTP `200`.
 - Current customer UAT Git target remains the separate `uat-origin` repository, and on 2026-07-14 both `uat-origin/main` and `uat-origin/uat` were force-promoted from `new-origin/dev` so the customer UAT repo matches the active dev integration branch.
-- After that promote, UAT application data was also overwritten directly from the current dev target for the active application schemas/tables (`public`, `maintenance`, application-owned `auth` data, and `supabase_migrations` application history).
-- UAT Supabase Storage was synced from dev target for the business buckets `product-images` and `weight-ticket-pdfs`; post-sync object counts match dev exactly at `124` and `402`.
+- After that promote, UAT application data was also overwritten directly from the current production for the active application schemas/tables (`public`, `maintenance`, application-owned `auth` data, and `supabase_migrations` application history).
+- UAT Supabase Storage was synced from production for the business buckets `product-images` and `weight-ticket-pdfs`; post-sync object counts match dev exactly at `124` and `402`.
 - Post-refresh verification on 2026-07-14 confirmed core business table counts match dev for users, customers, suppliers, products, WTI/WTO, PO Sell, PB/SB, petty advance, and stock ledger. Remaining row-count drift was limited to runtime log/audit tables (`app_activity_logs`, `app_audit_logs`, `app_auth_events`) created by the verification traffic itself.
 - Direct Supabase password sign-in on the active UAT project `ekeomeumqjvbhgwyaqwe` still succeeds for `watcharathat@gmail.com` after the full code/schema/data/storage refresh.
 
@@ -309,7 +309,7 @@ Status update on 2026-07-16:
 Status update on 2026-07-11:
 - The active customer UAT deployment is `https://ns-erp-uat.vercel.app` and its Vercel Production environment now points Supabase URL, anon/publishable key, service-role/secret key, and PostgreSQL pooler connection to project ref `ekeomeumqjvbhgwyaqwe`.
 - The project started with no `public` tables or Auth users. Before restore, a local UAT snapshot was created under `/tmp/ns-erp-dev-to-uat-20260711-143907`.
-- Dev project `fhglqymcdmrgbsbadnwr` was cloned into the new UAT project for `public` schema/data, `auth.users`, `auth.identities`, and `supabase_migrations.schema_migrations`.
+- Production project `fhglqymcdmrgbsbadnwr` was cloned into the new UAT project for `public` schema/data, `auth.users`, `auth.identities`, and `supabase_migrations.schema_migrations`.
 - Exact reconciliation passed with no per-table row-count differences: both environments have 140 public base tables and 32,737 public rows, 44 Auth users, 43 Auth identities, 117 public RLS policies, 90 RLS-enabled public tables, 15 public routines, and 106 migration-history rows.
 - Supabase Storage objects were not copied in this PostgreSQL clone. Storage buckets, object metadata, and binary files must be provisioned or migrated as a separate controlled step before UAT flows that depend on stored PDFs/images are accepted.
 - Applied UAT migrations `20260711173000`, `20260711190000`, and `20260711200000` to project `ekeomeumqjvbhgwyaqwe` after a scoped WTI/WTO backup. The confirmation-owned WTO hold migration released 5 active holds that belonged to draft WTO documents. Post-migration checks found 0 draft active holds and 0 WTI/WTO reconciliation issues; weight columns are `numeric(18,2)`, and the active-hold guard trigger plus Warehouse FK are installed.
@@ -325,7 +325,7 @@ Status update on 2026-07-01:
 - UAT was backed up before restore, then restored with the dev snapshot for `public` plus the required `auth.users` and `auth.identities` rows needed by public foreign keys and login.
 - Post-restore validation matched the restored snapshot: `public` has 135 tables and 26,171 rows; `auth.users` has 43 rows and `auth.identities` has 42 rows.
 - A later comparison against live dev showed 10 additional rows in dev after the dump time, so UAT matches the dump snapshot, not subsequent dev writes.
-- LINE WTI/WTO Storage was repaired on UAT after finding older notification logs had been generated while the deployment still pointed Storage URLs at the dev Supabase host. The current Vercel `NEXT_PUBLIC_SUPABASE_URL` points to `oolzfvqhovmjhiocfqdw`, and UAT bucket `weight-ticket-pdfs` is now public with allowed MIME types `application/pdf`, `image/jpeg`, `image/png`, and `image/webp`; public read health checks passed for both PNG and PDF on the UAT host.
+- LINE WTI/WTO Storage was repaired on UAT after finding older notification logs had been generated while the deployment still pointed Storage URLs at the wrong Supabase host. The current Vercel `NEXT_PUBLIC_SUPABASE_URL` points to `oolzfvqhovmjhiocfqdw`, and UAT bucket `weight-ticket-pdfs` is now public with allowed MIME types `application/pdf`, `image/jpeg`, `image/png`, and `image/webp`; public read health checks passed for both PNG and PDF on the UAT host.
 
 ### New Production / Target
 
@@ -343,7 +343,7 @@ There are two possible final production strategies:
 This decision is still open.
 
 Current preference for safety:
-- Use `dev-target` for implementation.
+- Use `sit` for implementation and validation.
 - Add `staging-uat` before customer testing.
 - Decide old environment upgrade vs new production project after schema, migration, UAT, backup, rollback, and reconciliation plans are mature.
 
@@ -351,7 +351,7 @@ Current preference for safety:
 
 Project-level MCP config exists at `.mcp.json`.
 
-`supabase` points to the dev project:
+`supabase` points to the current Production project:
 
 ```text
 supabase -> https://mcp.supabase.com/mcp?project_ref=fhglqymcdmrgbsbadnwr
@@ -376,7 +376,7 @@ Session verification as of 2026-05-16:
 - MCP tool access for `supabase` is available in the active agent runtime.
 - `get_project_url` confirms `https://fhglqymcdmrgbsbadnwr.supabase.co`.
 - `get_publishable_keys` returned enabled dev anon and publishable keys.
-- `list_tables` for `public` returned no tables yet, so the dev target has not received the legacy public import.
+- `list_tables` for `public` returned no tables yet, so the production has not received the legacy public import.
 - `list_mcp_resources(server="supabase")` returns `Method not found` for this MCP server; use the Supabase MCP tools directly instead.
 
 Next session should verify the MCP server:
@@ -466,29 +466,29 @@ Operational notes:
 
 ### `.env.local`
 
-Purpose: local machine secrets and dev values. This file is ignored by git.
+Purpose: local machine secrets. For normal development, load SIT values; do not use this file as an implicit Production connection.
 
 Current expected values:
 
 ```env
-VITE_SUPABASE_URL=https://fhglqymcdmrgbsbadnwr.supabase.co
-VITE_SUPABASE_ANON_KEY=replace-with-dev-anon-key
-DATABASE_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
-SUPABASE_DB_USER=postgres.fhglqymcdmrgbsbadnwr
-SUPABASE_DB_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
+VITE_SUPABASE_URL=https://vbjlkxbytccklhqvxjuu.supabase.co
+VITE_SUPABASE_ANON_KEY=replace-with-sit-anon-key
+DATABASE_URL=postgresql://postgres.vbjlkxbytccklhqvxjuu:replace-with-sit-db-password@replace-with-sit-pooler-host:5432/postgres
+SUPABASE_DB_USER=postgres.vbjlkxbytccklhqvxjuu
+SUPABASE_DB_URL=postgresql://postgres.vbjlkxbytccklhqvxjuu:replace-with-sit-db-password@replace-with-sit-pooler-host:5432/postgres
 EXCHANGERATE_API_KEY=replace-with-api-key
 CRON_SECRET=replace-with-random-16-plus-char-secret
 ```
 
 Remaining manual updates:
-- replace dev database password and pooler host in `DATABASE_URL` / `SUPABASE_DB_URL`
+- replace SIT database password and pooler host in `DATABASE_URL` / `SUPABASE_DB_URL`
 - add `EXCHANGERATE_API_KEY` only if Sales Plan live USD/THB should have fallback when Google Finance is unavailable
 - add `CRON_SECRET` in Vercel project settings before relying on `/api/cron/sales-plan-lme`
 
 Observed current state:
-- `VITE_SUPABASE_URL` points to `fhglqymcdmrgbsbadnwr`.
-- `VITE_SUPABASE_ANON_KEY` has been filled with the dev publishable key in local `.env.local`.
-- `DATABASE_URL` and `SUPABASE_DB_URL` point to the dev-target project ref, but still use placeholder dev pooler host/password, so DB import into `dev-target` cannot run yet.
+- `VITE_SUPABASE_URL` for local development must point to SIT `vbjlkxbytccklhqvxjuu`.
+- `VITE_SUPABASE_ANON_KEY` must be the SIT publishable key in the local SIT env file.
+- `DATABASE_URL` and `SUPABASE_DB_URL` for local development must point to SIT; Production imports require a separately verified, explicitly approved Production connection.
 - Legacy production database connection values have been removed from `.env.local`; use only `supabase-prod-source` MCP or approved read-only dump tooling for source inspection.
 
 ### `.env.example`
@@ -502,7 +502,7 @@ The previous local Docker Postgres database has been removed.
 Current policy:
 - no local Docker DB baseline
 - no plain local Postgres for auth/RLS testing
-- use Supabase dev/target for DB + Auth + RLS development
+- use Supabase SIT for DB + Auth + RLS development
 
 ## Sensitive Data
 
@@ -535,7 +535,7 @@ Important constraints:
 - It is ignored by git because it may contain sensitive customer, supplier, auth-adjacent, transaction, payment, and financial data.
 
 Import status as of 2026-05-17:
-- Imported `reports/db_audit/public_app_dump.sql` into `dev-target` (`fhglqymcdmrgbsbadnwr`) as a legacy baseline.
+- Imported `reports/db_audit/public_app_dump.sql` into `production` (`fhglqymcdmrgbsbadnwr`) as a legacy baseline.
 
 Thai address master data status as of 2026-05-17:
 - Added `public.thai_provinces` with 77 rows.
@@ -545,7 +545,7 @@ Thai address master data status as of 2026-05-17:
 - `public` now has 47 application tables.
 - Import intentionally did not migrate Supabase `auth` data.
 - The only non-clean import issue observed after table creation was `user_profiles_user_id_fkey`, because `public.user_profiles.user_id` references missing `auth.users` rows. The FK was not created; this is acceptable for the temporary baseline while auth migration is deferred.
-- Auth/RLS is temporarily out of scope for UI data wiring. RLS has been disabled on imported `public` tables in `dev-target`, and `anon` / `authenticated` have table access so the local Vue app can read real baseline data without login. Re-enable and redesign RLS before UAT/production.
+- Auth/RLS is temporarily out of scope for UI data wiring. RLS has been disabled on imported `public` tables in `production`, and `anon` / `authenticated` have table access so the local Vue app can read real baseline data without login. Re-enable and redesign RLS before UAT/production.
 
 Next DB actions:
 1. Run master data quality checks on the imported baseline.
@@ -573,15 +573,15 @@ Current Next status as of 2026-05-17:
 - `apps/next` is the active migration target for the new frontend direction.
 - `old-apps/vue` remains the audited visual/source baseline for existing cloned pages.
 - `old-apps/legacy` remains archived source material only.
-- `customers` is the first enhanced Next master-data page with API/Prisma/dev-target wiring, frontend table search/filter/sort/count/pagination after one list load, postcode-first Thai address form, field-level syntax validation, person/contact structured name fields, and Excel-compatible export.
-- Batch 1-4 master-data pages now have Next routes and APIs. Batch 4 fixture-backed masters that were not real legacy DB tables have additive target tables in `dev-target`.
+- `customers` is the first enhanced Next master-data page with API/Prisma/production wiring, frontend table search/filter/sort/count/pagination after one list load, postcode-first Thai address form, field-level syntax validation, person/contact structured name fields, and Excel-compatible export.
+- Batch 1-4 master-data pages now have Next routes and APIs. Batch 4 fixture-backed masters that were not real legacy DB tables have additive target tables in `production`.
 - Next login uses Supabase Auth with email/password and username lookup through `app_users.username -> email`.
-- Next auth/permission baseline now exists in `dev-target`: `app_users`, `app_roles`, `app_permissions`, `app_role_permissions`, `app_user_roles`, `app_user_branch_access`, helper RPC functions, and `app_auth_events`.
+- Next auth/permission baseline now exists in `production`: `app_users`, `app_roles`, `app_permissions`, `app_role_permissions`, `app_user_roles`, `app_user_branch_access`, helper RPC functions, and `app_auth_events`.
 - Next `proxy.ts` now enforces normalized permissions for mapped paths and keeps a legacy admin/owner fallback during transition.
 - `/admin/users-permissions` supports user create/edit/status/invite/reset actions without storing passwords in app tables.
 - `/admin/company-profile` exists as a Next functional company print-profile page backed by the additive `company_profiles` singleton table, protected by `system.settings.manage`, with field-level syntax validation and small-logo data URL support for printable documents.
 - `/admin/transaction-ledger` exists as a Next read-only ledger view over `accounts` and `bank_statement`, protected by `finance.cash.view`, with account balance cards, table filters, summary totals, account verification helper, linked purchase/sales bill badges, source payee enrichment, running balance, non-destructive duplicate diagnostics, and XLSX export; write/edit/delete mutations are intentionally deferred until audit/reconciliation rules are defined.
-- `/admin/audit` reads the redesigned Audit / Activity feed for users with `system.audit.view`, with group/search/actor/target/event-type filters, server pagination, current-page CSV export, and detail metadata modal. The new dev-target source of truth is split into append-only `app_audit_logs` for trace-critical security/write/permission events and `app_activity_logs` for user/session/page/action activity; legacy `app_auth_events`, `audit_logs`, and deletion log tables are retained as compatibility/history sources only.
+- `/admin/audit` reads the redesigned Audit / Activity feed for users with `system.audit.view`, with group/search/actor/target/event-type filters, server pagination, current-page CSV export, and detail metadata modal. The new production source of truth is split into append-only `app_audit_logs` for trace-critical security/write/permission events and `app_activity_logs` for user/session/page/action activity; legacy `app_auth_events`, `audit_logs`, and deletion log tables are retained as compatibility/history sources only.
 - Functional Next pages now use normalized client/server error handling for implemented pages (`customers`, `suppliers`, `products`, `/admin/users-permissions`, `/admin/audit`): API errors return a consistent `{ code, error, fieldErrors }` shape where applicable, Zod validation returns field errors, DB/internal errors are sanitized, and the UI maps auth/permission/conflict/network/invalid-response cases to Thai user-facing messages.
 - Login and authorization security baseline:
   - Login credential prefill has been removed from every environment. The Login page never reads or sends default email/password values from environment variables.
@@ -608,21 +608,21 @@ Remaining frontend work:
 - sidebar/action visibility must be connected to Auth/Role mapping
 
 DB schema redesign status:
-- Additive target tables and customer classification/person-name fields have been applied to `dev-target` for the current master-data work.
-- Security/access baseline migrations are applied to `dev-target`; they are additive and keep legacy `public.users`, `user_profiles`, `roles`, and `roles_config` for reference during migration.
+- Additive target tables and customer classification/person-name fields have been applied to `production` for the current master-data work.
+- Security/access baseline migrations are applied to `production`; they are additive and keep legacy `public.users`, `user_profiles`, `roles`, and `roles_config` for reference during migration.
 - Full table-level RLS rollout for legacy/imported business tables is still pending and must be done table-by-table before UAT/production.
-- Applied and recorded `20260724110000_add_production_output_wip_allocations.sql` to dev-target. `production_outputs.source_wip_allocations` is now available for multi-source WIP allocation snapshots; no existing business rows were changed.
-- `20260724130000_add_production_output_drafts.sql` has been applied to dev-target using the project database credentials. Postflight confirmed `public.production_output_drafts` exists with the expected order, payload, audit, and timestamp columns; the table is empty and ready for Draft API testing.
-- Applied and recorded `20260724150000_reconcile_production_wip_ledger_product_dimension.sql` to dev-target. Postflight updated 16 output WIP/loss ledger rows and 2 input-return WIP-out rows so the WIP bucket uses the production-order product dimension while preserving the original input product in `source_input_product_id` when it differed.
+- Applied and recorded `20260724110000_add_production_output_wip_allocations.sql` to production. `production_outputs.source_wip_allocations` is now available for multi-source WIP allocation snapshots; no existing business rows were changed.
+- `20260724130000_add_production_output_drafts.sql` has been applied to production using the project database credentials. Postflight confirmed `public.production_output_drafts` exists with the expected order, payload, audit, and timestamp columns; the table is empty and ready for Draft API testing.
+- Applied and recorded `20260724150000_reconcile_production_wip_ledger_product_dimension.sql` to production. Postflight updated 16 output WIP/loss ledger rows and 2 input-return WIP-out rows so the WIP bucket uses the production-order product dimension while preserving the original input product in `source_input_product_id` when it differed.
 # Environment Canonicalization Checkpoint 2026-07-28
 
 Canonical local environment files are now separated by target:
 
-- Dev: `apps/next/.env.local` -> project `fhglqymcdmrgbsbadnwr`
+- Production verification only: `apps/next/.env.local` -> project `fhglqymcdmrgbsbadnwr`
 - SIT: `apps/next/.env.sit.local` -> project `vbjlkxbytccklhqvxjuu`
 - UAT: `apps/next/.env.uat.local` -> project `ekeomeumqjvbhgwyaqwe`
 
 Removed duplicate/stale local files: root `.env.local` and `apps/next/.env`. `.env.example` files remain templates only. Do not source a root env file for active Next or migration commands; load the target-specific file explicitly.
 
 Production event migration `20260728110000_add_production_event_identity` was applied and recorded in both Dev and SIT. Postflight found 3 expected columns, 3 expected indexes, and 1 migration-history row in each environment. No business data was backfilled.
-- Applied and recorded `20260730150000_lock_fcd_posted_revaluation_periods.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through controlled `psql` transactions. Postflight confirmed `fcd_revaluation_period_lock_guard` is installed once in each environment. It rejects backdated FCD receipt/conversion ledger entries through a still-posted revaluation period for the same account and currency; it does not mutate existing ledgers.
+- Applied and recorded `20260730150000_lock_fcd_posted_revaluation_periods.sql` in production (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through controlled `psql` transactions. Postflight confirmed `fcd_revaluation_period_lock_guard` is installed once in each environment. It rejects backdated FCD receipt/conversion ledger entries through a still-posted revaluation period for the same account and currency; it does not mutate existing ledgers.

@@ -12,7 +12,7 @@
 - Date: `2026-06-06`
 - Auth user: `watcharathat@gmail.com`
 - Auth method: Supabase session cookie
-- Data source: `dev-target`
+- Data source: `production`
 - Smoke script: [tmp/test_purchase_flow.mjs](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/tmp/test_purchase_flow.mjs)
 - Result file: [tmp/test_purchase_flow_result.json](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/tmp/test_purchase_flow_result.json)
 
@@ -66,7 +66,7 @@
 
 ## Data Backfill
 
-ตรวจพบ dev-target test data เก่าที่ถูกสร้างก่อนแก้ contract จำนวน `4` แถว (`PB012606-0001` ถึง `PB012606-0004`) ยังเก็บ `source_snapshot` ของ receipt เป็น internal ids
+ตรวจพบ production test data เก่าที่ถูกสร้างก่อนแก้ contract จำนวน `4` แถว (`PB012606-0001` ถึง `PB012606-0004`) ยังเก็บ `source_snapshot` ของ receipt เป็น internal ids
 
 ดำเนินการ backfill ข้อมูลแทนการเพิ่ม fallback ใน code:
 
@@ -80,7 +80,7 @@
 
 เคสตรวจซ้ำ: `WTI012605-0004` ถูกใช้สร้างบิลแล้วบิลถูกยกเลิก จากนั้นต้องกลับมาเลือกสร้างบิลใหม่ได้
 
-Root cause ที่พบใน dev-target:
+Root cause ที่พบใน production:
 
 - ยังมี `purchase_bill_receipt_allocations` ของบิลที่ `status = cancelled` จำนวน `5` rows
 - ยังมี `purchase_bill_po_allocations` ของบิลที่ `status = cancelled` จำนวน `5` rows
@@ -94,7 +94,7 @@ Root cause ที่พบใน dev-target:
 - migration refresh `weight_ticket_product_summaries.billed_weight/remaining_weight`
 - migration refresh `weight_tickets.status` จาก active allocations
 
-ผล apply migration บน dev-target:
+ผล apply migration บน production:
 
 - `DELETE 5` จาก `purchase_bill_receipt_allocations`
 - `DELETE 5` จาก `purchase_bill_po_allocations`

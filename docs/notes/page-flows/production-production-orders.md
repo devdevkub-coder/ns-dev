@@ -157,7 +157,7 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - [x] `PO-REV-01` Fix inclusive date filtering so `dateTo` includes the full business day.
 - [x] `PO-REV-02` Apply the authenticated branch scope to detail, WIP, product-stock, and all production movement endpoints, not only the list endpoint.
 - [x] `PO-REV-03` Define and implement action-level permissions for create, input, output, input return, void, complete, cancel, and export. The route checks and role grants are in `20260723140000_production_orders_action_permissions.sql`.
-- [ ] `PO-REV-04` Add a database-enforced unique constraint for `production_orders.doc_no` after duplicate-data audit. The Prisma contract and guarded migration are authored, but application is blocked until the dev-target duplicate audit can run.
+- [ ] `PO-REV-04` Add a database-enforced unique constraint for `production_orders.doc_no` after duplicate-data audit. The Prisma contract and guarded migration are authored, but application is blocked until the production duplicate audit can run.
 
 ### P1 Query and Contract
 

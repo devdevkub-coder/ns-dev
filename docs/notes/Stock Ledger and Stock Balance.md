@@ -387,7 +387,7 @@ SB-CANCEL คืน 50 kg @ 40
 
 ### Current state ณ 2026-06-11
 
-ผลตรวจ DB ล่าสุดใน `dev-target`:
+ผลตรวจ DB ล่าสุดใน `production`:
 
 - `stock_ledger` ตอนนี้มี `ref_type = 'PB'` เท่านั้น
 - ยังไม่พบ `ref_type = 'WTI'`

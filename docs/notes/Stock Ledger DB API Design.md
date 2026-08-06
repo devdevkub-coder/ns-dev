@@ -191,7 +191,7 @@ Response:
 
 Browser QA checkpoint (no return-from-WTO/SB case):
 
-- `SB2606-0003` cancelled through the `/sales/bills` UI cancel dialog in dev-target on 2026-06-12.
+- `SB2606-0003` cancelled through the `/sales/bills` UI cancel dialog in production on 2026-06-12.
 - Verified DB side effects:
   - `stock_ledger` has both `SB` (`qty_out = 10`) and `SB-CANCEL` (`qty_in = 10`) for the document.
   - `WTO012606-0005` returned to `delivered` because no return-from-WTO/SB existed.
@@ -201,7 +201,7 @@ Browser QA checkpoint (no return-from-WTO/SB case):
 
 Runtime bug fixes from QA:
 
-- Applied existing migration `20260612120000_add_sales_bill_status_logs.sql` to dev-target because `sales_bills.cancel_note/cancelled_at/cancelled_by` existed in Prisma schema but not in the database yet.
+- Applied existing migration `20260612120000_add_sales_bill_status_logs.sql` to production because `sales_bills.cancel_note/cancelled_at/cancelled_by` existed in Prisma schema but not in the database yet.
 - `POST /api/sales/bills` now only validates `customerAdvance.ref_type = CADV` when a Customer Advance was actually selected; creating an SB without Customer Advance must not be rejected.
 - `PATCH /api/sales/bills/{docNo}` PO Sell reversal now reads `unitPrice` from the SB item snapshot when `price` is absent and restores PO Sell JSON item outstanding as well as header totals.
 

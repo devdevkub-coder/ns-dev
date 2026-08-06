@@ -224,7 +224,7 @@ Target API เพิ่มเติม:
   - snapshot และ POST ใช้ stock balance aggregate ครั้งเดียวต่อ bucket เพื่อคำนวณ `systemQty`, `readyQty`, `unitPricePerKg`
   - `ADJ-` doc no generation ย้ายเข้า transaction และใช้ `pg_advisory_xact_lock('stock_adjustments.doc_no')`; user-supplied `docNo` ถูก reject เมื่อซ้ำ
   - migration `20260613213000_optimize_stock_adjust_queries.sql` เพิ่ม unique/pattern index ของ `doc_no`, composite list/filter indexes บน `stock_adjustments`, และ `ADJ/ADJ-REV` lookup index บน `stock_ledger`
-  - dev-target verification: duplicate `doc_no` = 0; EXPLAIN with `enable_seqscan = off` ใช้ `idx_stock_adjustments_list_date_created`, `idx_stock_adjustments_branch_date_created`, `idx_stock_adjustments_type_date_created`, `idx_stock_adjustments_doc_no_pattern`, และ `idx_stock_ledger_adj_ref_lookup`
+  - production verification: duplicate `doc_no` = 0; EXPLAIN with `enable_seqscan = off` ใช้ `idx_stock_adjustments_list_date_created`, `idx_stock_adjustments_branch_date_created`, `idx_stock_adjustments_type_date_created`, `idx_stock_adjustments_doc_no_pattern`, และ `idx_stock_ledger_adj_ref_lookup`
 
 ## Related Notes
 

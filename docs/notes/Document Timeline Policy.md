@@ -110,7 +110,7 @@ Timeline/event log ของเอกสารควรมี field ขั้น
 
 ## Current Coverage Audit 2026-06-06
 
-ตรวจจาก dev-target schema, Prisma schema, API/write helpers, และ active Next UI เมื่อ 2026-06-06
+ตรวจจาก production schema, Prisma schema, API/write helpers, และ active Next UI เมื่อ 2026-06-06
 
 | เอกสาร/table | เลขที่พบ | Coverage ตอนนี้ | ขาดอะไร |
 |---|---|---|---|

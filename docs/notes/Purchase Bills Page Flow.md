@@ -91,7 +91,7 @@ updated: 2026-07-30
 - เลข PB ยังเป็น `PB{branch}{YYMM}-NNNN` เหมือนเดิม แต่จองเลขผ่าน counter ที่ atomic และสั้นก่อน transaction หลัก ไม่ถือ monthly lock ตลอดการสร้างบิล. หาก transaction หลังจองเลข rollback เลขอาจข้ามได้ แต่ไม่มี PB/stock/allocation ที่ค้างจากเลขนั้น
 - Profit & Cost เป็น derived reporting read model จึง project หลัง response ด้วย `after()`. PB/PO/WTI/stock/AP ไม่รอ report และ report failure ไม่ rollback เอกสารหลัก; การ rebuild report ใช้ facts จาก PB ที่ commit แล้ว
 
-อัปเดตล่าสุด 2026-06-12 สำหรับ dev-target:
+อัปเดตล่าสุด 2026-06-12 สำหรับ production:
 
 - Migration `20260612225500_optimize_purchase_bills_queries.sql` เพิ่ม index สำหรับ PB list/sort/filter, PB doc no prefix lookup, WTI options, ADV options, PMT active-by-bill lookup, PMA locked-by-source lookup, และ active allocation lookup
 - Migration `20260612231500_harden_purchase_bill_allocation_lifecycle.sql` เพิ่ม lifecycle ให้ `purchase_bill_items`, `purchase_bill_receipt_allocations`, และ `purchase_bill_po_allocations`
@@ -111,13 +111,13 @@ updated: 2026-07-30
 - `PATCH /api/purchase/bills` edit release active allocation rows, mark active item rows เป็น `superseded`, แล้ว create active item/allocation version ใหม่แทน delete/rebuild
 - active availability/reconciliation paths (`WTI` usage, `PO Buy` reconciliation, PB detail/list read model) กรอง `active` lifecycle rows เท่านั้น เพื่อไม่ให้ audit history ถูกนับซ้ำ
 
-หลักฐาน query/check จาก dev-target หลังปรับ:
+หลักฐาน query/check จาก production หลังปรับ:
 
-- migration lifecycle ถูก apply กับ dev-target ผ่าน `psql` จาก `apps/next/.env.local`
+- migration lifecycle ถูก apply กับ production ผ่าน `psql` จาก `apps/next/.env.local`
 - catalog check ยืนยันว่า unique เดิม `uq_purchase_bill_items_bill_line` ถูกลบแล้ว เหลือ `purchase_bill_items_pkey` และ partial unique `uq_purchase_bill_items_active_bill_line`
 - lifecycle columns ทุก table มี default `active` และ existing rows ไม่มี `item_status is null`
 - SQL smoke ของ doc no generation คืน latest running ของเดือน `2606` ได้ถูกต้อง (`last_number = 12` จากข้อมูลทดสอบล่าสุด)
-- dev-target ยังมี transaction rows น้อยมาก (`purchase_bills = 12`, `weight_tickets = 25`) PostgreSQL จึงยังเลือก seq scan สำหรับบาง query ตาม cost ปกติ แต่เมื่อบังคับ `enable_seqscan = off` index path ของ PB list, ADV option, และ PMT active lookup ใช้งานได้
+- production ยังมี transaction rows น้อยมาก (`purchase_bills = 12`, `weight_tickets = 25`) PostgreSQL จึงยังเลือก seq scan สำหรับบาง query ตาม cost ปกติ แต่เมื่อบังคับ `enable_seqscan = off` index path ของ PB list, ADV option, และ PMT active lookup ใช้งานได้
 - targeted ESLint ของ `src/app/api/purchase/bills/route.ts`, `po-buy-reconciliation.ts`, `purchase-bill-detail.ts`, และ `weight-tickets.ts` ผ่าน
 - `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false` ผ่าน
 - `npm run verify:stock-ledger` ผ่าน โดย totals ทุกตัวเป็น `0`

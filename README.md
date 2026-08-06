@@ -74,21 +74,21 @@ legacy runtime. If you need to inspect the legacy UI locally, open
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and fill the dev Supabase values. Do not use the legacy production Supabase project for day-to-day development.
+Copy `.env.example` to `.env.local` and fill the SIT Supabase values. Do not point local development at the current Production or legacy source project.
 
 Required frontend values:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://fhglqymcdmrgbsbadnwr.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=replace-with-dev-anon-key
+NEXT_PUBLIC_SUPABASE_URL=https://vbjlkxbytccklhqvxjuu.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=replace-with-sit-anon-key
 ```
 
-Required database value for dev-target import/testing:
+Required database value for SIT import/testing:
 
 ```env
-DATABASE_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
-SUPABASE_DB_USER=postgres.fhglqymcdmrgbsbadnwr
-SUPABASE_DB_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
+DATABASE_URL=postgresql://postgres.vbjlkxbytccklhqvxjuu:replace-with-sit-db-password@replace-with-sit-pooler-host:5432/postgres
+SUPABASE_DB_USER=postgres.vbjlkxbytccklhqvxjuu
+SUPABASE_DB_URL=postgresql://postgres.vbjlkxbytccklhqvxjuu:replace-with-sit-db-password@replace-with-sit-pooler-host:5432/postgres
 ```
 
 Optional server values for Sales Plan live pricing:
@@ -110,17 +110,18 @@ Keep `.env.local` private. It must not be committed.
 
 ## Supabase Environments
 
-- `dev-target`: `fhglqymcdmrgbsbadnwr`
-  - Use for development, Supabase Auth testing, RLS testing, schema migration
-    testing, and frontend integration.
+- `production`: `fhglqymcdmrgbsbadnwr`
+  - Current Production runtime/database. Read-only by default; Production changes require explicit approval.
+- `sit`: `vbjlkxbytccklhqvxjuu`
+  - Use for local development, Supabase Auth/RLS testing, schema migration testing, and frontend integration.
   - Project-level MCP server name: `supabase`.
 - `legacy-prod-source`: `mqsgptraslgpyzbpndlg`
   - Use only as the read-only source for audit, dumps, and migration mapping.
   - Project-level MCP server name: `supabase-prod-source`.
 
 Before importing `reports/db_audit/public_app_dump.sql`, verify that
-`DATABASE_URL` points to `fhglqymcdmrgbsbadnwr`, not the legacy production
-project.
+`DATABASE_URL` points to the SIT project `vbjlkxbytccklhqvxjuu`, not either
+Production project.
 
 ## Migration Rule
 

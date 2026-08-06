@@ -87,7 +87,8 @@
 ### Current
 
 - `legacy-prod-source`: customer's old Supabase environment, used as source/read-only audit and migration source
-- `dev-target`: new Supabase development environment for schema, auth, RLS, and frontend integration
+- `production`: current Production Supabase runtime/database (`fhglqymcdmrgbsbadnwr`)
+- `sit`: Supabase development, Auth/RLS testing, schema validation, and frontend integration (`vbjlkxbytccklhqvxjuu`)
 
 ### Planned
 

@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- ใช้ `dev-target` Supabase สำหรับ schema และ migration; ห้ามพัฒนาโดยตรงกับ `legacy-prod-source`
+- ใช้ `production` Supabase สำหรับ schema และ migration; ห้ามพัฒนาโดยตรงกับ `legacy-prod-source`
 - ห้ามเพิ่ม fallback, hardcode permission, skip-row หรือ silent coercion เมื่อไม่พบ permission/scope
 - API ต้องตรวจ authentication, permission, branch scope และสถานะเอกสารซ้ำจาก UI เสมอ
 - ผู้ใช้หนึ่งคนมีหลาย Role ได้ และ effective permission ใช้ `deny รายบุคคล > allow รายบุคคล > allow จาก Role > ไม่อนุญาต`
@@ -27,10 +27,10 @@
 - Completed: action catalog migrations `20260719005346_access_control_action_permissions`, `20260719005635_access_control_split_admin_permissions`, and `20260719010334_access_control_finance_action_grants`.
 - Completed: User Admin/Security Admin permission split, credential-only actions, multi-role assignment, and explicit action checks for petty advance, payment approval, WTI open-bill visibility, purchase/sales bills, supplier payment, and customer receipt.
 - Validation: targeted ESLint, workspace type-check, `git diff --check`, and focused Vitest all pass; selected Vitest result is `17/17`.
-- Completed: the four access-control migrations are applied to dev-target and SIT through controlled Supabase CLI workdirs; DB catalog/role-assignment postflight passed for the checked action set.
+- Completed: the four access-control migrations are applied to production and SIT through controlled Supabase CLI workdirs; DB catalog/role-assignment postflight passed for the checked action set.
 - Completed: payment approval returns a self-approval warning, records `payment_approval.approved` audit metadata, and the Audit & Activity Log supports filtering self-approval events.
 - Completed: supplier ADV and daily expense read/create/update/cancel routes use explicit action permissions, with legacy role/override mappings in `20260719011602_access_control_advance_expense_actions`.
-- Pending: continue replacing remaining `finance.cash.view` checks in other finance, stock, trading, and advance routes, and apply the new migrations through the controlled dev-target procedure.
+- Pending: continue replacing remaining `finance.cash.view` checks in other finance, stock, trading, and advance routes, and apply the new migrations through the controlled production procedure.
 
 ---
 
@@ -158,12 +158,12 @@ expect(actionPermissionCatalog.every((item) => item.description?.trim())).toBe(t
 
 Use `INSERT ... ON CONFLICT (code) DO UPDATE` for descriptions/module/resource/action and preserve existing `id`, role mappings, and active state. Do not delete old broad permissions.
 
-- [ ] **Step 4: Validate the migration against dev-target**
+- [ ] **Step 4: Validate the migration against production**
 
 Run:
 
 ```bash
-npx supabase db push --db-url "$DEV_TARGET_DB_URL"
+npx supabase db push --db-url "$PRODUCTION_DB_URL"
 npx prisma generate --schema apps/next/prisma/schema.prisma
 ```
 

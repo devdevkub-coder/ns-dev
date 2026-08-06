@@ -211,7 +211,7 @@ Target API ที่ทำแล้ว:
 
 ## QA Evidence 2026-06-13
 
-- Authenticated local browser QA passed on `http://localhost:3000/stock/transfer` with a temporary Supabase Auth admin user against dev-target only
+- Authenticated local browser QA passed on `http://localhost:3000/stock/transfer` with a temporary Supabase Auth admin user against production only
 - Draft flow: created `ST2606-0013`, edited qty, cancelled draft, and verified no `ST` ledger rows were created for the draft
 - Posted flow: posted `ST2606-0014` with 60 kg; ledger had 4 paired rows because source allocation consumed two buckets/lots
 - Ledger totals: `qty_in = qty_out = 60`, `value_in = value_out = 7000`, two distinct lots preserved, and unit cost remained positive

@@ -1,7 +1,7 @@
 # Profit & Cost Analysis Performance Design
 
 Date: 2026-07-19
-Status: Implemented locally and applied to dev-target; pending promotion
+Status: Implemented locally and applied to production; pending promotion
 Route: `/profit-cost-analysis`
 
 ## 1. Objective
@@ -243,7 +243,7 @@ Common query contract:
 
 1. **Instrumentation baseline**: เก็บ query plan, row count, auth/query/serialization timings และ response size
 2. **Schema**: สร้าง fact, daily rollup, reconciliation objects, constraints และ indexes
-3. **Backfill**: project historical data ใน dev-target และเปรียบยอดรายวัน/รายเดือนกับ source
+3. **Backfill**: project historical data ใน production และเปรียบยอดรายวัน/รายเดือนกับ source
 4. **Projectors**: ผูก lifecycle PB, SB และ stock พร้อม idempotency tests
 5. **Read APIs**: เพิ่ม split endpoints, decimal serialization และ server pagination
 6. **Frontend**: lazy-load active tab, Apply filters, AbortController และ independent states

@@ -97,7 +97,7 @@ Auth direction:
 - ใช้ application identity เช่น `app_users` สำหรับ profile/role mapping
 - Normalize roles และ permissions แทนการ duplicate permission model
 - ไม่เก็บ user passwords ใน application tables
-- ทดสอบ Auth และ RLS ใน Supabase `dev-target` ไม่ใช้ plain local Postgres
+- ทดสอบ Auth และ RLS ใน Supabase `production` ไม่ใช้ plain local Postgres
 
 เอกสารหลัก:
 - [[REQUIREMENTS_TARGET_SYSTEM#4. Users and Roles]]
@@ -107,14 +107,14 @@ Auth direction:
 ## Environment Map
 
 Current Supabase environments:
-- `dev-target`: `fhglqymcdmrgbsbadnwr` สำหรับ development, Auth/RLS testing, schema migration testing และ frontend integration
+- `production`: `fhglqymcdmrgbsbadnwr` สำหรับ development, Auth/RLS testing, schema migration testing และ frontend integration
 - `legacy-prod-source`: `mqsgptraslgpyzbpndlg` สำหรับ read-only audit, source dump และ migration mapping
 - `staging-uat`: ยังไม่สร้าง สำหรับ customer/user testing และ migration rehearsal
 - `new-prod`: ยังไม่สร้าง และ production strategy ยังเปิดอยู่
 
 Environment rules:
 - ห้าม develop โดยตรงกับ `legacy-prod-source`
-- Apply schema changes ที่ `dev-target` ก่อน
+- Apply schema changes ที่ `production` ก่อน
 - เก็บ project MCP routing ใน `.mcp.json` ไม่ใส่ global Codex config
 - เก็บ secrets, OAuth tokens, DB passwords, service role keys และ production dumps นอก git
 

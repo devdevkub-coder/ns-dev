@@ -72,7 +72,7 @@
 - Inspect: `supabase/migrations/20260613124402_optimize_production_report_ledger_lookup.sql`
 - Create only if required: `supabase/migrations/<timestamp>_optimize_production_dashboard.sql`
 
-- [ ] **Step 1: Run the Dashboard queries against dev-target with representative filters.**
+- [ ] **Step 1: Run the Dashboard queries against production with representative filters.**
 - [ ] **Step 2: Capture `EXPLAIN ANALYZE` for production order, child relation, and ledger lookups.**
 - [ ] **Step 3: Add only evidence-backed indexes, then document the reason and rollback shape.**
 - [ ] **Step 4: Confirm no identifier type change is needed.**

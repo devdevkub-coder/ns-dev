@@ -183,7 +183,7 @@ The route owns authentication, request parsing, service invocation, and response
 - Added `production-dashboard.ts` and `production-dashboard-query.ts`; the API route now only handles auth, date parsing, scope resolution, service invocation, and response headers.
 - Dashboard scope now passes authenticated branch IDs to both metric and WIP reads; machine aggregation uses machine IDs and response IDs are strings.
 - Focused production tests passed `16/16`; workspace type-check and production build passed; workspace lint has zero errors and four pre-existing warnings outside this batch.
-- Query-plan evidence: dev-target `EXPLAIN (ANALYZE, BUFFERS)` completed for scoped production orders, active input/output relations, and PI/PO2 ledger lookup. Current dataset is small and execution times were under 1.3 ms; existing indexes are sufficient, so no migration was added.
+- Query-plan evidence: production `EXPLAIN (ANALYZE, BUFFERS)` completed for scoped production orders, active input/output relations, and PI/PO2 ledger lookup. Current dataset is small and execution times were under 1.3 ms; existing indexes are sufficient, so no migration was added.
 - Reconciliation evidence: `npm run verify:production-report --workspace @ns-scrap-erp/next` returned `ok: true`, `checkedRows: 7`, and `productSummaryRows: 3`.
 - Final validation: focused production tests `19/19`, workspace type-check, production build, and `git diff --check` passed. Workspace lint has zero errors and four existing warnings outside this batch.
 
@@ -193,7 +193,7 @@ The route owns authentication, request parsing, service invocation, and response
 - Dashboard `machineUtil.batches` now counts active non-loss output receipt rows from `row.outputProducts`; `machineUtil.qty` sums the same output qty by machine.
 - Dashboard UI now uses an `Abnormal Loss` summary panel instead of making production order status a core panel.
 - `/api/production/dashboard` now calculates all-system `totalWipQty` through a narrow PI/PO2 ledger helper instead of a second unfiltered full metric load.
-- Dev-target DB now has targeted dashboard/report indexes for production order sort/filter, active input/output relation lookup, and included process-cost lookup.
+- Production DB now has targeted dashboard/report indexes for production order sort/filter, active input/output relation lookup, and included process-cost lookup.
 - Shared production report/dashboard read model now uses field-level Prisma `select`, and `stock_ledger` has `idx_stock_ledger_production_source_movement` for `PI/PO2` `ref_id` ledger lookups.
 - Branch/machine/status filters remain optional future dashboard parity work; date range is still the minimum dashboard filter.
 
