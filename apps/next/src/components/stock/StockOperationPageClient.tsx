@@ -2181,7 +2181,7 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
           productCode: productCode ?? '',
           warehouseCode: '',
         })
-        const payload = await dailyFetchJson<ProductStockPayload>(`/api/production/orders/product-stock?${params.toString()}`)
+        const payload = await dailyFetchJson<ProductStockPayload>(`/api/stock/product-stock?${params.toString()}`)
         if (!cancelled) setProductStock(payload)
       } catch (caught) {
         if (cancelled) return
@@ -2528,7 +2528,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
           productCode: productCode ?? '',
           warehouseCode: '',
         })
-        const payload = await dailyFetchJson<ProductStockPayload>(`/api/production/orders/product-stock?${params.toString()}`)
+        const payload = await dailyFetchJson<ProductStockPayload>(`/api/stock/product-stock?${params.toString()}`)
         if (!cancelled) setProductStock(payload)
       } catch (caught) {
         if (cancelled) return
