@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
-import { sendLinePush } from './weight-ticket-line-notification'
+import { buildWeightTicketPdfActions, sendLinePush } from './weight-ticket-line-notification'
 
 describe('LINE Push API transport', () => {
   afterEach(() => {
@@ -56,5 +56,21 @@ describe('LINE Push API transport', () => {
 
     await expect(sendLinePush('C-LINE', [{ type: 'text', text: 'test' }], 'token', 'retry-key'))
       .resolves.toEqual({ isConflict: true, lineRequestId: 'accepted-request' })
+  })
+})
+
+describe('WTI/WTO PDF LINE actions', () => {
+  it('provides anonymous view and download actions when signed URLs are available', () => {
+    expect(buildWeightTicketPdfActions(
+      'https://storage.example/view.pdf',
+      'https://storage.example/download.pdf',
+    )).toEqual([
+      expect.objectContaining({ action: { label: 'ดู PDF', type: 'uri', uri: 'https://storage.example/view.pdf' } }),
+      expect.objectContaining({ action: { label: 'ดาวน์โหลด PDF', type: 'uri', uri: 'https://storage.example/download.pdf' } }),
+    ])
+  })
+
+  it('does not render PDF actions when PDF generation did not produce links', () => {
+    expect(buildWeightTicketPdfActions('', '')).toEqual([])
   })
 })

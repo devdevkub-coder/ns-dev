@@ -342,7 +342,7 @@ export function LineSettingsPageClient() {
     lineChannelAccessToken: '',
     lineChannelSecret: '',
     lineDefaultTargetId: '',
-    pdfBucket: 'weight-ticket-pdfs',
+    pdfBucket: '',
     appUrl: '',
     lineAutoSendWti: false,
     lineAutoSendWto: false,

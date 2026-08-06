@@ -19,7 +19,7 @@ import { WeightTicketImageGallery } from '@/components/daily/WeightTicketImageGa
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, isPreviewableStoredImageAsset, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
@@ -521,7 +521,8 @@ export function WeightTicketDetailModal({
 
               <WeightTicketImageGallery
                 downloadUrl={`/api/daily/weight-tickets/${encodeURIComponent(ticket.documentNo)}/images/download`}
-                downloadImageNames={[...ticket.vehicleImageNames, ...ticket.imageNames]}
+                downloadFileName={`${ticket.documentNo}-images.zip`}
+                downloadImageNames={ticket.imageNames}
                 imageNames={ticket.imageNames}
                 onOpen={(gallery) => setLineGallery(gallery)}
               />
@@ -961,7 +962,7 @@ function ImageGrid({
     return <div className="text-sm text-slate-400">ยังไม่มีรูปภาพ</div>
   }
 
-  const previewable = images.filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
+  const previewable = images.filter(isPreviewableStoredImageAsset)
   const unavailableCount = images.length - previewable.length
 
   return (

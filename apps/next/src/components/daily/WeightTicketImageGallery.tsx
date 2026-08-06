@@ -20,11 +20,13 @@ export type WeightTicketGalleryOpenPayload = {
 
 export function WeightTicketImageGallery({
   downloadUrl,
+  downloadFileName,
   downloadImageNames,
   imageNames,
   onOpen,
 }: {
   downloadUrl?: string
+  downloadFileName?: string
   downloadImageNames?: string[]
   imageNames: string[]
   onOpen: (payload: WeightTicketGalleryOpenPayload) => void
@@ -55,7 +57,7 @@ export function WeightTicketImageGallery({
       const objectUrl = URL.createObjectURL(await response.blob())
       const anchor = document.createElement('a')
       anchor.href = objectUrl
-      anchor.download = 'weight-ticket-images.zip'
+      anchor.download = downloadFileName || 'weight-ticket-images.zip'
       document.body.appendChild(anchor)
       anchor.click()
       anchor.remove()

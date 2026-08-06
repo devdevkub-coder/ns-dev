@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission } from '@/lib/server/auth-context'
-import { prisma } from '@/lib/server/prisma'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
+import { resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 
 export const runtime = 'nodejs'
 
@@ -17,14 +17,6 @@ const ALLOWED_IMAGE_TYPES = new Map([
 function safeFileName(value: string) {
   const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, '-')
   return cleaned.replace(/^-+|-+$/g, '') || 'image'
-}
-
-async function resolveWeightTicketBucket() {
-  const setting = await prisma.system_settings.findUnique({
-    select: { value: true },
-    where: { key: 'WEIGHT_TICKET_PDF_BUCKET' },
-  })
-  return setting?.value?.trim() || process.env.WEIGHT_TICKET_PDF_BUCKET?.trim() || ''
 }
 
 export async function POST(request: Request) {
@@ -47,7 +39,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'รูปภาพต้องมีขนาดไม่เกิน 10 MB' }, { status: 400 })
     }
 
-    const bucket = await resolveWeightTicketBucket()
+    const bucket = await resolveWeightTicketImageBucket()
     const supabase = getSupabaseAdminClient()
     if (!bucket || !supabase) {
       return NextResponse.json({ code: 'CONFIGURATION_ERROR', error: 'ยังไม่ได้ตั้งค่า Storage สำหรับไฟล์แนบ WTI/WTO' }, { status: 503 })

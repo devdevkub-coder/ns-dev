@@ -26,12 +26,12 @@ async function resolveBucket(pool) {
   const setting = await pool.query(`
     select nullif(trim(value), '') as value
     from public.system_settings
-    where key = 'WEIGHT_TICKET_PDF_BUCKET'
+    where key = 'WEIGHT_TICKET_IMAGE_BUCKET'
     limit 1
   `)
   if (setting.rows[0]?.value) return { name: setting.rows[0].value, source: 'system_settings' }
-  if (process.env.WEIGHT_TICKET_PDF_BUCKET?.trim()) {
-    return { name: process.env.WEIGHT_TICKET_PDF_BUCKET.trim(), source: 'environment' }
+  if (process.env.WEIGHT_TICKET_IMAGE_BUCKET?.trim()) {
+    return { name: process.env.WEIGHT_TICKET_IMAGE_BUCKET.trim(), source: 'environment' }
   }
   throw new Error('Missing configured weight-ticket bucket')
 }
@@ -157,6 +157,7 @@ async function main() {
     console.log(JSON.stringify(report, null, 2))
     if (
       !report.bucket.configured
+      || report.bucket.public !== false
       || report.references.dataUrl
       || report.references.invalid
       || report.storage.missingStorageKeyCount

@@ -543,10 +543,11 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
   const payload = await response.json().catch(() => ({})) as {
     error?: string
     fileName?: string
+    bucket?: string
     storageKey?: string
     url?: string
   }
-  if (!response.ok || !payload.fileName || !payload.storageKey || !payload.url) {
+  if (!response.ok || !payload.bucket || !payload.fileName || !payload.storageKey || !payload.url) {
     const statusHint = response.status === 413
       ? 'ไฟล์มีขนาดใหญ่เกินกว่าที่ระบบรับได้'
       : `เซิร์ฟเวอร์ตอบกลับ ${response.status || 'ไม่ทราบสถานะ'}`
@@ -555,7 +556,7 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
   return {
     fileName: payload.fileName,
     id: makeFileId(),
-    rawValue: encodeStoredImageReference(payload.fileName, payload.url, payload.storageKey),
+    rawValue: encodeStoredImageReference(payload.fileName, payload.url, payload.storageKey, payload.bucket),
     url: payload.url,
   }
 }
