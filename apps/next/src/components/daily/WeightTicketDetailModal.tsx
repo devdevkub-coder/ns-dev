@@ -452,10 +452,6 @@ export function WeightTicketDetailModal({
               <Card className="p-4 sm:p-5">
                 <SectionTitle title="ข้อมูลเอกสาร" />
                 <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
-                  <DetailItem
-                    label={ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}
-                    value={ticket.documentNo}
-                  />
                   <DetailItem label="วันที่/เวลาสร้าง" value={formatDateTime(ticket.createdAt)} />
                   <DetailItem label="ผู้กรอก" value={ticket.enteredBy} />
                   <DetailItem label="อัปเดตล่าสุด" value={formatDateTime(ticket.updatedAt || ticket.createdAt)} />
@@ -554,21 +550,6 @@ export function WeightTicketDetailModal({
                           {displayWeightTicketStatus(ticket.type, ticket.status)}
                         </span>
                       </div>
-                    </div>
-                    <div className="rounded-md bg-slate-50 px-4 py-3">
-                      <div className="text-sm font-semibold text-slate-500">การอ้างอิงเอกสาร</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">
-                        {ticket.type === 'WTI'
-                          ? `บิลซื้อ ${ticket.usedInPurchaseBillCount} รายการ`
-                          : `บิลขาย ${ticket.usedInSalesBillCount} รายการ`}
-                      </div>
-                      {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
-                        <div className="mt-2 space-y-1 text-sm text-slate-600">
-                          {ticket.usedInPurchaseBillDocNos.map((docNo) => (
-                            <div key={docNo}>{docNo}</div>
-                          ))}
-                        </div>
-                      ) : null}
                     </div>
                     {ticket.cancelledAt ? (
                       <div className="rounded-md bg-slate-50 px-4 py-3">
