@@ -203,26 +203,30 @@ async function drawTile(
   roundRect(ctx, x, y, w, h, TILE_BORDER_RADIUS)
   ctx.fill()
 
-  // Load and draw image (cover, 4:3)
+  // Load and draw image without stretching or cropping. The 4:3 tile is a
+  // presentation frame; the source image keeps its own aspect ratio inside it.
   try {
     const image = await loadImage(img.url)
+    const footerHeight = 26
+    const imageHeight = Math.max(1, h - footerHeight)
     const imgRatio = image.width / image.height
-    const tileRatio = w / h
-    let sx = 0, sy = 0, sw = image.width, sh = image.height
+    const tileRatio = w / imageHeight
+    let drawWidth = w
+    let drawHeight = imageHeight
     if (imgRatio > tileRatio) {
-      // image wider — crop sides
-      sw = image.height * tileRatio
-      sx = (image.width - sw) / 2
+      drawHeight = w / imgRatio
     } else {
-      // image taller — crop top/bottom
-      sh = image.width / tileRatio
-      sy = (image.height - sh) / 2
+      drawWidth = h * imgRatio
     }
+    const drawX = x + (w - drawWidth) / 2
+    const drawY = y + (imageHeight - drawHeight) / 2
     // Clip to rounded rect then draw
     ctx.save()
     roundRect(ctx, x, y, w, h, TILE_BORDER_RADIUS)
     ctx.clip()
-    ctx.drawImage(image, sx, sy, sw, sh, x, y, w, h)
+    ctx.fillStyle = '#f8fafc'
+    ctx.fillRect(x, y, w, h)
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight)
     ctx.restore()
   } catch (err) {
     // image load fail — draw placeholder text
@@ -257,7 +261,7 @@ async function drawTile(
     ctx.fillText(normalizeThai(badgeText), badgeX + BADGE_PADDING_X, badgeY + badgeHeight / 2)
   }
 
-  // Footer overlay (bottom) — timestamp + index
+  // Footer is a separate metadata area, not an overlay over the source image.
   const footerHeight = 26
   const footerY = y + h - footerHeight
   ctx.save()

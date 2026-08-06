@@ -358,14 +358,14 @@ const styles = StyleSheet.create({
   },
   albumImageWrapper: {
     position: 'relative',
-    height: 120,
+    height: 195,
     backgroundColor: '#f8fafc',
     overflow: 'hidden',
   },
   albumImage: {
     width: '100%',
     height: '100%',
-    objectFit: 'cover',
+    objectFit: 'contain',
   },
   albumCardBar: {
     flexDirection: 'row',
@@ -574,7 +574,9 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
   const decodedImages = buildWeightTicketAttachmentImages(ticket)
 
   const albumChunks: Array<StoredImageAsset[]> = []
-  const albumChunkSize = 8
+  // Four 4:3 cards fit reliably on an A4 portrait page with the header and
+  // metadata bar while keeping the source image fully visible.
+  const albumChunkSize = 4
   for (let i = 0; i < decodedImages.length; i += albumChunkSize) {
     albumChunks.push(decodedImages.slice(i, i + albumChunkSize))
   }

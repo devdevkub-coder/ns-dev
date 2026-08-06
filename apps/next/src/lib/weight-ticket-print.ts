@@ -310,6 +310,7 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
 }
 
 export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: CompanyProfilePrintValues) {
+  const attachmentImagesPerPage = 4
   const isReceipt = ticket.type === 'WTI'
   const docTitle = isReceipt ? 'ใบชั่งน้ำหนัก / ใบรับสินค้า' : 'ใบชั่งน้ำหนัก / ใบส่งของ'
   const partyLabel = isReceipt ? 'ผู้ขาย/ผู้ส่งของ' : 'ลูกค้า/ผู้รับสินค้า'
@@ -326,8 +327,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
 
   const attachmentImages = buildWeightTicketAttachmentImages(ticket)
   const attachmentChunks: Array<typeof attachmentImages> = []
-  for (let index = 0; index < attachmentImages.length; index += 8) {
-    attachmentChunks.push(attachmentImages.slice(index, index + 8))
+  for (let index = 0; index < attachmentImages.length; index += attachmentImagesPerPage) {
+    attachmentChunks.push(attachmentImages.slice(index, index + attachmentImagesPerPage))
   }
 
   const isLotLine = (line: WeightTicketRecord['lines'][number]) => {
@@ -520,7 +521,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       <div class="album-separator"></div>
       <section class="album-grid">
         ${chunk.map((image, imageIndex) => {
-          const globalIndex = chunkIndex * 8 + imageIndex + 1
+          const globalIndex = chunkIndex * attachmentImagesPerPage + imageIndex + 1
           return `
             <article class="album-card">
               <div class="album-image-wrap">
@@ -608,8 +609,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .album-separator { height: 1px; background: #cbd5e1; margin-bottom: 10px; }
       .album-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .album-card { border: 1px solid #dbe3ea; border-radius: 6px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
-      .album-image-wrap { position: relative; height: 120px; background: #f8fafc; }
-      .album-image-wrap img { width: 100%; height: 100%; display: block; object-fit: cover; }
+      .album-image-wrap { position: relative; aspect-ratio: 4 / 3; height: auto; min-height: 180px; background: #f8fafc; display: flex; align-items: center; justify-content: center; }
+      .album-image-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
       .album-card-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 7px; }
       .album-file-name { min-width: 0; overflow-wrap: anywhere; color: #334155; font-size: 9px; }
       .album-index { flex: 0 0 auto; border-radius: 4px; padding: 2px 5px; background: #f1f5f9; color: #475569; font-size: 9px; font-weight: 700; }
@@ -649,7 +650,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .album-title { font-size: 15px; }
         .album-subtitle { font-size: 9.5px; }
         .album-grid { gap: 7px; }
-        .album-image-wrap { height: 116px; }
+        .album-image-wrap { min-height: 170px; }
         .note { min-height: 24px; }
         .summary-card { padding: 5px; }
         .summary-card .value { font-size: 10.5px; }
