@@ -974,6 +974,13 @@ Implementation separation checkpoint 2026-06-30:
 
 ใช้ **LINE Messaging API + Flex Message** (ไม่ใช้ LINE Notify ที่ปิดบริการแล้ว)
 
+### ขอบเขต Google Sheets
+
+WTI และ WTO ไม่ sync ไป Google Sheets แล้ว ทั้ง header-only auto-save, การบันทึก draft,
+การแก้ไข, การยืนยัน, การยกเลิก และการอัปเดตหลังสร้าง PDF สำหรับ LINE จะไม่เรียก webhook
+Google Sheets. ระบบยังคงบันทึกข้อมูลในฐานข้อมูล ส่ง LINE และเก็บ audit/timeline ตาม flow
+ปกติ โดยไม่มี Google Sheets เป็น downstream side effect.
+
 ### Trigger Points ทั้ง 3 ทาง
 
 | ทาง | เงื่อนไข | สถานะจริง | ไฟล์ |
@@ -1159,5 +1166,7 @@ document id โดยไม่ต้องรอ response ก่อนเปิ�
 validation gate ของฟอร์ม.
 
 ทั้ง WTI และ WTO draft จึงเป็นเพียงเอกสารที่บันทึกแล้ว ยังไม่ยืนยันการรับ/ส่งของและไม่
-สร้างการจอง `pending_out`. เฉพาะการกด `ยืนยันส่งของ` ของ WTO เท่านั้นที่ตรวจ stock และ
-สร้าง reservation/pending-out ใน transaction เดียวกัน.
+สร้างการจอง `pending_out`. การบันทึก/แก้ไข/ยืนยัน/ยกเลิก WTI และ WTO ไม่ส่งข้อมูลไป
+Google Sheets อีกต่อไป; ข้อมูลหลักอยู่ในฐานข้อมูลและ audit/timeline ของระบบ. เฉพาะการกด
+`ยืนยันส่งของ` ของ WTO เท่านั้นที่ตรวจ stock และสร้าง reservation/pending-out ใน transaction
+เดียวกัน.

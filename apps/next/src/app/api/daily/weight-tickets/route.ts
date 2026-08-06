@@ -321,6 +321,7 @@ export async function POST(request: Request) {
 
     const usage = await getWeightTicketUsageCounts(prisma, created.id)
     const mapped = mapWeightTicketRow(created, usage)
+
     await syncWeightTicketToGoogleSheets('create', mapped)
 
     await recordAuditLog({

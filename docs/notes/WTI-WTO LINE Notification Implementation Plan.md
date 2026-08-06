@@ -1,5 +1,9 @@
 # WTI/WTO LINE Notification Implementation Plan
 
+> เอกสารนี้เป็นแผนงานย้อนหลังเพื่ออ้างอิงการออกแบบเดิมเท่านั้น ไม่ใช่ contract ปัจจุบัน
+> Google Sheets ถูกยกเลิกจาก flow WTI/WTO แล้ว ให้ยึด `docs/notes/WTI-WTO Flow.md` เป็น source of truth
+> สำหรับพฤติกรรมปัจจุบัน
+
 > แผนสำหรับให้ Antigravity หรือ agent ถัดไป implement งานส่ง LINE หลังสร้างใบรับ-ส่งของ  
 > Scope หลัก: `/daily/weight-ticket-list` และเอกสาร `WTI/WTO` ใน active Next app `apps/next/`  
 > วันที่จัดทำ: 2026-06-23
@@ -32,7 +36,6 @@
 - ไม่แก้ business rule ของ WTI/WTO, PB, SB, stock hold หรือ stock ledger
 - ไม่ทำ SB edit/cancel reversal
 - ไม่ย้ายรูปทั้งหมดไป storage ถ้าไม่จำเป็นต่อ PDF รอบแรก
-- ไม่ให้ Google Sheet เป็น source of truth
 - ไม่ส่ง token/secret ผ่าน client หรือ commit ลง git
 
 ## คำถามที่ Antigravity ต้องถามก่อนเริ่ม
@@ -229,22 +232,7 @@
 - เก็บ `แชร์เองผ่าน LINE` เป็น fallback text share
 - ยังไม่ทำ LIFF จนกว่าลูกค้ายืนยันว่าต้องเลือก recipient เองและต้องเป็น Flex Message
 
-### 5. Google Sheet
-
-จาก repo ตอนนี้ยังไม่พบ integration ธุรกรรม WTI/WTO เข้า Google Sheet โดยตรง ต้องถามเพิ่ม:
-
-- Google Sheet ที่พูดถึงคือ sheet ไหน ขอ URL
-- มี Apps Script Web App endpoint แล้วหรือยัง
-- ต้องการให้ระบบส่งข้อมูลเข้า Sheet หรือแค่ LINE
-- ถ้าส่ง Sheet ต้องส่งตอนไหน:
-  - หลังสร้าง WTI/WTO
-  - หลังส่ง LINE สำเร็จ
-  - กด manual เอง
-- column ที่ต้องการใน Sheet มีอะไรบ้าง
-- Sheet ใช้เป็น report/log เท่านั้น หรือมีระบบอื่นอ่านต่อ
-- ถ้า Sheet fail แต่ LINE สำเร็จ ต้องถือว่างานสำเร็จหรือ fail
-
-### 6. Environment / Secret Delivery
+### 5. Environment / Secret Delivery
 
 ห้ามส่ง secret ผ่านเอกสารนี้หรือ commit ลง repo ให้เจ้าของระบบใส่ใน `.env.local`, Vercel env, หรือ secret manager เท่านั้น
 
@@ -259,7 +247,6 @@ NEXT_PUBLIC_APP_BASE_URL=
 WT_NOTIFICATION_AUTO_SEND=false
 WT_NOTIFICATION_PDF_BUCKET=weight-ticket-pdfs
 WT_NOTIFICATION_PDF_URL_MODE=public
-GOOGLE_SHEETS_WEBHOOK_URL=
 ```
 
 ถ้าจะ upload Storage ผ่าน server ต้องตรวจว่ามี env ฝั่ง server อยู่แล้วหรือไม่:
@@ -280,14 +267,13 @@ flowchart TD
   E --> F["Build LINE Flex Message"]
   F --> G["Push message to LINE target"]
   G --> H["Mark notification sent"]
-  G --> I["Optional: send row to Google Sheet"]
   D --> X["If failed, mark failed but keep WTI/WTO saved"]
   E --> X
   F --> X
   G --> X
 ```
 
-หลักสำคัญ: การสร้างเอกสาร WTI/WTO ต้องไม่ rollback เพียงเพราะ LINE/PDF/Google Sheet fail
+หลักสำคัญ: การสร้างเอกสาร WTI/WTO ต้องไม่ rollback เพียงเพราะ LINE/PDF fail
 
 ## Data Model ที่แนะนำ
 
@@ -307,7 +293,6 @@ create table if not exists public.weight_ticket_notification_logs (
   status text not null default 'pending',
   retry_count integer not null default 0,
   line_request_id text,
-  google_sheet_status text,
   last_error text,
   created_by text,
   created_at timestamptz not null default now(),
@@ -380,29 +365,6 @@ Behavior:
 - รับ event จาก LINE
 - ถ้า event มี `source.groupId` ให้ log ไว้เพื่อให้เจ้าของระบบเอาไปตั้งค่า
 - รอบแรกยังไม่ต้อง implement command bot
-
-### Optional Google Sheet
-
-```text
-POST GOOGLE_SHEETS_WEBHOOK_URL
-```
-
-Payload ตัวอย่าง:
-
-```json
-{
-  "documentNo": "WTI012606-0019",
-  "type": "WTI",
-  "partyName": "บจ. เอ็มแอนด์เอ็ม บราส เมททอล",
-  "branchName": "สมุทรสาคร",
-  "documentDate": "2026-06-23",
-  "createdAt": "2026-06-23T07:59:00.000Z",
-  "grossWeight": 800,
-  "deductionWeight": 204,
-  "netWeight": 596,
-  "pdfUrl": "https://..."
-}
-```
 
 ## PDF Generation Plan
 
@@ -609,12 +571,6 @@ git diff --check
 - `altText` อ่านเข้าใจเมื่อ Flex preview ไม่พร้อม
 - ส่ง WTI และ WTO แยก wording ถูกต้อง
 - ไม่ส่งซ้ำเมื่อ refresh/กดซ้ำโดยไม่ตั้งใจ
-
-### Google Sheet QA ถ้าเปิดใช้
-
-- ส่ง row ได้หลัง LINE สำเร็จ
-- Column map ตรงที่ลูกค้าขอ
-- Sheet fail ไม่ทำให้ LINE/WTI/WTO fail ถ้าลูกค้าตกลงให้เป็น optional
 
 ## Acceptance Criteria
 

@@ -14,9 +14,9 @@ import {
   mapWeightTicketRow,
   type WeightTicketRow,
 } from '@/lib/server/weight-tickets'
-import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
 // module ใหม่ที่ใช้ react-pdf + @napi-rs/canvas แทน Playwright
 // (import เป็น alias เพื่อไม่ให้ชนกับชื่อ function legacy ในไฟล์นี้)
+import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
 import { generateWeightTicketPdf as generateWeightTicketPdfReactPdf } from '@/lib/server/pdf/weight-ticket-pdf'
 
 type NotifyOptions = {
