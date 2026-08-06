@@ -45,6 +45,7 @@ export async function generateWeightTicketPdf(
       isWti,
       partyName: ticket.partyName,
       documentNo: ticket.documentNo,
+      quality: options?.quality,
       showBadges: options?.showBadges ?? true,
       showTimestamps: options?.showTimestamps ?? true,
     })

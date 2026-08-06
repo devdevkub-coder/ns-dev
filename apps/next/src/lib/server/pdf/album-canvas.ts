@@ -68,6 +68,7 @@ interface AlbumImageInput {
   isWti: boolean
   partyName: string
   documentNo: string
+  quality?: number
   showBadges?: boolean
   showTimestamps?: boolean
 }
@@ -78,6 +79,10 @@ interface AlbumImageInput {
  */
 export async function renderAlbumImages(input: AlbumImageInput): Promise<Buffer[]> {
   ensureCanvasFontsRegistered()
+  const requestedQuality = input.quality ?? 90
+  const quality = Number.isFinite(requestedQuality)
+    ? Math.min(100, Math.max(10, requestedQuality))
+    : 90
 
   const chunkSize = 8
   const chunks: Array<Array<{ url: string; fileName: string }>> = []
@@ -98,6 +103,7 @@ export async function renderAlbumImages(input: AlbumImageInput): Promise<Buffer[
       isWti: input.isWti,
       partyName: input.partyName,
       documentNo: input.documentNo,
+      quality,
       showBadges: input.showBadges ?? true,
       showTimestamps: input.showTimestamps ?? true,
     })
@@ -115,10 +121,11 @@ async function renderSingleAlbumCard(params: {
   isWti: boolean
   partyName: string
   documentNo: string
+  quality: number
   showBadges: boolean
   showTimestamps: boolean
 }): Promise<Buffer> {
-  const { chunk, pageIdx, totalPages, isWti, partyName, documentNo, showBadges, showTimestamps } = params
+  const { chunk, pageIdx, totalPages, isWti, partyName, documentNo, quality, showBadges, showTimestamps } = params
 
   // Layout: header + grid (2 cols x N rows) + footer padding
   const rowCount = Math.ceil(chunk.length / 2)
@@ -175,7 +182,7 @@ async function renderSingleAlbumCard(params: {
     await drawTile(ctx, img, x, y, tileWidth, tileHeight, displayIndex, isWti, showBadges, showTimestamps, params.ticketCreatedAt)
   }
 
-  return canvas.encode('jpeg', 90)
+  return canvas.encode('jpeg', quality)
 }
 
 async function drawTile(

@@ -82,7 +82,10 @@ async function resolveNotificationConfigs() {
     wtoTemplate: configMap.LINE_NOTIFY_TEXT_TEMPLATE_WTO || wtoDefaultTemplate,
     albumShowBadges: configMap.LINE_ALBUM_SHOW_BADGES !== 'false',
     albumShowTimestamps: configMap.LINE_ALBUM_SHOW_TIMESTAMPS !== 'false',
-    albumQuality: configMap.LINE_ALBUM_QUALITY ? parseInt(configMap.LINE_ALBUM_QUALITY, 10) : 90,
+    albumQuality: (() => {
+      const parsed = configMap.LINE_ALBUM_QUALITY ? Number.parseInt(configMap.LINE_ALBUM_QUALITY, 10) : 90
+      return Number.isFinite(parsed) ? Math.min(100, Math.max(10, parsed)) : 90
+    })(),
   }
 }
 
@@ -93,6 +96,13 @@ function cleanText(value: string | null | undefined, fallback = '-') {
 
 function safeStorageSegment(value: string) {
   return value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+function sanitizeNotificationError(value: unknown) {
+  const message = value instanceof Error ? value.message : String(value ?? 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ')
+  return message
+    .replace(/https?:\/\/\S+/gi, '[url]')
+    .slice(0, 500)
 }
 
 async function loadCompanyPrintProfile(branchId: string): Promise<CompanyProfilePrintValues | null> {
@@ -192,6 +202,8 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
   if (!supabase) {
     throw new Error('ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY สำหรับอัปโหลด PDF')
   }
+  // This is an outbound derivative. The notification log keeps the reference;
+  // cleanup must follow an approved retention policy and never delete source evidence.
   const storageKey = `${safeStorageSegment(ticket.documentNo)}/${Date.now()}-${safeStorageSegment(ticket.documentNo)}.pdf`
   const { error } = await supabase.storage.from(bucketName).upload(storageKey, pdfBuffer, {
     contentType: 'application/pdf',
@@ -216,6 +228,8 @@ async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, page
   if (!supabase) {
     throw new Error('ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY สำหรับอัปโหลดรูปภาพอัลบั้ม')
   }
+  // Album images are outbound derivatives referenced by the notification flow;
+  // they are not the private source evidence stored for the weight ticket.
   const storageKey = `${safeStorageSegment(ticket.documentNo)}/album/finish-${Date.now()}-${pageIdx + 1}.jpg`
   const { error } = await supabase.storage.from(bucketName).upload(storageKey, buffer, {
     contentType: 'image/jpeg',
@@ -1263,6 +1277,14 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     }
   } catch (caught) {
     const errorMessage = caught instanceof Error ? caught.message : 'สร้างเอกสารหรืออัปโหลด PDF ไม่สำเร็จ'
+    await recordNotificationLog({
+      errorMessage: sanitizeNotificationError(caught),
+      pdfStorageBucket: configs.pdfBucket,
+      requestedBy: options.requestedBy,
+      status: 'failed',
+      targetId: options.targetId && options.targetId !== 'routing' ? options.targetId : undefined,
+      ticketId: loaded.id,
+    })
     return { code: 'SEND_FAILED' as const, status: 500, error: errorMessage }
   }
 }

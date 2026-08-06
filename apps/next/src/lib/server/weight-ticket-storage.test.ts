@@ -121,5 +121,6 @@ describe('WTI/WTO private image reference contract', () => {
       lines: [],
       vehicleImageNames: [],
     }, 'weight-ticket-images')).rejects.toThrow('storage key')
+    expect(mocks.createSignedUrl).not.toHaveBeenCalled()
   })
 })
