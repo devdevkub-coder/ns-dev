@@ -31,6 +31,7 @@ vi.mock('@/lib/server/prisma', () => ({
 import { GET as getMe } from './me/route'
 import { POST as postLoginComplete } from './login-complete/route'
 import { POST as postPasswordChanged } from './password-changed/route'
+import { PUT as putProfile } from './profile/route'
 
 const context = {
   appUser: { id: 42n },
@@ -76,5 +77,20 @@ describe('auth route cache policy', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     await expect(response.json()).resolves.toEqual({ activated: false, cleared: true })
+  })
+
+  it('marks PUT /api/auth/profile as private no-store on success', async () => {
+    mocks.update.mockResolvedValue({ display_name: 'Updated User', email: 'user@example.com' })
+
+    const response = await putProfile(new Request('http://localhost/api/auth/profile', {
+      body: JSON.stringify({ displayName: 'Updated User' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'PUT',
+    }))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Pragma')).toBe('no-cache')
+    expect(response.headers.get('Expires')).toBe('0')
   })
 })
