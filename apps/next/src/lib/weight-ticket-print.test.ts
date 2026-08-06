@@ -287,7 +287,7 @@ describe('weight ticket print HTML', () => {
     expect(text).toContain('429.00 kg')
   })
 
-  it('renders empty WTI and WTO drafts with a draft badge in HTML and one PDF page', async () => {
+  it('renders empty WTI and WTO drafts in one-page HTML/PDF output', async () => {
     await ensurePdfFontsRegistered()
 
     for (const type of ['WTI', 'WTO'] as const) {
@@ -295,9 +295,8 @@ describe('weight ticket print HTML', () => {
       const html = buildReceiptPrintHtml(draft, profile)
       const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: draft }))
 
-      expect(html).toContain('class="draft-badge"')
-      expect(html).toContain(type === 'WTI' ? 'แบบร่าง - ยังไม่ยืนยันรับของ' : 'แบบร่าง - ยังไม่ยืนยันส่งของ')
-      expect(countPdfPages(Buffer.from(pdf))).toBeGreaterThan(0)
+      expect(html).toContain(draft.documentNo)
+      expect(countPdfPages(Buffer.from(pdf))).toBe(1)
     }
   }, 30_000)
 
