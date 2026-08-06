@@ -9,7 +9,7 @@ import { currentActor, documentBranchCode, normalizeDate, toBangkokDateOnly, toD
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveWarehouses, listProductReferences } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot } from '@/lib/server/stock'
-import { availableStockForTransferCancel, normalizeNotAvailableForSale } from '@/lib/stock-transfer-cancel'
+import { availableStockForTransferCancel, normalizeNotAvailableForSale, normalizeStockTransferCancelReason } from '@/lib/stock-transfer-cancel'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 
 export const runtime = 'nodejs'
@@ -827,9 +827,7 @@ export async function PATCH(request: Request) {
     const actor = currentActor(context)
 
     if (action === 'cancel') {
-      const reason = typeof payload?.reason === 'string' && payload.reason.trim()
-        ? payload.reason.trim()
-        : 'ยกเลิกการโอนสินค้าระหว่างสาขา'
+      const reason = normalizeStockTransferCancelReason(payload?.reason)
       const cancelled = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock-transfers:cancel:${docNo}`}, 0))`
         const existing = await tx.stock_transfers.findUnique({

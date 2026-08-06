@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
-import { availableStockForTransferCancel, normalizeNotAvailableForSale } from './stock-transfer-cancel'
+import {
+  availableStockForTransferCancel,
+  normalizeNotAvailableForSale,
+  normalizeStockTransferCancelReason,
+} from './stock-transfer-cancel'
+
+describe('stock transfer cancellation reason', () => {
+  it('trims and keeps a valid reason', () => {
+    expect(normalizeStockTransferCancelReason('  สินค้าผิดรายการ  ')).toBe('สินค้าผิดรายการ')
+  })
+
+  it('rejects an empty or non-string reason', () => {
+    expect(() => normalizeStockTransferCancelReason('   ')).toThrow('กรุณาระบุเหตุผลการยกเลิก')
+    expect(() => normalizeStockTransferCancelReason(undefined)).toThrow('กรุณาระบุเหตุผลการยกเลิก')
+  })
+
+  it('rejects a reason longer than 500 characters', () => {
+    expect(() => normalizeStockTransferCancelReason('ก'.repeat(501))).toThrow('ไม่เกิน 500 ตัวอักษร')
+  })
+})
 
 describe('stock transfer cancellation stock matching', () => {
   it('treats legacy NULL not_available_for_sale as false', () => {
