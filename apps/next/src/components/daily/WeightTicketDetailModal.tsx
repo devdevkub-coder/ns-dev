@@ -23,6 +23,7 @@ import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canSh
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
+import { useWeightTicketRealtime } from './useWeightTicketRealtime'
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
@@ -310,6 +311,13 @@ export function WeightTicketDetailModal({
       setCanReturnStock(false)
     }
   }
+
+  useWeightTicketRealtime((event) => {
+    if (event.documentNo !== ticketId) return
+    void reloadTicket().catch((caught) => {
+      setLoadError(getErrorMessage(caught, 'โหลดข้อมูลใบรับ-ส่งของล่าสุดไม่ได้'))
+    })
+  }, Boolean(ticketId))
 
   async function handleSendLineNotification() {
     if (!ticket || !canShareWeightTicket(ticket.status)) return

@@ -26,6 +26,7 @@ import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-
 import { WeightTicketDetailModal } from './WeightTicketDetailModal'
 import { WeightTicketStockReturnDialog } from './WeightTicketStockReturnDialog'
 import { WeightTicketsPageClient } from './WeightTicketsPageClient'
+import { useWeightTicketRealtime } from './useWeightTicketRealtime'
 import {
   WEIGHT_TICKET_COLUMN_STORAGE_KEY,
   WEIGHT_TICKET_TABLE_COLUMN_COUNT,
@@ -333,6 +334,10 @@ export function WeightTicketListPageClient() {
       cancelled = true
     }
   }, [branchFilter, dateFrom, dateTo, isUrlStateReady, page, pageSize, query, sortBy, sortDir, statusFilter, typeFilter, refreshKey])
+
+  useWeightTicketRealtime(() => {
+    setRefreshKey((previous) => previous + 1)
+  }, isUrlStateReady)
 
   useEffect(() => {
     if (!isUrlStateReady || searchInput === query) return

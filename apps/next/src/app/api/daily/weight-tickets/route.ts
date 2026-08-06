@@ -39,6 +39,7 @@ import {
   type WeightTicketRow,
 } from '@/lib/server/weight-tickets'
 import { normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { publishWeightTicketChange } from '@/lib/server/weight-ticket-realtime'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -355,6 +356,7 @@ export async function POST(request: Request) {
         targetLabel: created.doc_no,
         targetType: 'weight_ticket',
     })
+    void publishWeightTicketChange({ changeType: 'created', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
     return NextResponse.json({
       ...mapped,
     })
