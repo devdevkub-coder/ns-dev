@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { encodeStoredImageReference } from '@/lib/weight-tickets'
 import { buildWeightTicketLineGallery } from './WeightTicketProductBreakdownTable'
 
 const detailSources = [
@@ -28,14 +29,14 @@ describe('WTI/WTO detail gallery contract', () => {
       {
         id: 'lot-1',
         imageNames: [
-          JSON.stringify({ fileName: 'lot-1-a.jpg', url: 'https://example.com/lot-1-a.jpg' }),
-          JSON.stringify({ fileName: 'lot-1-b.jpg', url: 'https://example.com/lot-1-b.jpg' }),
+          encodeStoredImageReference('lot-1-a.jpg', 'https://example.com/lot-1-a.jpg', 'weight-ticket/lot-1-a.jpg', 'weight-ticket-images'),
+          encodeStoredImageReference('lot-1-b.jpg', 'https://example.com/lot-1-b.jpg', 'weight-ticket/lot-1-b.jpg', 'weight-ticket-images'),
         ],
         title: 'กระทะดำ · เต๋าที่ 1',
       },
       {
         id: 'lot-2',
-        imageNames: [JSON.stringify({ fileName: 'lot-2-a.jpg', url: 'https://example.com/lot-2-a.jpg' })],
+        imageNames: [encodeStoredImageReference('lot-2-a.jpg', 'https://example.com/lot-2-a.jpg', 'weight-ticket/lot-2-a.jpg', 'weight-ticket-images')],
         title: 'กระทะดำ · เต๋าที่ 2',
       },
     ]

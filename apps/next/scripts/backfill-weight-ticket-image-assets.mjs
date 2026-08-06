@@ -92,7 +92,7 @@ function collect(rows, ownerType, report, invalidMocks) {
   return candidates
 }
 
-async function candidateValues(candidate, bucket, supabase) {
+function candidateValues(candidate, bucket) {
   const owner = candidate.ownerType === 'vehicle'
     ? 'vehicle'
     : `line-${String(candidate.row.line_no).padStart(3, '0')}`
@@ -105,10 +105,8 @@ async function candidateValues(candidate, bucket, supabase) {
   })
   const fileName = candidate.parsed.fileName
     || `${owner}-${String(candidate.imageIndex + 1).padStart(3, '0')}.${candidate.parsed.extension}`
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storageKey, 60 * 60 * 24 * 365)
-  if (error || !data?.signedUrl) throw Object.assign(new Error('Unable to create signed image URL'), { code: 'signedUrlFailed' })
-  const replacement = encodeStoredWeightTicketImageReference(fileName, storageKey, data.signedUrl, bucket)
-  return { fileName, replacement, storageKey, url: data.signedUrl }
+  const replacement = encodeStoredWeightTicketImageReference(fileName, storageKey, undefined, bucket)
+  return { fileName, replacement, storageKey }
 }
 
 async function uploadOrVerify(supabase, bucket, candidate, storageKey) {
@@ -330,7 +328,7 @@ async function main() {
       for (const candidate of candidates) {
         plans.push({
           candidate,
-          values: await candidateValues(candidate, bucket.name, supabase),
+          values: candidateValues(candidate, bucket.name),
         })
       }
       const manifest = {

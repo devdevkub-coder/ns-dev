@@ -709,12 +709,13 @@ WTI/WTO มีรูป 2 ระดับ:
 ### Contract รูปใน detail gallery
 
 - รูปหลักฐานเป็นข้อมูลเอกสารระดับ L5: Database เก็บ attachment metadata/storage key เป็น source of truth และ binary อยู่ใน object storage ตาม bucket/privacy policy
-- รูปหลักฐาน WTI/WTO ใช้ bucket private ที่ตั้งค่าผ่าน `WEIGHT_TICKET_IMAGE_BUCKET`; reference ใหม่ต้องเก็บ `bucket`, `storageKey`, `fileName` และ signed URL สำหรับ preview เท่านั้น ห้ามใช้ public URL ของรูปต้นฉบับ
+- รูปหลักฐาน WTI/WTO ใช้ bucket private ที่ตั้งค่าผ่าน `WEIGHT_TICKET_IMAGE_BUCKET`; DB เก็บเฉพาะ `bucket`, `storageKey`, `fileName` โดย signed URL สร้างใหม่เฉพาะ response/preview/LINE/PDF ตามสิทธิ์และอายุที่กำหนด ห้ามเก็บ bearer URL ระยะยาวหรือใช้ public URL ของรูปต้นฉบับ
 - PDF ที่สร้างเพื่อส่งออกและรูปอัลบั้มที่สร้างเพื่อ LINE ใช้ bucket public แยกต่างหากผ่าน `WEIGHT_TICKET_PDF_BUCKET`; รูปอัลบั้มเป็น outbound artifact ไม่ใช่ source evidence ของเอกสาร
-- ทุก entry point ของ detail gallery ทั้งรูปรถ รูปรายการสินค้า และอัลบั้มรวม สร้าง preview/open payload เฉพาะ absolute `http://` หรือ `https://` URL ที่ parse ได้ รวม signed URL; `data:image` แบบ raw/pipe/JSON, URL ที่ผิดรูปแบบ และ filename-only เป็น legacy metadata ที่ unavailable จึงแสดงได้เพียงจำนวนแจ้งเตือนโดยไม่สร้าง `<img>` หรือ runtime fallback
+- ทุก entry point ของ detail gallery ทั้งรูปรถ รูปรายการสินค้า และอัลบั้มรวม รับ preview เฉพาะ canonical reference ที่มี `bucket` + `storageKey` ของ private image bucket และ signed URL ที่สร้าง ณ เวลาอ่าน; `data:image`, URL-only, bucket อื่น และ filename-only เป็น legacy metadata ที่ unavailable จึงแสดงได้เพียงจำนวนแจ้งเตือนโดยไม่สร้าง `<img>` หรือ runtime fallback
 - หน้า detail โหลด stored/original asset เมื่อผู้ใช้เปิดดู ส่วน list/picker ยังคงใช้ thumbnail; รอบนี้ไม่เพิ่ม browser/Redis cache และอายุ signed URL/cache headers เป็น contract ของ Storage
 - รูป legacy ต้องย้ายด้วย migration/backfill ไป object storage ไม่อ่าน base64 ย้อนกลับใน runtime; focused test ครอบ 0/1/many, signed HTTPS และ payload legacy ที่ unavailable
-- การดาวน์โหลดรูปทั้งหมดจาก detail เป็น ZIP ต้องจำกัดรูปแต่ละไฟล์ไม่เกิน 5 MB และรวมก่อนบีบ ZIP ไม่เกิน 100 MB; ถ้ามีรูปเกินขนาด ระบบจะแจ้งดาวน์โหลดไม่สำเร็จเพื่อไม่ส่งไฟล์เกิน contract
+- เพดาน 10 MB ต่อรูปใช้เฉพาะ upload contract; ตอนดาวน์โหลดไม่มีเพดานต่อรูป และรวมก่อนบีบ ZIP มี server-safety guard ไม่เกิน 100 MB เพื่อป้องกัน memory สูงผิดปกติ. ชื่อไฟล์จะ normalize extension เป็นตัวพิมพ์เล็ก เช่น `.JPG` เป็น `.jpg` โดยไม่แปลงชนิด/คุณภาพภาพ
+- ตัวดูภาพหลักใช้ `object-contain` ในพื้นที่คงที่เพื่อไม่ตัดรูปแนวตั้ง และ thumbnail ใช้แถวเดียวเลื่อนซ้าย-ขวาเพื่อลดความสูงของ gallery
 
 ### Legacy attachment backfill checkpoint (2026-07-19)
 
@@ -989,7 +990,7 @@ Implementation separation checkpoint 2026-06-30:
 
 เมื่อผู้ใช้ยืนยัน `WTI` หรือ `WTO` แล้ว ระบบจึงส่งสรุปเข้า LINE group ที่ตั้งค่าไว้
 
-ลิงก์ PDF ใน LINE ใช้ Supabase signed URL อายุ 7 วัน จึงเปิดได้โดยไม่ต้อง login เข้า ERP. Flex Message แสดงปุ่ม `ดู PDF` สำหรับเปิดอ่าน และ `ดาวน์โหลด PDF` สำหรับดาวน์โหลดไฟล์โดยตรง; ปุ่ม `เปิดในระบบ` ยังเป็นลิงก์ที่ต้อง login ตามสิทธิ์เดิม. ถ้า bucket เป็น private ก็ยังใช้ flow นี้ได้ เพราะ signed URL เป็นสิทธิ์อ่านแบบชั่วคราวเฉพาะไฟล์ที่สร้างจากการแจ้งเตือนนั้น.
+ลิงก์ PDF และรูปอัลบั้มใน LINE ใช้ public URL จาก `WEIGHT_TICKET_PDF_BUCKET` ซึ่งเป็น outbound artifact bucket แยกจาก source evidence image bucket. Flex Message แสดงปุ่ม `ดู PDF` สำหรับเปิดอ่าน และ `ดาวน์โหลด PDF` สำหรับดาวน์โหลดไฟล์โดยตรง; ปุ่ม `เปิดในระบบ` ยังเป็นลิงก์ที่ต้อง login ตามสิทธิ์เดิม. รูปหลักฐานต้นฉบับยังอยู่ใน private `WEIGHT_TICKET_IMAGE_BUCKET` และใช้ signed URL ชั่วคราวเฉพาะตอนสร้าง PDF/ส่ง LINE เท่านั้น.
 พร้อม Flex Message ที่มี:
 
 - ข้อมูลหัวเอกสาร (เลขที่, ผู้ขาย/ลูกค้า, สาขา, น้ำหนักสุทธิ)
@@ -1027,7 +1028,7 @@ Google Sheets. ระบบยังคงบันทึกข้อมูล�
 | WTO | `billed` | ได้ | ได้ | ไม่ยิงซ้ำจากการออก SB |
 | WTO | `cancelled` | ไม่ได้ | ไม่ได้ | ไม่ได้ |
 
-การพิมพ์และการส่ง LINE ใช้ PDF เอกสารเดียวกัน: หน้าแรกเป็นใบพิมพ์ A4 และหน้าถัดไปเป็นอัลบั้มรูปหลักฐาน. ถ้าการสร้างหรืออัปโหลด PDF ล้มเหลว runtime ปัจจุบันจะ log warning แล้วส่งข้อความ LINE ต่อโดยไม่มีลิงก์ PDF; จึงต้องตรวจผล job/log แยกจากการเห็นข้อความในกลุ่ม.
+การพิมพ์และการส่ง LINE ใช้ PDF เอกสารเดียวกัน: หน้าแรกเป็นใบพิมพ์ A4 และหน้าถัดไปเป็นอัลบั้มรูปหลักฐาน. ถ้าการ resolve รูป private, สร้าง PDF หรืออัปโหลด PDF/อัลบั้มล้มเหลว job ต้องเป็น `failed` และไม่ส่งข้อความ LINE ที่ขาดหลักฐาน; การสร้าง/แก้ไขเอกสารหลักยังไม่ rollback เพราะ notification เป็นงานหลัง transaction.
 
 ### ⚠️ ข้อจำกัดสำคัญที่ต้องเข้าใจ
 

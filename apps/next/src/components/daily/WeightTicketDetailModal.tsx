@@ -795,14 +795,14 @@ export function WeightTicketDetailModal({
                 </div>
               </DialogHeader>
               <div className="space-y-4 p-4 bg-slate-950">
-                <div className="relative overflow-hidden rounded-md bg-slate-950">
+                <div className="relative h-[min(70vh,48rem)] w-full overflow-hidden rounded-md bg-slate-950">
                   <Image
                     alt={activeGalleryImage.fileName}
-                    className="max-h-[70vh] w-full object-contain"
-                    height={1200}
+                    className="object-contain"
+                    fill
                     src={activeGalleryImage.url}
                     unoptimized
-                    width={1600}
+                    sizes="(max-width: 768px) 100vw, 80vw"
                   />
                   {lineGallery.images.length > 1 ? (
                     <>
@@ -832,11 +832,11 @@ export function WeightTicketDetailModal({
                   ) : null}
                 </div>
                 {lineGallery.images.length > 1 ? (
-                  <div className="grid grid-cols-4 gap-3 md:grid-cols-6">
+                  <div className="flex max-w-full snap-x gap-3 overflow-x-auto pb-2">
                     {lineGallery.images.map((image, index) => (
                       <button
                         className={cn(
-                          'overflow-hidden rounded-md border bg-slate-50 text-left transition',
+                          'w-28 shrink-0 snap-start overflow-hidden rounded-md border bg-slate-50 text-left transition md:w-32',
                           index === lineGallery.activeIndex ? 'border-blue-500 ring-1 ring-blue-200' : 'border-slate-200 hover:border-slate-300',
                         )}
                         key={`${image.fileName}-${index}`}

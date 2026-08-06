@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
-import { displayWeightTicketStatus, stripImpurityProductMeta, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
+import { decodeStoredImageAsset, displayWeightTicketStatus, isPreviewableStoredImageAsset, stripImpurityProductMeta, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
 const companyProfilePayloadSchema = z.object({
   ...companyProfileResponseSchema.shape,
@@ -281,11 +281,9 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   `
 
   const vehicleImageBlocks = ticket.vehicleImageNames
-    .map((name) => {
-      const match = /^([^|]+)\|(data:image\/[^|]+)$/.exec(name)
-      if (!match) return null
-      return `<div style="border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;page-break-inside:avoid"><img src="${escapeHtml(match[2])}" style="width:100%;height:auto;display:block;max-height:8cm;object-fit:cover"><div style="padding:4px 8px;background:#f1f5f9;font-size: 12px;color:#475569">${escapeHtml(match[1])}</div></div>`
-    })
+    .map(decodeStoredImageAsset)
+    .filter(isPreviewableStoredImageAsset)
+    .map(({ fileName, url }) => `<div style="border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;page-break-inside:avoid"><img src="${escapeHtml(url)}" style="width:100%;height:auto;display:block;max-height:8cm;object-fit:cover"><div style="padding:4px 8px;background:#f1f5f9;font-size: 12px;color:#475569">${escapeHtml(fileName)}</div></div>`)
     .filter(Boolean)
     .join('')
 

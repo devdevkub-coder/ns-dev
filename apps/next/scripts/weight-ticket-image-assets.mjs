@@ -154,7 +154,9 @@ export function buildWeightTicketImageStorageKey({ bytes, documentNo, extension,
 }
 
 export function encodeStoredWeightTicketImageReference(fileName, storageKey, url, bucket) {
-  return JSON.stringify({ bucket, fileName, storageKey, url })
+  const reference = { bucket, fileName, storageKey }
+  if (url?.trim()) reference.url = url
+  return JSON.stringify(reference)
 }
 
 function databaseProjectRef(databaseUrl) {

@@ -37,6 +37,7 @@ import {
   type WeightTicketRow,
   weightTicketAuditSnapshot,
 } from '@/lib/server/weight-tickets'
+import { attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
 
 export const runtime = 'nodejs'
@@ -112,6 +113,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
+    const responseMapped = await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
     const [timeline, usageTimeline, downstreamAllocations, pendingOutEvents] = await Promise.all([
       getWeightTicketTimeline(prisma, ticket.id),
       getWeightTicketUsageTimeline(prisma, ticket.id),
@@ -119,7 +121,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       getWeightTicketPendingOutEvents(prisma, ticket.id),
     ])
     return NextResponse.json({
-      ...mapped,
+      ...responseMapped,
       downstreamAllocations,
       pendingOutEvents,
       timeline,
@@ -137,7 +139,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     requirePermission(auth, 'daily.weight_tickets.update')
 
     const { id } = await context.params
-    const values = weightTicketFormSchema.parse(await request.json())
+    const parsedValues = weightTicketFormSchema.parse(await request.json())
+    const imageBucket = await resolveWeightTicketImageBucket()
+    const values = normalizeWeightTicketImageReferences(parsedValues, imageBucket)
     const scopedBranchIds = branchScopeIds(auth)
     const existing = await findScopedTicket(id, scopedBranchIds)
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของที่ต้องการแก้ไข' }, { status: 404 })
@@ -449,6 +453,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
+    let responseMapped = mapped
+    let imagePreviewWarning = false
+    try {
+      responseMapped = await attachWeightTicketImagePreviewUrls(mapped, imageBucket)
+    } catch (caught) {
+      imagePreviewWarning = true
+      console.error('[weight-ticket] updated ticket but preview signing failed', caught)
+    }
     await recordAuditLog({
       action: 'update',
       afterData: weightTicketAuditSnapshot(mapped),
@@ -475,7 +487,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       getWeightTicketPendingOutEvents(prisma, updated.id),
     ])
     return NextResponse.json({
-      ...mapped,
+      ...responseMapped,
+      imagePreviewWarning,
       pendingOutEvents,
       timeline,
     })
@@ -581,6 +594,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       })
 
       const mapped = mapWeightTicketRow(updated as WeightTicketRow, usage)
+      const responseMapped = await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
       await recordAuditLog({
         action: 'status',
         afterData: weightTicketAuditSnapshot(mapped),
@@ -624,7 +638,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         getWeightTicketPendingOutEvents(prisma, updated.id),
       ])
       return NextResponse.json({
-        ...mapped,
+        ...responseMapped,
         pendingOutEvents,
         timeline,
       })
@@ -689,6 +703,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     })
 
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, usage)
+    const responseMapped = await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
     await recordAuditLog({
       action: 'status',
       afterData: weightTicketAuditSnapshot(mapped),
@@ -714,7 +729,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       getWeightTicketPendingOutEvents(prisma, updated.id),
     ])
     return NextResponse.json({
-      ...mapped,
+      ...responseMapped,
       pendingOutEvents,
       timeline,
     })

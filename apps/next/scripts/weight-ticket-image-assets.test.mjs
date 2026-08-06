@@ -116,8 +116,8 @@ describe('weight-ticket image migration helpers', () => {
     assert.match(first, /^attachments\/migrated\/[a-f0-9]{16}\/vehicle\/001-[a-f0-9]{64}\.jpg$/)
     assert.equal(first.includes('wti012607-0012'), false)
     assert.equal(
-      encodeStoredWeightTicketImageReference('ticket.jpg', first, 'https://example.com/ticket.jpg', 'weight-ticket-images'),
-      JSON.stringify({ bucket: 'weight-ticket-images', fileName: 'ticket.jpg', storageKey: first, url: 'https://example.com/ticket.jpg' }),
+      encodeStoredWeightTicketImageReference('ticket.jpg', first, undefined, 'weight-ticket-images'),
+      JSON.stringify({ bucket: 'weight-ticket-images', fileName: 'ticket.jpg', storageKey: first }),
     )
   })
 

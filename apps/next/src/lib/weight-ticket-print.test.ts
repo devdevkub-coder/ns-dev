@@ -8,7 +8,7 @@ import type { CompanyProfilePrintValues } from './company-profile'
 import { ensurePdfFontsRegistered } from './server/pdf/fonts'
 import { WeightTicketDocument } from './server/pdf/weight-ticket-document'
 import { buildPrintWeightRows, buildReceiptPrintHtml } from './weight-ticket-print'
-import type { WeightTicketRecord } from './weight-tickets'
+import { encodeStoredImageReference, type WeightTicketRecord } from './weight-tickets'
 
 vi.mock('server-only', () => ({}))
 
@@ -231,6 +231,20 @@ describe('weight ticket print HTML', () => {
     expect(html).toContain("font-family: 'Noto Sans Thai', Arial, sans-serif")
     expect(html).not.toContain('ขอบคุณที่ใช้บริการค่ะ/ครับ')
     expect(html).not.toContain('class="footer"')
+  })
+
+  it('renders private-bucket vehicle images from short-lived signed URLs only', () => {
+    const signedUrl = 'https://storage.example/signed-vehicle.jpg?token=short'
+    const html = buildReceiptPrintHtml({
+      ...ticket,
+      vehicleImageNames: [
+        encodeStoredImageReference('vehicle.jpg', signedUrl, 'tickets/vehicle.jpg', 'weight-ticket-images'),
+        'legacy.jpg|data:image/jpeg;base64,AAAA',
+      ],
+    }, profile)
+
+    expect(html).toContain(signedUrl)
+    expect(html).not.toContain('data:image/jpeg;base64,AAAA')
   })
 
   it('uses the complete ticket totals in Weight Info when impurity is purchased as another product', () => {

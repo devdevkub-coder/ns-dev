@@ -8,7 +8,15 @@ values
   ('WEIGHT_TICKET_PDF_BUCKET', 'Public Supabase Storage bucket for generated WTI/WTO PDFs and LINE album artifacts', 'weight-ticket-pdfs')
 on conflict (key) do update
 set description = excluded.description,
-    value = coalesce(nullif(trim(public.system_settings.value), ''), excluded.value);
+    value = case
+      when nullif(trim(public.system_settings.value), '') is null then excluded.value
+      when nullif(trim(public.system_settings.value), '') = coalesce((
+        select nullif(trim(value), '')
+        from public.system_settings
+        where key = 'WEIGHT_TICKET_PDF_BUCKET'
+      ), 'weight-ticket-pdfs') then excluded.value
+      else public.system_settings.value
+    end;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

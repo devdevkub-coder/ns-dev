@@ -102,6 +102,7 @@ type WtoStockOptionsState = Record<string, {
 
 const ADDED_IMPURITY_NOTE = 'หักสิ่งเจือปนเพิ่มเติม'
 const MAX_WEIGHT_TICKET_UPLOAD_BYTES = 4 * 1024 * 1024
+const MAX_WEIGHT_TICKET_FILE_BYTES = 10 * 1024 * 1024
 const MAX_WEIGHT_TICKET_IMAGE_DIMENSION = 2400
 
 export type WeightTicketDeletionLine = Pick<
@@ -535,7 +536,23 @@ function createAttachmentPreview(fileName: string): AttachmentPreview {
   }
 }
 
+function formatAttachmentFileSize(bytes: number) {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function validateSelectedWeightTicketImage(file: File) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type.toLowerCase())) {
+    return `ไฟล์ ${file.name} ไม่รองรับ รองรับเฉพาะ JPG, PNG และ WebP`
+  }
+  if (file.size > MAX_WEIGHT_TICKET_FILE_BYTES) {
+    return `ไฟล์ ${file.name} มีขนาด ${formatAttachmentFileSize(file.size)} เกิน 10 MB กรุณาเลือกรูปใหม่`
+  }
+  return null
+}
+
 async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPreview> {
+  const validationError = validateSelectedWeightTicketImage(file)
+  if (validationError) throw new Error(validationError)
   const uploadFile = await prepareWeightTicketImageFile(file)
   const body = new FormData()
   body.set('file', uploadFile)
@@ -556,16 +573,26 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
   return {
     fileName: payload.fileName,
     id: makeFileId(),
-    rawValue: encodeStoredImageReference(payload.fileName, payload.url, payload.storageKey, payload.bucket),
+    // Keep only the durable private-bucket reference in the form payload.
+    // The signed URL is preview-only and must never be persisted to the ticket.
+    rawValue: encodeStoredImageReference(payload.fileName, undefined, payload.storageKey, payload.bucket),
     url: payload.url,
   }
 }
 
 async function prepareWeightTicketImageFile(file: File): Promise<File> {
-  if (!file.type.startsWith('image/')) {
+  const imageType = file.type.toLowerCase()
+  const imageConfig = imageType === 'image/jpeg'
+    ? { extension: 'jpg', mimeType: 'image/jpeg', quality: 0.82 }
+    : imageType === 'image/png'
+      ? { extension: 'png', mimeType: 'image/png', quality: undefined }
+      : imageType === 'image/webp'
+        ? { extension: 'webp', mimeType: 'image/webp', quality: 0.82 }
+        : null
+  if (!imageConfig) {
     throw new Error(`ไฟล์ ${file.name} ไม่ใช่รูปภาพที่รองรับ (JPG, PNG หรือ WebP)`)
   }
-  if (file.size <= MAX_WEIGHT_TICKET_UPLOAD_BYTES && file.type !== 'image/png') return file
+  if (file.size <= MAX_WEIGHT_TICKET_UPLOAD_BYTES) return file
 
   let bitmap: ImageBitmap
   try {
@@ -585,11 +612,11 @@ async function prepareWeightTicketImageFile(file: File): Promise<File> {
     if (!context) throw new Error(`ไม่สามารถเตรียมรูป ${file.name} สำหรับอัปโหลดได้`)
     context.drawImage(bitmap, 0, 0, width, height)
 
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, imageConfig.mimeType, imageConfig.quality))
     if (!blob) throw new Error(`ไม่สามารถบีบอัดรูป ${file.name} สำหรับอัปโหลดได้`)
-    return new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, {
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.${imageConfig.extension}`, {
       lastModified: file.lastModified,
-      type: 'image/jpeg',
+      type: imageConfig.mimeType,
     })
   } finally {
     bitmap.close()
@@ -840,6 +867,7 @@ export function WeightTicketFormCore({
   const router = useRouter()
   const editingTicketId = ticketId.trim()
   const [form, setForm] = useState<FormState>(() => initialForm(initialType))
+  const formRef = useRef(form)
   const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(initialForm(initialType)))
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [suppliers, setSuppliers] = useState<OptionItem[]>([])
@@ -863,6 +891,7 @@ export function WeightTicketFormCore({
   const mobileProductEditorCloseTimeoutRef = useRef<number | null>(null)
   const mobileProductEditorOpenAnimationFrameRef = useRef<number | null>(null)
   const saveInFlightRef = useRef<'auto_save' | 'save' | null>(null)
+  const pendingAttachmentUploadsRef = useRef<Set<Promise<unknown>>>(new Set())
   const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
   const [collapsedImpurityIds, setCollapsedImpurityIds] = useState<Record<string, boolean>>({})
@@ -870,6 +899,24 @@ export function WeightTicketFormCore({
   const [draftStartedAt] = useState(() => new Date().toISOString())
   const [timerNow, setTimerNow] = useState(() => Date.now())
   const [isWeightTicketSummaryCollapsed, setIsWeightTicketSummaryCollapsed] = useState(true)
+
+  useEffect(() => {
+    formRef.current = form
+  }, [form])
+
+  function trackAttachmentUpload<T>(promise: Promise<T>) {
+    let trackedPromise!: Promise<T>
+    trackedPromise = promise.finally(() => {
+      pendingAttachmentUploadsRef.current.delete(trackedPromise)
+    })
+    pendingAttachmentUploadsRef.current.add(trackedPromise)
+    return trackedPromise
+  }
+
+  async function waitForPendingAttachmentUploads() {
+    const pending = Array.from(pendingAttachmentUploadsRef.current)
+    if (pending.length > 0) await Promise.allSettled(pending)
+  }
 
   const cancelMobileProductEditorOpenAnimation = useCallback(() => {
     if (mobileProductEditorOpenAnimationFrameRef.current === null) return
@@ -1439,16 +1486,27 @@ export function WeightTicketFormCore({
     saveInFlightRef.current = 'auto_save'
     beginSaveStage('auto_save')
     try {
-      const ticket = await saveWeightTicket({
-        branchId: snapshot.branchId,
-        id: savedTicket?.id ?? editingTicketId,
+      await waitForPendingAttachmentUploads()
+      const latestForm = formRef.current
+      const latestLinesById = new Map(latestForm.lines.map((line) => [line.id, line]))
+      const snapshotToSave: FormState = {
+        ...snapshot,
         lines: snapshot.lines.map((line) => ({
+          ...line,
+          imageFiles: latestLinesById.get(line.id)?.imageFiles ?? line.imageFiles,
+        })),
+        vehicleImageFiles: latestForm.vehicleImageFiles,
+      }
+      const ticket = await saveWeightTicket({
+        branchId: snapshotToSave.branchId,
+        id: savedTicket?.id ?? editingTicketId,
+        lines: snapshotToSave.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
           deductionValue: Number(line.deductionValue || 0),
           grossWeight: Number(line.grossWeight || 0),
           id: line.id,
-          imageNames: getLineEvidenceImagesForState(snapshot, line).map((file) => file.rawValue),
+          imageNames: getLineEvidenceImagesForState(snapshotToSave, line).map((file) => file.rawValue),
           impurityId: getLineImpurityId(line),
           impurityProductId: line.impurityProductId ?? '',
           impuritySourceLineId: line.impuritySourceLineId,
@@ -1457,13 +1515,13 @@ export function WeightTicketFormCore({
           warehouseId: line.warehouseId,
           parentId: line.parentId,
         })),
-        partyId: snapshot.partyId,
-        remark: snapshot.remark.trim(),
-        saveScope: snapshot.lines.length === 0 ? 'header' : undefined,
-        type: snapshot.type,
-        vehicleImageNames: snapshot.vehicleImageFiles.map((file) => file.rawValue),
-        vehicleNo: snapshot.vehicleNo.trim(),
-        godownName: snapshot.godownName.trim(),
+        partyId: snapshotToSave.partyId,
+        remark: snapshotToSave.remark.trim(),
+        saveScope: snapshotToSave.lines.length === 0 ? 'header' : undefined,
+        type: snapshotToSave.type,
+        vehicleImageNames: snapshotToSave.vehicleImageFiles.map((file) => file.rawValue),
+        vehicleNo: snapshotToSave.vehicleNo.trim(),
+        godownName: snapshotToSave.godownName.trim(),
       })
       invalidatePurchaseBillOptionsCache()
       const nextForm = ticketToFormState(ticket)
@@ -1888,7 +1946,7 @@ export function WeightTicketFormCore({
   async function appendLineImages(lineId: string, files: FileList | null) {
     if (!files?.length) return
     setAttachmentError('')
-    const results = await Promise.allSettled(Array.from(files).map(createAttachmentPreviewFromFile))
+    const results = await Promise.allSettled(Array.from(files).map((file) => trackAttachmentUpload(createAttachmentPreviewFromFile(file))))
     const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
     const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปสินค้าไม่สำเร็จ')] : [])
     if (nextFiles.length > 0) {
@@ -1907,7 +1965,7 @@ export function WeightTicketFormCore({
   async function appendVehicleImages(files: FileList | null) {
     if (!files?.length) return
     setAttachmentError('')
-    const results = await Promise.allSettled(Array.from(files).map(createAttachmentPreviewFromFile))
+    const results = await Promise.allSettled(Array.from(files).map((file) => trackAttachmentUpload(createAttachmentPreviewFromFile(file))))
     const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
     const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปรถไม่สำเร็จ')] : [])
     if (nextFiles.length > 0) {
@@ -1984,10 +2042,12 @@ export function WeightTicketFormCore({
     saveInFlightRef.current = 'save'
     beginSaveStage(form.type === 'WTO' ? 'stock_check' : 'save')
     try {
+      await waitForPendingAttachmentUploads()
+      const formToSave = formRef.current
       const ticket = await saveWeightTicket({
-        branchId: form.branchId,
+        branchId: formToSave.branchId,
         id: savedTicket?.id ?? editingTicketId,
-        lines: form.lines.map((line) => ({
+        lines: formToSave.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
           deductionValue: Number(line.deductionValue || 0),
@@ -2002,12 +2062,12 @@ export function WeightTicketFormCore({
           warehouseId: line.warehouseId,
           parentId: line.parentId,
         })),
-        partyId: form.partyId,
-        remark: form.remark.trim(),
-        type: form.type,
-        vehicleImageNames: form.vehicleImageFiles.map((file) => file.rawValue),
-        vehicleNo: form.vehicleNo.trim(),
-        godownName: form.godownName.trim(),
+        partyId: formToSave.partyId,
+        remark: formToSave.remark.trim(),
+        type: formToSave.type,
+        vehicleImageNames: formToSave.vehicleImageFiles.map((file) => file.rawValue),
+        vehicleNo: formToSave.vehicleNo.trim(),
+        godownName: formToSave.godownName.trim(),
       })
       invalidatePurchaseBillOptionsCache()
       setLoadError('')

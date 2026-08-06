@@ -14,7 +14,6 @@ const { Pool } = pg
 const APPLY = process.argv.includes('--apply')
 const manifestArgument = process.argv.find((value) => value.startsWith('--manifest='))?.slice('--manifest='.length)
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
-const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 365
 
 function requiredEnv(name) {
   const value = process.env[name]?.trim()
@@ -118,14 +117,10 @@ async function copyObject(supabase, candidate, targetBucket) {
       throw Object.assign(new Error('Existing target object does not match source'), { code: 'targetObjectMismatch' })
     }
   }
-  const signed = await target.createSignedUrl(candidate.parsed.storageKey, SIGNED_URL_TTL_SECONDS)
-  if (signed.error || !signed.data?.signedUrl) {
-    throw Object.assign(new Error(`Target signed URL failed: ${signed.error?.message ?? 'missing signed URL'}`), { code: 'signedUrlFailed' })
-  }
   const fileName = candidate.parsed.fileName || path.basename(candidate.parsed.storageKey)
   return {
     fileName,
-    replacement: encodeStoredWeightTicketImageReference(fileName, candidate.parsed.storageKey, signed.data.signedUrl, targetBucket),
+    replacement: encodeStoredWeightTicketImageReference(fileName, candidate.parsed.storageKey, undefined, targetBucket),
     storageKey: candidate.parsed.storageKey,
   }
 }

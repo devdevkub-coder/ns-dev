@@ -739,8 +739,14 @@ export function encodeStoredImageAsset(fileName: string, dataUrl: string) {
   return JSON.stringify({ dataUrl, fileName })
 }
 
-export function encodeStoredImageReference(fileName: string, url: string, storageKey: string, bucket?: string) {
-  return JSON.stringify({ bucket, fileName, storageKey, url })
+export function encodeStoredImageReference(fileName: string, url: string | undefined, storageKey: string, bucket?: string) {
+  const reference: { bucket?: string; fileName: string; storageKey: string; url?: string } = {
+    bucket,
+    fileName,
+    storageKey,
+  }
+  if (url?.trim()) reference.url = url
+  return JSON.stringify(reference)
 }
 
 export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
@@ -784,6 +790,23 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
     }
     if (
       typeof parsed.fileName === 'string'
+      && typeof parsed.storageKey === 'string'
+      && parsed.storageKey.trim()
+      && typeof parsed.bucket === 'string'
+      && parsed.bucket.trim()
+      && !('dataUrl' in parsed)
+      && (!parsed.url || (typeof parsed.url === 'string' && (parsed.url.startsWith('http://') || parsed.url.startsWith('https://'))))
+    ) {
+      return {
+        fileName: parsed.fileName,
+        rawValue,
+        bucket: parsed.bucket.trim(),
+        storageKey: parsed.storageKey.trim(),
+        url: typeof parsed.url === 'string' ? parsed.url : null,
+      }
+    }
+    if (
+      typeof parsed.fileName === 'string'
       && typeof parsed.url === 'string'
       && (parsed.url.startsWith('http://') || parsed.url.startsWith('https://'))
     ) {
@@ -810,7 +833,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
 export function isPreviewableStoredImageAsset(
   image: StoredImageAsset,
 ): image is StoredImageAsset & { url: string } {
-  if (!image.url) return false
+  if (!image.bucket || !image.storageKey || !image.url) return false
 
   try {
     const url = new URL(image.url)
