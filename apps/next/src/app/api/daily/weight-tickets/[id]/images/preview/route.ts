@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { withAuthNoStore } from '@/lib/server/auth-response'
 import { prisma } from '@/lib/server/prisma'
 import { attachWeightTicketImagePreviewUrls, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { branchScopeIds } from '@/lib/server/weight-tickets'
 
 export const runtime = 'nodejs'
-
-function noStoreResponse(response: NextResponse) {
-  response.headers.set('Cache-Control', 'private, no-store')
-  return response
-}
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -20,7 +16,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params
     const scopedBranchIds = branchScopeIds(auth)
     if (scopedBranchIds !== null && scopedBranchIds.length === 0) {
-      return noStoreResponse(NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 }))
+      return withAuthNoStore(NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 }))
     }
 
     const ticket = await prisma.weight_tickets.findFirst({
@@ -39,7 +35,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         ...(scopedBranchIds !== null ? { branches: { code: { in: scopedBranchIds } } } : {}),
       },
     })
-    if (!ticket) return noStoreResponse(NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 }))
+    if (!ticket) return withAuthNoStore(NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 }))
 
     const vehicleImageNames = ticket.vehicle_image_names ?? []
     const lines = ticket.weight_ticket_lines.map((line) => ({
@@ -52,13 +48,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       vehicleImageNames,
     }, await resolveWeightTicketImageBucket())
 
-    return noStoreResponse(NextResponse.json({
+    return withAuthNoStore(NextResponse.json({
       imageNames: signed.imageNames,
       lines: signed.lines,
       vehicleImageNames: signed.vehicleImageNames,
     }))
   } catch (caught) {
-    if (caught instanceof AuthContextError) return noStoreResponse(authContextErrorResponse(caught))
-    return noStoreResponse(apiErrorResponse(caught, 'โหลด preview รูปใบรับ-ส่งของไม่ได้', 500))
+    if (caught instanceof AuthContextError) return withAuthNoStore(authContextErrorResponse(caught))
+    return withAuthNoStore(apiErrorResponse(caught, 'โหลด preview รูปใบรับ-ส่งของไม่ได้', 500))
   }
 }
