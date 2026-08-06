@@ -763,10 +763,8 @@ export function WeightTicketListPageClient() {
               )}>
                 <div>
                   <span className={cn(
-                    'inline-flex items-center gap-1.5 text-sm font-semibold px-2 py-0.5 rounded',
-                    isCancelled
-                      ? 'bg-red-100 text-red-800 ring-1 ring-red-200'
-                      : weightTicketStatusBadgeClass(ticket.type, ticket.status),
+                    'inline-flex items-center gap-1.5 text-sm font-semibold',
+                    weightTicketStatusBadgeClass(ticket.type, ticket.status),
                   )}
                   >
                     <span className="size-1.5 rounded-full bg-current" />
@@ -885,9 +883,7 @@ export function WeightTicketListPageClient() {
                       <div className="flex min-h-[23px] flex-col items-center justify-center">
                         <span className={cn(
                           'inline-flex items-center gap-1.5 text-xs font-medium',
-                          isCancelled
-                            ? 'rounded-md bg-red-100 px-2 py-0.5 font-semibold text-red-800 ring-1 ring-red-200'
-                            : weightTicketStatusBadgeClass(ticket.type, ticket.status),
+                          weightTicketStatusBadgeClass(ticket.type, ticket.status),
                         )}
                         >
                           <span className="size-1.5 rounded-full bg-current" />
