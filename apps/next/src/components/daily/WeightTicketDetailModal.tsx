@@ -461,13 +461,27 @@ export function WeightTicketDetailModal({
                   ) : (
                     <DetailItem label="อ้างอิงบิลขาย" value={`${ticket.usedInSalesBillCount} รายการ`} />
                   )}
+                  <div>
+                    <div className="text-sm font-medium text-slate-500">สถานะเอกสาร</div>
+                    <div className="mt-1">
+                      <span className={cn(
+                        'inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold',
+                        weightTicketStatusBadgeClass(ticket.type, ticket.status),
+                      )}
+                      >
+                        <span className="size-1.5 rounded-full bg-current" />
+                        {displayWeightTicketStatus(ticket.type, ticket.status)}
+                      </span>
+                    </div>
+                  </div>
+                  {ticket.cancelledAt ? <DetailItem label="ยกเลิกเมื่อ" value={formatDateTime(ticket.cancelledAt)} /> : null}
                 </div>
                 {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
                   <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
                     <div className="text-sm font-semibold text-slate-500">เลขที่บิลซื้อที่อ้างอิง</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                       {ticket.usedInPurchaseBillDocNos.map((docNo) => (
-                        <span className="rounded-md bg-white px-2.5 py-1 text-sm font-medium text-slate-700 shadow-sm" key={docNo}>
+                        <span className="font-mono text-sm font-medium text-blue-700" key={docNo}>
                           {docNo}
                         </span>
                       ))}
@@ -522,42 +536,15 @@ export function WeightTicketDetailModal({
                 </div>
               </Card>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-                <div className="space-y-4">
-                  <Card className="overflow-hidden p-0">
-                    <div className="border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
-                      <SectionTitle title="รายละเอียดสินค้าและที่มา" />
-                    </div>
-                    <WeightTicketProductBreakdownTable
-                      ticket={ticket}
-                      onOpenLineGallery={setLineGallery}
-                    />
-                  </Card>
+              <div className="space-y-4">
+                <Card className="w-full overflow-hidden p-0">
+                  <div className="border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
+                    <SectionTitle title="รายละเอียดสินค้าและที่มา" />
                   </div>
-
-                <Card className="p-4 sm:p-5">
-                  <SectionTitle title="สถานะ" />
-                  <div className="mt-4 space-y-3">
-                    <div className="rounded-md bg-slate-50 px-4 py-3">
-                      <div className="text-sm font-semibold text-slate-500">สถานะเอกสาร</div>
-                      <div className="mt-1">
-                        <span className={cn(
-                          'inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded',
-                          weightTicketStatusBadgeClass(ticket.type, ticket.status),
-                        )}
-                        >
-                          <span className="size-1.5 rounded-full bg-current" />
-                          {displayWeightTicketStatus(ticket.type, ticket.status)}
-                        </span>
-                      </div>
-                    </div>
-                    {ticket.cancelledAt ? (
-                      <div className="rounded-md bg-slate-50 px-4 py-3">
-                        <div className="text-sm font-semibold text-slate-500">ยกเลิกเมื่อ</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(ticket.cancelledAt)}</div>
-                      </div>
-                    ) : null}
-                  </div>
+                  <WeightTicketProductBreakdownTable
+                    ticket={ticket}
+                    onOpenLineGallery={setLineGallery}
+                  />
                 </Card>
               </div>
 
