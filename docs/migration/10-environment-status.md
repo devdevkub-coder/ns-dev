@@ -1,5 +1,11 @@
 # 10 Environment Status
 
+### WTI/WTO Google Sheets Setting Retirement 2026-08-06
+
+- Runtime Google Sheets sync for WTI/WTO was removed from create, update, status, cancel, and LINE notification flows before this migration; WTI/WTO data remains in the application database, LINE, and audit/timeline records.
+- Applied and recorded `20260806100000_retire_google_sheets_weight_ticket_setting.sql` on the Production runtime database (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
+- Preflight found one obsolete `GOOGLE_SHEETS_WEBHOOK_URL` setting row in each database; postflight found zero in both. No WTI/WTO business rows or transaction data were changed.
+
 ### WTI/WTO SIT Storage Reference Repair 2026-08-05
 
 - SIT (`vbjlkxbytccklhqvxjuu`) had 131 WTI/WTO image references; 128 references (126 unique objects) pointed to Production Storage (`fhglqymcdmrgbsbadnwr`) and 3 references already pointed to SIT.
