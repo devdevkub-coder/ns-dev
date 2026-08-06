@@ -144,9 +144,44 @@ export function resolvePersistedWeightTicketLotSource(
   return persistedSourceLine
 }
 
-export function shouldPersistWeightTicketBeforeAdding(type: WeightTicketType, lineCount: number) {
-  return lineCount > 0 || type === 'WTI'
+const lineErrorFields = 'product|warehouse|gross|container|images|impurity|impurity-product|deduction'
+
+export function remapWeightTicketLineIds<T extends Pick<FormWeightTicketLine, 'id' | 'parentId' | 'impuritySourceLineId'>>(
+  lines: T[],
+  idMap: Record<string, string>,
+) {
+  return lines.map((line) => ({
+    ...line,
+    id: idMap[line.id] ?? line.id,
+    parentId: line.parentId ? (idMap[line.parentId] ?? line.parentId) : line.parentId,
+    impuritySourceLineId: line.impuritySourceLineId
+      ? (idMap[line.impuritySourceLineId] ?? line.impuritySourceLineId)
+      : line.impuritySourceLineId,
+  }) as T)
 }
+
+export function remapWeightTicketLineKey(key: string, idMap: Record<string, string>) {
+  const match = key.match(new RegExp(`^line-(.+?)-(${lineErrorFields})$`))
+  if (!match) return key
+  return `line-${idMap[match[1]] ?? match[1]}-${match[2]}`
+}
+
+function remapWeightTicketLineState(
+  state: Record<string, boolean>,
+  idMap: Record<string, string>,
+) {
+  return Object.entries(state).reduce<Record<string, boolean>>((next, [key, value]) => {
+    const remappedKey = remapWeightTicketLineKey(key, idMap)
+    next[remappedKey] = Boolean(next[remappedKey] || value)
+    return next
+  }, {})
+}
+
+export function shouldPersistWeightTicketBeforeAdding(type: WeightTicketType, lineCount: number) {
+  return lineCount > 0 || type === 'WTI' || type === 'WTO'
+}
+
+const ADD_INTERACTION_DEBOUNCE_MS = 350
 
 function initialForm(type: WeightTicketType = 'WTI'): FormState {
   return {
@@ -827,6 +862,7 @@ export function WeightTicketFormCore({
   const mobileProductEditorCloseTimeoutRef = useRef<number | null>(null)
   const mobileProductEditorOpenAnimationFrameRef = useRef<number | null>(null)
   const saveInFlightRef = useRef<'auto_save' | 'save' | null>(null)
+  const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
   const [collapsedImpurityIds, setCollapsedImpurityIds] = useState<Record<string, boolean>>({})
   const [pendingFocusField, setPendingFocusField] = useState<string | null>(null)
@@ -1361,7 +1397,19 @@ export function WeightTicketFormCore({
     return getLineImages(sourceParentLine ?? sourceLine ?? line)
   }
 
-  async function saveDraftBeforeAdding(): Promise<FormState | null> {
+  function shouldIgnoreRapidAdd(actionKey: string) {
+    const occurredAt = Date.now()
+    const previous = lastAddInteractionRef.current
+    if (
+      previous?.actionKey === actionKey
+      && occurredAt - previous.occurredAt < ADD_INTERACTION_DEBOUNCE_MS
+    ) return true
+
+    lastAddInteractionRef.current = { actionKey, occurredAt }
+    return false
+  }
+
+  async function saveDraftBeforeAdding(snapshot: FormState = form): Promise<FormState | null> {
     // Save the current document before opening another product entry so the
     // draft has a stable ticket identity and existing data is not lost.
     if (isSaving || isLoadingTicket || saveInFlightRef.current) return null
@@ -1373,32 +1421,33 @@ export function WeightTicketFormCore({
       return null
     }
     const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
-    if (form.lines.length > 0 && firstLineError) {
+    if (snapshot.lines.length > 0 && firstLineError) {
       setTouched((current) => ({ ...current, [firstLineError]: true }))
       setPendingFocusField(firstLineError)
       // Keep the product workspace usable while a blank entry is being filled.
       // A line with a selected product still must pass validation before the
       // existing draft is persisted and another product is opened.
-      return form.lines.some((line) => !line.productId) ? form : null
+      return snapshot.lines.some((line) => !line.productId) ? snapshot : null
     }
 
-    // WTI may persist an empty draft before the first product editor opens.
-    // WTO must wait for a line because its save contract performs stock checks.
-    if (!shouldPersistWeightTicketBeforeAdding(form.type, form.lines.length)) return form
+    // Both WTI and WTO persist an empty header draft before the first product
+    // editor opens. The API marks this as a header-only save and skips line
+    // validation until the user has selected a product.
+    if (!shouldPersistWeightTicketBeforeAdding(snapshot.type, snapshot.lines.length)) return snapshot
 
     saveInFlightRef.current = 'auto_save'
     beginSaveStage('auto_save')
     try {
       const ticket = await saveWeightTicket({
-        branchId: form.branchId,
+        branchId: snapshot.branchId,
         id: savedTicket?.id ?? editingTicketId,
-        lines: form.lines.map((line) => ({
+        lines: snapshot.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
           deductionValue: Number(line.deductionValue || 0),
           grossWeight: Number(line.grossWeight || 0),
           id: line.id,
-          imageNames: getLineEvidenceImagesForState(form, line).map((file) => file.rawValue),
+          imageNames: getLineEvidenceImagesForState(snapshot, line).map((file) => file.rawValue),
           impurityId: getLineImpurityId(line),
           impurityProductId: line.impurityProductId ?? '',
           impuritySourceLineId: line.impuritySourceLineId,
@@ -1407,12 +1456,13 @@ export function WeightTicketFormCore({
           warehouseId: line.warehouseId,
           parentId: line.parentId,
         })),
-        partyId: form.partyId,
-        remark: form.remark.trim(),
-        type: form.type,
-        vehicleImageNames: form.vehicleImageFiles.map((file) => file.rawValue),
-        vehicleNo: form.vehicleNo.trim(),
-        godownName: form.godownName.trim(),
+        partyId: snapshot.partyId,
+        remark: snapshot.remark.trim(),
+        saveScope: snapshot.lines.length === 0 ? 'header' : undefined,
+        type: snapshot.type,
+        vehicleImageNames: snapshot.vehicleImageFiles.map((file) => file.rawValue),
+        vehicleNo: snapshot.vehicleNo.trim(),
+        godownName: snapshot.godownName.trim(),
       })
       invalidatePurchaseBillOptionsCache()
       const nextForm = ticketToFormState(ticket)
@@ -1465,15 +1515,16 @@ export function WeightTicketFormCore({
       return
     }
 
-    // Keep the add-product interaction independent from draft persistence.
-    // The new line must render immediately; the save request runs afterwards.
-    if (isSaving || isLoadingTicket || saveInFlightRef.current) return
+    // Keep the add-product interaction independent from background draft
+    // persistence. Only the explicit final save may replace the live form.
+    if (isLoadingTicket || saveInFlightRef.current === 'save') return
+    if (shouldIgnoreRapidAdd('product')) return
 
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)
     setMobileProductView('editor')
-    void saveDraftBeforeAdding()
+    void saveDraftBeforeAdding(form)
   }
 
   const closeMobileProductEditor = useCallback((focusTargetId = activeLineId, onClosed?: () => void) => {
@@ -1507,21 +1558,33 @@ export function WeightTicketFormCore({
     return () => document.removeEventListener('keydown', handleMobileProductEditorKeyDown)
   }, [closeMobileProductEditor, mobileProductView])
 
-  async function addSameProductLot(sourceLine: FormWeightTicketLine) {
+  function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
     const sourceLineIndex = form.lines.findIndex((line) => line.id === sourceLine.id)
-    const savedForm = await saveDraftBeforeAdding()
-    if (!savedForm) return
-    const persistedSourceLine = resolvePersistedWeightTicketLotSource(sourceLine, savedForm.lines, sourceLineIndex)
-    if (!persistedSourceLine) return
+    const firstHeaderError = ['branchId', 'partyId', 'vehicleNo', 'godownName'].find((key) => errors[key])
+    const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
+    const hasBlockingLineError = form.lines.length > 0
+      && Boolean(firstLineError)
+      && !form.lines.some((line) => !line.productId)
+    // Auto-save must not block the local lot editor. Only the explicit final
+    // save may prevent a new lot from being added because it replaces the form
+    // with the persisted response when it completes.
+    const isFinalSaveInFlight = saveInFlightRef.current === 'save'
+    if (firstHeaderError || hasBlockingLineError || isFinalSaveInFlight || isLoadingTicket) {
+      if (firstHeaderError || hasBlockingLineError) void saveDraftBeforeAdding()
+      return
+    }
+    if (shouldIgnoreRapidAdd(`lot:${sourceLine.id}`)) return
+
+    const draftSnapshot = form
     const nextLine = createFormWeightTicketLine()
-    nextLine.productId = persistedSourceLine.productId
-    nextLine.warehouseId = persistedSourceLine.warehouseId
-    nextLine.parentId = persistedSourceLine.id
-    const existingLotIds = savedForm.lines
+    nextLine.productId = sourceLine.productId
+    nextLine.warehouseId = sourceLine.warehouseId
+    nextLine.parentId = sourceLine.id
+    const existingLotIds = form.lines
       .filter((line) => (
-        line.id === persistedSourceLine.id
-        || (line.parentId === persistedSourceLine.id && !isImpurityPurchaseLine(line) && line.deductionMode === 'none')
+        line.id === sourceLine.id
+        || (line.parentId === sourceLine.id && !isImpurityPurchaseLine(line) && line.deductionMode === 'none')
       ))
       .map((line) => line.id)
     setCollapsedLotIds((current) => ({
@@ -1529,18 +1592,32 @@ export function WeightTicketFormCore({
       ...Object.fromEntries(existingLotIds.map((lotId) => [lotId, true])),
       [nextLine.id]: false,
     }))
-    setForm((current) => {
-      const currentSourceLine = current.lines.find((line) => line.id === persistedSourceLine.id)
-      if (!currentSourceLine) return current
-      const currentNextLine = {
-        ...nextLine,
-        parentId: currentSourceLine.id,
-        productId: currentSourceLine.productId,
-        warehouseId: currentSourceLine.warehouseId,
-      }
-      return { ...current, lines: [...current.lines, currentNextLine] }
-    })
+    setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setPendingFocusField(`line-${nextLine.id}-gross`)
+
+    const draftSave = saveDraftBeforeAdding(draftSnapshot)
+    void draftSave.then((savedForm) => {
+      if (!savedForm) return
+      const persistedSourceLine = resolvePersistedWeightTicketLotSource(sourceLine, savedForm.lines, sourceLineIndex)
+      if (!persistedSourceLine || persistedSourceLine.id === sourceLine.id) return
+      const lineIdMap = { [sourceLine.id]: persistedSourceLine.id }
+
+      setForm((current) => ({
+        ...current,
+        lines: remapWeightTicketLineIds(current.lines, lineIdMap),
+      }))
+      setCollapsedLotIds((current) => {
+        return remapWeightTicketLineState(current, lineIdMap)
+      })
+      setCollapsedImpurityIds((current) => {
+        return remapWeightTicketLineState(current, lineIdMap)
+      })
+      setTouched((current) => {
+        return remapWeightTicketLineState(current, lineIdMap)
+      })
+      setPendingFocusField((current) => current ? remapWeightTicketLineKey(current, lineIdMap) : current)
+      setActiveLineId((current) => current === sourceLine.id ? persistedSourceLine.id : current)
+    })
   }
 
   function changeLineWarehouse(lineId: string, warehouseId: string, warehouse: WtoStockWarehouseOption | null | undefined) {
@@ -1705,7 +1782,9 @@ export function WeightTicketFormCore({
   }
 
   function addImpurityLine(sourceLine: FormWeightTicketLine) {
+    if (isLoadingTicket || saveInFlightRef.current === 'save') return
     if (calculateRealLotSummary(sourceLine, form.lines).lotCount === 0) return
+    if (shouldIgnoreRapidAdd(`impurity:${sourceLine.id}`)) return
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = sourceLine.productId
     nextLine.warehouseId = sourceLine.warehouseId

@@ -4,12 +4,25 @@ import { describe, expect, it } from 'vitest'
 
 import { buildWtoEditTimelineNote, shouldRebuildWtoPendingOutOnEdit } from './weight-ticket-write/wto'
 
+const createRouteSource = readFileSync(
+  resolve(process.cwd(), 'src/app/api/daily/weight-tickets/route.ts'),
+  'utf8',
+)
+
 const editRouteSource = readFileSync(
   resolve(process.cwd(), 'src/app/api/daily/weight-tickets/[id]/route.ts'),
   'utf8',
 )
 
 describe('WTO delivered edit release/rebuild contract', () => {
+  it('keeps draft writes free of pending_out until the confirm action', () => {
+    expect(createRouteSource).not.toContain('applyWeightTicketCreateSideEffects')
+    expect(editRouteSource).toContain('existing.weight_ticket_lines.length === 0')
+    const confirmStart = editRouteSource.indexOf("if (confirmParsed.success)")
+    expect(confirmStart).toBeGreaterThan(-1)
+    expect(editRouteSource.slice(confirmStart)).toContain('applyWeightTicketCreateSideEffects')
+  })
+
   it('releases the old holds before replacing lines and rebuilds cost snapshots', () => {
     const releaseIndex = editRouteSource.indexOf('await releaseActiveWtoPendingOut(tx, {')
     const deleteLinesIndex = editRouteSource.indexOf('await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })')

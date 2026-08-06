@@ -154,6 +154,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         fieldErrors: { type: ['ไม่สามารถเปลี่ยนประเภทเอกสารหลังสร้างแล้ว'] },
       }, { status: 400 })
     }
+    if (values.saveScope === 'header' && existing.weight_ticket_lines.length > 0) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'บันทึกเฉพาะหัวเอกสารได้ก่อนมีรายการสินค้าเท่านั้น',
+      }, { status: 400 })
+    }
     const beforeSnapshot = weightTicketAuditSnapshot(mapWeightTicketRow(existing as WeightTicketRow, usage))
 
     const parsedImpurityIds = values.lines.map((line) => parseInternalBigIntId(line.impurityId))
@@ -300,7 +306,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
       const warehouseNameById = new Map([...warehouseByCode.values()].map((warehouse) => [warehouse.id, warehouse.name] as const))
       const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
-      if (values.type === 'WTO') {
+      if (values.type === 'WTO' && values.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, {
           branchId: branch.id,
           excludeWeightTicketId: existing.status === 'delivered' ? existing.id : undefined,
@@ -506,6 +512,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       requirePermission(auth, 'daily.weight_tickets.confirm')
       if (existing.status !== 'draft') {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'ยืนยันได้เฉพาะเอกสารสถานะแบบร่าง' }, { status: 400 })
+      }
+      if (existing.weight_ticket_lines.length === 0) {
+        return NextResponse.json({
+          code: 'BAD_REQUEST',
+          error: 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการก่อนยืนยันเอกสาร',
+        }, { status: 400 })
       }
 
       const confirmedAt = new Date()

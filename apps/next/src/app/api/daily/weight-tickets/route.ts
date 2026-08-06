@@ -270,7 +270,7 @@ export async function POST(request: Request) {
       })
       const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
       const lineRows = buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById, warehouseByCode)
-      if (values.type === 'WTO') {
+      if (values.type === 'WTO' && values.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
       }
       const createdLines = [] as Array<Awaited<ReturnType<typeof tx.weight_ticket_lines.create>>>
