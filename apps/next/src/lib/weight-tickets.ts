@@ -320,6 +320,7 @@ export const weightTicketFormSchema = z.object({
   lines: z.array(weightTicketLinePayloadSchema),
   partyId: z.string().trim().min(1, 'เลือกคู่ค้า'),
   remark: z.preprocess(blankToEmpty, z.string().max(500, 'หมายเหตุยาวเกินไป').default('')),
+  saveScope: z.enum(['header', 'document']).optional(),
   type: typeEnum,
   vehicleImageNames: z.array(attachmentValueSchema).default([]),
   vehicleNo: z
@@ -330,7 +331,14 @@ export const weightTicketFormSchema = z.object({
     .regex(/^[\p{L}\p{M}\p{N}\s.-]+$/u, 'ทะเบียนรถมีรูปแบบไม่ถูกต้อง'),
   godownName: z.preprocess(blankToEmpty, z.string().max(100, 'ชื่อโกดังยาวเกินไป').default('')),
 }).superRefine((value, ctx) => {
-  if (value.type === 'WTO' && value.lines.length === 0) {
+  if (value.saveScope === 'header' && value.lines.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'การบันทึกหัวเอกสารต้องไม่ส่งรายการสินค้า',
+      path: ['lines'],
+    })
+  }
+  if (value.type === 'WTO' && value.lines.length === 0 && value.saveScope !== 'header') {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ',

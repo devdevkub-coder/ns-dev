@@ -42,11 +42,34 @@ const validWtiPayload = (lines: TestWeightTicketLine[]) => ({
 })
 
 describe('weight ticket totals', () => {
-  it('allows WTI metadata to be saved without product lines or a godown, while WTO still requires lines and a godown', () => {
+  it('allows header-only drafts for WTI and WTO while a normal WTO save still requires lines and a godown', () => {
     expect(weightTicketFormSchema.safeParse({
       ...validWtiPayload([]),
       godownName: '',
     }).success).toBe(true)
+
+    expect(weightTicketFormSchema.safeParse({
+      ...validWtiPayload([]),
+      godownName: 'โกดังทดสอบ',
+      saveScope: 'header',
+      type: 'WTO',
+    }).success).toBe(true)
+
+    expect(weightTicketFormSchema.safeParse({
+      ...validWtiPayload([]),
+      godownName: 'โกดังทดสอบ',
+      type: 'WTO',
+    }).success).toBe(false)
+
+    expect(weightTicketFormSchema.safeParse({
+      ...validWtiPayload([{
+        ...validWtiLine('header-with-line'),
+        warehouseId: 'WAREHOUSE-1',
+      }]),
+      godownName: 'โกดังทดสอบ',
+      saveScope: 'header',
+      type: 'WTO',
+    }).success).toBe(false)
 
     expect(weightTicketFormSchema.safeParse({
       ...validWtiPayload([{
