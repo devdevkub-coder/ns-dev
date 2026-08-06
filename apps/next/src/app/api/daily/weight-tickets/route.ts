@@ -25,6 +25,7 @@ import {
   getWeightTicketUsageCounts,
   getWeightTicketUsageCountsByTicketIds,
   mapWeightTicketRow,
+  mapWeightTicketListRow,
   nextWeightTicketDocNo,
   parseWeightTicketQuery,
   requireWeightTicketBranchDocumentCode,
@@ -32,8 +33,11 @@ import {
   weightTicketOrderBy,
   weightTicketInclude,
   weightTicketWhere,
+  weightTicketListSelect,
+  type WeightTicketListRow,
+  type WeightTicketRow,
 } from '@/lib/server/weight-tickets'
-import { attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -90,25 +94,35 @@ export async function GET(request: Request) {
     const isXlsx = new URL(request.url).searchParams.get('format') === 'xlsx'
     const take = isXlsx ? 10000 : query.pageSize
     const [rows, totalRows] = await Promise.all([
-      prisma.weight_tickets.findMany({
-        include: weightTicketInclude,
-        orderBy,
-        ...(isXlsx ? {} : { skip: (query.page - 1) * query.pageSize }),
-        take,
-        where,
-      }),
+      isXlsx
+        ? prisma.weight_tickets.findMany({
+          include: weightTicketInclude,
+          orderBy,
+          take,
+          where,
+        })
+        : prisma.weight_tickets.findMany({
+          select: weightTicketListSelect,
+          orderBy,
+          skip: (query.page - 1) * query.pageSize,
+          take,
+          where,
+        }),
       prisma.weight_tickets.count({ where }),
     ])
 
     const usageMap = await getWeightTicketUsageCountsByTicketIds(prisma, rows.map((row) => row.id))
-    const mappedRows = rows.map((row: Awaited<typeof rows>[number]) => (
-      mapWeightTicketRow(row, usageMap.get(row.id.toString()) ?? {
+    const mappedRows: WeightTicketMappedRow[] = rows.map((row) => {
+      const usage = usageMap.get(row.id.toString()) ?? {
         purchaseCount: 0,
         purchaseDocNos: [],
         salesCount: 0,
         salesDocNos: [],
-      })
-    ))
+      }
+      return isXlsx
+        ? mapWeightTicketRow(row as WeightTicketRow, usage)
+        : mapWeightTicketListRow(row as WeightTicketListRow, usage)
+    })
 
     if (isXlsx) {
       return xlsxResponse(await buildWeightTicketWorkbook(mappedRows), `weight_tickets_${new Date().toISOString().slice(0, 10)}.xlsx`)
@@ -273,12 +287,16 @@ export async function POST(request: Request) {
       if (values.type === 'WTO' && values.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
       }
-      const createdLines = await tx.weight_ticket_lines.createManyAndReturn({ data: lineRows })
+      const createdLines = lineRows.length
+        ? await tx.weight_ticket_lines.createManyAndReturn({ data: lineRows })
+        : []
       const imageCount = values.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
       const { summaryRows } = buildWeightTicketProductSummaryRows(createdTicket.id, createdLines)
-      const createdSummaries = await tx.weight_ticket_product_summaries.createManyAndReturn({
-        data: summaryRows.map(({ lineIds: _lineIds, ...data }) => data),
-      })
+      const createdSummaries = summaryRows.length
+        ? await tx.weight_ticket_product_summaries.createManyAndReturn({
+          data: summaryRows.map(({ lineIds: _lineIds, ...data }) => data),
+        })
+        : []
       const summaryIdByProductId = new Map(createdSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
       const bridgeRows = summaryRows.flatMap(({ lineIds, product_id }) => {
         const summaryId = summaryIdByProductId.get(String(product_id))
@@ -317,16 +335,7 @@ export async function POST(request: Request) {
 
     const usage = await getWeightTicketUsageCounts(prisma, created.id)
     const mapped = mapWeightTicketRow(created, usage)
-    let responseMapped = mapped
-    let imagePreviewWarning = false
-    const responseMappedPromise = attachWeightTicketImagePreviewUrls(mapped, imageBucket).catch((caught) => {
-      imagePreviewWarning = true
-      console.error('[weight-ticket] saved ticket but preview signing failed', caught)
-      return mapped
-    })
-    await Promise.all([
-      responseMappedPromise.then((value) => { responseMapped = value }),
-      recordAuditLog({
+    await recordAuditLog({
         action: 'create',
         afterData: weightTicketAuditSnapshot(mapped),
         context,
@@ -344,11 +353,9 @@ export async function POST(request: Request) {
         targetId: String(created.id),
         targetLabel: created.doc_no,
         targetType: 'weight_ticket',
-      }),
-    ])
+    })
     return NextResponse.json({
-      ...responseMapped,
-      imagePreviewWarning,
+      ...mapped,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

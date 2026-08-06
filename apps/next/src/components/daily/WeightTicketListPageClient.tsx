@@ -202,6 +202,8 @@ export function WeightTicketListPageClient() {
   const [totalRows, setTotalRows] = useState(0)
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [query, setQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [isUrlStateReady, setIsUrlStateReady] = useState(false)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('WTI')
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>([])
   const [sortBy, setSortBy] = useState<WeightTicketSortBy>('documentNo')
@@ -231,7 +233,10 @@ export function WeightTicketListPageClient() {
 
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const safePage = Math.min(page, totalPages)
-  const activeFilters = Boolean(query || statusFilter.length > 0 || branchFilter !== 'all' || dateFrom || dateTo)
+  const activeDetailTicket = activeDetailId
+    ? tickets.find((ticket) => ticket.id === activeDetailId)
+    : undefined
+  const activeFilters = Boolean(searchInput || statusFilter.length > 0 || branchFilter !== 'all' || dateFrom || dateTo)
   const statusOptions = useMemo(() => statusOptionsByType[typeFilter], [typeFilter])
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ format: 'xlsx', sortBy, sortDir, type: typeFilter })
@@ -273,21 +278,23 @@ export function WeightTicketListPageClient() {
     const type = params.get('type')
     const search = params.get('search')
     const detail = params.get('detail')
-    if (search || detail) setQuery(detail || search || '')
+    const nextSearch = detail || search || ''
+    setSearchInput(nextSearch)
+    setQuery(nextSearch)
     if (type === 'WTO') {
       setTypeFilter('WTO')
       setStatusFilter([])
       setPage(1)
-      return
-    }
-    if (type === 'WTI') {
+    } else if (type === 'WTI') {
       setTypeFilter('WTI')
       setStatusFilter([])
       setPage(1)
     }
+    setIsUrlStateReady(true)
   }, [])
 
   useEffect(() => {
+    if (!isUrlStateReady) return
     let cancelled = false
 
     async function loadRows() {
@@ -325,7 +332,16 @@ export function WeightTicketListPageClient() {
     return () => {
       cancelled = true
     }
-  }, [branchFilter, dateFrom, dateTo, page, pageSize, query, sortBy, sortDir, statusFilter, typeFilter, refreshKey])
+  }, [branchFilter, dateFrom, dateTo, isUrlStateReady, page, pageSize, query, sortBy, sortDir, statusFilter, typeFilter, refreshKey])
+
+  useEffect(() => {
+    if (!isUrlStateReady || searchInput === query) return
+    const timeoutId = window.setTimeout(() => {
+      setQuery(searchInput)
+      setPage(1)
+    }, 350)
+    return () => window.clearTimeout(timeoutId)
+  }, [isUrlStateReady, query, searchInput])
 
   useEffect(() => {
     if (isLoading || tickets.length === 0 || typeof window === 'undefined') return
@@ -341,6 +357,7 @@ export function WeightTicketListPageClient() {
   }, [isLoading, tickets, typeFilter])
 
   function clearFilters() {
+    setSearchInput('')
     setQuery('')
     setStatusFilter([])
     setSortBy('documentNo')
@@ -519,11 +536,8 @@ export function WeightTicketListPageClient() {
               <Input
                 className="h-9 pl-9"
                 placeholder="ค้นหาเลขที่, ผู้ขาย/ลูกค้า, ทะเบียนรถ, สินค้า, สิ่งเจือปน"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value)
-                  setPage(1)
-                }}
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
               />
             </label>
             <label className="text-xs text-slate-500">วันที่:</label>
@@ -587,11 +601,8 @@ export function WeightTicketListPageClient() {
             <Input
               className="pl-9 h-9 text-slate-800"
               placeholder="ค้นหาเลขที่, คู่ค้า, ทะเบียน..."
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setPage(1)
-              }}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
             />
           </label>
           <button
@@ -685,7 +696,10 @@ export function WeightTicketListPageClient() {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
-        <div>{summaryText}</div>
+        <div>
+          {summaryText}
+          {isLoading && tickets.length > 0 ? <span className="ml-2 text-xs text-slate-400" role="status">กำลังอัปเดต...</span> : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {columnResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
@@ -700,7 +714,7 @@ export function WeightTicketListPageClient() {
 
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block md:hidden space-y-3">
-        {isLoading ? (
+        {isLoading && tickets.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
         ) : loadError ? (
           <div className="rounded-xl bg-white p-8 text-center text-red-600 shadow-sm border border-slate-200">{loadError}</div>
@@ -827,7 +841,7 @@ export function WeightTicketListPageClient() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
+              {isLoading && tickets.length === 0 ? (
                 <tr>
                   <td className="px-3 py-10 text-center text-slate-500" colSpan={WEIGHT_TICKET_TABLE_COLUMN_COUNT}>กำลังโหลดข้อมูล</td>
                 </tr>
@@ -1022,6 +1036,7 @@ export function WeightTicketListPageClient() {
 
       {activeDetailId && (
         <WeightTicketDetailModal
+          initialTicket={activeDetailTicket}
           ticketId={activeDetailId}
           onClose={() => {
             setActiveDetailId(null)

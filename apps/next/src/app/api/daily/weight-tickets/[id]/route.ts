@@ -102,7 +102,7 @@ async function findScopedTicket(documentNo: string, scopedBranchIds: string[] | 
   })
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'daily.weight_tickets.view')
@@ -113,7 +113,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
-    const responseMapped = await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
+    const includeImagePreviews = new URL(request.url).searchParams.get('includeImagePreviews') !== 'false'
+    const responseMapped = includeImagePreviews
+      ? await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
+      : mapped
     const [timeline, usageTimeline, downstreamAllocations, pendingOutEvents] = await Promise.all([
       getWeightTicketTimeline(prisma, ticket.id),
       getWeightTicketUsageTimeline(prisma, ticket.id),
@@ -453,16 +456,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
-    let responseMapped = mapped
-    let imagePreviewWarning = false
-    const responseMappedPromise = attachWeightTicketImagePreviewUrls(mapped, imageBucket).catch((caught) => {
-      imagePreviewWarning = true
-      console.error('[weight-ticket] updated ticket but preview signing failed', caught)
-      return mapped
-    })
-    await Promise.all([
-      responseMappedPromise.then((value) => { responseMapped = value }),
-      recordAuditLog({
+    await recordAuditLog({
         action: 'update',
         afterData: weightTicketAuditSnapshot(mapped),
         beforeData: beforeSnapshot,
@@ -481,11 +475,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         targetId: String(updated.id),
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
-      }),
-    ])
+    })
     return NextResponse.json({
-      ...responseMapped,
-      imagePreviewWarning,
+      ...mapped,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
