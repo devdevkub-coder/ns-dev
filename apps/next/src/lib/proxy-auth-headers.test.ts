@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { preserveAuthResponseHeaders } from './proxy-auth-headers'
+import { applyAuthResponseHeaders } from './proxy-auth-headers'
 
 function getSetCookies(headers: Headers) {
   return (headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ?? []
@@ -16,7 +16,7 @@ describe('proxy auth response headers', () => {
     source.append('set-cookie', 'sb-refresh-token=refresh; Path=/; HttpOnly')
     const target = new Headers({ 'content-type': 'application/json' })
 
-    preserveAuthResponseHeaders(source, target)
+    applyAuthResponseHeaders(source, target)
 
     expect(getSetCookies(target)).toEqual([
       'sb-access-token=access; Path=/; HttpOnly',
@@ -35,17 +35,17 @@ describe('proxy auth response headers', () => {
     })
     const target = new Headers({ location: '/login' })
 
-    preserveAuthResponseHeaders(source, target)
+    applyAuthResponseHeaders(source, target)
 
     expect(target.get('location')).toBe('/login')
     expect(target.get('cache-control')).toBe('private, no-store')
   })
 
-  it('applies private no-store defaults when the source has no cache headers', () => {
-    const source = new Headers()
+  it('forces private no-store headers when the source has a weaker cache policy', () => {
+    const source = new Headers({ 'cache-control': 'public, max-age=3600', expires: 'tomorrow', pragma: 'cache' })
     const target = new Headers({ 'content-type': 'application/json' })
 
-    preserveAuthResponseHeaders(source, target)
+    applyAuthResponseHeaders(source, target)
 
     expect(target.get('cache-control')).toBe('private, no-store')
     expect(target.get('pragma')).toBe('no-cache')

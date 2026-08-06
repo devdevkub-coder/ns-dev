@@ -1,10 +1,9 @@
 import 'server-only'
 
 import { NextResponse } from 'next/server'
+import { authNoStoreHeaders } from '@/lib/auth-response-headers'
 
-export const authNoStoreHeaders = Object.freeze({
-  'Cache-Control': 'private, no-store',
-})
+export { authNoStoreHeaders }
 
 export function authJson<T>(body: T, init?: ResponseInit) {
   const headers = new Headers(init?.headers)
