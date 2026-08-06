@@ -35,6 +35,7 @@ supabase/migrations/20260519044843_create_fx_rates_table.sql
 # Local agent/tool settings
 .claude/
 .agents/skills.disabled/
+.mcp.json
 .vercel
 .codegraph/
 .worktrees/
