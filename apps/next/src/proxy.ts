@@ -45,7 +45,7 @@ export async function proxy(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return pathname.startsWith('/api/') ? jsonError('Supabase Auth is not configured.', 500) : loginRedirect(request)
+    return authErrorResponse(response, pathname.startsWith('/api/') ? jsonError('Supabase Auth is not configured.', 500) : loginRedirect(request))
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {

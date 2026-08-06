@@ -40,4 +40,16 @@ describe('proxy auth response headers', () => {
     expect(target.get('location')).toBe('/login')
     expect(target.get('cache-control')).toBe('private, no-store')
   })
+
+  it('applies private no-store defaults when the source has no cache headers', () => {
+    const source = new Headers()
+    const target = new Headers({ 'content-type': 'application/json' })
+
+    preserveAuthResponseHeaders(source, target)
+
+    expect(target.get('cache-control')).toBe('private, no-store')
+    expect(target.get('pragma')).toBe('no-cache')
+    expect(target.get('expires')).toBe('0')
+    expect(target.get('content-type')).toBe('application/json')
+  })
 })
