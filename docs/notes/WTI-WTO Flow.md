@@ -90,6 +90,7 @@ What is what: `pending_out` คือ reservation ของ stock ที่ย�
 - `auto_save`: เมื่อผู้ใช้กด `เพิ่มสินค้า` หรือ `เพิ่มเต๋า` ระบบเพิ่มแถวและเปิดช่องกรอกใน client state ทันที ไม่รอ response จาก server. จากนั้นจึงส่ง draft เป็น background (`saveScope=header` สำหรับการเพิ่มสินค้าครั้งแรก และ `saveScope=document` สำหรับเอกสารที่มีรายการแล้ว) เพื่อเก็บ document id/ข้อมูลเดิม โดยไม่เปิด save stage ซ้ำเมื่อมี request เดิมกำลังทำงานอยู่
 - `save`: WTI บันทึกข้อมูลตามปุ่มบันทึกเดิม
 - `stock_check`: WTO ตรวจ stock และข้อมูลทุกรายการใหม่ก่อนบันทึกทุกครั้ง
+- หลัง transaction หลัก commit สำเร็จ API save จะทำ image preview signing พร้อม audit ในงานคู่ขนาน และตอบเฉพาะข้อมูลที่ฟอร์มต้องใช้ต่อทันที; timeline/pending-out detail ไม่ถูก query ซ้ำใน response ของ save เพราะหน้า detail มี endpoint สำหรับโหลดข้อมูลเหล่านี้แยกอยู่แล้ว. เหตุผลคือการบันทึกธุรกรรมต้องรอ DB commit และ audit ให้เสร็จ แต่ไม่ควรบล็อกด้วยข้อมูลประกอบที่ไม่ได้ใช้ต่อในฟอร์ม.
 - `confirm`: ยืนยันรับ/ส่งของจากหน้า detail หรือ modal
 
 การแสดงสถานะเป็น `role=status`, `aria-live=polite` และปิดปุ่มที่เรียก operation เดิมระหว่างรอ เพื่อป้องกันการกดซ้ำ. หลัง auto-save สำเร็จ การบันทึกปุ่มสุดท้ายต้อง update ticket เดิมผ่าน `savedTicket.id` ไม่สร้างเอกสารซ้ำ. Server/database ยังคงเป็น source of truth และ UI ไม่ใช้ข้อมูลสำรองแบบ hard-code.

@@ -9,7 +9,6 @@ import { findActiveBranchReferenceByCodeOrId, findActiveBranchReferencesByCodes 
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
-import { getWeightTicketPendingOutEvents } from '@/lib/server/weight-ticket-pending-out-events'
 import { assertWeightTicketImpurityRules, assertWeightTicketPartyForType, WeightTicketWriteValidationError } from '@/lib/server/weight-ticket-write/type-guards'
 import {
   WtoPendingOutError,
@@ -23,7 +22,6 @@ import {
   buildWeightTicketProductSummaryRows,
   defaultTicketStatus,
   enteredByLabel,
-  getWeightTicketTimeline,
   getWeightTicketUsageCounts,
   getWeightTicketUsageCountsByTicketIds,
   mapWeightTicketRow,
@@ -275,16 +273,12 @@ export async function POST(request: Request) {
       if (values.type === 'WTO' && values.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
       }
-      const createdLines = [] as Array<Awaited<ReturnType<typeof tx.weight_ticket_lines.create>>>
-      for (const data of lineRows) {
-        createdLines.push(await tx.weight_ticket_lines.create({ data }))
-      }
+      const createdLines = await tx.weight_ticket_lines.createManyAndReturn({ data: lineRows })
       const imageCount = values.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
       const { summaryRows } = buildWeightTicketProductSummaryRows(createdTicket.id, createdLines)
-      const createdSummaries = [] as Array<Awaited<ReturnType<typeof tx.weight_ticket_product_summaries.create>>>
-      for (const { lineIds: _lineIds, ...data } of summaryRows) {
-        createdSummaries.push(await tx.weight_ticket_product_summaries.create({ data }))
-      }
+      const createdSummaries = await tx.weight_ticket_product_summaries.createManyAndReturn({
+        data: summaryRows.map(({ lineIds: _lineIds, ...data }) => data),
+      })
       const summaryIdByProductId = new Map(createdSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
       const bridgeRows = summaryRows.flatMap(({ lineIds, product_id }) => {
         const summaryId = summaryIdByProductId.get(String(product_id))
@@ -325,39 +319,36 @@ export async function POST(request: Request) {
     const mapped = mapWeightTicketRow(created, usage)
     let responseMapped = mapped
     let imagePreviewWarning = false
-    try {
-      responseMapped = await attachWeightTicketImagePreviewUrls(mapped, imageBucket)
-    } catch (caught) {
+    const responseMappedPromise = attachWeightTicketImagePreviewUrls(mapped, imageBucket).catch((caught) => {
       imagePreviewWarning = true
       console.error('[weight-ticket] saved ticket but preview signing failed', caught)
-    }
-
-    await recordAuditLog({
-      action: 'create',
-      afterData: weightTicketAuditSnapshot(mapped),
-      context,
-      entityId: String(created.id),
-      entityLabel: created.doc_no,
-      entitySchema: 'public',
-      entityTable: 'weight_tickets',
-      eventKey: 'daily.weight-ticket.created',
-      metadata: {
-        branchName: mapped.branchName,
-        documentNo: mapped.documentNo,
-        type: mapped.type,
-      },
-      request,
-      targetId: String(created.id),
-      targetLabel: created.doc_no,
-      targetType: 'weight_ticket',
+      return mapped
     })
-    const timeline = await getWeightTicketTimeline(prisma, created.id)
-    const pendingOutEvents = await getWeightTicketPendingOutEvents(prisma, created.id)
+    await Promise.all([
+      responseMappedPromise.then((value) => { responseMapped = value }),
+      recordAuditLog({
+        action: 'create',
+        afterData: weightTicketAuditSnapshot(mapped),
+        context,
+        entityId: String(created.id),
+        entityLabel: created.doc_no,
+        entitySchema: 'public',
+        entityTable: 'weight_tickets',
+        eventKey: 'daily.weight-ticket.created',
+        metadata: {
+          branchName: mapped.branchName,
+          documentNo: mapped.documentNo,
+          type: mapped.type,
+        },
+        request,
+        targetId: String(created.id),
+        targetLabel: created.doc_no,
+        targetType: 'weight_ticket',
+      }),
+    ])
     return NextResponse.json({
       ...responseMapped,
       imagePreviewWarning,
-      pendingOutEvents,
-      timeline,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

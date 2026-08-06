@@ -352,14 +352,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
         const existingLineByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
         const retainedLineNos = new Set(lineRows.map((line) => line.line_no))
-        for (const data of lineRows) {
+        await Promise.all(lineRows.map(async (data) => {
           const existingLine = existingLineByLineNo.get(data.line_no)
           if (existingLine) {
             await tx.weight_ticket_lines.update({ data, where: { id: existingLine.id } })
           } else {
             await tx.weight_ticket_lines.create({ data })
           }
-        }
+        }))
         const removedLineIds = existing.weight_ticket_lines
           .filter((line) => !retainedLineNos.has(line.line_no))
           .map((line) => line.id)
@@ -455,42 +455,37 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
     let responseMapped = mapped
     let imagePreviewWarning = false
-    try {
-      responseMapped = await attachWeightTicketImagePreviewUrls(mapped, imageBucket)
-    } catch (caught) {
+    const responseMappedPromise = attachWeightTicketImagePreviewUrls(mapped, imageBucket).catch((caught) => {
       imagePreviewWarning = true
       console.error('[weight-ticket] updated ticket but preview signing failed', caught)
-    }
-    await recordAuditLog({
-      action: 'update',
-      afterData: weightTicketAuditSnapshot(mapped),
-      beforeData: beforeSnapshot,
-      context: auth,
-      entityId: String(updated.id),
-      entityLabel: updated.doc_no,
-      entitySchema: 'public',
-      entityTable: 'weight_tickets',
-      eventKey: 'daily.weight-ticket.updated',
-      metadata: {
-        branchName: mapped.branchName,
-        documentNo: mapped.documentNo,
-        type: mapped.type,
-      },
-      request,
-      targetId: String(updated.id),
-      targetLabel: updated.doc_no,
-      targetType: 'weight_ticket',
+      return mapped
     })
-
-    const [timeline, pendingOutEvents] = await Promise.all([
-      getWeightTicketTimeline(prisma, updated.id),
-      getWeightTicketPendingOutEvents(prisma, updated.id),
+    await Promise.all([
+      responseMappedPromise.then((value) => { responseMapped = value }),
+      recordAuditLog({
+        action: 'update',
+        afterData: weightTicketAuditSnapshot(mapped),
+        beforeData: beforeSnapshot,
+        context: auth,
+        entityId: String(updated.id),
+        entityLabel: updated.doc_no,
+        entitySchema: 'public',
+        entityTable: 'weight_tickets',
+        eventKey: 'daily.weight-ticket.updated',
+        metadata: {
+          branchName: mapped.branchName,
+          documentNo: mapped.documentNo,
+          type: mapped.type,
+        },
+        request,
+        targetId: String(updated.id),
+        targetLabel: updated.doc_no,
+        targetType: 'weight_ticket',
+      }),
     ])
     return NextResponse.json({
       ...responseMapped,
       imagePreviewWarning,
-      pendingOutEvents,
-      timeline,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
