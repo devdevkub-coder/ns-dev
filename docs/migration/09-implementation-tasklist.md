@@ -262,10 +262,10 @@
   - [x] ปรับ product/impurity product original และ thumbnail จาก `cacheControl: '3600'` เป็น `31536000` โดยใช้ versioned storage key
   - [x] ยืนยัน list/picker ใช้ thumbnail เท่านั้น และ product detail/edit preview โหลด original เมื่อมี key
   - [x] audit `next/image`, `loading`, `sizes`, stable dimensions และ no-preload สำหรับ persisted product/impurity/WTI/WTO surfaces; local upload previews ใช้ fixed dimensions และไม่ใช่ CDN list asset
-  - [ ] แยก Storage contract ของ WTI/WTO: code/migration เตรียมแล้วให้ `weight-ticket-images` เป็น private สำหรับรูปหลักฐาน, `weight-ticket-pdfs` เป็น public สำหรับ PDF/LINE album artifact; ต้อง dry-run/apply ย้าย reference เดิมราย environmentก่อนปิดงาน
+  - [ ] แยก Storage contract ของ WTI/WTO: runtime hardening ให้ `weight-ticket-images` เป็น private สำหรับรูปหลักฐาน, `weight-ticket-pdfs` เป็น public สำหรับ PDF/LINE album artifact; ต้องตรวจ bucket policy และ dry-run/apply ย้าย object/reference เดิมราย environment ก่อน deploy runtime
   - [x] ล้างข้อมูลและ drop legacy `products.image_names` ผ่าน migrations `20260718140000_clear_legacy_product_image_names.sql` และ `20260718143000_drop_legacy_product_image_names.sql` หลัง Prisma/schema consumer audit ผ่าน
   - [x] เพิ่ม `image_delivery` telemetry สำหรับ WTI/WTO attachment load/error โดยไม่ส่ง URL, document number หรือ scope และเอา placeholder รูป hardcode ออกจาก LINE path
-  - [x] เพิ่ม `audit:weight-ticket-image-assets` และตรวจ dev/SIT/UAT: ไม่มี data URL, invalid URL หรือ missing storage key; หลัง bucket split ต้อง audit private image bucket แยก และ legacy filename-only references ยังต้องออกแบบ mapping แยก
+  - [ ] เพิ่ม/รัน `audit:weight-ticket-image-assets` หลัง bucket split ให้ตรวจ private image bucket แยก, ไม่มี data URL/invalid URL/missing storage key และไม่มี legacy filename-only references ที่ยังใช้ใน runtime
   - [ ] วัด image request count, bytes, Storage/CDN latency และ broken-image rate แยกจาก Redis cache metrics หลัง deploy
 
 **CACHE-M5 exit criteria:** มี runtime evidence จาก SIT/UAT, invalidation/scope isolation ผ่าน, key/TTL decision ถูกบันทึก, image delivery audit ผ่าน และ legacy image data ถูก cleanup หรือมี blocker ที่ระบุเจ้าของงานชัดเจน.

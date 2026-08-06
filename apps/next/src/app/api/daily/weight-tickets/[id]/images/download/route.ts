@@ -9,62 +9,28 @@ import { decodeStoredImageAsset, type StoredImageAsset } from '@/lib/weight-tick
 
 export const runtime = 'nodejs'
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+// This is a server-safety guard for the complete archive, not a per-image
+// business limit. Per-image validation belongs to the upload contract.
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
-
-function allowedRemoteImageHost() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  if (!supabaseUrl) return null
-  try {
-    return new URL(supabaseUrl).hostname
-  } catch {
-    return null
-  }
-}
 
 function safeFileName(value: string, fallback: string) {
   const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
-  return cleaned || fallback
-}
-
-function dataUrlBytes(url: string) {
-  const match = url.match(/^data:image\/(?:png|jpe?g|webp);base64,(.+)$/i)
-  return match ? Buffer.from(match[1], 'base64') : null
+  const fileName = cleaned || fallback
+  return fileName.replace(/\.([A-Za-z0-9]+)$/, (_match, extension: string) => `.${extension.toLowerCase()}`)
 }
 
 async function loadImageBytes(asset: StoredImageAsset, bucket: string, supabase: ReturnType<typeof getSupabaseAdminClient>) {
-  const dataBytes = asset.url ? dataUrlBytes(asset.url) : null
-  if (dataBytes) {
-    if (dataBytes.byteLength > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
-    return dataBytes
+  if (!asset.bucket || !asset.storageKey) {
+    throw new Error(`รูป ${asset.fileName} ยังไม่อยู่ใน private image bucket กรุณารัน migration/backfill ก่อนดาวน์โหลด`)
   }
-
-  if (asset.storageKey && supabase && bucket) {
-    if (asset.bucket && asset.bucket !== bucket) {
-      throw new Error(`ไม่อนุญาตให้ดาวน์โหลดรูปจาก bucket ${asset.bucket}`)
-    }
-    const { data, error } = await supabase.storage.from(bucket).download(asset.storageKey)
-    if (error || !data) throw new Error(error?.message ?? `ไม่พบไฟล์ ${asset.fileName}`)
-    if (data.size > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
-    return Buffer.from(await data.arrayBuffer())
+  if (asset.bucket !== bucket) {
+    throw new Error(`ไม่อนุญาตให้ดาวน์โหลดรูปจาก bucket ${asset.bucket}`)
   }
+  if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับดาวน์โหลดรูปหลักฐาน')
 
-  const allowedHost = allowedRemoteImageHost()
-  if (asset.url?.startsWith('https://') && allowedHost) {
-    const remoteUrl = new URL(asset.url)
-    if (remoteUrl.hostname !== allowedHost) {
-      throw new Error(`ไม่อนุญาตให้โหลดรูปจาก ${remoteUrl.hostname}`)
-    }
-    const response = await fetch(remoteUrl, { cache: 'no-store', signal: AbortSignal.timeout(30_000) })
-    if (!response.ok) throw new Error(`โหลดไฟล์ ${asset.fileName} ไม่สำเร็จ (${response.status})`)
-    const contentLength = Number(response.headers.get('content-length') ?? 0)
-    if (contentLength > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
-    const bytes = Buffer.from(await response.arrayBuffer())
-    if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error(`ไฟล์ ${asset.fileName} มีขนาดใหญ่เกินไป`)
-    return bytes
-  }
-
-  throw new Error(`ไม่พบแหล่งไฟล์สำหรับ ${asset.fileName}`)
+  const { data, error } = await supabase.storage.from(bucket).download(asset.storageKey)
+  if (error || !data) throw new Error(error?.message ?? `ไม่พบไฟล์ ${asset.fileName}`)
+  return Buffer.from(await data.arrayBuffer())
 }
 
 function ticketImageAssets(ticket: Awaited<ReturnType<typeof findScopedWeightTicket>>) {
@@ -74,7 +40,7 @@ function ticketImageAssets(ticket: Awaited<ReturnType<typeof findScopedWeightTic
     ...ticket.weight_ticket_lines.flatMap((line) => line.image_names ?? []),
   ]
     .map(decodeStoredImageAsset)
-    .filter((asset) => asset.storageKey || asset.url?.startsWith('data:image/') || asset.url?.startsWith('https://'))
+    .filter((asset) => asset.rawValue.trim().length > 0)
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {

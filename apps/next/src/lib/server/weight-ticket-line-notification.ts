@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { buildReceiptPrintHtml } from '@/lib/weight-ticket-print'
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import type { Prisma } from '../../../generated/prisma/client'
-import { decodeStoredImageAsset, formatDateDisplay, formatWeight, type WeightTicketRecord, typeLabels, type StoredImageAsset } from '@/lib/weight-tickets'
+import { decodeStoredImageAsset, encodeStoredImageReference, formatDateDisplay, formatWeight, type WeightTicketRecord, typeLabels, type StoredImageAsset } from '@/lib/weight-tickets'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/reference-master-cache'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
@@ -88,15 +88,6 @@ function cleanText(value: string | null | undefined, fallback = '-') {
 
 function safeStorageSegment(value: string) {
   return value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
-}
-
-function imageFromDataUrl(value: string) {
-  const match = value.match(/^data:image\/(png|jpe?g);base64,(.+)$/i)
-  if (!match) return null
-  return {
-    bytes: Buffer.from(match[2], 'base64'),
-    type: match[1].toLowerCase().startsWith('jp') ? 'jpg' as const : 'png' as const,
-  }
 }
 
 async function loadCompanyPrintProfile(branchId: string): Promise<CompanyProfilePrintValues | null> {
@@ -234,6 +225,19 @@ async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, page
 
 function buildDetailUrl(origin: string, documentNo: string, type: 'WTI' | 'WTO') {
   return new URL(`/daily/weight-ticket-list?detail=${encodeURIComponent(documentNo)}&type=${encodeURIComponent(type)}`, origin).toString()
+}
+
+function withResolvedImageUrls(ticket: WeightTicketRecord, imageUrls: string[]): WeightTicketRecord {
+  return {
+    ...ticket,
+    imageNames: ticket.imageNames.map((rawValue, index) => {
+      const asset = decodeStoredImageAsset(rawValue)
+      const url = imageUrls[index]
+      return asset.bucket && asset.storageKey && url
+        ? encodeStoredImageReference(asset.fileName, url, asset.storageKey, asset.bucket)
+        : rawValue
+    }),
+  }
 }
 
 function buildProductDetailRows(ticket: WeightTicketRecord) {
@@ -1074,65 +1078,23 @@ async function recordNotificationLog(values: {
 
 async function resolveImagePublicUrls(ticket: WeightTicketRecord, bucketName: string): Promise<string[]> {
   const images = ticket.imageNames || []
+  const supabase = getSupabaseAdminClient()
+  if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างลิงก์รูปหลักฐาน')
   const publicUrls: string[] = []
 
   for (const img of images) {
     const asset = decodeStoredImageAsset(img)
-    if (!asset.url) {
-      publicUrls.push('')
-      continue
+    if (!asset.bucket || !asset.storageKey) {
+      throw new Error(`พบรูปหลักฐาน ${asset.fileName} ที่ยังไม่ถูกย้ายเข้า private image bucket กรุณารัน migration/backfill ก่อนส่ง LINE`)
     }
-
-    try {
-      const supabase = getSupabaseAdminClient()
-      if (asset.storageKey && supabase) {
-        if (asset.bucket && asset.bucket !== bucketName) {
-          publicUrls.push('')
-          continue
-        }
-        const { data, error } = await supabase.storage.from(bucketName).createSignedUrl(asset.storageKey, SIGNED_URL_TTL_SECONDS)
-        publicUrls.push(error || !data?.signedUrl ? '' : data.signedUrl)
-        continue
-      }
-
-      if (asset.url.startsWith('http://') || asset.url.startsWith('https://')) {
-        publicUrls.push(asset.url)
-        continue
-      }
-
-      const imgData = imageFromDataUrl(asset.url)
-      if (imgData) {
-        if (process.env.MOCK_PDF_UPLOAD !== 'true') {
-          if (!supabase) {
-            publicUrls.push('')
-            continue
-          }
-          const storageKey = `${safeStorageSegment(ticket.documentNo)}/photos/${safeStorageSegment(asset.fileName)}`
-          const { error } = await supabase.storage.from(bucketName).upload(storageKey, imgData.bytes, {
-            contentType: imgData.type === 'png' ? 'image/png' : 'image/jpeg',
-            upsert: true,
-          })
-          if (error) {
-            console.error('Failed to upload ticket image to Supabase:', error.message)
-          } else {
-            const { data, error: signedUrlError } = await supabase.storage.from(bucketName).createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS)
-            if (signedUrlError || !data?.signedUrl) {
-              console.error('Failed to create signed ticket image URL:', signedUrlError?.message ?? 'missing signed URL')
-              publicUrls.push('')
-            } else {
-              publicUrls.push(data.signedUrl)
-            }
-          }
-        } else {
-          publicUrls.push('')
-        }
-      } else {
-        publicUrls.push('')
-      }
-    } catch (err) {
-      console.warn('Failed to upload dataUrl photo:', err)
-      publicUrls.push('')
+    if (asset.bucket !== bucketName) {
+      throw new Error(`รูปหลักฐาน ${asset.fileName} อ้างอิง bucket ไม่ตรงกับ private image bucket`)
     }
+    const { data, error } = await supabase.storage.from(bucketName).createSignedUrl(asset.storageKey, SIGNED_URL_TTL_SECONDS)
+    if (error || !data?.signedUrl) {
+      throw new Error(`สร้าง signed URL รูปหลักฐาน ${asset.fileName} ไม่สำเร็จ: ${error?.message ?? 'ไม่พบ signed URL'}`)
+    }
+    publicUrls.push(data.signedUrl)
   }
 
   return publicUrls
@@ -1187,10 +1149,12 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     const profile = await loadCompanyPrintProfile(loaded.record.branchId)
     const detailUrl = buildDetailUrl(options.origin || configs.appUrl, loaded.record.documentNo, loaded.record.type)
 
-    // --- PDF + album generation (optional, graceful degradation) ---
-    // ถ้า Playwright/Supabase พัง → ยังส่งข้อความ LINE ได้ (ไม่มี PDF แนบ)
-    // เพราะ template รองรับ pdfUrl='' อยู่แล้ว (degrades เป็น '-')
-    // ทำตามแนวทางของ ChatGPT: อย่าให้ PDF gen เป็น hard blocker ของทั้ง notification
+    const imagePublicUrls = await resolveImagePublicUrls(loaded.record, configs.imageBucket)
+    const pdfRecord = withResolvedImageUrls(loaded.record, imagePublicUrls)
+
+    // PDF, public album artifacts, and private source-image resolution are one
+    // evidence boundary. If any part fails, do not send a misleading message
+    // that omits the document evidence.
     let pdfUrl = ''
     let albumImageUrls: string[] = []
     let pdfStorageBucket = configs.pdfBucket
@@ -1200,7 +1164,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     try {
       // ใช้ module ใหม่ react-pdf + @napi-rs/canvas (แทน Playwright)
       // กำจัด dependency Chromium binary ออกจาก Docker image ทั้งหมด
-      const { pdfBuffer, albumImages } = await generateWeightTicketPdfReactPdf(loaded.record, profile as CompanyProfilePrintValues, {
+      const { pdfBuffer, albumImages } = await generateWeightTicketPdfReactPdf(pdfRecord, profile as CompanyProfilePrintValues, {
         showBadges: configs.albumShowBadges,
         showTimestamps: configs.albumShowTimestamps,
         quality: configs.albumQuality,
@@ -1216,14 +1180,12 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
         albumImageUrls.push(url)
       }
     } catch (pdfErr) {
-      // PDF/album พัง → log warning แล้วทำงานต่อ ส่งข้อความอย่างเดียว (ไม่มี PDF แนบ)
       const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr)
-      console.warn('[notifyWeightTicketLine] PDF generation failed, sending message without PDF attachment:', errMsg)
+      throw new Error(`เตรียม PDF/รูปหลักฐานสำหรับส่ง LINE ไม่สำเร็จ: ${errMsg}`)
     }
 
-    const imagePublicUrls = await resolveImagePublicUrls(loaded.record, configs.imageBucket)
-    const flexMessage = buildFlexMessage(loaded.record, pdfUrl, pdfDownloadUrl, detailUrl, imagePublicUrls, albumImageUrls, options.customMessage)
-    const customTemplate = loaded.record.type === 'WTI' ? configs.wtiTemplate : configs.wtoTemplate
+    const flexMessage = buildFlexMessage(pdfRecord, pdfUrl, pdfDownloadUrl, detailUrl, imagePublicUrls, albumImageUrls, options.customMessage)
+    const customTemplate = pdfRecord.type === 'WTI' ? configs.wtiTemplate : configs.wtoTemplate
     const textMessage = {
       type: 'text',
       text: formatCustomTemplate(customTemplate, loaded.record, pdfUrl)

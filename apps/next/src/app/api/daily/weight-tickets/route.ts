@@ -35,7 +35,7 @@ import {
   weightTicketInclude,
   weightTicketWhere,
 } from '@/lib/server/weight-tickets'
-import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
+import { attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -133,7 +133,9 @@ export async function POST(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'daily.weight_tickets.create')
 
-    const values = weightTicketFormSchema.parse(await request.json())
+    const parsedValues = weightTicketFormSchema.parse(await request.json())
+    const imageBucket = await resolveWeightTicketImageBucket()
+    const values = normalizeWeightTicketImageReferences(parsedValues, imageBucket)
     const scopedBranchIds = branchScopeIds(context)
     const parsedImpurityIds = values.lines.map((line) => parseInternalBigIntId(line.impurityId))
     const productCodes = [...new Set(values.lines.flatMap((line) => [
@@ -321,8 +323,14 @@ export async function POST(request: Request) {
 
     const usage = await getWeightTicketUsageCounts(prisma, created.id)
     const mapped = mapWeightTicketRow(created, usage)
-
-    await syncWeightTicketToGoogleSheets('create', mapped)
+    let responseMapped = mapped
+    let imagePreviewWarning = false
+    try {
+      responseMapped = await attachWeightTicketImagePreviewUrls(mapped, imageBucket)
+    } catch (caught) {
+      imagePreviewWarning = true
+      console.error('[weight-ticket] saved ticket but preview signing failed', caught)
+    }
 
     await recordAuditLog({
       action: 'create',
@@ -346,7 +354,8 @@ export async function POST(request: Request) {
     const timeline = await getWeightTicketTimeline(prisma, created.id)
     const pendingOutEvents = await getWeightTicketPendingOutEvents(prisma, created.id)
     return NextResponse.json({
-      ...mapped,
+      ...responseMapped,
+      imagePreviewWarning,
       pendingOutEvents,
       timeline,
     })

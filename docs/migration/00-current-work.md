@@ -1,3 +1,15 @@
+# WTI/WTO Storage Visibility Boundary — 2026-08-06
+
+Objective: แยก source evidence ของ WTI/WTO ออกจาก outbound artifact ให้ชัดเจน: รูปหลักฐานเก็บใน `WEIGHT_TICKET_IMAGE_BUCKET` แบบ private และ PDF/ภาพอัลบั้มที่สร้างเพื่อส่งต่อเก็บใน `WEIGHT_TICKET_PDF_BUCKET` แบบ public.
+
+Active batch: harden upload, read/preview, browser print, ZIP download, PDF/LINE generation, canonical image references และ migration/backfill scripts. Runtime ไม่รับ data URL, URL-only, filename-only หรือ bucket ผิดเป็น write path อีกต่อไป; signed URL สร้างใหม่เฉพาะ response/preview/print/PDF/LINE.
+
+Status: โค้ด bucket split เดิมอยู่บน `07b57495` และ `sit-origin/main`; hardening รอบนี้ยังเป็น local uncommitted changes. ยังไม่ apply SQL, ยังไม่ย้าย object และยังไม่ deploy SIT/Production.
+
+Required rollout gate: ตรวจ bucket จริงราย environment ให้ image private/PDF public, รัน dry-run แล้วจึง apply migration/backfill ด้วย manifest ภายนอก, audit legacy/filename-only references ให้หมด และค่อย deploy runtime. ห้ามลบ source object อัตโนมัติ.
+
+Immediate next task: รัน full lint, type-check, production build และตรวจ diff สุดท้าย; จากนั้นรอคำสั่งผู้ใช้ก่อน commit/push หรือ apply ฐานข้อมูล.
+
 # LINE Notification Reliability — 2026-08-05
 
 Objective: ทำให้ Connection/Webhook, Targets, Routing, Test Send, Queue/Retry และเอกสาร WTI/WTO/PB/SB/PMT/RCP ใช้ contract เดียวกันและรายงานผลตรงกับ LINE จริง

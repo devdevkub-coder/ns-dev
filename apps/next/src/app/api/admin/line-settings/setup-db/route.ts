@@ -204,7 +204,18 @@ export async function GET(request: Request) {
         ('WEIGHT_TICKET_PDF_BUCKET', 'Public Supabase Storage bucket for generated WTI/WTO PDFs and LINE album artifacts', 'weight-ticket-pdfs')
       ON CONFLICT (key) DO UPDATE
       SET description = EXCLUDED.description,
-          value = COALESCE(NULLIF(BTRIM(public.system_settings.value), ''), EXCLUDED.value);
+          value = CASE
+            WHEN NULLIF(BTRIM(public.system_settings.value), '') IS NULL THEN EXCLUDED.value
+            WHEN public.system_settings.key = 'WEIGHT_TICKET_IMAGE_BUCKET'
+              AND NULLIF(BTRIM(public.system_settings.value), '') = COALESCE((
+              SELECT NULLIF(BTRIM(value), '')
+              FROM public.system_settings
+              WHERE key = 'WEIGHT_TICKET_PDF_BUCKET'
+            ), 'weight-ticket-pdfs') THEN EXCLUDED.value
+            WHEN public.system_settings.key = 'WEIGHT_TICKET_PDF_BUCKET'
+              AND NULLIF(BTRIM(public.system_settings.value), '') IS NULL THEN EXCLUDED.value
+            ELSE public.system_settings.value
+          END;
 
       INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
       VALUES ('weight-ticket-images', 'weight-ticket-images', false, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp'])

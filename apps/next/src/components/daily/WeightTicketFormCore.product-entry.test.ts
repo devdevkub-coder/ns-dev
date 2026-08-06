@@ -53,7 +53,7 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain('<WeightTicketSaveProgress stage={saveStage} type={form.type} />')
     expect(formSource).toContain("saveInFlightRef.current = 'auto_save'")
     expect(formSource).toContain("saveInFlightRef.current = 'save'")
-    expect(formSource).toContain("saveScope: snapshot.lines.length === 0 ? 'header' : undefined")
+    expect(formSource).toContain("saveScope: snapshotToSave.lines.length === 0 ? 'header' : undefined")
     expect(formSource).toContain("if (shouldIgnoreRapidAdd('product')) return")
     expect(formSource).toContain('if (shouldIgnoreRapidAdd(`lot:${sourceLine.id}`)) return')
     expect(formSource).toContain('if (shouldIgnoreRapidAdd(`impurity:${sourceLine.id}`)) return')

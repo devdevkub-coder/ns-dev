@@ -27,8 +27,8 @@ afterAll(() => {
 describe('stored weight ticket image URL contract', () => {
   it('accepts only parseable HTTP(S) assets for previews', () => {
     const assets = [
-      encodeStoredImageReference('http.jpg', 'http://storage.example.com/http.jpg', 'weight-ticket/http.jpg'),
-      encodeStoredImageReference('https.jpg', 'https://storage.example.com/https.jpg?token=signed', 'weight-ticket/https.jpg'),
+      encodeStoredImageReference('http.jpg', 'http://storage.example.com/http.jpg', 'weight-ticket/http.jpg', 'weight-ticket-images'),
+      encodeStoredImageReference('https.jpg', 'https://storage.example.com/https.jpg?token=signed', 'weight-ticket/https.jpg', 'weight-ticket-images'),
       'data:image/png;base64,AAAA',
       'legacy-pipe.jpg|data:image/jpeg;base64,BBBB',
       JSON.stringify({ dataUrl: 'data:image/webp;base64,CCCC', fileName: 'legacy-json.webp' }),
@@ -63,7 +63,7 @@ describe('WeightTicketImageGallery', () => {
   it('renders the combined ticket images and opens the existing gallery at the clicked image', () => {
     const onOpen = vi.fn()
     const imageNames = Array.from({ length: 6 }, (_, index) => (
-      encodeStoredImageReference(`evidence-${index + 1}.jpg`, `https://example.com/evidence-${index + 1}.jpg`, `weight-ticket/evidence-${index + 1}.jpg`)
+      encodeStoredImageReference(`evidence-${index + 1}.jpg`, `https://example.com/evidence-${index + 1}.jpg`, `weight-ticket/evidence-${index + 1}.jpg`, 'weight-ticket-images')
     ))
 
     act(() => root.render(<WeightTicketImageGallery imageNames={imageNames} onOpen={onOpen} />))
@@ -97,7 +97,7 @@ describe('WeightTicketImageGallery', () => {
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
     const imageNames = [
-      encodeStoredImageReference('evidence.jpg', 'https://example.com/evidence.jpg', 'weight-ticket/evidence.jpg'),
+      encodeStoredImageReference('evidence.jpg', 'https://example.com/evidence.jpg', 'weight-ticket/evidence.jpg', 'weight-ticket-images'),
     ]
 
     act(() => root.render(
@@ -122,7 +122,7 @@ describe('WeightTicketImageGallery', () => {
 
   it('keeps the download button enabled when only vehicle images are downloadable', () => {
     const onOpen = vi.fn()
-    const vehicleImage = encodeStoredImageReference('vehicle.jpg', 'https://example.com/vehicle.jpg', 'weight-ticket/vehicle.jpg')
+    const vehicleImage = encodeStoredImageReference('vehicle.jpg', 'https://example.com/vehicle.jpg', 'weight-ticket/vehicle.jpg', 'weight-ticket-images')
 
     act(() => root.render(
       <WeightTicketImageGallery
@@ -152,7 +152,7 @@ describe('WeightTicketImageGallery', () => {
   it('opens a single image as a one-item gallery', () => {
     const onOpen = vi.fn()
     const imageNames = [
-      encodeStoredImageReference('single.jpg', 'https://example.com/single.jpg', 'weight-ticket/single.jpg'),
+      encodeStoredImageReference('single.jpg', 'https://example.com/single.jpg', 'weight-ticket/single.jpg', 'weight-ticket-images'),
     ]
 
     act(() => root.render(<WeightTicketImageGallery imageNames={imageNames} onOpen={onOpen} />))
@@ -170,7 +170,7 @@ describe('WeightTicketImageGallery', () => {
   it('keeps legacy filename-only evidence readable without creating a broken preview', () => {
     const onOpen = vi.fn()
     const imageNames = [
-      encodeStoredImageReference('preview.jpg', 'https://example.com/preview.jpg', 'weight-ticket/preview.jpg'),
+      encodeStoredImageReference('preview.jpg', 'https://example.com/preview.jpg', 'weight-ticket/preview.jpg', 'weight-ticket-images'),
       'legacy-camera-01.jpg',
     ]
 
@@ -184,7 +184,7 @@ describe('WeightTicketImageGallery', () => {
   it('previews only valid web URLs and keeps every legacy data URL format unavailable', () => {
     const onOpen = vi.fn()
     const imageNames = [
-      encodeStoredImageReference('stored.jpg', 'https://storage.example.com/stored.jpg?token=signed', 'weight-ticket/stored.jpg'),
+      encodeStoredImageReference('stored.jpg', 'https://storage.example.com/stored.jpg?token=signed', 'weight-ticket/stored.jpg', 'weight-ticket-images'),
       'data:image/png;base64,AAAA',
       'legacy-pipe.jpg|data:image/jpeg;base64,BBBB',
       JSON.stringify({ dataUrl: 'data:image/webp;base64,CCCC', fileName: 'legacy-json.webp' }),

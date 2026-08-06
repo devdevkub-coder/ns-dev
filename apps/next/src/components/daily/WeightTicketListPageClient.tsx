@@ -40,6 +40,7 @@ import {
   confirmWeightTicket,
   displayWeightTicketStatus,
   formatWeight,
+  getWeightTicket,
   listWeightTickets,
   notifyWeightTicketLine,
   type OptionItem,
@@ -425,7 +426,8 @@ export function WeightTicketListPageClient() {
     let printWindow: Window | null = null
     try {
       printWindow = openWeightTicketPrintWindow(ticket)
-      await openWeightTicketReceiptPrint(ticket, printWindow)
+      const detailTicket = await getWeightTicket(ticket.id)
+      await openWeightTicketReceiptPrint(detailTicket, printWindow)
     } catch (caught) {
       printWindow?.close()
       window.alert(getErrorMessage(caught, 'เปิดใบพิมพ์ใบรับ-ส่งสินค้าไม่สำเร็จ'))

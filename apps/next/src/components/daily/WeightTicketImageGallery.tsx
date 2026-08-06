@@ -39,9 +39,7 @@ export function WeightTicketImageGallery({
     .filter(isPreviewableStoredImageAsset)
     .map(({ fileName, url }) => ({ fileName, url }))
   const downloadableImages = decodedDownloadImages.filter((image) => Boolean(
-    image.storageKey
-      || image.url?.startsWith('data:image/')
-      || image.url?.startsWith('https://'),
+    image.bucket && image.storageKey,
   ))
   const legacyImageCount = decodedImages.length - images.length
 

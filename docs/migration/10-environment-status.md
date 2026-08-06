@@ -1,5 +1,11 @@
 # 10 Environment Status
 
+### WTI/WTO Storage Bucket Split Hardening — 2026-08-06
+
+- Target contract: `WEIGHT_TICKET_IMAGE_BUCKET` ต้องเป็น private สำหรับรูปหลักฐานต้นฉบับ; `WEIGHT_TICKET_PDF_BUCKET` ต้องเป็น public สำหรับ PDF และภาพ JPEG อัลบั้มที่สร้างเป็น outbound artifact.
+- Runtime hardening ถูกเตรียมใน local เท่านั้น: DB จะเก็บ `{bucket, storageKey, fileName}` โดยไม่เก็บ signed URL; signed URL อายุสั้นสร้างตอนอ่าน/preview/print/PDF/LINE. legacy data URL, URL-only, filename-only และ reference ข้าม bucket จะ fail closed.
+- Migration `20260806120000_split_weight_ticket_image_and_pdf_buckets.sql` และ scripts สำหรับ dry-run/apply/backfill ยังไม่ได้รันใน SIT หรือ Production ใน checkpoint นี้. ห้ามสรุปจาก environment status เก่าว่า object เดิมถูกย้ายครบแล้ว; ต้องตรวจและทำ per-environment migration ก่อน deploy runtime.
+
 ### WTI/WTO Google Sheets Setting Retirement 2026-08-06
 
 - Runtime Google Sheets sync for WTI/WTO was removed from create, update, status, cancel, and LINE notification flows before this migration; WTI/WTO data remains in the application database, LINE, and audit/timeline records.
