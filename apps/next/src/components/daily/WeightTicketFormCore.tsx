@@ -1950,6 +1950,13 @@ export function WeightTicketFormCore({
     const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
     const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปสินค้าไม่สำเร็จ')] : [])
     if (nextFiles.length > 0) {
+      const currentForm = formRef.current
+      formRef.current = {
+        ...currentForm,
+        lines: currentForm.lines.map((line) => line.id === lineId
+          ? { ...line, imageFiles: [...getLineImages(line), ...nextFiles] }
+          : line),
+      }
       updateLine(lineId, (line) => ({ ...line, imageFiles: [...getLineImages(line), ...nextFiles] }))
       markTouched(`line-${lineId}-images`)
     }
@@ -1969,6 +1976,11 @@ export function WeightTicketFormCore({
     const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
     const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปรถไม่สำเร็จ')] : [])
     if (nextFiles.length > 0) {
+      const currentForm = formRef.current
+      formRef.current = {
+        ...currentForm,
+        vehicleImageFiles: [...currentForm.vehicleImageFiles, ...nextFiles],
+      }
       setForm((current) => ({ ...current, vehicleImageFiles: [...current.vehicleImageFiles, ...nextFiles] }))
     }
     if (failures.length > 0) {
@@ -2044,6 +2056,7 @@ export function WeightTicketFormCore({
     try {
       await waitForPendingAttachmentUploads()
       const formToSave = formRef.current
+      const saveSnapshot = formSafetySnapshot(formToSave)
       const ticket = await saveWeightTicket({
         branchId: formToSave.branchId,
         id: savedTicket?.id ?? editingTicketId,
@@ -2074,8 +2087,13 @@ export function WeightTicketFormCore({
       const nextForm = ticketToFormState(ticket)
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
-      setForm(nextForm)
-      setFormBaseline(formSafetySnapshot(nextForm))
+      if (formSafetySnapshot(formRef.current) === saveSnapshot) {
+        setForm(nextForm)
+        setFormBaseline(formSafetySnapshot(nextForm))
+      } else {
+        setMergeNotice('บันทึกข้อมูลเดิมแล้ว แต่มีการแก้ไขข้อมูลใหม่ระหว่างบันทึก จึงคงข้อมูลล่าสุดไว้ให้ตรวจสอบและบันทึกอีกครั้ง')
+        return
+      }
       if (onSaveSuccess) {
         onSaveSuccess(ticket)
       } else {
