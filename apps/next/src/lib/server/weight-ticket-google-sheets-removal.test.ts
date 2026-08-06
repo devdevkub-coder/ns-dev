@@ -1,16 +1,20 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
+const appRoot = resolve(fileURLToPath(new URL('../../../', import.meta.url)))
+const repoRoot = resolve(appRoot, '../..')
+
 const weightTicketSources = [
-  resolve(process.cwd(), 'src/app/api/daily/weight-tickets/route.ts'),
-  resolve(process.cwd(), 'src/app/api/daily/weight-tickets/[id]/route.ts'),
-  resolve(process.cwd(), 'src/lib/server/weight-ticket-line-notification.ts'),
-  resolve(process.cwd(), 'src/app/api/admin/line-settings/route.ts'),
-  resolve(process.cwd(), 'src/app/admin/line-settings/LineSettingsPageClient.tsx'),
+  resolve(appRoot, 'src/app/api/daily/weight-tickets/route.ts'),
+  resolve(appRoot, 'src/app/api/daily/weight-tickets/[id]/route.ts'),
+  resolve(appRoot, 'src/lib/server/weight-ticket-line-notification.ts'),
+  resolve(appRoot, 'src/app/api/admin/line-settings/route.ts'),
+  resolve(appRoot, 'src/app/admin/line-settings/LineSettingsPageClient.tsx'),
 ].map((path) => readFileSync(path, 'utf8'))
 const retirementMigration = readFileSync(
-  resolve(process.cwd(), '../../supabase/migrations/20260806100000_retire_google_sheets_weight_ticket_setting.sql'),
+  resolve(repoRoot, 'supabase/migrations/20260806100000_retire_google_sheets_weight_ticket_setting.sql'),
   'utf8',
 )
 
