@@ -226,6 +226,10 @@ export function WeightTicketDetailModal({
     () => (ticket?.vehicleImageNames ?? []).map(decodeStoredImageAsset),
     [ticket],
   )
+  const lineImageNames = useMemo(
+    () => ticket?.lines.flatMap((line) => line.imageNames) ?? [],
+    [ticket],
+  )
 
   async function handleCancelTicket() {
     if (!ticket) return
@@ -576,7 +580,7 @@ export function WeightTicketDetailModal({
                 downloadUrl={`/api/daily/weight-tickets/${encodeURIComponent(ticket.documentNo)}/images/download`}
                 downloadFileName={`${ticket.documentNo}-images.zip`}
                 downloadImageNames={ticket.imageNames}
-                imageNames={ticket.imageNames}
+                imageNames={lineImageNames}
                 isLoadingPreview={isLoadingImagePreview}
                 onOpen={(gallery) => setLineGallery(gallery)}
                 previewError={imagePreviewError}
