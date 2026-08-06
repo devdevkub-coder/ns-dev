@@ -14,7 +14,6 @@ import {
   mapWeightTicketRow,
   type WeightTicketRow,
 } from '@/lib/server/weight-tickets'
-import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
 // module ใหม่ที่ใช้ react-pdf + @napi-rs/canvas แทน Playwright
 // (import เป็น alias เพื่อไม่ให้ชนกับชื่อ function legacy ในไฟล์นี้)
 import { generateWeightTicketPdf as generateWeightTicketPdfReactPdf } from '@/lib/server/pdf/weight-ticket-pdf'
@@ -1221,15 +1220,6 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     const sentCount = sentResults.filter((r) => r.status === 'sent').length
     const skippedCount = sentResults.filter((r) => r.status === 'skipped').length
     const failedResults = sentResults.filter((r) => r.status === 'failed')
-
-    if (sentCount > 0) {
-      await syncWeightTicketToGoogleSheets('update', {
-        ...loaded.record,
-        pdfUrl,
-      } as any).catch((err) => {
-        console.error('[line-notification] failed to sync to google sheets:', err)
-      })
-    }
 
     if (sentCount === 0 && skippedCount > 0 && failedResults.length === 0) {
       return {

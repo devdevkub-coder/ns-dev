@@ -37,7 +37,6 @@ import {
   type WeightTicketRow,
   weightTicketAuditSnapshot,
 } from '@/lib/server/weight-tickets'
-import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
 import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
 
 export const runtime = 'nodejs'
@@ -450,7 +449,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
-    await syncWeightTicketToGoogleSheets('update', mapped)
     await recordAuditLog({
       action: 'update',
       afterData: weightTicketAuditSnapshot(mapped),
@@ -583,7 +581,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       })
 
       const mapped = mapWeightTicketRow(updated as WeightTicketRow, usage)
-      await syncWeightTicketToGoogleSheets('update', mapped)
       await recordAuditLog({
         action: 'status',
         afterData: weightTicketAuditSnapshot(mapped),
@@ -692,7 +689,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     })
 
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, usage)
-    await syncWeightTicketToGoogleSheets('cancel', mapped)
     await recordAuditLog({
       action: 'status',
       afterData: weightTicketAuditSnapshot(mapped),

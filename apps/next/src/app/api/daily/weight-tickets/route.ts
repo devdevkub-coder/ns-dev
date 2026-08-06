@@ -35,7 +35,6 @@ import {
   weightTicketInclude,
   weightTicketWhere,
 } from '@/lib/server/weight-tickets'
-import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -321,7 +320,6 @@ export async function POST(request: Request) {
 
     const usage = await getWeightTicketUsageCounts(prisma, created.id)
     const mapped = mapWeightTicketRow(created, usage)
-    await syncWeightTicketToGoogleSheets('create', mapped)
 
     await recordAuditLog({
       action: 'create',

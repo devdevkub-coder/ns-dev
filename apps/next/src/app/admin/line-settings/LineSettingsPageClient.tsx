@@ -24,7 +24,6 @@ const credentialsSchema = z.object({
   appUrl: z.string().trim().url('รูปแบบ URL ไม่ถูกต้อง').or(z.literal('')),
   lineAutoSendWti: z.boolean().default(false),
   lineAutoSendWto: z.boolean().default(false),
-  googleSheetsWebhookUrl: z.string().trim().url('รูปแบบ URL ไม่ถูกต้อง').or(z.literal('')).nullable().or(z.literal('')),
 })
 
 type CredentialsFormValues = z.infer<typeof credentialsSchema>
@@ -347,7 +346,6 @@ export function LineSettingsPageClient() {
     appUrl: '',
     lineAutoSendWti: false,
     lineAutoSendWto: false,
-    googleSheetsWebhookUrl: '',
   })
   const [credentialsBaseline, setCredentialsBaseline] = useState<string | null>(null)
 
