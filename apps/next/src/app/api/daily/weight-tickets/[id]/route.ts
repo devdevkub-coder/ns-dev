@@ -4,6 +4,7 @@ import { calculateTicketTotals, weightTicketCancelSchema, weightTicketConfirmSch
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { withAuthNoStore } from '@/lib/server/auth-response'
 import { currentActor, toDateOnly } from '@/lib/server/daily'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
@@ -109,7 +110,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     const { id } = await context.params
     const ticket = await findScopedTicket(id, branchScopeIds(auth))
-    if (!ticket) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 })
+    if (!ticket) return withAuthNoStore(NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 }))
 
     const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
@@ -123,16 +124,16 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       getWeightTicketDownstreamAllocations(prisma, ticket.id),
       getWeightTicketPendingOutEvents(prisma, ticket.id),
     ])
-    return NextResponse.json({
+    return withAuthNoStore(NextResponse.json({
       ...responseMapped,
       downstreamAllocations,
       pendingOutEvents,
       timeline,
       usageTimeline,
-    })
+    }))
   } catch (caught) {
-    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return apiErrorResponse(caught, 'โหลดใบรับ-ส่งของไม่ได้', 500)
+    if (caught instanceof AuthContextError) return withAuthNoStore(authContextErrorResponse(caught))
+    return withAuthNoStore(apiErrorResponse(caught, 'โหลดใบรับ-ส่งของไม่ได้', 500))
   }
 }
 

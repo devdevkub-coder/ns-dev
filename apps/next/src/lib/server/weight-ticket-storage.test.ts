@@ -1,9 +1,27 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  createSignedUrl: vi.fn(),
+}))
 
 vi.mock('@/lib/server/prisma', () => ({ prisma: {} }))
-vi.mock('@/lib/server/supabase-admin', () => ({ getSupabaseAdminClient: () => null }))
+vi.mock('@/lib/server/supabase-admin', () => ({
+  getSupabaseAdminClient: () => ({
+    storage: {
+      from: () => ({ createSignedUrl: mocks.createSignedUrl }),
+    },
+  }),
+}))
 
-import { normalizeWeightTicketImageReferences } from './weight-ticket-storage'
+import { attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences } from './weight-ticket-storage'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.createSignedUrl.mockResolvedValue({
+    data: { signedUrl: 'https://signed.example/evidence.jpg?token=short-lived' },
+    error: null,
+  })
+})
 
 describe('WTI/WTO private image reference contract', () => {
   it('strips a preview-only signed URL before persistence', () => {
@@ -41,5 +59,35 @@ describe('WTI/WTO private image reference contract', () => {
       })] }],
       vehicleImageNames: [],
     }, 'weight-ticket-images')).toThrow('bucket ไม่ตรง')
+  })
+
+  it('fails closed when preview input references another bucket or a legacy value', async () => {
+    const wrongBucketReference = JSON.stringify({
+      bucket: 'weight-ticket-pdfs',
+      fileName: 'public-artifact.jpg',
+      storageKey: 'legacy/public-artifact.jpg',
+      url: 'https://public.example/public-artifact.jpg',
+    })
+    const validReference = JSON.stringify({
+      bucket: 'weight-ticket-images',
+      fileName: 'evidence.jpg',
+      storageKey: 'attachments/01/evidence.jpg',
+    })
+
+    const result = await attachWeightTicketImagePreviewUrls({
+      imageNames: [wrongBucketReference, 'legacy-name.jpg', validReference],
+      lines: [{ imageNames: [wrongBucketReference] }],
+      vehicleImageNames: [wrongBucketReference],
+    }, 'weight-ticket-images')
+
+    expect(result.imageNames).toHaveLength(1)
+    expect(JSON.parse(result.imageNames[0] ?? '{}')).toMatchObject({
+      bucket: 'weight-ticket-images',
+      storageKey: 'attachments/01/evidence.jpg',
+      url: 'https://signed.example/evidence.jpg?token=short-lived',
+    })
+    expect(result.lines[0]?.imageNames).toEqual([])
+    expect(result.vehicleImageNames).toEqual([])
+    expect(mocks.createSignedUrl).toHaveBeenCalledTimes(1)
   })
 })

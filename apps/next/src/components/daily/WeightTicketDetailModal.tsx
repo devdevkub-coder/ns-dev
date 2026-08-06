@@ -158,7 +158,7 @@ export function WeightTicketDetailModal({
   }
 
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
 
     async function loadTicket() {
       setTicket(initialTicket ?? null)
@@ -167,23 +167,23 @@ export function WeightTicketDetailModal({
       setImagePreviewError('')
       setIsLoadingImagePreview(false)
       try {
-        const nextTicket = await getWeightTicket(ticketId, { includeImagePreviews: false })
-        if (cancelled) return
+        const nextTicket = await getWeightTicket(ticketId, { includeImagePreviews: false, signal: controller.signal })
+        if (controller.signal.aborted) return
         setTicket(nextTicket)
         setCancelNote(nextTicket.cancelNote ?? '')
         setIsLoading(false)
         setIsLoadingImagePreview(true)
         try {
-          const previews = await getWeightTicketImagePreviews(ticketId)
-          if (cancelled) return
+          const previews = await getWeightTicketImagePreviews(ticketId, { signal: controller.signal })
+          if (controller.signal.aborted) return
           setTicket((current) => current ? mergeWeightTicketImagePreviews(current, previews) : current)
         } catch {
-          if (!cancelled) setImagePreviewError('ยังโหลด preview รูปภาพไม่สำเร็จ แต่ข้อมูลเอกสารยังใช้งานได้')
+          if (!controller.signal.aborted) setImagePreviewError('ยังโหลด preview รูปภาพไม่สำเร็จ แต่ข้อมูลเอกสารยังใช้งานได้')
         } finally {
-          if (!cancelled) setIsLoadingImagePreview(false)
+          if (!controller.signal.aborted) setIsLoadingImagePreview(false)
         }
       } catch (caught) {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setLoadError(getErrorMessage(caught, 'โหลดใบรับ-ส่งของไม่ได้'))
           setIsLoading(false)
         }
@@ -192,7 +192,7 @@ export function WeightTicketDetailModal({
 
     void loadTicket()
     return () => {
-      cancelled = true
+      controller.abort()
     }
   }, [initialTicket, ticketId])
 
@@ -203,21 +203,21 @@ export function WeightTicketDetailModal({
     }
 
     const documentNo = ticket.documentNo
-    let cancelled = false
+    const controller = new AbortController()
     async function loadAvailability() {
       try {
-        const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store' })
+        const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store', signal: controller.signal })
         if (!response.ok) throw new Error(await response.text())
         const payload = await response.json() as StockReturnPayload
-        if (!cancelled) setCanReturnStock(payload.options.length > 0)
+        if (!controller.signal.aborted) setCanReturnStock(payload.options.length > 0)
       } catch {
-        if (!cancelled) setCanReturnStock(false)
+        if (!controller.signal.aborted) setCanReturnStock(false)
       }
     }
 
     void loadAvailability()
     return () => {
-      cancelled = true
+      controller.abort()
     }
   }, [isLoading, ticket?.documentNo, ticket?.status, ticket?.type])
 
