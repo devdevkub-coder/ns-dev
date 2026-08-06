@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Edit3, Plus, Send, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -12,6 +13,7 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, stockTransferFormSchema, todayDateInput, type StockTransferFormValues } from '@/lib/daily'
 import { firstErrorKeyFromZodIssues, focusFieldError, issueMapFromZodIssues } from '@/lib/form-errors'
@@ -23,6 +25,7 @@ type Row = {
   canCancel: boolean
   canEdit: boolean
   canPost: boolean
+  createdAt: string
   date: string
   transferDate: string
   docNo: string
@@ -46,6 +49,7 @@ type Payload = {
   branches: Option[]
   page: number
   pageSize: number
+  permissions: { canCancel: boolean; canCreate: boolean; canPost: boolean }
   products: Option[]
   rows: Row[]
   sourceStock: SourceStock[]
@@ -53,7 +57,7 @@ type Payload = {
   totalRows: number
   warehouses: Option[]
 }
-type StockTransferColumnKey = 'action' | 'date' | 'transferDate' | 'docNo' | 'from' | 'itemCount' | 'status' | 'to' | 'totalQty' | 'totalValue' | 'updated'
+type StockTransferColumnKey = 'action' | 'date' | 'transferDate' | 'docNo' | 'from' | 'itemCount' | 'product' | 'status' | 'to' | 'totalQty' | 'totalValue' | 'updated'
 type StockTransferSortKey = Exclude<StockTransferColumnKey, 'action'>
 type SortDirection = 'asc' | 'desc'
 
@@ -62,6 +66,7 @@ const stockTransferColumns: Array<ResizableColumnDefinition<StockTransferColumnK
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
   { key: 'transferDate', defaultWidth: 120, minWidth: 100 },
+  { key: 'product', defaultWidth: 220, minWidth: 160 },
   { key: 'from', defaultWidth: 220, minWidth: 160 },
   { key: 'to', defaultWidth: 220, minWidth: 160 },
   { key: 'itemCount', defaultWidth: 80, minWidth: 70 },
@@ -80,7 +85,15 @@ function compareSortValues(left: string | number, right: string | number) {
 
 function getStockTransferSortValue(row: Row, key: StockTransferSortKey) {
   if (key === 'updated') return row.updatedAt
+  if (key === 'product') return formatStockTransferProductSummary(row.items)
   return row[key]
+}
+
+export function formatStockTransferProductSummary(items: Row['items']) {
+  const names = items.map((item) => item.productName.trim()).filter(Boolean)
+  if (names.length === 0) return '-'
+  if (names.length === 1) return names[0]
+  return `${names[0]} และอีก ${names.length - 1} รายการ`
 }
 const emptyForm: StockTransferFormValues = {
   date: todayDateInput(),
@@ -95,15 +108,31 @@ const emptyForm: StockTransferFormValues = {
   toWarehouseId: '',
 }
 
+export function isBlankStockTransferItem(
+  item: Pick<StockTransferFormValues['items'][number], 'productId' | 'qty'>,
+) {
+  return !item.productId.trim() && Number(item.qty) === 0
+}
+
+function formSafetySnapshot(form: StockTransferFormValues) {
+  return JSON.stringify(form)
+}
+
 export function StockTransferPageClient() {
-  const [data, setData] = useState<Payload>({ branches: [], page: 1, pageSize: 10, products: [], rows: [], sourceStock: [], summary: { totalQty: 0, totalRows: 0, totalValue: 0 }, totalRows: 0, warehouses: [] })
+  const { requestConfirmation } = useActionConfirmation()
+  const [data, setData] = useState<Payload>({ branches: [], page: 1, pageSize: 10, permissions: { canCancel: false, canCreate: false, canPost: false }, products: [], rows: [], sourceStock: [], summary: { totalQty: 0, totalRows: 0, totalValue: 0 }, totalRows: 0, warehouses: [] })
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [docNo, setDocNo] = useState('')
+  const [detailRow, setDetailRow] = useState<Row | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<Row | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelReasonError, setCancelReasonError] = useState('')
   const [editingDocNo, setEditingDocNo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<StockTransferFormValues>(emptyForm)
+  const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(emptyForm))
   const [formOpen, setFormOpen] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -117,6 +146,8 @@ export function StockTransferPageClient() {
   const [totalQtyFrom, setTotalQtyFrom] = useState('')
   const [totalQtyTo, setTotalQtyTo] = useState('')
   const columnResize = useResizableColumns('daily.stock-transfer.v5', stockTransferColumns)
+  const isFormDirty = formOpen && formSafetySnapshot(form) !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -146,6 +177,11 @@ export function StockTransferPageClient() {
     setPage(1)
   }, [dateFrom, dateTo, docNo, pageSize, totalQtyFrom, totalQtyTo])
 
+  const selectedProductIds = useMemo(
+    () => Array.from(new Set(form.items.map((item) => item.productId).filter(Boolean))),
+    [form.items],
+  )
+
   useEffect(() => {
     if (!formOpen || !form.fromBranchId || !form.fromWarehouseId) {
       setSourceStock([])
@@ -158,6 +194,7 @@ export function StockTransferPageClient() {
       sourceBranchId: form.fromBranchId,
       sourceWarehouseId: form.fromWarehouseId,
     })
+    if (selectedProductIds.length === 1) params.set('sourceProductId', selectedProductIds[0] ?? '')
     void dailyFetchJson<{ sourceStock: SourceStock[] }>(`/api/stock/transfer?${params.toString()}`, { signal: controller.signal })
       .then((payload) => setSourceStock(payload.sourceStock))
       .catch((caught) => {
@@ -167,7 +204,7 @@ export function StockTransferPageClient() {
         if (!controller.signal.aborted) setSourceStockLoading(false)
       })
     return () => controller.abort()
-  }, [form.fromBranchId, form.fromWarehouseId, formOpen])
+  }, [form.fromBranchId, form.fromWarehouseId, formOpen, selectedProductIds])
 
   const branchOptions = useMemo(() => data.branches.filter((item) => item.active !== false), [data.branches])
   const destinationBranchOptions = useMemo(() => {
@@ -180,6 +217,7 @@ export function StockTransferPageClient() {
   const destinationWarehouseOptions = form.toBranchId
     ? data.warehouses.filter((item) => item.active !== false && item.branch_id === form.toBranchId)
     : []
+  const canChooseProducts = Boolean(form.fromBranchId && form.fromWarehouseId && form.toBranchId && form.toWarehouseId)
   const sourceStockByProductId = useMemo(() => new Map(sourceStock.map((row) => [row.productId, row])), [sourceStock])
 
   const totalPages = Math.max(1, Math.ceil(data.totalRows / pageSize))
@@ -192,6 +230,14 @@ export function StockTransferPageClient() {
       return sortDirection === 'asc' ? result : -result
     })
   }, [data.rows, sortDirection, sortKey])
+  const hasRowActions = useMemo(
+    () => sortedRows.some((row) => row.canEdit || row.canPost || row.canCancel),
+    [sortedRows],
+  )
+  const visibleColumns = useMemo(
+    () => stockTransferColumns.filter((column) => hasRowActions || column.key !== 'action'),
+    [hasRowActions],
+  )
   const hasFilters = Boolean(docNo.trim() || dateFrom || dateTo || totalQtyFrom.trim() || totalQtyTo.trim())
 
   function clearFilters() {
@@ -211,11 +257,24 @@ export function StockTransferPageClient() {
     setSortKey(key)
     setSortDirection('asc')
   }
+
+  function openDetail(row: Row) {
+    setDetailRow(row)
+  }
+
+  function handleRowKeyDown(event: React.KeyboardEvent, row: Row) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    openDetail(row)
+  }
   function updateForm<K extends keyof StockTransferFormValues>(key: K, value: StockTransferFormValues[K]) {
     setForm((current) => {
       const next = { ...current, [key]: value }
       if (key === 'fromBranchId') next.fromWarehouseId = ''
       if (key === 'toBranchId') next.toWarehouseId = ''
+      if (key === 'fromBranchId' || key === 'fromWarehouseId' || key === 'toBranchId' || key === 'toWarehouseId') {
+        next.items = [{ productId: '', qty: 0 }]
+      }
       return next
     })
     setFieldErrors((current) => ({ ...current, [key]: '' }))
@@ -229,17 +288,42 @@ export function StockTransferPageClient() {
     setFieldErrors((current) => ({ ...current, [`items.${index}.${key}`]: '' }))
   }
 
+  function requestRemoveItem(index: number) {
+    if (form.items.length <= 1) return
+    const target = form.items[index]
+    if (!target) return
+    const remove = () => {
+      setForm((current) => ({
+        ...current,
+        items: current.items.filter((_entry, entryIndex) => entryIndex !== index),
+      }))
+    }
+    if (isBlankStockTransferItem(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการโอนสินค้านี้หรือไม่? สินค้าและจำนวนที่กรอกในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการโอนสินค้า',
+    })
+  }
+
   function openCreateForm() {
+    if (!data.permissions.canCreate) return
+    const nextForm = { ...emptyForm, date: todayDateInput(), transferDate: todayDateInput(), items: [{ productId: '', qty: 0 }] }
     setEditingDocNo(null)
-    setForm({ ...emptyForm, date: todayDateInput(), transferDate: todayDateInput(), items: [{ productId: '', qty: 0 }] })
+    setForm(nextForm)
+    setFormBaseline(formSafetySnapshot(nextForm))
     setFieldErrors({})
     setError(null)
     setFormOpen(true)
   }
 
   function openEditForm(row: Row) {
-    setEditingDocNo(row.docNo)
-    setForm({
+    const nextForm: StockTransferFormValues = {
       date: row.date,
       transferDate: row.transferDate || '',
       docNo: row.docNo,
@@ -250,11 +334,36 @@ export function StockTransferPageClient() {
       submitMode: 'draft',
       toBranchId: row.toBranchId,
       toWarehouseId: row.toWarehouseId,
-    })
+    }
+    setEditingDocNo(row.docNo)
+    setForm(nextForm)
+    setFormBaseline(formSafetySnapshot(nextForm))
     setFieldErrors({})
     setError(null)
     setFormOpen(true)
   }
+
+  const closeForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(() => {
+      setFormOpen(false)
+      setEditingDocNo(null)
+    })
+  }, [isSaving, requestDiscard])
+
+  useEffect(() => {
+    if (!formOpen) return
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      closeForm()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [closeForm, formOpen])
 
   async function submitForm(mode: 'draft' | 'post') {
     const parsed = stockTransferFormSchema.safeParse({ ...form, submitMode: mode })
@@ -276,6 +385,7 @@ export function StockTransferPageClient() {
       } else {
         await dailyFetchJson('/api/stock/transfer', { body: JSON.stringify(parsed.data), method: 'POST' })
       }
+      setFormBaseline(formSafetySnapshot(parsed.data))
       setFormOpen(false)
       setEditingDocNo(null)
       await loadData()
@@ -286,21 +396,39 @@ export function StockTransferPageClient() {
     }
   }
 
-  async function cancelDraft(row: Row) {
+  function cancelDraft(row: Row) {
     if (!row.canCancel) return
+    setCancelTarget(row)
+    setCancelReason('')
+    setCancelReasonError('')
+  }
+
+  async function cancelDraftConfirmed(row: Row, reason: string) {
     setIsSaving(true)
     setError(null)
     try {
       await dailyFetchJson('/api/stock/transfer', {
-        body: JSON.stringify({ action: 'cancel', docNo: row.docNo }),
+        body: JSON.stringify({ action: 'cancel', docNo: row.docNo, reason }),
         method: 'PATCH',
       })
+      setCancelTarget(null)
+      setCancelReason('')
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ยกเลิกเอกสารไม่ได้')
     } finally {
       setIsSaving(false)
     }
+  }
+
+  function submitCancel() {
+    const reason = cancelReason.trim()
+    if (!reason) {
+      setCancelReasonError('กรุณาระบุเหตุผลการยกเลิก')
+      return
+    }
+    if (!cancelTarget) return
+    void cancelDraftConfirmed(cancelTarget, reason)
   }
 
   async function postDraft(row: Row) {
@@ -376,9 +504,9 @@ export function StockTransferPageClient() {
           ) : null}
         </div>
         <div className="mt-2 hidden justify-end md:flex">
-          <Button size="sm" type="button" className="h-9 bg-slate-900 font-normal text-white hover:bg-slate-800" onClick={openCreateForm}>
-            <Plus className="mr-1 h-4 w-4" />โอนใหม่
-          </Button>
+          {data.permissions.canCreate ? <Button size="sm" type="button" className="h-9 bg-emerald-600 font-normal text-white hover:bg-emerald-700" onClick={openCreateForm}>
+            <Plus className="mr-1 h-4 w-4" />โอนสินค้า
+          </Button> : null}
         </div>
       </div>
 
@@ -430,9 +558,9 @@ export function StockTransferPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                 </div>
               </div>
 
@@ -460,14 +588,14 @@ export function StockTransferPageClient() {
       ) : null}
 
       {/* FAB for mobile creation */}
-      <button
-        aria-label="โอนใหม่"
-        className="h-14 w-14 rounded-full bg-blue-600 text-white shadow-lg fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 md:hidden flex items-center justify-center hover:bg-blue-700"
+      {data.permissions.canCreate ? <button
+        aria-label="โอนสินค้า"
+        className="h-14 w-14 rounded-full bg-emerald-600 text-white shadow-lg fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 md:hidden flex items-center justify-center hover:bg-emerald-700"
         type="button"
         onClick={openCreateForm}
       >
         <Plus className="h-6 w-6" />
-      </button>
+      </button> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>
@@ -483,29 +611,20 @@ export function StockTransferPageClient() {
       </div>
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8 animate-fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm() }}>
           <form noValidate data-combobox-portal-root="true" className="relative w-full max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl outline-none focus:outline-none flex flex-col max-h-[90vh]" onSubmit={(event) => event.preventDefault()}>
             <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white shrink-0">
               <div>
                 <h3 className="font-bold text-slate-100 text-lg">{editingDocNo ? 'แก้ไขรายการโอนสินค้า' : 'โอนสินค้าระหว่างสาขา'}</h3>
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <Button size="sm" type="button" variant="outline" className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
-                <Button disabled={isSaving} size="sm" type="button" variant="outline" className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" onClick={() => submitForm('draft')}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกแบบร่าง'}</Button>
-                <Button disabled={isSaving} size="sm" type="button" className="h-9 bg-emerald-600 px-5 font-normal text-white hover:bg-emerald-700" onClick={() => submitForm('post')}><Send className="mr-1 h-4 w-4" />{isSaving ? 'กำลังส่ง...' : 'ส่งเข้าสต๊อก'}</Button>
+                <Button disabled={isSaving} size="sm" type="button" variant="outline" className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" onClick={closeForm}>ยกเลิก</Button>
+                {data.permissions.canCreate ? <Button disabled={isSaving} size="sm" type="button" variant="outline" className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" onClick={() => submitForm('draft')}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกแบบร่าง'}</Button> : null}
+                {data.permissions.canPost ? <Button disabled={isSaving} size="sm" type="button" className="h-9 bg-emerald-600 px-5 font-normal text-white hover:bg-emerald-700" onClick={() => submitForm('post')}><Send className="mr-1 h-4 w-4" />{isSaving ? 'กำลังส่ง...' : 'ส่งเข้าสต๊อก'}</Button> : null}
               </div>
             </div>
 
-            <div className="max-h-[76vh] overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm flex-1">
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid grid-cols-2 gap-4">
-                <FormField error={fieldErrors.date} errorKey="date" label="วันที่เอกสาร *">
-                  <DatePickerInput className="w-full h-9" value={form.date} onChange={(value) => updateForm('date', value)} />
-                </FormField>
-                <FormField error={fieldErrors.transferDate} errorKey="transferDate" label="วันที่โอนย้าย *">
-                  <DatePickerInput className="w-full h-9" value={form.transferDate ?? ''} onChange={(value) => updateForm('transferDate', value)} />
-                </FormField>
-              </div>
-
+            <div className="max-h-[76vh] overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm flex flex-col flex-1">
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm col-span-2 md:col-span-1">
                   <h4 className="mb-3 font-bold text-slate-700">1. ต้นทาง</h4>
@@ -544,13 +663,13 @@ export function StockTransferPageClient() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="order-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div>
                     <h4 className="font-bold text-slate-700">3. รายการสินค้า ({form.items.length})</h4>
                     <p className="mt-1 text-xs text-slate-500">{sourceStockLoading ? 'กำลังโหลด stock ต้นทาง' : 'คงเหลือและมูลค่า/kg อ่านจาก stock ต้นทาง'}</p>
                   </div>
-                  <Button size="sm" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { productId: '', qty: 0 }] }))}>+ เพิ่มรายการ</Button>
+                  <Button disabled={!canChooseProducts} size="sm" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { productId: '', qty: 0 }] }))}>+ เพิ่มรายการ</Button>
                 </div>
                 {fieldErrors.items ? <div className="mb-2 text-xs text-red-600">{fieldErrors.items}</div> : null}
                 {/* Desktop View (Table) */}
@@ -563,7 +682,7 @@ export function StockTransferPageClient() {
                         <th className="p-2 text-right">มูลค่า/kg</th>
                         <th className="p-2 text-right">น้ำหนัก</th>
                         <th className="p-2 text-right">มูลค่ารวม</th>
-                        <th className="p-2 text-right">จัดการ</th>
+                        <th className="p-2 text-center">จัดการ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -577,6 +696,7 @@ export function StockTransferPageClient() {
                                 error={fieldErrors[`items.${index}.productId`]}
                                 errorKey={`items.${index}.productId`}
                                 options={productOptions}
+                                disabled={!canChooseProducts}
                                 value={item.productId}
                                 onChange={(value) => updateItem(index, 'productId', value)}
                               />
@@ -596,11 +716,11 @@ export function StockTransferPageClient() {
                               />
                             </td>
                             <td className="p-2 pt-4 text-right tabular-nums font-medium text-emerald-700">{formatMoney(lineValue)}</td>
-                            <td className="p-2 text-right">
+                            <td className="p-2 text-center">
                               <TableActionButton
                                 disabled={form.items.length <= 1}
                                 label="ลบรายการ"
-                                menu={<TableActionMenuItem onSelect={() => setForm((current) => ({ ...current, items: current.items.filter((_entry, entryIndex) => entryIndex !== index) }))}>ลบรายการ</TableActionMenuItem>}
+                                menu={<TableActionMenuItem onSelect={() => requestRemoveItem(index)}>ลบรายการ</TableActionMenuItem>}
                               />
                             </td>
                           </tr>
@@ -633,7 +753,7 @@ export function StockTransferPageClient() {
                             type="button"
                             variant="outline"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 h-7 px-2.5"
-                            onClick={() => setForm((current) => ({ ...current, items: current.items.filter((_entry, entryIndex) => entryIndex !== index) }))}
+                            onClick={() => requestRemoveItem(index)}
                           >
                             ลบ
                           </Button>
@@ -645,6 +765,7 @@ export function StockTransferPageClient() {
                               error={fieldErrors[`items.${index}.productId`]}
                               errorKey={`items.${index}.productId`}
                               options={productOptions}
+                              disabled={!canChooseProducts}
                               value={item.productId}
                               onChange={(value) => updateItem(index, 'productId', value)}
                             />
@@ -705,7 +826,7 @@ export function StockTransferPageClient() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="order-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h4 className="mb-3 font-bold text-slate-700">4. หมายเหตุ</h4>
                 <FormField error={fieldErrors.notes} errorKey="notes" label="หมายเหตุ">
                   <textarea
@@ -719,7 +840,7 @@ export function StockTransferPageClient() {
               </div>
 
               {form.fromBranchId && form.fromWarehouseId && form.items.some(item => item.productId) ? (
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
+                <div className="order-2 rounded-xl border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
                   <h5 className="mb-3 font-bold text-indigo-800 text-xs flex items-center gap-1.5">
                     📦 ข้อมูล Stock ปัจจุบันของสินค้าที่จะโอนย้าย
                   </h5>
@@ -771,15 +892,154 @@ export function StockTransferPageClient() {
         </div>
       ) : null}
 
+      {detailRow ? (
+        <Dialog open onOpenChange={(open) => { if (!open) setDetailRow(null) }}>
+          <DialogContent hideClose mobileAppShell={false} aria-labelledby="stock-transfer-detail-title" className="max-w-5xl rounded-md !p-0 overflow-hidden flex max-h-[90vh] flex-col bg-slate-900 border-0 outline-none focus:outline-none">
+            <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+              <DialogTitle id="stock-transfer-detail-title" className="text-lg text-white">รายละเอียดโอนสินค้าระหว่างสาขา {detailRow.docNo}</DialogTitle>
+              <DialogDescription className="text-slate-300">ข้อมูลเอกสาร การเคลื่อนไหวสินค้า และต้นทุนจากรายการโอน</DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 sm:p-5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <h4 className="font-bold text-slate-700">ข้อมูลเอกสาร</h4>
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+                  <SummaryCell label="เลขที่เอกสาร" value={detailRow.docNo} />
+                  <SummaryCell label="สถานะ" value={statusLabel(detailRow.status)} />
+                  <SummaryCell label="วันที่เอกสาร" value={formatDateDisplay(detailRow.date)} />
+                  <SummaryCell label="วันที่โอนย้าย" value={detailRow.transferDate ? formatDateDisplay(detailRow.transferDate) : '-'} />
+                  <SummaryCell label="สร้างรายการเมื่อ" value={formatDateTime(detailRow.createdAt)} />
+                  <SummaryCell label="แก้ไขล่าสุดเมื่อ" value={formatDateTime(detailRow.updatedAt)} />
+                  <SummaryCell label="แก้ไขล่าสุดโดย" value={detailRow.updatedBy || '-'} />
+                  <SummaryCell label="อ้างอิง Stock Ledger" value={`ST / ${detailRow.docNo}`} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-red-100 bg-red-50/50 p-4 shadow-sm">
+                  <div className="text-xs font-semibold text-red-700">ต้นทาง</div>
+                  <div className="mt-1 font-semibold text-slate-800">{detailRow.from}</div>
+                </div>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm">
+                  <div className="text-xs font-semibold text-emerald-700">ปลายทาง</div>
+                  <div className="mt-1 font-semibold text-slate-800">{detailRow.to}</div>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 px-4 py-3 sm:px-5">
+                  <h4 className="font-bold text-slate-700">รายละเอียดสินค้า ({detailRow.itemCount} รายการ)</h4>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="ns-table w-full min-w-[680px] text-sm">
+                    <thead className="border-b border-slate-200 bg-slate-100 text-xs font-semibold text-slate-700">
+                      <tr>
+                        <th className="p-3 text-left">สินค้า</th>
+                        <th className="p-3 text-right">จำนวน</th>
+                        <th className="p-3 text-right">ต้นทุน/กก.</th>
+                        <th className="p-3 text-right">มูลค่ารวม</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {detailRow.items.map((item, index) => (
+                        <tr key={`${item.productId}-${index}`}>
+                          <td className="p-3 font-medium text-slate-800">{item.productName}</td>
+                          <td className="p-3 text-right tabular-nums text-slate-700">{formatMoney(item.qty)} กก.</td>
+                          <td className="p-3 text-right tabular-nums text-slate-700">{formatMoney(item.sourceUnitCost)}</td>
+                          <td className="p-3 text-right tabular-nums font-semibold text-emerald-700">{formatMoney(item.lineValue)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t border-slate-200 bg-slate-50 font-semibold">
+                      <tr>
+                        <td className="p-3 text-right text-slate-600">รวม</td>
+                        <td className="p-3 text-right tabular-nums text-slate-800">{formatMoney(detailRow.totalQty)} กก.</td>
+                        <td className="p-3" />
+                        <td className="p-3 text-right tabular-nums text-emerald-700">{formatMoney(detailRow.totalValue)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-semibold text-slate-500">การเคลื่อนไหว Stock</div>
+                  <div className="mt-2 space-y-1 text-sm text-slate-700">
+                    <div>ต้นทาง: ตัดออก {formatMoney(detailRow.totalQty)} กก.</div>
+                    <div>ปลายทาง: เพิ่มเข้า {formatMoney(detailRow.totalQty)} กก.</div>
+                    <div className="text-xs text-slate-500">Ledger ref: ST / {detailRow.docNo}</div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs font-semibold text-slate-500">หมายเหตุ</div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{detailRow.notes || '-'}</div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="shrink-0 bg-white">
+              <Button type="button" variant="secondary" onClick={() => setDetailRow(null)}>ปิด</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {cancelTarget ? (
+        <Dialog open onOpenChange={(open) => { if (!open && !isSaving) setCancelTarget(null) }}>
+          <DialogContent hideClose mobileAppShell={false} aria-labelledby="stock-transfer-cancel-title" className="max-w-lg rounded-md !p-0 overflow-hidden flex bg-slate-900 border-0 outline-none focus:outline-none">
+            <DialogHeader className="rounded-t-md bg-slate-900 px-5 py-4 text-white">
+              <DialogTitle id="stock-transfer-cancel-title" className="text-lg text-white">ยกเลิกการโอนสินค้า {cancelTarget.docNo}</DialogTitle>
+              <DialogDescription className="text-slate-300">
+                {cancelTarget.status === 'posted'
+                  ? 'ระบบจะตีกลับ Stock จากปลายทางกลับต้นทางทันที และไม่สามารถย้อนกลับการยกเลิกได้'
+                  : 'เอกสารแบบร่างยังไม่มีผลกับ Stock'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 bg-slate-50 p-4 sm:p-5" data-ns-field-scope="entry">
+              <label className="block text-sm font-semibold text-slate-700" htmlFor="stock-transfer-cancel-reason">
+                เหตุผลการยกเลิก <span className="text-red-600">*</span>
+              </label>
+              <textarea
+                id="stock-transfer-cancel-reason"
+                aria-invalid={Boolean(cancelReasonError)}
+                className={`min-h-[100px] w-full resize-y rounded-md border bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${cancelReasonError ? 'border-red-400' : 'border-slate-300'}`}
+                maxLength={500}
+                placeholder="ระบุเหตุผลการยกเลิก"
+                value={cancelReason}
+                onChange={(event) => {
+                  setCancelReason(event.target.value)
+                  if (cancelReasonError) setCancelReasonError('')
+                }}
+              />
+              {cancelReasonError ? <div className="text-xs text-red-700">{cancelReasonError}</div> : null}
+              <div className="text-right text-xs text-slate-400">{cancelReason.length}/500</div>
+            </div>
+            <DialogFooter className="shrink-0 bg-white">
+              <Button disabled={isSaving} type="button" variant="secondary" onClick={() => setCancelTarget(null)}>ปิด</Button>
+              <Button disabled={isSaving} type="button" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={submitCancel}>
+                {isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
       <div className="block space-y-3 md:hidden">
         {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
         {!isLoading && sortedRows.map((row) => (
-          <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            key={row.id}
+            aria-label={`เปิดรายละเอียด ${row.docNo}`}
+            className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            onClick={() => openDetail(row)}
+            onKeyDown={(event) => handleRowKeyDown(event, row)}
+            role="button"
+            tabIndex={0}
+          >
             <div className="mb-2 flex items-start justify-between">
-              <span className="font-bold text-slate-800">{row.docNo}</span>
+              <span className="text-center font-mono font-bold text-slate-800 whitespace-nowrap">{row.docNo}</span>
               <StatusBadge status={row.status} />
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-center text-xs text-slate-500 whitespace-nowrap">
               วันที่เอกสาร: {formatDateDisplay(row.date)}
               {row.transferDate ? ` · วันที่โอน: ${formatDateDisplay(row.transferDate)}` : ''}
             </div>
@@ -789,20 +1049,23 @@ export function StockTransferPageClient() {
               <span className="font-semibold text-emerald-700">{row.to}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs">
+              <SummaryCell label="สินค้า" value={formatStockTransferProductSummary(row.items)} />
               <SummaryCell label="น้ำหนักรวม" value={`${formatMoney(row.totalQty)} กก.`} />
               <SummaryCell label="มูลค่ารวม" value={`${formatMoney(row.totalValue)} บาท`} />
               <SummaryCell label="รายการ" value={`${row.itemCount.toLocaleString('th-TH')} รายการ`} />
-              <SummaryCell label="วันที่สร้างรายการ" value={row.updatedBy ? `${row.updatedBy} · ${formatDateTime(row.updatedAt)}` : formatDateTime(row.updatedAt)} />
+              <SummaryCell label="วันที่สร้างรายการ" value={formatDateTime(row.createdAt)} />
             </div>
-            <div className="mt-3 flex justify-end gap-2">
-              <TableActionButton mobileLabel menu={(
-                <>
-                  <TableActionMenuItem disabled={!row.canEdit || isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
-                  <TableActionMenuItem disabled={!row.canPost || isSaving} onSelect={() => postDraft(row)}>ส่ง</TableActionMenuItem>
-                  <TableActionMenuItem disabled={!row.canCancel || isSaving} onSelect={() => cancelDraft(row)}>ยกเลิก</TableActionMenuItem>
-                </>
-              )} />
-            </div>
+            {hasRowActions ? (
+              <div className="mt-3 flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+                <TableActionButton mobileLabel menu={(
+                  <>
+                    <TableActionMenuItem disabled={!row.canEdit || isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
+                    <TableActionMenuItem disabled={!row.canPost || isSaving} onSelect={() => postDraft(row)}>ยืนยันโอนสินค้า</TableActionMenuItem>
+                    <TableActionMenuItem disabled={!row.canCancel || isSaving} onSelect={() => cancelDraft(row)}>ยกเลิก</TableActionMenuItem>
+                  </>
+                )} />
+              </div>
+            ) : null}
           </div>
         ))}
         {!isLoading && data.rows.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-400 shadow">ยังไม่มีรายการ</div> : null}
@@ -811,61 +1074,73 @@ export function StockTransferPageClient() {
       <div className="hidden md:block">
         <Table style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {stockTransferColumns.map((column) => {
+            {visibleColumns.map((column) => {
               const style = columnResize.getColumnStyle(column.key)
               return <col key={column.key} style={style} />
             })}
           </colgroup>
           <TableHeader>
             <tr>
-              <ResizableTableHead label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-              <ResizableTableHead label="วันที่โอนย้าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transferDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
+              <ResizableTableHead align="center" label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead align="center" label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+              <ResizableTableHead align="center" label="วันที่โอนย้าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transferDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
+              <ResizableTableHead label="สินค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="product" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
               <ResizableTableHead label="จาก" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="from" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
               <ResizableTableHead label="ไป" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="to" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('to', 'ไป')} />
               <ResizableTableHead align="right" label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="itemCount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} />
               <ResizableTableHead align="right" label="น้ำหนักรวม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนักรวม')} />
               <ResizableTableHead align="right" label="มูลค่ารวม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalValue', 'มูลค่ารวม')} />
-              <ResizableTableHead label="วันที่สร้างรายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="updated" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updated', 'วันที่สร้างรายการ')} />
-              <ResizableTableHead label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="center" label="วันที่สร้างรายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="updated" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updated', 'วันที่สร้างรายการ')} />
+              <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              {hasRowActions ? <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} /> : null}
             </tr>
           </TableHeader>
           <TableBody>
-            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={visibleColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
             {!isLoading && sortedRows.map((row) => (
-              <TableRow key={row.id} className="hover:bg-slate-50">
-                <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{row.transferDate ? formatDateDisplay(row.transferDate) : '-'}</TableCell>
+              <TableRow
+                key={row.id}
+                aria-label={`เปิดรายละเอียด ${row.docNo}`}
+                className="cursor-pointer hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                onClick={() => openDetail(row)}
+                onKeyDown={(event) => handleRowKeyDown(event, row)}
+                role="button"
+                tabIndex={0}
+              >
+                <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="whitespace-nowrap text-center text-xs font-semibold text-slate-700">{row.transferDate ? formatDateDisplay(row.transferDate) : '-'}</TableCell>
+                <TableCell className="text-xs text-slate-700" title={row.items.map((item) => item.productName).join(', ')}>{formatStockTransferProductSummary(row.items)}</TableCell>
                 <TableCell className="text-xs font-semibold text-red-600">{row.from}</TableCell>
                 <TableCell className="text-xs font-semibold text-emerald-700">{row.to}</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-slate-700">{row.itemCount.toLocaleString('th-TH')}</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-slate-700">{formatMoney(row.totalQty)} กก.</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-emerald-700">{formatMoney(row.totalValue)}</TableCell>
-                <TableCell className="text-xs text-slate-600">
+                <TableCell className="text-center text-xs text-slate-600">
                   <div className="truncate font-semibold text-slate-700">{row.updatedBy || '-'}</div>
-                  <div className="text-slate-400">{formatDateTime(row.updatedAt)}</div>
+                  <div className="whitespace-nowrap text-slate-400">{formatDateTime(row.updatedAt)}</div>
                 </TableCell>
-                <TableCell><StatusBadge status={row.status} /></TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
-                    <RowActionButton
-                      menu={(
-                        <>
-                          <TableActionMenuItem disabled={!row.canEdit || isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
-                          <TableActionMenuItem disabled={!row.canPost || isSaving} onSelect={() => postDraft(row)}>ส่ง</TableActionMenuItem>
-                          <TableActionMenuItem disabled={!row.canCancel || isSaving} onSelect={() => cancelDraft(row)}>ยกเลิก</TableActionMenuItem>
-                        </>
-                      )}
-                      label="จัดการ"
-                      onClick={() => undefined}
-                    />
-                  </div>
-                </TableCell>
+                <TableCell className="text-center"><StatusBadge status={row.status} /></TableCell>
+                {hasRowActions ? (
+                  <TableCell className="whitespace-nowrap text-center" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex justify-center gap-1">
+                      <RowActionButton
+                        menu={(
+                          <>
+                            <TableActionMenuItem disabled={!row.canEdit || isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
+                            <TableActionMenuItem disabled={!row.canPost || isSaving} onSelect={() => postDraft(row)}>ยืนยันโอนสินค้า</TableActionMenuItem>
+                            <TableActionMenuItem disabled={!row.canCancel || isSaving} onSelect={() => cancelDraft(row)}>ยกเลิก</TableActionMenuItem>
+                          </>
+                        )}
+                        label="จัดการ"
+                        onClick={() => undefined}
+                      />
+                    </div>
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
-            {!isLoading && data.rows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+            {!isLoading && data.rows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={visibleColumns.length}>ยังไม่มีรายการ</TableCell></TableRow> : null}
           </TableBody>
         </Table>
       </div>
@@ -980,6 +1255,7 @@ function SelectField(props: {
 }
 
 function SearchableProductField(props: {
+  disabled?: boolean
   error?: string
   errorKey: string
   onChange: (value: string) => void
@@ -998,11 +1274,12 @@ function SearchableProductField(props: {
     <SearchCombobox
       error={props.error}
       errorKey={props.errorKey}
+      disabled={props.disabled}
       inputId={`product-select-${props.errorKey}`}
       label="สินค้า *"
       hideLabel={true}
       options={mappedOptions}
-      placeholder="พิมพ์รหัส/ชื่อสินค้า..."
+      placeholder={props.disabled ? 'เลือกสาขาและคลังให้ครบก่อน' : 'พิมพ์รหัส/ชื่อสินค้า...'}
       value={props.value}
       onChange={props.onChange}
     />
