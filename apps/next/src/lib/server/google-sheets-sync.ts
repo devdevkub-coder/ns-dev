@@ -9,7 +9,7 @@ export async function syncWeightTicketToGoogleSheets(action: WeightTicketSyncAct
     const config = await prisma.system_settings.findUnique({
       where: { key: 'GOOGLE_SHEETS_WEBHOOK_URL' },
     })
-    const webhookUrl = config?.value || process.env.GOOGLE_SHEETS_WEBHOOK_URL
+    const webhookUrl = config ? config.value : process.env.GOOGLE_SHEETS_WEBHOOK_URL
     if (!webhookUrl) return
 
     const payload = {

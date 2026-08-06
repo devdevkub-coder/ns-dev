@@ -1065,6 +1065,15 @@ flowchart TD
 | `LINE_AUTO_SEND_WTI` | เปิด auto-send สำหรับ WTI (enqueue เท่านั้น) |
 | `LINE_AUTO_SEND_WTO` | เปิด auto-send สำหรับ WTO (enqueue เท่านั้น) |
 | `LINE_NOTIFY_TEXT_TEMPLATE_WTI/WTO` | text message template (ใช้จริง ไม่ใช่ Flex template) |
+| `GOOGLE_SHEETS_WEBHOOK_URL` | Google Apps Script Webhook สำหรับซิงก์ WTI/WTO; เว้นว่างเพื่อปิดการเชื่อมต่อ |
+
+Google Sheets เป็นตัวเชื่อมต่อเสริม ไม่ใช่ source of truth ของเอกสาร:
+
+- row ใน DB เป็นค่าหลัก: บันทึก URL ว่างเป็น `null` เพื่อปิด connector; ใช้ environment fallback เฉพาะระบบที่ยังไม่เคยมี row นี้
+- ส่งข้อมูลเมื่อสร้าง แก้ไข ยืนยัน หรือยกเลิก WTI/WTO
+- action ที่ส่งคือ `create` ตอนสร้าง, `update` ตอนแก้ไข/ยืนยัน และหลังส่ง LINE สำเร็จ, `cancel` ตอนยกเลิก
+- เมื่อส่ง LINE สำเร็จอย่างน้อยหนึ่งเป้าหมาย ระบบซิงก์อีกครั้งพร้อม PDF URL ล่าสุด
+- เป็น synchronous best-effort timeout 5 วินาที ไม่มี retry อัตโนมัติ; หากล้มเหลวจะเขียน server log แต่ไม่ rollback เอกสาร ERP และไม่ทำให้การส่ง LINE ที่สำเร็จแล้วล้มเหลวตาม
 
 หมายเหตุ: text template ทำงานจริง แต่ Flex Message Template ในแท็บ Templates
 ถูกซ่อนชั่วคราวเพราะยังไม่เชื่อมกับ flow ส่งจริง (ดู [[LINE Notification Control Center Ultimate Plan]])

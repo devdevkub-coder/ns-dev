@@ -379,6 +379,7 @@ export function LineSettingsPageClient() {
   // Password masking
   const [showToken, setShowToken] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
+  const [showGoogleSheetsWebhook, setShowGoogleSheetsWebhook] = useState(false)
 
   // Target Modals / Forms state
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false)
@@ -1467,6 +1468,46 @@ export function LineSettingsPageClient() {
                   />
                   <span>ส่งข้อความแจ้งเตือน WTO (บิลส่งสินค้า) ไปไลน์กลุ่มอัตโนมัติเมื่อสร้างบิล</span>
                 </label>
+              </div>
+            </div>
+
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-3">
+                <h4 className="text-sm font-bold text-slate-900">เชื่อมต่อ Google Sheets (ไม่บังคับ)</h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  ส่งข้อมูลใบรับ-ส่งของ WTI/WTO ไปยัง Google Apps Script เมื่อสร้าง แก้ไข ยืนยัน ยกเลิก หรือส่ง LINE สำเร็จ
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-bold text-slate-700" htmlFor="google-sheets-webhook-url">
+                  Google Sheets Webhook URL
+                </label>
+                <div className="relative">
+                  <input
+                    id="google-sheets-webhook-url"
+                    type={showGoogleSheetsWebhook ? 'url' : 'password'}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-invalid={Boolean(fieldErrors.googleSheetsWebhookUrl)}
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-20 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none"
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    value={form.googleSheetsWebhookUrl || ''}
+                    onChange={(e) => setForm({ ...form, googleSheetsWebhookUrl: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    aria-label={showGoogleSheetsWebhook ? 'ซ่อน Google Sheets Webhook URL' : 'แสดง Google Sheets Webhook URL'}
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-xs font-semibold text-slate-500 transition hover:text-slate-800 focus:outline-none"
+                    onClick={() => setShowGoogleSheetsWebhook((current) => !current)}
+                  >
+                    {showGoogleSheetsWebhook ? 'ซ่อน' : 'แสดง'}
+                  </button>
+                </div>
+                {fieldErrors.googleSheetsWebhookUrl && (
+                  <p className="text-xs text-red-600">{fieldErrors.googleSheetsWebhookUrl}</p>
+                )}
+                <p className="text-xs text-slate-500">เว้นว่างแล้วกดบันทึกเพื่อปิดการเชื่อมต่อ โดยไม่กระทบการส่ง LINE</p>
               </div>
             </div>
 
