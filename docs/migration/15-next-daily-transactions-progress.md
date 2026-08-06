@@ -6,7 +6,7 @@
 
 ## WTI/WTO preview and read-response hardening — 2026-08-06
 
-Status: implementation complete locally; not committed or pushed yet. Current line is `main` aligned with `sit-origin/main` at `16df470b1c3b45282771d63a5ad82b434502a1a3` before this batch.
+Status: implementation complete and pushed to `sit-origin/main` in commits `f70e34f4a6239724eafbf8d4ffcbf3e655f2c2aa` and the following documentation checkpoint commit. The working line is `main` aligned with `sit-origin/main`.
 
 - Preview hydration now fails closed for wrong-bucket and legacy image references instead of echoing a stored URL; focused storage and preview-route tests cover the boundary.
 - WTI/WTO list/detail JSON and XLSX read responses now use `private, no-store`; preview route already keeps the same policy.
