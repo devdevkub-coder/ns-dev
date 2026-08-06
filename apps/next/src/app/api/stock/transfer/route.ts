@@ -3,12 +3,13 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
 import { stockTransferFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveWarehouses, listProductReferences } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot } from '@/lib/server/stock'
+import { availableStockForTransferCancel, normalizeNotAvailableForSale } from '@/lib/stock-transfer-cancel'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 
 export const runtime = 'nodejs'
@@ -56,13 +57,17 @@ function parsePositiveNumber(value: string | null) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
 }
 
-function toTransferRow(row: TransferWithRelations) {
+function toTransferRow(row: TransferWithRelations, permissions: Set<string>, isAdmin: boolean) {
+  const canCreate = isAdmin || permissions.has('stock.transfer.create')
+  const canPost = isAdmin || permissions.has('stock.transfer.post')
+  const canCancel = isAdmin || permissions.has('stock.transfer.cancel')
   const updatedAt = row.updated_at ?? row.posted_at ?? row.created_at
   const updatedBy = row.updated_by ?? row.posted_by ?? row.created_by ?? ''
   return {
-    canCancel: row.status === 'draft',
-    canEdit: row.status === 'draft',
-    canPost: row.status === 'draft',
+    canCancel: (row.status === 'draft' || row.status === 'posted') && canCancel,
+    canEdit: row.status === 'draft' && canCreate,
+    canPost: row.status === 'draft' && canPost,
+    createdAt: row.created_at ? row.created_at.toISOString() : '',
     date: toDateOnly(row.date),
     transferDate: row.transfer_date ? toDateOnly(row.transfer_date) : '',
     docNo: requireDocumentNo(row.doc_no, `stock_transfer ${row.id}`),
@@ -247,6 +252,281 @@ function consumeAllocations(allocationPool: TransferItemInput['allocations'], re
   }
   if (remaining > 0.000001) throw new Error('จำนวนที่ต้องการมากกว่า allocation ต้นทางที่พร้อมใช้')
   return consumed
+}
+
+type TransferReversalBucket = {
+  branchId: bigint
+  lotNo: string | null
+  notAvailableForSale: boolean
+  outputCategory: string | null
+  productId: bigint
+  qty: number
+  warehouseId: bigint
+}
+
+type TransferLedgerRow = {
+  branch_id: bigint | null
+  warehouse_id: bigint | null
+  product_id: bigint | null
+  lot_no: string | null
+  output_category: string | null
+  not_available_for_sale: boolean | null
+  qty_in: Prisma.Decimal | number | null
+  qty_out: Prisma.Decimal | number | null
+  value_in: Prisma.Decimal | number | null
+  value_out: Prisma.Decimal | number | null
+  unit_cost: Prisma.Decimal | number | null
+}
+
+const TRANSFER_LEDGER_TOLERANCE = 0.000001
+
+function transferLedgerPairKey(row: TransferLedgerRow) {
+  return [
+    row.product_id?.toString() ?? '',
+    row.lot_no ?? '',
+    row.output_category ?? '',
+    String(normalizeNotAvailableForSale(row.not_available_for_sale)),
+    toNumber(row.unit_cost).toFixed(8),
+  ].join('\u001f')
+}
+
+function assertTransferLedgerAmountMatches(label: string, actual: number, expected: number) {
+  if (Math.abs(actual - expected) > TRANSFER_LEDGER_TOLERANCE) {
+    throw new Error(`${label} ของเอกสารโอนไม่ตรงกับ stock ledger`)
+  }
+}
+
+function assertPostedTransferLedgerIntegrity(
+  transfer: {
+    from_branch_id: bigint
+    from_warehouse_id: bigint
+    to_branch_id: bigint
+    to_warehouse_id: bigint
+    total_qty: Prisma.Decimal | number
+    total_value: Prisma.Decimal | number
+    stock_transfer_items: Array<{
+      product_id: bigint
+      qty: Prisma.Decimal | number
+      line_value: Prisma.Decimal | number
+    }>
+  },
+  ledgerRows: TransferLedgerRow[],
+) {
+  const pairs = new Map<string, {
+    destinationCount: number
+    destinationQty: number
+    destinationValue: number
+    sourceCount: number
+    sourceQty: number
+    sourceValue: number
+  }>()
+  const expectedProductIds = new Set(transfer.stock_transfer_items.map((item) => item.product_id.toString()))
+  let sourceQty = 0
+  let sourceValue = 0
+
+  for (const row of ledgerRows) {
+    if (row.branch_id == null || row.warehouse_id == null || row.product_id == null) {
+      throw new Error('stock ledger ของเอกสารโอนมี dimension ไม่ครบ ไม่สามารถยกเลิกได้')
+    }
+    if (!expectedProductIds.has(row.product_id.toString())) {
+      throw new Error('stock ledger ของเอกสารโอนมีสินค้าที่ไม่อยู่ในรายการเอกสาร')
+    }
+    const qtyIn = toNumber(row.qty_in)
+    const qtyOut = toNumber(row.qty_out)
+    const valueIn = toNumber(row.value_in)
+    const valueOut = toNumber(row.value_out)
+    const hasQtyIn = qtyIn > TRANSFER_LEDGER_TOLERANCE
+    const hasQtyOut = qtyOut > TRANSFER_LEDGER_TOLERANCE
+    if (hasQtyIn === hasQtyOut) {
+      throw new Error('stock ledger ของเอกสารโอนมีแถวที่ไม่ระบุทิศทางการเคลื่อนไหวอย่างชัดเจน')
+    }
+
+    const isSource = hasQtyOut
+    const expectedBranchId = isSource ? transfer.from_branch_id : transfer.to_branch_id
+    const expectedWarehouseId = isSource ? transfer.from_warehouse_id : transfer.to_warehouse_id
+    if (row.branch_id !== expectedBranchId || row.warehouse_id !== expectedWarehouseId) {
+      throw new Error('stock ledger ของเอกสารโอนมีสาขาหรือคลังไม่ตรงกับเอกสาร')
+    }
+
+    const key = transferLedgerPairKey(row)
+    const pair = pairs.get(key) ?? {
+      destinationCount: 0,
+      destinationQty: 0,
+      destinationValue: 0,
+      sourceCount: 0,
+      sourceQty: 0,
+      sourceValue: 0,
+    }
+    if (isSource) {
+      pair.sourceCount += 1
+      pair.sourceQty += qtyOut
+      pair.sourceValue += valueOut
+      sourceQty += qtyOut
+      sourceValue += valueOut
+    } else {
+      pair.destinationCount += 1
+      pair.destinationQty += qtyIn
+      pair.destinationValue += valueIn
+    }
+    pairs.set(key, pair)
+  }
+
+  if (pairs.size === 0) throw new Error('ไม่พบคู่ stock ledger ของเอกสารโอนสำหรับตีกลับ')
+  for (const pair of pairs.values()) {
+    if (pair.sourceCount === 0 || pair.destinationCount === 0 || pair.sourceCount !== pair.destinationCount) {
+      throw new Error('stock ledger ของเอกสารโอนมีคู่ต้นทางและปลายทางไม่ครบ')
+    }
+    assertTransferLedgerAmountMatches('จำนวนต้นทางและปลายทาง', pair.sourceQty, pair.destinationQty)
+    assertTransferLedgerAmountMatches('มูลค่าต้นทางและปลายทาง', pair.sourceValue, pair.destinationValue)
+  }
+
+  const itemQty = transfer.stock_transfer_items.reduce((sum, item) => sum + toNumber(item.qty), 0)
+  const itemValue = transfer.stock_transfer_items.reduce((sum, item) => sum + toNumber(item.line_value), 0)
+  assertTransferLedgerAmountMatches('จำนวนในเอกสาร', sourceQty, toNumber(transfer.total_qty))
+  assertTransferLedgerAmountMatches('มูลค่าในเอกสาร', sourceValue, toNumber(transfer.total_value))
+  assertTransferLedgerAmountMatches('จำนวนรายการสินค้า', itemQty, toNumber(transfer.total_qty))
+  assertTransferLedgerAmountMatches('มูลค่ารายการสินค้า', itemValue, toNumber(transfer.total_value))
+}
+
+function transferReversalBucketKey(row: TransferReversalBucket) {
+  return [
+    row.branchId.toString(),
+    row.warehouseId.toString(),
+    row.productId.toString(),
+    row.lotNo ?? '',
+    row.outputCategory ?? '',
+    String(row.notAvailableForSale),
+  ].join('\u001f')
+}
+
+async function assertTransferDestinationStockAvailable(
+  tx: Prisma.TransactionClient,
+  ledgerRows: TransferLedgerRow[],
+) {
+  const buckets = new Map<string, TransferReversalBucket>()
+  for (const row of ledgerRows) {
+    if (row.branch_id == null || row.warehouse_id == null || row.product_id == null) {
+      throw new Error('stock ledger ของเอกสารโอนมี dimension ไม่ครบ ไม่สามารถยกเลิกได้')
+    }
+    const qty = toNumber(row.qty_in)
+    if (qty <= 0.000001) continue
+    const bucket: TransferReversalBucket = {
+      branchId: row.branch_id,
+      lotNo: row.lot_no,
+      notAvailableForSale: normalizeNotAvailableForSale(row.not_available_for_sale),
+      outputCategory: row.output_category,
+      productId: row.product_id,
+      qty,
+      warehouseId: row.warehouse_id,
+    }
+    const key = transferReversalBucketKey(bucket)
+    const current = buckets.get(key)
+    if (current) current.qty += qty
+    else buckets.set(key, bucket)
+  }
+
+  for (const bucket of buckets.values()) {
+    await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock-transfer:${bucket.branchId}:${bucket.warehouseId}:${bucket.productId}:${bucket.lotNo ?? ''}:${bucket.outputCategory ?? ''}:${bucket.notAvailableForSale}`}, 0))`
+    const [ledgerRows, holdRows] = await Promise.all([
+      tx.$queryRaw<Array<{ qty_in: Prisma.Decimal | number | null; qty_out: Prisma.Decimal | number | null }>>`
+        select
+          coalesce(sum(coalesce(qty_in, 0)), 0) as qty_in,
+          coalesce(sum(coalesce(qty_out, 0)), 0) as qty_out
+        from public.stock_ledger
+        where branch_id = ${bucket.branchId}
+          and warehouse_id = ${bucket.warehouseId}
+          and product_id = ${bucket.productId}
+          and lot_no is not distinct from ${bucket.lotNo}
+          and output_category is not distinct from ${bucket.outputCategory}
+          and coalesce(not_available_for_sale, false) = ${bucket.notAvailableForSale}
+      `,
+      tx.$queryRaw<Array<{ held_qty: Prisma.Decimal | number | null }>>`
+        select coalesce(sum(coalesce(qty, 0)), 0) as held_qty
+        from public.stock_holds
+        where branch_id = ${bucket.branchId}
+          and warehouse_id = ${bucket.warehouseId}
+          and product_id = ${bucket.productId}
+          and lot_no is not distinct from ${bucket.lotNo}
+          and output_category is not distinct from ${bucket.outputCategory}
+          and status = 'active'
+          and coalesce(not_available_for_sale, false) = ${bucket.notAvailableForSale}
+      `,
+    ])
+    const ledger = ledgerRows[0]
+    const holds = holdRows[0]
+    const readyQty = availableStockForTransferCancel({
+      heldQty: toNumber(holds?.held_qty),
+      ledgerIn: toNumber(ledger?.qty_in),
+      ledgerOut: toNumber(ledger?.qty_out),
+    })
+    if (readyQty + 0.000001 < bucket.qty) {
+      throw new Error(`สินค้าในคลังปลายทางไม่พอสำหรับยกเลิกโอน (ต้องการ ${bucket.qty.toLocaleString('th-TH')} กก. เหลือพร้อมใช้ ${Math.max(0, readyQty).toLocaleString('th-TH')} กก.)`)
+    }
+  }
+}
+
+async function createTransferReversal(
+  tx: Prisma.TransactionClient,
+  transfer: {
+    id: bigint
+    doc_no: string
+    notes: string | null
+    from_branch_id: bigint
+    from_warehouse_id: bigint
+    to_branch_id: bigint
+    to_warehouse_id: bigint
+    total_qty: Prisma.Decimal | number
+    total_value: Prisma.Decimal | number
+    stock_transfer_items: Array<{ product_id: bigint; qty: Prisma.Decimal | number; line_value: Prisma.Decimal | number }>
+  },
+  actor: string,
+  reason: string,
+) {
+  const ledgerRows = await tx.stock_ledger.findMany({
+    orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+    where: { ref_id: `ST-${transfer.id}`, ref_no: transfer.doc_no, ref_type: 'ST' },
+  })
+  if (ledgerRows.length === 0) throw new Error(`ไม่พบ stock ledger ของเอกสาร ${transfer.doc_no} สำหรับตีกลับ`)
+  const existingReversal = await tx.stock_ledger.count({
+    where: { ref_id: `ST-${transfer.id}`, ref_no: transfer.doc_no, ref_type: 'ST-CANCEL' },
+  })
+  if (existingReversal > 0) throw new Error(`เอกสาร ${transfer.doc_no} มีรายการ ST-CANCEL แล้ว`)
+
+  assertPostedTransferLedgerIntegrity(transfer, ledgerRows)
+  await assertTransferDestinationStockAvailable(tx, ledgerRows)
+  const reversalDate = normalizeDate(toBangkokDateOnly(new Date()))
+  const reversalRows = ledgerRows.map((row) => {
+    const qtyIn = toNumber(row.qty_in)
+    const qtyOut = toNumber(row.qty_out)
+    if ((qtyIn > 0.000001) === (qtyOut > 0.000001)) {
+      throw new Error(`stock ledger ของเอกสาร ${transfer.doc_no} มีทิศทางการเคลื่อนไหวไม่ถูกต้อง`)
+    }
+    if (row.branch_id == null || row.warehouse_id == null || row.product_id == null) {
+      throw new Error(`stock ledger ของเอกสาร ${transfer.doc_no} มี dimension ไม่ครบ`)
+    }
+    return {
+      branch_id: row.branch_id,
+      created_by: actor,
+      date: reversalDate,
+      lot_no: row.lot_no,
+      movement_type: 'ยกเลิกโอนระหว่างสาขา-ตีกลับต้นทาง',
+      note: reason,
+      notes: `Reverse ST ${transfer.doc_no}${transfer.notes ? `: ${transfer.notes}` : ''}`,
+      not_available_for_sale: normalizeNotAvailableForSale(row.not_available_for_sale),
+      output_category: row.output_category,
+      product_id: row.product_id,
+      qty_in: qtyOut,
+      qty_out: qtyIn,
+      ref_id: `ST-${transfer.id}`,
+      ref_no: transfer.doc_no,
+      ref_type: 'ST-CANCEL',
+      unit_cost: row.unit_cost,
+      value_in: toNumber(row.value_out),
+      value_out: toNumber(row.value_in),
+      warehouse_id: row.warehouse_id,
+    }
+  })
+  await tx.stock_ledger.createMany({ data: reversalRows })
 }
 
 async function createPostedLedger(tx: Prisma.TransactionClient, transfer: {
@@ -444,7 +724,12 @@ export async function GET(request: Request) {
         ...product,
         id: requireBusinessCode(product.code, `สินค้า ${product.id}`),
       })),
-      rows: rows.map(toTransferRow),
+      permissions: {
+        canCreate: hasPermission(context, 'stock.transfer.create'),
+        canPost: hasPermission(context, 'stock.transfer.post'),
+        canCancel: hasPermission(context, 'stock.transfer.cancel'),
+      },
+      rows: rows.map((row) => toTransferRow(row, context.permissionCodes, context.isAdmin)),
       sourceStock,
       summary: {
         totalQty: toNumber(summary._sum.total_qty),
@@ -467,9 +752,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'stock.ledger.view')
-
-    const values = stockTransferFormSchema.parse(await request.json())
+    const payload = await request.json()
+    requirePermission(context, 'stock.transfer.create')
+    if (payload?.submitMode === 'post') requirePermission(context, 'stock.transfer.post')
+    const values = stockTransferFormSchema.parse(payload)
     const actor = currentActor(context)
     const refs = await validateTransferReferences(values)
     const sourceBranchCode = refs.fromWarehouse.branchCode
@@ -531,28 +817,51 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'stock.ledger.view')
-
     const payload = await request.json()
     const action = String(payload?.action ?? '')
+    if (action === 'cancel') requirePermission(context, 'stock.transfer.cancel')
+    else if (action === 'edit') requirePermission(context, 'stock.transfer.create')
+    else if (action === 'post') requirePermission(context, 'stock.transfer.post')
+    else throw new Error('การดำเนินการโอนสินค้าไม่ถูกต้อง')
     const docNo = requireDocumentNo(payload?.docNo, 'stock transfer')
     const actor = currentActor(context)
 
     if (action === 'cancel') {
-      const cancelled = await prisma.stock_transfers.updateMany({
-        data: {
-          cancelled_at: new Date(),
-          cancelled_by: actor,
-          cancel_reason: typeof payload?.reason === 'string' ? payload.reason : null,
-          status: 'cancelled',
-          updated_at: new Date(),
-          updated_by: actor,
-          version: { increment: 1 },
-        },
-        where: { doc_no: docNo, status: 'draft' },
+      const reason = typeof payload?.reason === 'string' && payload.reason.trim()
+        ? payload.reason.trim()
+        : 'ยกเลิกการโอนสินค้าระหว่างสาขา'
+      const cancelled = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock-transfers:cancel:${docNo}`}, 0))`
+        const existing = await tx.stock_transfers.findUnique({
+          include: {
+            stock_transfer_items: {
+              select: { line_value: true, product_id: true, qty: true },
+            },
+          },
+          where: { doc_no: docNo },
+        })
+        if (!existing) throw new Error('ไม่พบเอกสารโอนสินค้า')
+        if (existing.status === 'cancelled') throw new Error('เอกสารโอนสินค้านี้ถูกยกเลิกแล้ว')
+        if (existing.status !== 'draft' && existing.status !== 'posted') {
+          throw new Error('เอกสารโอนสินค้านี้ไม่อยู่ในสถานะที่ยกเลิกได้')
+        }
+        if (existing.status === 'posted') {
+          await createTransferReversal(tx, existing, actor, reason)
+        }
+        return tx.stock_transfers.update({
+          data: {
+            cancelled_at: new Date(),
+            cancelled_by: actor,
+            cancel_reason: reason,
+            status: 'cancelled',
+            updated_at: new Date(),
+            updated_by: actor,
+            version: { increment: 1 },
+          },
+          where: { id: existing.id },
+        })
       })
-      if (cancelled.count !== 1) throw new Error('ยกเลิกได้เฉพาะเอกสารที่ยังไม่ส่งเข้าสต๊อก')
-      return NextResponse.json({ id: docNo, status: 'cancelled' })
+      return NextResponse.json({ id: docNo, status: cancelled.status })
     }
 
     if (action === 'edit' || action === 'post') {
