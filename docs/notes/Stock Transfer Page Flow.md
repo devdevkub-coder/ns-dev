@@ -225,6 +225,7 @@ Target API ที่ทำแล้ว:
 - ทำแล้ว: API/DB optimize สำหรับ list/source lookup ด้วย source document indexes, ST ledger lookup indexes, และ `doc_no text_pattern_ops` สำหรับ prefix search
 - ทำแล้ว: logged-in browser QA สำหรับ source preview, draft create/edit/cancel, posted create, `ST` ledger 4-row paired movement, posted edit/cancel block, และ QA cleanup แบบ append-only
 - ทำแล้ว 2026-08-06: posted cancel เปิดใน action menu; API ล็อกเอกสาร/stock scope ใน transaction เดียว, ตรวจปลายทางพร้อมใช้และ active holds, สร้าง paired `ST-CANCEL` rows กลับทิศ และเปลี่ยนเอกสารเป็น `cancelled` หลังเขียน reversal สำเร็จเท่านั้น
+- ทำแล้ว 2026-08-06: ก่อน posted cancel ตรวจ `ST` ด้วย `ref_id/ref_no`, ตรวจคู่ต้นทาง-ปลายทาง จำนวน/มูลค่า/สินค้า/สาขา/คลังให้ตรงกับเอกสาร และ normalize `not_available_for_sale = NULL`
 - ทำแล้ว 2026-08-06: เพิ่ม cancel-reason modal บังคับกรอกเหตุผลก่อนยกเลิกทั้ง draft และ posted
 - ทำแล้ว 2026-08-06: แยก permission เป็น `stock.transfer.create`, `stock.transfer.post`, และ `stock.transfer.cancel`; สิทธิ์เดิมที่มี `stock.ledger.view` ถูกย้ายสิทธิ์ action ให้ต่อเนื่องใน migration ใหม่
 

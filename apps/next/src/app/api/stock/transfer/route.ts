@@ -5,7 +5,7 @@ import { stockTransferFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveWarehouses, listProductReferences } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot } from '@/lib/server/stock'
@@ -95,10 +95,10 @@ function toTransferRow(row: TransferWithRelations, permissions: Set<string>, isA
   }
 }
 
-async function nextStockTransferDocNo(tx: Prisma.TransactionClient, date: string) {
+async function nextStockTransferDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `ST${compactDate}-`
-  await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock_transfers:doc_no:${compactDate}`}, 0))`
+  const startsWith = `ST${documentBranchCode(branchCode)}${compactDate}-`
+  await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock_transfers:doc_no:${startsWith}`}, 0))`
   const last = await tx.stock_transfers.findFirst({
     orderBy: { doc_no: 'desc' },
     select: { doc_no: true },
@@ -125,8 +125,10 @@ async function validateTransferReferences(values: {
   if (!toBranch) throw new Error('สาขาปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน')
   if (!fromWarehouse) throw new Error('คลังต้นทางไม่ถูกต้องหรือถูกปิดใช้งาน')
   if (!toWarehouse) throw new Error('คลังปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน')
-  if (fromWarehouse.branchCode && fromWarehouse.branchCode !== fromBranch.code) throw new Error('สาขาต้นทางและคลังต้นทางไม่ตรงกัน')
-  if (toWarehouse.branchCode && toWarehouse.branchCode !== toBranch.code) throw new Error('สาขาปลายทางและคลังปลายทางไม่ตรงกัน')
+  if (!fromWarehouse.branchCode) throw new Error('คลังต้นทางไม่มีรหัสสาขาสำหรับสร้างเลขเอกสาร')
+  if (!toWarehouse.branchCode) throw new Error('คลังปลายทางไม่มีรหัสสาขา')
+  if (fromWarehouse.branchCode !== fromBranch.code) throw new Error('สาขาต้นทางและคลังต้นทางไม่ตรงกัน')
+  if (toWarehouse.branchCode !== toBranch.code) throw new Error('สาขาปลายทางและคลังปลายทางไม่ตรงกัน')
   if (fromWarehouse.id === toWarehouse.id) throw new Error('ต้นทางและปลายทางต้องไม่เป็นคลังเดียวกัน')
 
   return { fromBranch, fromWarehouse, toBranch, toWarehouse }
@@ -261,6 +263,130 @@ type TransferReversalBucket = {
   warehouseId: bigint
 }
 
+type TransferLedgerRow = {
+  branch_id: bigint | null
+  warehouse_id: bigint | null
+  product_id: bigint | null
+  lot_no: string | null
+  output_category: string | null
+  not_available_for_sale: boolean | null
+  qty_in: Prisma.Decimal | number | null
+  qty_out: Prisma.Decimal | number | null
+  value_in: Prisma.Decimal | number | null
+  value_out: Prisma.Decimal | number | null
+  unit_cost: Prisma.Decimal | number | null
+}
+
+const TRANSFER_LEDGER_TOLERANCE = 0.000001
+
+function transferLedgerPairKey(row: TransferLedgerRow) {
+  return [
+    row.product_id?.toString() ?? '',
+    row.lot_no ?? '',
+    row.output_category ?? '',
+    String(row.not_available_for_sale ?? false),
+    toNumber(row.unit_cost).toFixed(8),
+  ].join('\u001f')
+}
+
+function assertTransferLedgerAmountMatches(label: string, actual: number, expected: number) {
+  if (Math.abs(actual - expected) > TRANSFER_LEDGER_TOLERANCE) {
+    throw new Error(`${label} ของเอกสารโอนไม่ตรงกับ stock ledger`)
+  }
+}
+
+function assertPostedTransferLedgerIntegrity(
+  transfer: {
+    from_branch_id: bigint
+    from_warehouse_id: bigint
+    to_branch_id: bigint
+    to_warehouse_id: bigint
+    total_qty: Prisma.Decimal | number
+    total_value: Prisma.Decimal | number
+    stock_transfer_items: Array<{
+      product_id: bigint
+      qty: Prisma.Decimal | number
+      line_value: Prisma.Decimal | number
+    }>
+  },
+  ledgerRows: TransferLedgerRow[],
+) {
+  const pairs = new Map<string, {
+    destinationCount: number
+    destinationQty: number
+    destinationValue: number
+    sourceCount: number
+    sourceQty: number
+    sourceValue: number
+  }>()
+  const expectedProductIds = new Set(transfer.stock_transfer_items.map((item) => item.product_id.toString()))
+  let sourceQty = 0
+  let sourceValue = 0
+
+  for (const row of ledgerRows) {
+    if (row.branch_id == null || row.warehouse_id == null || row.product_id == null) {
+      throw new Error('stock ledger ของเอกสารโอนมี dimension ไม่ครบ ไม่สามารถยกเลิกได้')
+    }
+    if (!expectedProductIds.has(row.product_id.toString())) {
+      throw new Error('stock ledger ของเอกสารโอนมีสินค้าที่ไม่อยู่ในรายการเอกสาร')
+    }
+    const qtyIn = toNumber(row.qty_in)
+    const qtyOut = toNumber(row.qty_out)
+    const valueIn = toNumber(row.value_in)
+    const valueOut = toNumber(row.value_out)
+    const hasQtyIn = qtyIn > TRANSFER_LEDGER_TOLERANCE
+    const hasQtyOut = qtyOut > TRANSFER_LEDGER_TOLERANCE
+    if (hasQtyIn === hasQtyOut) {
+      throw new Error('stock ledger ของเอกสารโอนมีแถวที่ไม่ระบุทิศทางการเคลื่อนไหวอย่างชัดเจน')
+    }
+
+    const isSource = hasQtyOut
+    const expectedBranchId = isSource ? transfer.from_branch_id : transfer.to_branch_id
+    const expectedWarehouseId = isSource ? transfer.from_warehouse_id : transfer.to_warehouse_id
+    if (row.branch_id !== expectedBranchId || row.warehouse_id !== expectedWarehouseId) {
+      throw new Error('stock ledger ของเอกสารโอนมีสาขาหรือคลังไม่ตรงกับเอกสาร')
+    }
+
+    const key = transferLedgerPairKey(row)
+    const pair = pairs.get(key) ?? {
+      destinationCount: 0,
+      destinationQty: 0,
+      destinationValue: 0,
+      sourceCount: 0,
+      sourceQty: 0,
+      sourceValue: 0,
+    }
+    if (isSource) {
+      pair.sourceCount += 1
+      pair.sourceQty += qtyOut
+      pair.sourceValue += valueOut
+      sourceQty += qtyOut
+      sourceValue += valueOut
+    } else {
+      pair.destinationCount += 1
+      pair.destinationQty += qtyIn
+      pair.destinationValue += valueIn
+    }
+    pairs.set(key, pair)
+  }
+
+  if (pairs.size === 0) throw new Error('ไม่พบคู่ stock ledger ของเอกสารโอนสำหรับตีกลับ')
+  for (const pair of pairs.values()) {
+    if (pair.sourceCount === 0 || pair.destinationCount === 0 || pair.sourceCount !== pair.destinationCount) {
+      throw new Error('stock ledger ของเอกสารโอนมีคู่ต้นทางและปลายทางไม่ครบ')
+    }
+    assertTransferLedgerAmountMatches('จำนวนต้นทางและปลายทาง', pair.sourceQty, pair.destinationQty)
+    assertTransferLedgerAmountMatches('มูลค่าต้นทางและปลายทาง', pair.sourceValue, pair.destinationValue)
+  }
+
+  const itemQty = transfer.stock_transfer_items.reduce((sum, item) => sum + toNumber(item.qty), 0)
+  const itemValue = transfer.stock_transfer_items.reduce((sum, item) => sum + toNumber(item.line_value), 0)
+  assertTransferLedgerAmountMatches('จำนวนในเอกสาร', sourceQty, toNumber(transfer.total_qty))
+  assertTransferLedgerAmountMatches('มูลค่าในเอกสาร', sourceValue, toNumber(transfer.total_value))
+  assertTransferLedgerAmountMatches('จำนวนรายการสินค้า', itemQty, toNumber(transfer.total_qty))
+  assertTransferLedgerAmountMatches('มูลค่ารายการสินค้า', itemValue, toNumber(transfer.total_value))
+}
+
 function transferReversalBucketKey(row: TransferReversalBucket) {
   return [
     row.branchId.toString(),
@@ -274,15 +400,7 @@ function transferReversalBucketKey(row: TransferReversalBucket) {
 
 async function assertTransferDestinationStockAvailable(
   tx: Prisma.TransactionClient,
-  ledgerRows: Array<{
-    branch_id: bigint | null
-    warehouse_id: bigint | null
-    product_id: bigint | null
-    lot_no: string | null
-    output_category: string | null
-    not_available_for_sale: boolean | null
-    qty_in: Prisma.Decimal | number | null
-  }>,
+  ledgerRows: TransferLedgerRow[],
 ) {
   const buckets = new Map<string, TransferReversalBucket>()
   for (const row of ledgerRows) {
@@ -308,32 +426,34 @@ async function assertTransferDestinationStockAvailable(
 
   for (const bucket of buckets.values()) {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock-transfer:${bucket.branchId}:${bucket.warehouseId}:${bucket.productId}:${bucket.lotNo ?? ''}:${bucket.outputCategory ?? ''}:${bucket.notAvailableForSale}`}, 0))`
-    const [ledger, holds] = await Promise.all([
-      tx.stock_ledger.aggregate({
-        _sum: { qty_in: true, qty_out: true },
-        where: {
-          branch_id: bucket.branchId,
-          warehouse_id: bucket.warehouseId,
-          product_id: bucket.productId,
-          lot_no: bucket.lotNo,
-          not_available_for_sale: bucket.notAvailableForSale,
-          output_category: bucket.outputCategory,
-        },
-      }),
-      tx.stock_holds.aggregate({
-        _sum: { qty: true },
-        where: {
-          branch_id: bucket.branchId,
-          warehouse_id: bucket.warehouseId,
-          product_id: bucket.productId,
-          lot_no: bucket.lotNo,
-          not_available_for_sale: bucket.notAvailableForSale,
-          output_category: bucket.outputCategory,
-          status: 'active',
-        },
-      }),
+    const [ledgerRows, holdRows] = await Promise.all([
+      tx.$queryRaw<Array<{ qty_in: Prisma.Decimal | number | null; qty_out: Prisma.Decimal | number | null }>>`
+        select
+          coalesce(sum(coalesce(qty_in, 0)), 0) as qty_in,
+          coalesce(sum(coalesce(qty_out, 0)), 0) as qty_out
+        from public.stock_ledger
+        where branch_id = ${bucket.branchId}
+          and warehouse_id = ${bucket.warehouseId}
+          and product_id = ${bucket.productId}
+          and lot_no is not distinct from ${bucket.lotNo}
+          and output_category is not distinct from ${bucket.outputCategory}
+          and coalesce(not_available_for_sale, false) = ${bucket.notAvailableForSale}
+      `,
+      tx.$queryRaw<Array<{ held_qty: Prisma.Decimal | number | null }>>`
+        select coalesce(sum(coalesce(qty, 0)), 0) as held_qty
+        from public.stock_holds
+        where branch_id = ${bucket.branchId}
+          and warehouse_id = ${bucket.warehouseId}
+          and product_id = ${bucket.productId}
+          and lot_no is not distinct from ${bucket.lotNo}
+          and output_category is not distinct from ${bucket.outputCategory}
+          and status = 'active'
+          and coalesce(not_available_for_sale, false) = ${bucket.notAvailableForSale}
+      `,
     ])
-    const readyQty = toNumber(ledger._sum.qty_in) - toNumber(ledger._sum.qty_out) - toNumber(holds._sum.qty)
+    const ledger = ledgerRows[0]
+    const holds = holdRows[0]
+    const readyQty = toNumber(ledger?.qty_in) - toNumber(ledger?.qty_out) - toNumber(holds?.held_qty)
     if (readyQty + 0.000001 < bucket.qty) {
       throw new Error(`สินค้าในคลังปลายทางไม่พอสำหรับยกเลิกโอน (ต้องการ ${bucket.qty.toLocaleString('th-TH')} กก. เหลือพร้อมใช้ ${Math.max(0, readyQty).toLocaleString('th-TH')} กก.)`)
     }
@@ -342,18 +462,34 @@ async function assertTransferDestinationStockAvailable(
 
 async function createTransferReversal(
   tx: Prisma.TransactionClient,
-  transfer: { id: bigint; doc_no: string; notes: string | null },
+  transfer: {
+    id: bigint
+    doc_no: string
+    notes: string | null
+    from_branch_id: bigint
+    from_warehouse_id: bigint
+    to_branch_id: bigint
+    to_warehouse_id: bigint
+    total_qty: Prisma.Decimal | number
+    total_value: Prisma.Decimal | number
+    stock_transfer_items: Array<{ product_id: bigint; qty: Prisma.Decimal | number; line_value: Prisma.Decimal | number }>
+  },
   actor: string,
   reason: string,
 ) {
   const ledgerRows = await tx.stock_ledger.findMany({
     orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-    where: { ref_no: transfer.doc_no, ref_type: 'ST' },
+    where: { ref_id: `ST-${transfer.id}`, ref_no: transfer.doc_no, ref_type: 'ST' },
   })
   if (ledgerRows.length === 0) throw new Error(`ไม่พบ stock ledger ของเอกสาร ${transfer.doc_no} สำหรับตีกลับ`)
+  const existingReversal = await tx.stock_ledger.count({
+    where: { ref_id: `ST-${transfer.id}`, ref_no: transfer.doc_no, ref_type: 'ST-CANCEL' },
+  })
+  if (existingReversal > 0) throw new Error(`เอกสาร ${transfer.doc_no} มีรายการ ST-CANCEL แล้ว`)
 
+  assertPostedTransferLedgerIntegrity(transfer, ledgerRows)
   await assertTransferDestinationStockAvailable(tx, ledgerRows)
-  const reversalDate = normalizeDate(new Date().toISOString().slice(0, 10))
+  const reversalDate = normalizeDate(toBangkokDateOnly(new Date()))
   const reversalRows = ledgerRows.map((row) => {
     const qtyIn = toNumber(row.qty_in)
     const qtyOut = toNumber(row.qty_out)
@@ -518,10 +654,12 @@ export async function GET(request: Request) {
     const totalQtyFrom = parsePositiveNumber(url.searchParams.get('totalQtyFrom'))
     const totalQtyTo = parsePositiveNumber(url.searchParams.get('totalQtyTo'))
     const status = url.searchParams.get('status')?.trim() ?? ''
+    const branchId = url.searchParams.get('branchId')?.trim() ?? ''
 
     const where: Prisma.stock_transfersWhereInput = {
       ...(docNo ? { doc_no: { startsWith: docNo } } : {}),
       ...(status ? { status } : {}),
+      ...(branchId ? { branches_from: { code: branchId } } : {}),
       ...((dateFrom || dateTo) ? {
         date: {
           ...(dateFrom ? { gte: normalizeDate(dateFrom) } : {}),
@@ -615,6 +753,8 @@ export async function POST(request: Request) {
     const values = stockTransferFormSchema.parse(payload)
     const actor = currentActor(context)
     const refs = await validateTransferReferences(values)
+    const sourceBranchCode = refs.fromWarehouse.branchCode
+    if (!sourceBranchCode) throw new Error('คลังต้นทางไม่มีรหัสสาขาสำหรับสร้างเลขเอกสาร')
     const normalizedItems = await resolveTransferItems({
       branchId: refs.fromBranch.id,
       items: values.items,
@@ -624,7 +764,7 @@ export async function POST(request: Request) {
     const totalValue = normalizedItems.reduce((sum, item) => sum + item.lineValue, 0)
 
     const created = await prisma.$transaction(async (tx) => {
-      const docNo = values.docNo ?? await nextStockTransferDocNo(tx, values.date)
+      const docNo = values.docNo ?? await nextStockTransferDocNo(tx, values.date, sourceBranchCode)
       const transfer = await tx.stock_transfers.create({
         data: {
           created_by: actor,
@@ -687,7 +827,14 @@ export async function PATCH(request: Request) {
         : 'ยกเลิกการโอนสินค้าระหว่างสาขา'
       const cancelled = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock-transfers:cancel:${docNo}`}, 0))`
-        const existing = await tx.stock_transfers.findUnique({ where: { doc_no: docNo } })
+        const existing = await tx.stock_transfers.findUnique({
+          include: {
+            stock_transfer_items: {
+              select: { line_value: true, product_id: true, qty: true },
+            },
+          },
+          where: { doc_no: docNo },
+        })
         if (!existing) throw new Error('ไม่พบเอกสารโอนสินค้า')
         if (existing.status === 'cancelled') throw new Error('เอกสารโอนสินค้านี้ถูกยกเลิกแล้ว')
         if (existing.status !== 'draft' && existing.status !== 'posted') {
