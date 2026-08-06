@@ -71,18 +71,41 @@ function missing(value: string | null | undefined) {
 export function buildWeightTicketAttachmentImages(
   ticket: Pick<WeightTicketRecord, 'imageNames' | 'vehicleImageNames'>,
 ): Array<StoredImageAsset & { url: string }> {
-  const seen = new Set<string>()
-  return [...ticket.vehicleImageNames, ...ticket.imageNames]
+  return getWeightTicketAttachmentReferences(ticket)
     .map(decodeStoredImageAsset)
     .filter(isPreviewableStoredImageAsset)
-    .filter((asset) => {
-      const key = asset.bucket && asset.storageKey
-        ? `storage:${asset.bucket}:${asset.storageKey}`
-        : `raw:${asset.rawValue}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
+}
+
+/**
+ * The read model keeps imageNames as the aggregate album (vehicle + line
+ * evidence) while vehicleImageNames remains available for vehicle-specific UI.
+ * Keep vehicle images first, but collapse the overlap when both arrays contain
+ * the same stored object.
+ */
+export function getWeightTicketAttachmentReferences(
+  ticket: Pick<WeightTicketRecord, 'imageNames' | 'vehicleImageNames'>,
+): string[] {
+  const seen = new Set<string>()
+  const references: string[] = []
+
+  for (const rawValue of [...ticket.vehicleImageNames, ...ticket.imageNames]) {
+    const identity = getWeightTicketAttachmentIdentity(rawValue)
+
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    references.push(rawValue)
+  }
+
+  return references
+}
+
+export function getWeightTicketAttachmentIdentity(rawValue: string): string {
+  const asset = decodeStoredImageAsset(rawValue)
+  return asset.bucket && asset.storageKey
+    ? `storage:${asset.bucket}:${asset.storageKey}`
+    : asset.url
+      ? `url:${asset.url}`
+      : `raw:${rawValue}`
 }
 
 function cleanNote(note: string | null | undefined): string {

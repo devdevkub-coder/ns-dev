@@ -1,7 +1,12 @@
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { buildReceiptPrintHtml } from '@/lib/weight-ticket-print'
+import {
+  buildReceiptPrintHtml,
+  buildWeightTicketAttachmentImages,
+  getWeightTicketAttachmentIdentity,
+  getWeightTicketAttachmentReferences,
+} from '@/lib/weight-ticket-print'
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import type { Prisma } from '../../../generated/prisma/client'
 import { decodeStoredImageAsset, encodeStoredImageReference, formatDateDisplay, formatWeight, type WeightTicketRecord, typeLabels, type StoredImageAsset } from '@/lib/weight-tickets'
@@ -227,15 +232,22 @@ function buildDetailUrl(origin: string, documentNo: string, type: 'WTI' | 'WTO')
 }
 
 function withResolvedImageUrls(ticket: WeightTicketRecord, imageUrls: string[]): WeightTicketRecord {
+  const references = getWeightTicketAttachmentReferences(ticket)
+  const urlsByIdentity = new Map(
+    references.map((rawValue, index) => [getWeightTicketAttachmentIdentity(rawValue), imageUrls[index]]),
+  )
+  const resolve = (rawValue: string) => {
+    const asset = decodeStoredImageAsset(rawValue)
+    const url = urlsByIdentity.get(getWeightTicketAttachmentIdentity(rawValue))
+    return asset.bucket && asset.storageKey && url
+      ? encodeStoredImageReference(asset.fileName, url, asset.storageKey, asset.bucket)
+      : rawValue
+  }
+
   return {
     ...ticket,
-    imageNames: ticket.imageNames.map((rawValue, index) => {
-      const asset = decodeStoredImageAsset(rawValue)
-      const url = imageUrls[index]
-      return asset.bucket && asset.storageKey && url
-        ? encodeStoredImageReference(asset.fileName, url, asset.storageKey, asset.bucket)
-        : rawValue
-    }),
+    imageNames: ticket.imageNames.map(resolve),
+    vehicleImageNames: ticket.vehicleImageNames.map(resolve),
   }
 }
 
@@ -358,7 +370,7 @@ function buildFlexMessage(
   pdfUrl: string,
   pdfDownloadUrl: string,
   detailUrl: string,
-  imagePublicUrls: string[],
+  attachmentImages: Array<{ fileName: string; url: string }>,
   albumImageUrls: string[],
   customMessage?: string
 ) {
@@ -615,16 +627,7 @@ function buildFlexMessage(
   const bubbles: any[] = [summaryBubble]
 
   // 2. Paginate photo attachments (chunks of 8)
-  const images = ticket.imageNames || []
-  const decodedImages = images
-    .map((img, idx) => {
-      const asset = decodeStoredImageAsset(img)
-      return {
-        fileName: asset.fileName,
-        url: imagePublicUrls[idx] || ''
-      }
-    })
-    .filter(asset => asset.url && (asset.url.startsWith('http://') || asset.url.startsWith('https://')))
+  const decodedImages = attachmentImages.filter((asset) => asset.url)
 
   if (decodedImages.length > 0) {
     const chunkSize = 8
@@ -1048,7 +1051,7 @@ async function recordNotificationLog(values: {
 }
 
 async function resolveImagePublicUrls(ticket: WeightTicketRecord, bucketName: string): Promise<string[]> {
-  const images = ticket.imageNames || []
+  const images = getWeightTicketAttachmentReferences(ticket)
   const supabase = getSupabaseAdminClient()
   if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างลิงก์รูปหลักฐาน')
   const publicUrls: string[] = []
@@ -1136,7 +1139,9 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       // ใช้ module ใหม่ react-pdf + @napi-rs/canvas (แทน Playwright)
       // กำจัด dependency Chromium binary ออกจาก Docker image ทั้งหมด
       const { pdfBuffer, albumImages } = await generateWeightTicketPdfReactPdf(pdfRecord, profile as CompanyProfilePrintValues, {
-        showBadges: configs.albumShowBadges,
+        // Match the printable attachment album: the document type and
+        // attachment order are enough; do not overlay receive/dispatch tags.
+        showBadges: false,
         showTimestamps: configs.albumShowTimestamps,
         quality: configs.albumQuality,
       })
@@ -1155,7 +1160,8 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       throw new Error(`เตรียม PDF/รูปหลักฐานสำหรับส่ง LINE ไม่สำเร็จ: ${errMsg}`)
     }
 
-    const flexMessage = buildFlexMessage(pdfRecord, pdfUrl, pdfDownloadUrl, detailUrl, imagePublicUrls, albumImageUrls, options.customMessage)
+    const attachmentImages = buildWeightTicketAttachmentImages(pdfRecord)
+    const flexMessage = buildFlexMessage(pdfRecord, pdfUrl, pdfDownloadUrl, detailUrl, attachmentImages, albumImageUrls, options.customMessage)
     const customTemplate = pdfRecord.type === 'WTI' ? configs.wtiTemplate : configs.wtoTemplate
     const textMessage = {
       type: 'text',
