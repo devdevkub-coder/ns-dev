@@ -607,7 +607,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
+    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
     return NextResponse.json({
       ...mapped,
     })
@@ -746,7 +746,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
       })
-      void publishWeightTicketChange({ changeType: 'confirmed', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
+      void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'confirmed', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
       const autoSendKey = mapped.type === 'WTI' ? 'LINE_AUTO_SEND_WTI' : 'LINE_AUTO_SEND_WTO'
       const autoSendConfig = await prisma.system_settings.findUnique({ where: { key: autoSendKey } })
       if (autoSendConfig?.value === 'true') {
@@ -865,7 +865,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       targetLabel: updated.doc_no,
       targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ changeType: 'cancelled', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
+    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'cancelled', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
     const [timeline, pendingOutEvents] = await Promise.all([
       getWeightTicketTimeline(prisma, updated.id),
       getWeightTicketPendingOutEvents(prisma, updated.id),

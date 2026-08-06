@@ -356,7 +356,7 @@ export async function POST(request: Request) {
         targetLabel: created.doc_no,
         targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ changeType: 'created', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
+    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'created', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
     return NextResponse.json({
       ...mapped,
     })

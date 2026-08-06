@@ -1,9 +1,7 @@
 import 'server-only'
 
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
-import type { WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
-
-const WEIGHT_TICKET_CHANGE_CHANNEL = 'weight-ticket-updates'
+import { weightTicketRealtimeChannel, type WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
 
 /** Broadcast an invalidation signal; clients re-read through the auth API. */
 export async function publishWeightTicketChange(event: WeightTicketChangeEvent) {
@@ -11,7 +9,7 @@ export async function publishWeightTicketChange(event: WeightTicketChangeEvent) 
     const supabase = getSupabaseAdminClient()
     if (!supabase) return
 
-    const channel = supabase.channel(WEIGHT_TICKET_CHANGE_CHANNEL)
+    const channel = supabase.channel(weightTicketRealtimeChannel(event.branchId), { config: { private: true } })
     await new Promise<void>((resolve) => {
       let settled = false
       let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -30,8 +28,8 @@ export async function publishWeightTicketChange(event: WeightTicketChangeEvent) 
         }
 
         try {
-          const { error } = await channel.send({ type: 'broadcast', event: 'changed', payload: event })
-          if (error) console.error('[weight-ticket-realtime] broadcast failed:', error)
+          const status = await channel.send({ type: 'broadcast', event: 'changed', payload: event })
+          if (status !== 'ok') console.error('[weight-ticket-realtime] broadcast failed:', status)
         } catch (caught) {
           console.error('[weight-ticket-realtime] broadcast failed:', caught)
         }

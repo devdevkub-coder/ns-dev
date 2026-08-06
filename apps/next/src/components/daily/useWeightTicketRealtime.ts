@@ -2,19 +2,9 @@
 
 import { useEffect, useRef } from 'react'
 import { getSupabaseClient } from '@/lib/supabase'
-import type { WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
+import { isWeightTicketChangeEvent, weightTicketRealtimeChannel, type WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
 
-const WEIGHT_TICKET_CHANGE_CHANNEL = 'weight-ticket-updates'
-
-function isWeightTicketChangeEvent(value: unknown): value is WeightTicketChangeEvent {
-  if (!value || typeof value !== 'object') return false
-  const event = value as Partial<WeightTicketChangeEvent>
-  return typeof event.documentNo === 'string'
-    && typeof event.changeType === 'string'
-    && (event.updatedAt === null || typeof event.updatedAt === 'string')
-}
-
-export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEvent) => void, enabled = true) {
+export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEvent) => void, enabled = true, branchIds: string[] = []) {
   const onChangeRef = useRef(onChange)
 
   useEffect(() => {
@@ -22,19 +12,24 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
   }, [onChange])
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || branchIds.length === 0) return
     const supabase = getSupabaseClient()
     if (!supabase) return
 
-    const channel = supabase
-      .channel(WEIGHT_TICKET_CHANGE_CHANNEL)
-      .on('broadcast', { event: 'changed' }, ({ payload }) => {
-        if (isWeightTicketChangeEvent(payload)) onChangeRef.current(payload)
-      })
+    const channels = Array.from(new Set(branchIds.map((branchId) => branchId.trim()).filter(Boolean))).map((branchId) => {
+      const channel = supabase
+        .channel(weightTicketRealtimeChannel(branchId), { config: { private: true } })
+        .on('broadcast', { event: 'changed' }, ({ payload }) => {
+          if (isWeightTicketChangeEvent(payload)) onChangeRef.current(payload)
+        })
+      void channel.subscribe()
+      return channel
+    })
 
-    void channel.subscribe()
     return () => {
-      void supabase.removeChannel(channel)
+      for (const channel of channels) {
+        void supabase.removeChannel(channel)
+      }
     }
-  }, [enabled])
+  }, [branchIds, enabled])
 }

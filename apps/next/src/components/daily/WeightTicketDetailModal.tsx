@@ -140,6 +140,10 @@ export function WeightTicketDetailModal({
   const [shareNote, setShareNote] = useState('')
   const [shareError, setShareError] = useState('')
   const [isSendingLine, setIsSendingLine] = useState(false)
+  const realtimeBranchIds = useMemo(() => {
+    const branchId = ticket?.branchId ?? initialTicket?.branchId
+    return branchId ? [branchId] : []
+  }, [initialTicket?.branchId, ticket?.branchId])
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
   const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(ticket?.canCancel && cancelNote.trim()))
@@ -321,7 +325,7 @@ export function WeightTicketDetailModal({
     void reloadTicket().catch((caught) => {
       setLoadError(getErrorMessage(caught, 'โหลดข้อมูลใบรับ-ส่งของล่าสุดไม่ได้'))
     })
-  }, Boolean(ticketId))
+  }, Boolean(ticketId), realtimeBranchIds)
 
   async function handleSendLineNotification() {
     if (!ticket || !canShareWeightTicket(ticket.status)) return

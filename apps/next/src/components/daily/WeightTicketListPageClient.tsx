@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Download, Plus, Printer, RotateCcw, Search, Share2, SquarePen, XCircle } from 'lucide-react'
@@ -194,6 +194,8 @@ export function WeightTicketListPageClient() {
   const { requestConfirmation } = useActionConfirmation()
   const guardedFormCloseRef = useRef<() => void>(() => {})
   const autoOpenDetailRef = useRef('')
+  const realtimeRefreshEventRef = useRef('')
+  const realtimeRefreshTimeoutRef = useRef<number | null>(null)
   const [tickets, setTickets] = useState<WeightTicketRecord[]>([])
   const [canOpenPurchaseBill, setCanOpenPurchaseBill] = useState(false)
   const [canOpenSalesBill, setCanOpenSalesBill] = useState(false)
@@ -238,6 +240,7 @@ export function WeightTicketListPageClient() {
     ? tickets.find((ticket) => ticket.id === activeDetailId)
     : undefined
   const activeFilters = Boolean(searchInput || statusFilter.length > 0 || branchFilter !== 'all' || dateFrom || dateTo)
+  const realtimeBranchIds = useMemo(() => branches.map((branch) => branch.id), [branches])
   const statusOptions = useMemo(() => statusOptionsByType[typeFilter], [typeFilter])
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ format: 'xlsx', sortBy, sortDir, type: typeFilter })
@@ -335,9 +338,22 @@ export function WeightTicketListPageClient() {
     }
   }, [branchFilter, dateFrom, dateTo, isUrlStateReady, page, pageSize, query, sortBy, sortDir, statusFilter, typeFilter, refreshKey])
 
-  useWeightTicketRealtime(() => {
-    setRefreshKey((previous) => previous + 1)
-  }, isUrlStateReady)
+  const scheduleRealtimeRefresh = useCallback((event: { documentNo: string; updatedAt: string | null; changeType: string }) => {
+    const eventKey = `${event.documentNo}:${event.updatedAt ?? ''}:${event.changeType}`
+    if (realtimeRefreshEventRef.current === eventKey) return
+    realtimeRefreshEventRef.current = eventKey
+    if (realtimeRefreshTimeoutRef.current !== null) return
+    realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+      realtimeRefreshTimeoutRef.current = null
+      setRefreshKey((previous) => previous + 1)
+    }, 250)
+  }, [])
+
+  useEffect(() => () => {
+    if (realtimeRefreshTimeoutRef.current !== null) window.clearTimeout(realtimeRefreshTimeoutRef.current)
+  }, [])
+
+  useWeightTicketRealtime(scheduleRealtimeRefresh, isUrlStateReady, realtimeBranchIds)
 
   useEffect(() => {
     if (!isUrlStateReady || searchInput === query) return
