@@ -32,6 +32,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (ticket.status === 'draft') {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'ต้องยืนยันเอกสารก่อนส่ง LINE' }, { status: 400 })
     }
+    if (ticket.status === 'cancelled') {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารที่ยกเลิกแล้วไม่สามารถส่ง LINE ได้' }, { status: 400 })
+    }
 
     // Manual triggers always force: true
     const enqueueResult = await enqueueNotificationJob(id, {

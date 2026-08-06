@@ -46,7 +46,7 @@ route: /daily/weight-ticket-dashboard
 4. API ใช้สิทธิ์ `daily.weight_tickets.view` และ branch scope เดียวกับหน้า WTI/WTO เดิม
 5. API อ่าน `weight_tickets`, `weight_ticket_product_summaries`, และ active `stock_holds`
 6. UI แสดง KPI, สรุปสถานะ, สรุปสาขา, top products และรายการเอกสารที่ต้องตามต่อ
-7. ผู้ใช้กดเลขเอกสารเพื่อเปิด detail route ของ `/daily/weight-ticket-list/{docNo}` หรือกดไปหน้ารายการ/สร้าง WTI/WTO
+7. ผู้ใช้กดเลขเอกสารเพื่อไปหน้ารายการที่ค้นหาเอกสารนั้น หรือกดไปหน้ารายการ/สร้าง WTI/WTO
 
 ## API / Data Contract
 

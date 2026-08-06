@@ -119,7 +119,7 @@ export async function PATCH(request: Request) {
       const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
       
       const dummyPdfUrl = 'https://nserp-dummy-pdf.s3.amazonaws.com/ticket.pdf'
-      const dummyDetailUrl = 'http://localhost:3000/daily/weight-ticket-list/' + documentNo
+      const dummyDetailUrl = 'http://localhost:3000/daily/weight-ticket-list?detail=' + encodeURIComponent(documentNo) + '&type=' + encodeURIComponent(mapped.type)
       const flexMsg = buildFlexMessageFromTemplate(mapped, config || {}, dummyPdfUrl, dummyDetailUrl)
 
       return NextResponse.json({ flexMsg })

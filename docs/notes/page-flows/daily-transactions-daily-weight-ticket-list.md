@@ -55,8 +55,8 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 - WTO detail/modal should show cost snapshot on the product breakdown table for users allowed to see stock/sales cost:
   - product summary row: weighted average cost and pending_out value, labeled to users as `มูลค่ารอส่ง`;
   - line/portion row: cost snapshot used by that confirmed pending_out portion; draft WTO has no pending_out row.
-- Runtime detail update 2026-06-30: `/daily/weight-ticket-list/[docNo]` and the detail modal both show the current WTO average-cost snapshot in the main product breakdown table at product-summary level and real-scale/line level. There is no separate current pending_out table; audit rows are shown only from timeline expansion and come from `weight_ticket_pending_out_events`, not live `stock_holds`.
-- WTO detail/modal and owner detail route must merge pending_out/cost audit into the document timeline:
+- Runtime detail update: the detail modal from `/daily/weight-ticket-list` shows the current WTO average-cost snapshot in the main product breakdown table at product-summary level and real-scale/line level. There is no separate current pending_out table; audit rows are shown only from timeline expansion and come from `weight_ticket_pending_out_events`, not live `stock_holds`.
+- WTO detail modal (opened from the list, including `?detail={docNo}&type=WTO` deep links) must merge pending_out/cost audit into the document timeline:
   - timeline events that changed pending_out or cost snapshot show a collapsed `ดูรายการเปลี่ยนแปลง` control;
   - expanding the event shows source scale/line, product, warehouse, qty, unit cost snapshot, value snapshot, status, snapshot time/source/note, held time, closed/consumed time, and reference document;
   - edit events must label the row-level change as `เพิ่มเต๋า` for new scales or `แก้ไขเต๋าเดิม` for existing scale changes; existing scale changes must show whether the quantity increased or decreased with before/after qty and signed delta, for example `แก้ไขเต๋าเดิม (ลดลง 50.00 -> 40.00 กก., -10.00 กก.)`;
@@ -88,7 +88,7 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 
 What is what: source chooser เป็นเพียงทางเลือกนำรูปเข้าสู่ฟอร์ม ไม่ใช่กล้องหรือคลังรูปใหม่ในระบบ และแถวช่องน้ำหนักเป็น presentation ของข้อมูลเต๋าเดิม. Why it has to be like this: ผู้ใช้หน้างานต้องเลือกถ่ายหลักฐานทันทีหรือใช้รูปเดิมได้โดยไม่เดาพฤติกรรม file picker ของแต่ละเครื่อง ขณะที่หลักฐานทั้งหมดต้องยังผ่านสิทธิ์ ชนิดไฟล์ ขนาดไฟล์ storage reference และประวัติเอกสารชุดเดิม; การวางค่าน้ำหนักสามช่องในแถวเดียวช่วยลดพื้นที่แนวตั้งโดยไม่เปลี่ยน business contract
 - หน้า list แสดง WTI/WTO และส่ง context ประเภทเอกสารไปหน้า create/edit ให้ถูกต้อง
-- Desktop table ใช้ balanced default-width contract รวม `1,660px` ที่ viewport `1440px`: ให้พื้นที่ผู้ขายและ action ตามข้อมูลจริง แต่ลดช่องว่างเกินจำเป็นในวันที่สร้าง, สาขา, ทะเบียนรถ, น้ำหนัก, สถานะ และอัปเดตล่าสุด. คอลัมน์ `จัดการ` ใช้ default/minimum 390px เพราะชุด action สูงสุด 5 ปุ่มกว้าง 366px และต้องเหลือ body padding 12px ทั้งสองด้าน; saved width เดิมที่ต่ำกว่า 390px จะถูก clamp โดย resize hook เพื่อไม่ให้ปุ่มล้นซ้ายไปทับ `อัปเดตล่าสุด`. ตารางยังคง internal horizontal scroll เพราะ action set ของ WTI/WTO มีหลายปุ่ม.
+- Desktop table ใช้ balanced default-width contract รวม `1,660px` ที่ viewport `1440px`: ให้พื้นที่ผู้ขายและ action ตามข้อมูลจริง แต่ลดช่องว่างเกินจำเป็นในวันที่สร้าง, สาขา, ทะเบียนรถ, น้ำหนัก, สถานะ และอัปเดตล่าสุด. คอลัมน์ `จัดการ` ใช้ default/minimum 390px; ความกว้างต้องรองรับ action ที่ขึ้นกับสถานะ/สิทธิ์หลายปุ่ม และตารางยังคง internal horizontal scroll. รายการ action ที่เป็น source of truth อยู่ในหัวข้อ `ตารางสถานะและปุ่มที่แสดงบน WTI/WTO` ของ `docs/notes/WTI-WTO Flow.md`.
 - Customer-approved readability follow-up (2026-07-14): ตารางรายการใช้เส้นแนวนอนบาง `1px` สี `--color-scrap-line` ระหว่างแถวจาก global `table.ns-table` rule เพื่อช่วยไล่อ่านรายการที่มีหลายคอลัมน์ โดยไม่เพิ่มเส้นตั้ง ไม่เปลี่ยน row hover และไม่ลดความเด่นของสถานะหรือแถวยกเลิก. สี `slate-100` จากรอบแรกถูกยกเลิกเพราะจางจนผู้ใช้มองไม่เห็นบนพื้นขาว.
 - modal create/edit ของใบรับ/ส่งของใช้รายการสินค้าเป็น card หลัก และในแต่ละ card แยกเป็น `เต๋าสินค้า`, `สรุปน้ำหนักเต๋า`, `ซื้อเพิ่มจากสิ่งเจือปน`, `สิ่งเจือปน`, และ summary รวมท้ายรายการ
 - UI follow-up 2026-08-05: ปุ่ม `+ เพิ่มสินค้า` ใช้สีเขียวทั้งในรายการและหัวแผงแก้ไขบนมือถือ/แท็บเล็ต ส่วน `+ เพิ่มสิ่งเจือปน` ใช้สีแดงเพื่อแยก action เพิ่มรายการหักออกจาก action เพิ่มสินค้า; แต่ละเต๋าแสดงเป็น section กรอบแยกพร้อมหัวข้อ `รายละเอียดเต๋าที่ ...` และยังยุบ/ขยายได้
@@ -121,7 +121,8 @@ What is what: สีปุ่มเป็นตัวแยก intent ของ 
 
 ### Detail Image Album
 
-- ทั้ง detail modal จากรายการและหน้า `/daily/weight-ticket-list/[docNo]` แสดง card `รูปภาพประกอบ` หลังกลุ่ม `รายละเอียดสินค้าและที่มา` / `สถานะ` และก่อนประวัติการใช้งานหรือ timeline เพื่อให้ตรวจหลักฐานทั้งหมดก่อนอ่านผลการนำเอกสารไปใช้
+- Detail modal จากรายการแสดง card `รูปภาพประกอบ` หลังกลุ่ม `รายละเอียดสินค้าและที่มา` / `สถานะ` และก่อนประวัติการใช้งานหรือ timeline เพื่อให้ตรวจหลักฐานทั้งหมดก่อนอ่านผลการนำเอกสารไปใช้
+- Header ของ card `รูปภาพประกอบ` มีปุ่ม `ดาวน์โหลดรูปทั้งหมด` เมื่อมีรูป preview ได้; ปุ่มเรียก API download ที่ตรวจสิทธิ์และ branch scope แล้วรวมรูปรถกับรูปของทุก line เป็น ZIP เดียว
 - `ticket.imageNames` คือ read model ที่รวมรูปรถและรูปของทุก line/เต๋าตามลำดับเดิม จึงไม่เพิ่ม API, query, storage field หรือการประกอบ fallback รายหน้า; ปุ่ม `ดูรูป` ของเต๋าเปิดลำดับรูปของทุกเต๋าตามตาราง โดยเริ่มจากเต๋าที่กดและเลื่อนไปเต๋าถัดไปได้ต่อเนื่อง ส่วนแถวซื้อเพิ่มจากสิ่งเจือปนยังเปิดเฉพาะรูปของแถวนั้น
 - รูปที่เปิดได้แสดงเป็น grid 3 คอลัมน์แบบยืดตามพื้นที่ (ตัวอย่าง 6 รูปจึงเป็น 3 x 2 และที่ 390px ยังไม่สร้าง document overflow) กดรูปใดจะเปิด lightbox เดิมที่รูปนั้น และใช้ `รูปก่อนหน้า` / `รูปถัดไป` แบบวนรอบได้; 0 รูปแสดง empty state และ 1 รูปเปิดเป็น gallery หนึ่งรายการโดยไม่แสดง navigation ที่ไม่จำเป็น
 - ค่า legacy ที่มีเพียง filename ถูกนับเป็นหลักฐานเดิมแต่ไม่สร้าง `<img>` ที่เสีย ระบบแสดงจำนวนที่ยัง preview ไม่ได้แทน ห้ามเดา URL หรือ fallback ไป legacy binary/base64 ตอน runtime
@@ -276,7 +277,8 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 - WTO customer/branch/product/warehouse/qty required และ target validate available qty จาก branch+product+warehouse
 - WTI supplier ต้อง active และมี active `supplier_branches` กับ branch ของ WTI; WTO customer ต้อง active และมี active `customer_branches` กับ branch ของ WTO; API ต้อง reject ถ้าไม่ตรง mapping และห้าม fallback เป็นทุกสาขา
 - WTO warehouse ต้อง active, อยู่ใน branch ที่เลือก, และเป็นคลัง `RM` หรือ `FG`
-- WTI/WTO status ใน target filter: `WTI = รับของแล้ว/เสร็จสิ้น/ยกเลิก`, `WTO = ส่งของแล้ว/ออกบิลแล้วบางส่วน/ออกบิลแล้ว/ยกเลิก`
+- WTI/WTO status ใน target filter: `WTI = แบบร่าง/รับของแล้ว/เสร็จสิ้น/ยกเลิก`, `WTO = แบบร่าง/ส่งของแล้ว/ออกบิลแล้วบางส่วน/ออกบิลแล้ว/ยกเลิก`
+- WTI ไม่มีสถานะ `partially_billed`; การออก PB ต้องจัดสรรน้ำหนัก WTI ให้ครบในบิลซื้อใบเดียว ส่วน `partially_billed` ใช้กับ WTO เท่านั้น
 - `WTO.partially_billed` ใช้เฉพาะกรณีใบส่งของถูกนำไปออก `SB` แล้วบางส่วนและยังมี active `pending_out` เหลือเพื่อรอ action `รับของคืน`; remaining นี้ห้ามนำไปเปิดบิลขายใบอื่นแบบเงียบ ๆ
 - ประเภทเอกสาร (`WTI`/`WTO`) เปลี่ยนไม่ได้หลังเปิดจาก create context เฉพาะประเภทหรือหลังสร้างเอกสารแล้ว; API ต้อง reject payload ที่พยายามเปลี่ยน `type`
 - edit/cancel lock เมื่อ PB/SB active ใช้งานแล้ว

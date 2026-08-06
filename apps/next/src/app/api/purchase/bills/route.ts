@@ -1647,11 +1647,10 @@ async function refreshWeightTicketStatuses(
   for (const ticket of ticketRows) {
     const totalQty = ticket.weight_ticket_lines.reduce((sum, line) => sum + toNumber(line.net_weight), 0)
     const billedQty = qtyByTicketId.get(ticket.id) ?? 0
-    const nextStatus = billedQty <= 0.0001
-      ? 'received'
-      : billedQty + 0.0001 < totalQty
-        ? 'partially_billed'
-        : 'billed'
+    if (billedQty > 0.0001 && billedQty + 0.0001 < totalQty) {
+      throw new Error('WTI ต้องจัดสรรน้ำหนักให้ครบในบิลซื้อใบเดียว ไม่รองรับการออกบิลบางส่วน')
+    }
+    const nextStatus = billedQty <= 0.0001 ? 'received' : 'billed'
     if (ticket.status === nextStatus) continue
     await tx.weight_tickets.update({
       data: {
@@ -1864,7 +1863,7 @@ export async function optionsPayload(allowedBranchCodes?: string[] | null) {
         ...(allowedBranchCodes ? { branch_id: { in: allowedBranchIds } } : {}),
         cancelled_at: null,
         doc_type: 'WTI',
-        status: { in: ['received', 'partially_billed'] },
+        status: 'received',
       },
     }),
   ])

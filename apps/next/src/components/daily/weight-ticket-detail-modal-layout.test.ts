@@ -17,7 +17,7 @@ describe('weight ticket detail modal action layout', () => {
 
   it('uses an accessible icon-only confirmation action on mobile while preserving its desktop label', () => {
     const confirmationAction = source.slice(
-      source.indexOf("ticket.status === 'draft'"),
+      source.indexOf('canConfirmWeightTicket(ticket)'),
       source.indexOf('{canReturnStock'),
     )
 

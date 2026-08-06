@@ -216,8 +216,8 @@ async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, page
   return data.publicUrl
 }
 
-function buildDetailUrl(origin: string, documentNo: string) {
-  return new URL(`/daily/weight-ticket-list/${encodeURIComponent(documentNo)}`, origin).toString()
+function buildDetailUrl(origin: string, documentNo: string, type: 'WTI' | 'WTO') {
+  return new URL(`/daily/weight-ticket-list?detail=${encodeURIComponent(documentNo)}&type=${encodeURIComponent(type)}`, origin).toString()
 }
 
 function buildProductDetailRows(ticket: WeightTicketRecord) {
@@ -1083,6 +1083,12 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
   if (!loaded) {
     return { code: 'NOT_FOUND' as const, status: 404, error: 'ไม่พบใบรับ-ส่งของ' }
   }
+  if (loaded.record.status === 'draft') {
+    return { code: 'BAD_REQUEST' as const, status: 400, error: 'ต้องยืนยันเอกสารก่อนส่ง LINE' }
+  }
+  if (loaded.record.status === 'cancelled') {
+    return { code: 'BAD_REQUEST' as const, status: 400, error: 'เอกสารที่ยกเลิกแล้วไม่สามารถส่ง LINE ได้' }
+  }
 
   const configs = await resolveNotificationConfigs()
 
@@ -1119,7 +1125,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
 
   try {
     const profile = await loadCompanyPrintProfile(loaded.record.branchId)
-    const detailUrl = buildDetailUrl(options.origin || configs.appUrl, loaded.record.documentNo)
+    const detailUrl = buildDetailUrl(options.origin || configs.appUrl, loaded.record.documentNo, loaded.record.type)
 
     // --- PDF + album generation (optional, graceful degradation) ---
     // ถ้า Playwright/Supabase พัง → ยังส่งข้อความ LINE ได้ (ไม่มี PDF แนบ)

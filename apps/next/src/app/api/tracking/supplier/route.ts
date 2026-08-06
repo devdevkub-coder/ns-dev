@@ -600,7 +600,7 @@ export async function GET(request: Request) {
           deductWeight: toNumber(ticket.deduct_weight),
           docNo: ticket.doc_no,
           grossWeight: toNumber(ticket.gross_weight),
-          href: `/daily/weight-ticket-list/${encodeURIComponent(ticket.doc_no)}`,
+          href: `/daily/weight-ticket-list?detail=${encodeURIComponent(ticket.doc_no)}&type=WTI`,
           netWeight: ticket.weight_ticket_product_summaries.reduce((sum, summary) => sum + toNumber(summary.net_weight), 0) || toNumber(ticket.net_weight),
           remainingWeight: ticket.weight_ticket_product_summaries.reduce((sum, summary) => sum + toNumber(summary.remaining_weight), 0),
           status: ticket.status,
