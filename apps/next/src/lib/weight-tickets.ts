@@ -1042,7 +1042,7 @@ export const statusLabels: Record<WeightTicketStatus, string> = {
 }
 
 export function canPrintWeightTicket(status: WeightTicketStatus) {
-  return status !== 'draft' && status !== 'cancelled'
+  return status !== 'cancelled'
 }
 
 export function canShareWeightTicket(status: WeightTicketStatus) {
