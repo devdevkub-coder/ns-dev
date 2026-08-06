@@ -5,7 +5,12 @@
 - Target contract: `WEIGHT_TICKET_IMAGE_BUCKET` ต้องเป็น private สำหรับรูปหลักฐานต้นฉบับ; `WEIGHT_TICKET_PDF_BUCKET` ต้องเป็น public สำหรับ PDF และภาพ JPEG อัลบั้มที่สร้างเป็น outbound artifact.
 - Runtime ใช้ DB เก็บ `{bucket, storageKey, fileName}` โดยไม่เก็บ signed URL; signed URL อายุสั้นสร้างตอนอ่าน/preview/print/PDF/LINE. legacy data URL, URL-only, filename-only และ reference ข้าม bucket จะ fail closed.
 - SIT (`vbjlkxbytccklhqvxjuu`) apply และบันทึก migration `20260806120000_split_weight_ticket_image_and_pdf_buckets` แล้ว. ย้ายรูปหลักฐานจาก `weight-ticket-pdfs` ไป `weight-ticket-images` 153/153 references, `failed=0`, `cas_conflicts=0`, `orphaned_copies=0`; audit พบ `missing_storage_key=0`, `migrated_orphan=0`, และ legacy/invalid references เป็นศูนย์. ต้นฉบับใน `weight-ticket-pdfs` ยังไม่ถูกลบ.
-- Production ยังไม่ได้ migrate; ห้ามสรุปจาก SIT ว่า object ของ Production ถูกย้ายแล้ว.
+- Production (`fhglqymcdmrgbsbadnwr`) ตรวจ live schema แล้วมี migration และ bucket contract เดียวกัน: `weight-ticket-images` private และ `weight-ticket-pdfs` public. ไม่ได้ย้ายหรือลบ object ของ Production ใน checkpoint นี้.
+
+### Stock Transfer Action Permissions — 2026-08-06
+
+- แก้เลข migration จาก `20260806100000` เป็น `20260806130000` เพราะ `20260806100000` ถูกใช้กับ Google Sheets retirement อยู่แล้ว.
+- SIT และ Production มี migration history `20260806130000_add_stock_transfer_action_permissions`, permission `stock.transfer.create/post/cancel` active ครบ และ role grants รวม 21 รายการต่อ environment. ไม่มี business-row backfill.
 
 ### WTI/WTO Google Sheets Setting Retirement 2026-08-06
 

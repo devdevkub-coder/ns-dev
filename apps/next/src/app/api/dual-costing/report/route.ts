@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
         date: string
         gp: number
         gpPct: number
+        id: string
         matchId: string
         productName: string
         revenue: number
@@ -96,6 +97,7 @@ export async function GET(request: NextRequest) {
         date: row.date,
         gp: row.grossProfit,
         gpPct: row.gpPct,
+        id: row.id,
         matchId: row.matchId,
         productName: row.productName,
         revenue: row.allocatedRevenue,

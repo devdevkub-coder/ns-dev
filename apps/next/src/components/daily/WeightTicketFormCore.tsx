@@ -16,6 +16,7 @@ import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/F
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { WeightTicketAttachmentGrid as AttachmentProfileGrid, type WeightTicketAttachmentPreview as AttachmentPreview } from '@/components/daily/WeightTicketAttachmentGrid'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
+import { useWeightTicketRealtime } from '@/components/daily/useWeightTicketRealtime'
 import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/components/daily/WeightTicketTypeFormSections'
 import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
@@ -963,6 +964,18 @@ export function WeightTicketFormCore({
   useEffect(() => {
     onDirtyChange?.(isFormDirty)
   }, [isFormDirty, onDirtyChange])
+
+  const realtimeBranchIds = useMemo(() => {
+    const branchId = (savedTicket ?? loadedTicket)?.branchId
+    return branchId ? [branchId] : []
+  }, [loadedTicket, savedTicket])
+
+  useWeightTicketRealtime((event) => {
+    if (!editingTicketId || event.documentNo !== editingTicketId) return
+    if (saveInFlightRef.current) return
+    if (event.updatedAt && event.updatedAt === (savedTicket ?? loadedTicket)?.updatedAt) return
+    setMergeNotice('มีผู้ใช้อื่นบันทึกเอกสารนี้แล้ว ระบบจะไม่ทับข้อมูลที่กำลังกรอกอยู่ กรุณาตรวจสอบและบันทึกอีกครั้ง')
+  }, Boolean(editingTicketId), realtimeBranchIds)
 
   const partyOptions = useMemo(() => {
     const options = form.type === 'WTI' ? suppliers : customers

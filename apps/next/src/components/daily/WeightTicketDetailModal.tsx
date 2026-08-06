@@ -23,6 +23,7 @@ import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canSh
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
+import { useWeightTicketRealtime } from './useWeightTicketRealtime'
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
@@ -139,6 +140,10 @@ export function WeightTicketDetailModal({
   const [shareNote, setShareNote] = useState('')
   const [shareError, setShareError] = useState('')
   const [isSendingLine, setIsSendingLine] = useState(false)
+  const realtimeBranchIds = useMemo(() => {
+    const branchId = ticket?.branchId ?? initialTicket?.branchId
+    return branchId ? [branchId] : []
+  }, [initialTicket?.branchId, ticket?.branchId])
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
   const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(ticket?.canCancel && cancelNote.trim()))
@@ -223,6 +228,10 @@ export function WeightTicketDetailModal({
 
   const vehicleImages = useMemo(
     () => (ticket?.vehicleImageNames ?? []).map(decodeStoredImageAsset),
+    [ticket],
+  )
+  const lineImageNames = useMemo(
+    () => ticket?.lines.flatMap((line) => line.imageNames) ?? [],
     [ticket],
   )
 
@@ -310,6 +319,13 @@ export function WeightTicketDetailModal({
       setCanReturnStock(false)
     }
   }
+
+  useWeightTicketRealtime((event) => {
+    if (event.documentNo !== ticketId) return
+    void reloadTicket().catch((caught) => {
+      setLoadError(getErrorMessage(caught, 'โหลดข้อมูลใบรับ-ส่งของล่าสุดไม่ได้'))
+    })
+  }, Boolean(ticketId), realtimeBranchIds)
 
   async function handleSendLineNotification() {
     if (!ticket || !canShareWeightTicket(ticket.status)) return
@@ -568,7 +584,7 @@ export function WeightTicketDetailModal({
                 downloadUrl={`/api/daily/weight-tickets/${encodeURIComponent(ticket.documentNo)}/images/download`}
                 downloadFileName={`${ticket.documentNo}-images.zip`}
                 downloadImageNames={ticket.imageNames}
-                imageNames={ticket.imageNames}
+                imageNames={lineImageNames}
                 isLoadingPreview={isLoadingImagePreview}
                 onOpen={(gallery) => setLineGallery(gallery)}
                 previewError={imagePreviewError}

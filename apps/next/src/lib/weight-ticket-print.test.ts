@@ -282,6 +282,16 @@ describe('weight ticket print HTML', () => {
       'product-second.jpg',
     ])
 
+    const refreshedVehicleReference = encodeStoredImageReference('vehicle-renamed.jpg', 'https://storage.example/refreshed-url.jpg?token=new', 'tickets/vehicle-first.jpg', 'weight-ticket-images')
+    const sameNameDifferentStorage = encodeStoredImageReference('vehicle-first.jpg', 'https://storage.example/other-vehicle.jpg?token=other', 'tickets/other-vehicle.jpg', 'weight-ticket-images')
+    expect(buildWeightTicketAttachmentImages({
+      ...ticketWithAttachments,
+      imageNames: [refreshedVehicleReference, sameNameDifferentStorage],
+    }).map((image) => image.fileName)).toEqual([
+      'vehicle-first.jpg',
+      'vehicle-first.jpg',
+    ])
+
     const html = buildReceiptPrintHtml(ticketWithAttachments, profile)
     expect(html).toContain('ใบรับสินค้า (รูปถ่ายแนบ)')
     expect(html).not.toContain('รูปรถส่งของ')
