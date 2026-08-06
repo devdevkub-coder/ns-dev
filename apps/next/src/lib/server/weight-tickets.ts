@@ -272,6 +272,27 @@ export const weightTicketListSelect = {
   updated_by: true,
   vehicle_image_count: true,
   vehicle_no: true,
+  weight_ticket_product_summaries: {
+    select: {
+      billed_weight: true,
+      container_deduction_weight: true,
+      deduct_weight: true,
+      gross_weight: true,
+      has_mixed_deduction_profiles: true,
+      line_count: true,
+      net_weight: true,
+      product_id: true,
+      product_name: true,
+      products: {
+        select: {
+          code: true,
+          id: true,
+          metal_group: true,
+        },
+      },
+      remaining_weight: true,
+    },
+  },
 } as const
 
 export type WeightTicketListRow = Prisma.weight_ticketsGetPayload<{
@@ -1128,6 +1149,24 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
 export function mapWeightTicketListRow(row: WeightTicketListRow, usage: WeightTicketUsage) {
   const canMutate = canMutateWeightTicket(row, usage)
   const canEdit = canEditWeightTicket({ docType: row.doc_type, status: row.status }, usage)
+  const productSummaries = row.weight_ticket_product_summaries.map((summary) => ({
+    billedWeight: toNumber(summary.billed_weight),
+    containerDeductionWeight: toNumber(summary.container_deduction_weight),
+    costSnapshotStatus: 'none' as const,
+    deductWeight: toNumber(summary.deduct_weight),
+    grossWeight: toNumber(summary.gross_weight),
+    hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles,
+    id: `${row.doc_no}:${requireBusinessCode(summary.products.code, `สินค้า ${summary.products.id}`)}:${summary.line_count}`,
+    lineCount: summary.line_count,
+    netWeight: toNumber(summary.net_weight),
+    pendingOutQty: 0,
+    pendingOutValue: 0,
+    productId: requireBusinessCode(summary.products.code, `สินค้า ${summary.products.id}`),
+    productName: summary.product_name,
+    categoryName: summary.products.metal_group || '-',
+    remainingWeight: toNumber(summary.remaining_weight),
+    unitCostSnapshot: null,
+  }))
 
   return {
     branchId: row.branches?.code ?? '',
@@ -1149,7 +1188,7 @@ export function mapWeightTicketListRow(row: WeightTicketListRow, usage: WeightTi
     partyName: row.party_name,
     pendingOutEvents: [],
     pendingOutHistory: [],
-    productSummaries: [],
+    productSummaries,
     remark: row.remark ?? '',
     status: row.status as WeightTicketStatus,
     totals: {

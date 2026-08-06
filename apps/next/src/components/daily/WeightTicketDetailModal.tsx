@@ -19,7 +19,7 @@ import { WeightTicketImageGallery } from '@/components/daily/WeightTicketImageGa
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, isPreviewableStoredImageAsset, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImagePreviews, isPreviewableStoredImageAsset, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketImagePreviews, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
@@ -94,19 +94,36 @@ function usageWeightClass(action: string) {
   return 'text-rose-700'
 }
 
+function mergeWeightTicketImagePreviews(ticket: WeightTicketRecord, previews: WeightTicketImagePreviews): WeightTicketRecord {
+  const imageNamesByLineNo = new Map(previews.lines.map((line) => [line.lineNo, line.imageNames]))
+  return {
+    ...ticket,
+    imageNames: previews.imageNames,
+    lines: ticket.lines.map((line) => ({
+      ...line,
+      imageNames: line.lineNo == null ? line.imageNames : imageNamesByLineNo.get(line.lineNo) ?? line.imageNames,
+    })),
+    vehicleImageNames: previews.vehicleImageNames,
+  }
+}
+
 export function WeightTicketDetailModal({
   ticketId,
+  initialTicket,
   onClose,
   onEdit,
 }: {
+  initialTicket?: WeightTicketRecord
   ticketId: string
   onClose: () => void
   onEdit?: (id: string, type: WeightTicketType) => void
 }) {
   const { requestConfirmation } = useActionConfirmation()
-  const [ticket, setTicket] = useState<WeightTicketRecord | null>(null)
+  const [ticket, setTicket] = useState<WeightTicketRecord | null>(() => initialTicket ?? null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [isLoadingImagePreview, setIsLoadingImagePreview] = useState(false)
+  const [imagePreviewError, setImagePreviewError] = useState('')
   const [cancelNote, setCancelNote] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [isCanceling, setIsCanceling] = useState(false)
@@ -144,17 +161,32 @@ export function WeightTicketDetailModal({
     let cancelled = false
 
     async function loadTicket() {
+      setTicket(initialTicket ?? null)
       setIsLoading(true)
       setLoadError('')
+      setImagePreviewError('')
+      setIsLoadingImagePreview(false)
       try {
-        const nextTicket = await getWeightTicket(ticketId)
+        const nextTicket = await getWeightTicket(ticketId, { includeImagePreviews: false })
         if (cancelled) return
         setTicket(nextTicket)
         setCancelNote(nextTicket.cancelNote ?? '')
+        setIsLoading(false)
+        setIsLoadingImagePreview(true)
+        try {
+          const previews = await getWeightTicketImagePreviews(ticketId)
+          if (cancelled) return
+          setTicket((current) => current ? mergeWeightTicketImagePreviews(current, previews) : current)
+        } catch {
+          if (!cancelled) setImagePreviewError('ยังโหลด preview รูปภาพไม่สำเร็จ แต่ข้อมูลเอกสารยังใช้งานได้')
+        } finally {
+          if (!cancelled) setIsLoadingImagePreview(false)
+        }
       } catch (caught) {
-        if (!cancelled) setLoadError(getErrorMessage(caught, 'โหลดใบรับ-ส่งของไม่ได้'))
-      } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled) {
+          setLoadError(getErrorMessage(caught, 'โหลดใบรับ-ส่งของไม่ได้'))
+          setIsLoading(false)
+        }
       }
     }
 
@@ -162,10 +194,10 @@ export function WeightTicketDetailModal({
     return () => {
       cancelled = true
     }
-  }, [ticketId])
+  }, [initialTicket, ticketId])
 
   useEffect(() => {
-    if (ticket?.type !== 'WTO' || ticket.status !== 'partially_billed') {
+    if (isLoading || ticket?.type !== 'WTO' || ticket.status !== 'partially_billed') {
       setCanReturnStock(false)
       return
     }
@@ -187,7 +219,7 @@ export function WeightTicketDetailModal({
     return () => {
       cancelled = true
     }
-  }, [ticket?.documentNo, ticket?.status, ticket?.type])
+  }, [isLoading, ticket?.documentNo, ticket?.status, ticket?.type])
 
   const vehicleImages = useMemo(
     () => (ticket?.vehicleImageNames ?? []).map(decodeStoredImageAsset),
@@ -245,8 +277,11 @@ export function WeightTicketDetailModal({
     setIsPrinting(true)
     let printWindow: Window | null = null
     try {
-      printWindow = openWeightTicketPrintWindow(ticket)
-      await openWeightTicketReceiptPrint(ticket, printWindow)
+      const printableTicket = ticket.imageNames.some((imageName) => !isPreviewableStoredImageAsset(decodeStoredImageAsset(imageName)))
+        ? await getWeightTicket(ticketId)
+        : ticket
+      printWindow = openWeightTicketPrintWindow(printableTicket)
+      await openWeightTicketReceiptPrint(printableTicket, printWindow)
     } catch (caught) {
       printWindow?.close()
       window.alert(getErrorMessage(caught, 'เปิดใบพิมพ์ใบรับ-ส่งสินค้าไม่สำเร็จ'))
@@ -256,9 +291,19 @@ export function WeightTicketDetailModal({
   }
 
   async function reloadTicket() {
-    const nextTicket = await getWeightTicket(ticketId)
+    const nextTicket = await getWeightTicket(ticketId, { includeImagePreviews: false })
     setTicket(nextTicket)
     setCancelNote(nextTicket.cancelNote ?? '')
+    setImagePreviewError('')
+    setIsLoadingImagePreview(true)
+    try {
+      const previews = await getWeightTicketImagePreviews(ticketId)
+      setTicket((current) => current ? mergeWeightTicketImagePreviews(current, previews) : current)
+    } catch {
+      setImagePreviewError('ยังโหลด preview รูปภาพไม่สำเร็จ แต่ข้อมูลเอกสารยังใช้งานได้')
+    } finally {
+      setIsLoadingImagePreview(false)
+    }
     if (nextTicket.type === 'WTO') {
       await loadStockReturnAvailability(nextTicket.documentNo)
     } else {
@@ -307,7 +352,7 @@ export function WeightTicketDetailModal({
               <DialogDescription className="truncate text-slate-300">{ticket?.partyName ?? (isLoading ? 'กำลังโหลดข้อมูล' : '-')}</DialogDescription>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {ticket ? (
+              {ticket && !isLoading ? (
                 <>
                   {canConfirmWeightTicket(ticket) ? (
                     <div className="flex items-center gap-3">
@@ -524,7 +569,9 @@ export function WeightTicketDetailModal({
                 downloadFileName={`${ticket.documentNo}-images.zip`}
                 downloadImageNames={ticket.imageNames}
                 imageNames={ticket.imageNames}
+                isLoadingPreview={isLoadingImagePreview}
                 onOpen={(gallery) => setLineGallery(gallery)}
+                previewError={imagePreviewError}
               />
 
             {ticket.type === 'WTI' ? (

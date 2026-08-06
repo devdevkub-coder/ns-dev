@@ -51,7 +51,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       imageNames: signed.imageNames,
       lines: signed.lines,
       vehicleImageNames: signed.vehicleImageNames,
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด preview รูปใบรับ-ส่งของไม่ได้', 500)
