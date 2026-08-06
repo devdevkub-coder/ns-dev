@@ -4,11 +4,11 @@ Objective: แยก source evidence ของ WTI/WTO ออกจาก outbou
 
 Active batch: harden upload, read/preview, browser print, ZIP download, PDF/LINE generation, canonical image references และ migration/backfill scripts. Runtime ไม่รับ data URL, URL-only, filename-only หรือ bucket ผิดเป็น write path อีกต่อไป; signed URL สร้างใหม่เฉพาะ response/preview/print/PDF/LINE.
 
-Status: โค้ด bucket split อยู่บน `sit-origin/main`; migration `20260806120000` ถูก apply และบันทึกใน SIT แล้ว. ย้ายรูปหลักฐานจาก `weight-ticket-pdfs` ไป `weight-ticket-images` ครบ 153 references โดยไม่ลบต้นฉบับ; audit หลังย้ายผ่านและไม่พบ missing/orphaned reference.
+Status: โค้ด bucket split และ stock-transfer permission migration อยู่บน SIT/Production commit เดียวกัน `7be59207`. ตรวจ live schema แล้วทั้งสอง environment มี migration `20260806120000` และ `20260806130000` ครบ; bucket รูปหลักฐานเป็น private และ PDF เป็น public ตาม contract. ย้ายรูปหลักฐานจาก `weight-ticket-pdfs` ไป `weight-ticket-images` ครบ 153 references โดยไม่ลบต้นฉบับ; audit หลังย้ายผ่านและไม่พบ missing/orphaned reference.
 
-Required rollout gate: ตรวจ bucket จริงราย environment ให้ image private/PDF public, รัน dry-run แล้วจึง apply migration/backfill ด้วย manifest ภายนอก, audit legacy/filename-only references ให้หมด และค่อย deploy runtime. SIT ผ่าน gate แล้ว; ห้ามลบ source object อัตโนมัติ.
+Required rollout gate: ตรวจ bucket จริงราย environment ให้ image private/PDF public, รัน dry-run แล้วจึง apply migration/backfill ด้วย manifest ภายนอก, audit legacy/filename-only references ให้หมด และค่อย deploy runtime. SIT และ Production ผ่าน schema gate แล้ว; ห้ามลบ source object อัตโนมัติ.
 
-Immediate next task: ตรวจ runtime deployment ให้ใช้ migration/config ล่าสุด แล้ว retry โหลด detail และส่ง LINE ของ WTI/WTO; Production ยังไม่ถูก migrate.
+Immediate next task: ตรวจ runtime deployment ให้ใช้ migration/config ล่าสุด แล้ว retry โหลด detail และส่ง LINE ของ WTI/WTO; Git promotion เสร็จแล้ว แต่ deployment/runtime smoke ยังต้องยืนยันแยกจาก Git.
 
 # LINE Notification Reliability — 2026-08-05
 
