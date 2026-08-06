@@ -4,7 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
 import { branchScopeIds, findScopedWeightTicket } from '@/lib/server/weight-tickets'
-import { resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { assertWeightTicketImageStorageKey, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { decodeStoredImageAsset, type StoredImageAsset } from '@/lib/weight-tickets'
 
 export const runtime = 'nodejs'
@@ -28,7 +28,8 @@ async function loadImageBytes(asset: StoredImageAsset, bucket: string, supabase:
   }
   if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับดาวน์โหลดรูปหลักฐาน')
 
-  const { data, error } = await supabase.storage.from(bucket).download(asset.storageKey)
+  const storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
+  const { data, error } = await supabase.storage.from(bucket).download(storageKey)
   if (error || !data) throw new Error(error?.message ?? `ไม่พบไฟล์ ${asset.fileName}`)
   return Buffer.from(await data.arrayBuffer())
 }

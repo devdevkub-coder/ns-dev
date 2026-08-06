@@ -13,6 +13,7 @@ import { decodeStoredImageAsset, encodeStoredImageReference, formatDateDisplay, 
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/reference-master-cache'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
+import { assertWeightTicketImageStorageKey } from '@/lib/server/weight-ticket-storage'
 import {
   findScopedWeightTicket,
   getWeightTicketUsageCounts,
@@ -1064,7 +1065,8 @@ async function resolveImagePublicUrls(ticket: WeightTicketRecord, bucketName: st
     if (asset.bucket !== bucketName) {
       throw new Error(`รูปหลักฐาน ${asset.fileName} อ้างอิง bucket ไม่ตรงกับ private image bucket`)
     }
-    const { data, error } = await supabase.storage.from(bucketName).createSignedUrl(asset.storageKey, SIGNED_URL_TTL_SECONDS)
+    const storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
+    const { data, error } = await supabase.storage.from(bucketName).createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS)
     if (error || !data?.signedUrl) {
       throw new Error(`สร้าง signed URL รูปหลักฐาน ${asset.fileName} ไม่สำเร็จ: ${error?.message ?? 'ไม่พบ signed URL'}`)
     }
@@ -1139,9 +1141,8 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       // ใช้ module ใหม่ react-pdf + @napi-rs/canvas (แทน Playwright)
       // กำจัด dependency Chromium binary ออกจาก Docker image ทั้งหมด
       const { pdfBuffer, albumImages } = await generateWeightTicketPdfReactPdf(pdfRecord, profile as CompanyProfilePrintValues, {
-        // Match the printable attachment album: the document type and
-        // attachment order are enough; do not overlay receive/dispatch tags.
-        showBadges: false,
+        // Keep the existing admin setting effective for generated LINE albums.
+        showBadges: configs.albumShowBadges,
         showTimestamps: configs.albumShowTimestamps,
         quality: configs.albumQuality,
       })

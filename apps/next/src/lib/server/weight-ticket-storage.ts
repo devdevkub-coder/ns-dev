@@ -5,6 +5,7 @@ import { decodeStoredImageAsset, encodeStoredImageReference } from '@/lib/weight
 export const WEIGHT_TICKET_IMAGE_BUCKET_SETTING = 'WEIGHT_TICKET_IMAGE_BUCKET'
 export const WEIGHT_TICKET_PDF_BUCKET_SETTING = 'WEIGHT_TICKET_PDF_BUCKET'
 export const WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS = 60 * 60
+export const WEIGHT_TICKET_IMAGE_STORAGE_PREFIX = 'attachments/'
 
 export class WeightTicketImageReferenceError extends Error {
   constructor(message: string) {
@@ -24,6 +25,27 @@ async function resolveConfiguredBucket(settingKey: string, environmentKey: strin
 export function requireWeightTicketBucket(value: string, label: string) {
   if (!value) throw new Error(`ยังไม่ได้ตั้งค่า Storage Bucket สำหรับ${label}`)
   return value
+}
+
+export function assertWeightTicketImageStorageKey(value: string) {
+  const storageKey = value.trim()
+  const segments = storageKey.split('/')
+  if (
+    !storageKey
+    || storageKey.length > 512
+    || storageKey.startsWith('/')
+    || storageKey.includes('\\')
+    || !storageKey.startsWith(WEIGHT_TICKET_IMAGE_STORAGE_PREFIX)
+    || segments.some((segment) => (
+      !segment
+      || segment === '.'
+      || segment === '..'
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(segment)
+    ))
+  ) {
+    throw new WeightTicketImageReferenceError('storage key ของรูปหลักฐานไม่อยู่ในพื้นที่ที่อนุญาต')
+  }
+  return storageKey
 }
 
 export async function resolveWeightTicketImageBucket() {
@@ -48,6 +70,7 @@ function assertCanonicalImageReference(rawValue: string, bucket: string) {
   if (asset.bucket !== bucket) {
     throw new WeightTicketImageReferenceError('รูปหลักฐานอ้างอิง bucket ไม่ตรงกับ private image bucket ที่ตั้งค่าไว้')
   }
+  const storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
 
   if (rawValue.trim().startsWith('{')) {
     try {
@@ -61,7 +84,7 @@ function assertCanonicalImageReference(rawValue: string, bucket: string) {
     }
   }
 
-  return encodeStoredImageReference(asset.fileName, undefined, asset.storageKey, bucket)
+  return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket)
 }
 
 export function normalizeWeightTicketImageReferences<T extends {
@@ -93,16 +116,22 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
   async function resolve(rawValue: string): Promise<string | null> {
     const asset = decodeStoredImageAsset(rawValue)
     if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) return null
-    const cacheKey = `${asset.bucket}:${asset.storageKey}`
+    let storageKey: string
+    try {
+      storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
+    } catch {
+      throw new WeightTicketImageReferenceError(`storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
+    }
+    const cacheKey = `${asset.bucket}:${storageKey}`
     const cached = signedUrlByKey.get(cacheKey)
-    if (cached) return encodeStoredImageReference(asset.fileName, cached, asset.storageKey, bucket)
+    if (cached) return encodeStoredImageReference(asset.fileName, cached, storageKey, bucket)
 
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(asset.storageKey, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS)
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storageKey, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS)
     if (error || !data?.signedUrl) {
       throw new Error(`สร้าง signed URL รูปหลักฐาน ${asset.fileName} ไม่สำเร็จ: ${error?.message ?? 'ไม่พบ signed URL'}`)
     }
     signedUrlByKey.set(cacheKey, data.signedUrl)
-    return encodeStoredImageReference(asset.fileName, data.signedUrl, asset.storageKey, bucket)
+    return encodeStoredImageReference(asset.fileName, data.signedUrl, storageKey, bucket)
   }
 
   const [imageNames, vehicleImageNames, lines] = await Promise.all([

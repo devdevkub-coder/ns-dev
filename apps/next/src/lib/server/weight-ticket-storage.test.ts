@@ -61,6 +61,26 @@ describe('WTI/WTO private image reference contract', () => {
     }, 'weight-ticket-images')).toThrow('bucket ไม่ตรง')
   })
 
+  it('rejects image storage keys outside the attachments namespace', () => {
+    for (const storageKey of [
+      'weight-ticket-pdfs/secret.jpg',
+      'attachments/../secret.jpg',
+      'attachments/%2e%2e/secret.jpg',
+      'attachments/foo?x=1.jpg',
+      'attachments/foo#fragment.jpg',
+      'attachments//secret.jpg',
+    ]) {
+      expect(() => normalizeWeightTicketImageReferences({
+        lines: [{ imageNames: [JSON.stringify({
+          bucket: 'weight-ticket-images',
+          fileName: 'secret.jpg',
+          storageKey,
+        })] }],
+        vehicleImageNames: [],
+      }, 'weight-ticket-images')).toThrow('storage key')
+    }
+  })
+
   it('fails closed when preview input references another bucket or a legacy value', async () => {
     const wrongBucketReference = JSON.stringify({
       bucket: 'weight-ticket-pdfs',
@@ -89,5 +109,17 @@ describe('WTI/WTO private image reference contract', () => {
     expect(result.lines[0]?.imageNames).toEqual([])
     expect(result.vehicleImageNames).toEqual([])
     expect(mocks.createSignedUrl).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces malformed same-bucket keys instead of silently dropping them from preview', async () => {
+    await expect(attachWeightTicketImagePreviewUrls({
+      imageNames: [JSON.stringify({
+        bucket: 'weight-ticket-images',
+        fileName: 'broken.jpg',
+        storageKey: 'attachments/%2e%2e/broken.jpg',
+      })],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')).rejects.toThrow('storage key')
   })
 })
