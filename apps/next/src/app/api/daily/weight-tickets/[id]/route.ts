@@ -4,6 +4,7 @@ import { calculateTicketTotals, weightTicketCancelSchema, weightTicketConfirmSch
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { withAuthNoStore } from '@/lib/server/auth-response'
 import { currentActor, toDateOnly } from '@/lib/server/daily'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
@@ -102,34 +103,37 @@ async function findScopedTicket(documentNo: string, scopedBranchIds: string[] | 
   })
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'daily.weight_tickets.view')
 
     const { id } = await context.params
     const ticket = await findScopedTicket(id, branchScopeIds(auth))
-    if (!ticket) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 })
+    if (!ticket) return withAuthNoStore(NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 }))
 
     const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
-    const responseMapped = await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
+    const includeImagePreviews = new URL(request.url).searchParams.get('includeImagePreviews') !== 'false'
+    const responseMapped = includeImagePreviews
+      ? await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
+      : mapped
     const [timeline, usageTimeline, downstreamAllocations, pendingOutEvents] = await Promise.all([
       getWeightTicketTimeline(prisma, ticket.id),
       getWeightTicketUsageTimeline(prisma, ticket.id),
       getWeightTicketDownstreamAllocations(prisma, ticket.id),
       getWeightTicketPendingOutEvents(prisma, ticket.id),
     ])
-    return NextResponse.json({
+    return withAuthNoStore(NextResponse.json({
       ...responseMapped,
       downstreamAllocations,
       pendingOutEvents,
       timeline,
       usageTimeline,
-    })
+    }))
   } catch (caught) {
-    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return apiErrorResponse(caught, 'โหลดใบรับ-ส่งของไม่ได้', 500)
+    if (caught instanceof AuthContextError) return withAuthNoStore(authContextErrorResponse(caught))
+    return withAuthNoStore(apiErrorResponse(caught, 'โหลดใบรับ-ส่งของไม่ได้', 500))
   }
 }
 
@@ -352,14 +356,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
         const existingLineByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
         const retainedLineNos = new Set(lineRows.map((line) => line.line_no))
-        for (const data of lineRows) {
+        await Promise.all(lineRows.map(async (data) => {
           const existingLine = existingLineByLineNo.get(data.line_no)
           if (existingLine) {
             await tx.weight_ticket_lines.update({ data, where: { id: existingLine.id } })
           } else {
             await tx.weight_ticket_lines.create({ data })
           }
-        }
+        }))
         const removedLineIds = existing.weight_ticket_lines
           .filter((line) => !retainedLineNos.has(line.line_no))
           .map((line) => line.id)
@@ -453,44 +457,28 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
-    let responseMapped = mapped
-    let imagePreviewWarning = false
-    try {
-      responseMapped = await attachWeightTicketImagePreviewUrls(mapped, imageBucket)
-    } catch (caught) {
-      imagePreviewWarning = true
-      console.error('[weight-ticket] updated ticket but preview signing failed', caught)
-    }
     await recordAuditLog({
-      action: 'update',
-      afterData: weightTicketAuditSnapshot(mapped),
-      beforeData: beforeSnapshot,
-      context: auth,
-      entityId: String(updated.id),
-      entityLabel: updated.doc_no,
-      entitySchema: 'public',
-      entityTable: 'weight_tickets',
-      eventKey: 'daily.weight-ticket.updated',
-      metadata: {
-        branchName: mapped.branchName,
-        documentNo: mapped.documentNo,
-        type: mapped.type,
-      },
-      request,
-      targetId: String(updated.id),
-      targetLabel: updated.doc_no,
-      targetType: 'weight_ticket',
+        action: 'update',
+        afterData: weightTicketAuditSnapshot(mapped),
+        beforeData: beforeSnapshot,
+        context: auth,
+        entityId: String(updated.id),
+        entityLabel: updated.doc_no,
+        entitySchema: 'public',
+        entityTable: 'weight_tickets',
+        eventKey: 'daily.weight-ticket.updated',
+        metadata: {
+          branchName: mapped.branchName,
+          documentNo: mapped.documentNo,
+          type: mapped.type,
+        },
+        request,
+        targetId: String(updated.id),
+        targetLabel: updated.doc_no,
+        targetType: 'weight_ticket',
     })
-
-    const [timeline, pendingOutEvents] = await Promise.all([
-      getWeightTicketTimeline(prisma, updated.id),
-      getWeightTicketPendingOutEvents(prisma, updated.id),
-    ])
     return NextResponse.json({
-      ...responseMapped,
-      imagePreviewWarning,
-      pendingOutEvents,
-      timeline,
+      ...mapped,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { permissionCodesForPath } from '@/lib/navigation'
-import { preserveAuthResponseHeaders } from '@/lib/proxy-auth-headers'
+import { applyAuthResponseHeaders } from '@/lib/proxy-auth-headers'
 
 const publicPaths = new Set(['/login', '/forgot-password', '/reset-password', '/api/auth/forgot-password', '/api/health', '/api/line/webhook'])
 
@@ -21,7 +21,7 @@ function jsonError(message: string, status: number) {
 }
 
 function authErrorResponse(source: NextResponse, target: NextResponse) {
-  preserveAuthResponseHeaders(source.headers, target.headers)
+  applyAuthResponseHeaders(source.headers, target.headers)
   return target
 }
 

@@ -1,9 +1,8 @@
-import { NextResponse } from 'next/server'
 import { userProfileSchema } from '@/lib/auth'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext } from '@/lib/server/auth-context'
+import { authJson, withAuthNoStore } from '@/lib/server/auth-response'
 import { prisma } from '@/lib/server/prisma'
-import { apiErrorResponse } from '@/lib/server/api-error'
 
 export const runtime = 'nodejs'
 
@@ -12,14 +11,14 @@ export async function PUT(request: Request) {
     const context = await getCurrentAuthContext()
 
     if (!context.appUser) {
-      return apiErrorResponse(null, 'ไม่พบข้อมูลผู้ใช้งานในระบบ', 403)
+      return authJson({ error: 'ไม่พบข้อมูลผู้ใช้งานในระบบ' }, { status: 403 })
     }
 
     const body = await request.json().catch(() => ({}))
     const parsed = userProfileSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
+      return authJson(
         { error: 'ข้อมูลไม่ถูกต้อง', fieldErrors: parsed.error.flatten().fieldErrors },
         { status: 400 }
       )
@@ -43,7 +42,7 @@ export async function PUT(request: Request) {
       targetAppUserId: context.appUser.id.toString(),
     })
 
-    return NextResponse.json({
+    return authJson({
       ok: true,
       user: {
         displayName: updatedUser.display_name,
@@ -51,6 +50,6 @@ export async function PUT(request: Request) {
       },
     })
   } catch (caught) {
-    return authContextErrorResponse(caught)
+    return withAuthNoStore(authContextErrorResponse(caught))
   }
 }

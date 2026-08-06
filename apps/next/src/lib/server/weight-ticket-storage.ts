@@ -90,9 +90,9 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
   const supabase = adminClient
 
   const signedUrlByKey = new Map<string, string>()
-  async function resolve(rawValue: string) {
+  async function resolve(rawValue: string): Promise<string | null> {
     const asset = decodeStoredImageAsset(rawValue)
-    if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) return rawValue
+    if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) return null
     const cacheKey = `${asset.bucket}:${asset.storageKey}`
     const cached = signedUrlByKey.get(cacheKey)
     if (cached) return encodeStoredImageReference(asset.fileName, cached, asset.storageKey, bucket)
@@ -106,11 +106,11 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
   }
 
   const [imageNames, vehicleImageNames, lines] = await Promise.all([
-    Promise.all(record.imageNames.map(resolve)),
-    Promise.all(record.vehicleImageNames.map(resolve)),
+    Promise.all(record.imageNames.map(resolve)).then((values) => values.filter((value): value is string => value !== null)),
+    Promise.all(record.vehicleImageNames.map(resolve)).then((values) => values.filter((value): value is string => value !== null)),
     Promise.all(record.lines.map(async (line) => ({
       ...line,
-      imageNames: await Promise.all(line.imageNames.map(resolve)),
+      imageNames: (await Promise.all(line.imageNames.map(resolve))).filter((value): value is string => value !== null),
     }))),
   ])
 

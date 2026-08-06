@@ -104,7 +104,8 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
     if (!supabase) return
     requestNavigation(async () => {
       try {
-        await supabase.auth.signOut()
+        // Sign out only this browser session; keep other devices signed in.
+        await supabase.auth.signOut({ scope: 'local' })
       } finally {
         setSession(null)
         setProfile({ roles: [], userEmail: '' })

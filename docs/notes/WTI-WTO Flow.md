@@ -90,11 +90,19 @@ What is what: `pending_out` คือ reservation ของ stock ที่ย�
 - `auto_save`: เมื่อผู้ใช้กด `เพิ่มสินค้า` หรือ `เพิ่มเต๋า` ระบบเพิ่มแถวและเปิดช่องกรอกใน client state ทันที ไม่รอ response จาก server. จากนั้นจึงส่ง draft เป็น background (`saveScope=header` สำหรับการเพิ่มสินค้าครั้งแรก และ `saveScope=document` สำหรับเอกสารที่มีรายการแล้ว) เพื่อเก็บ document id/ข้อมูลเดิม โดยไม่เปิด save stage ซ้ำเมื่อมี request เดิมกำลังทำงานอยู่
 - `save`: WTI บันทึกข้อมูลตามปุ่มบันทึกเดิม
 - `stock_check`: WTO ตรวจ stock และข้อมูลทุกรายการใหม่ก่อนบันทึกทุกครั้ง
+- หลัง transaction หลัก commit สำเร็จ API save จะทำ audit แล้วตอบเฉพาะข้อมูลที่ฟอร์มต้องใช้ต่อทันที โดยไม่ sign URL รูปและไม่ query timeline/pending-out detail ใน response; หน้า detail จะโหลดข้อมูลประกอบและ signed preview URL ผ่าน endpoint แยกเมื่อจำเป็น. เหตุผลคือการบันทึกธุรกรรมต้องรอ DB commit และ audit ให้เสร็จ แต่ไม่ควรบล็อกด้วยข้อมูลประกอบที่ไม่ได้ใช้ต่อในฟอร์ม.
 - `confirm`: ยืนยันรับ/ส่งของจากหน้า detail หรือ modal
 
 การแสดงสถานะเป็น `role=status`, `aria-live=polite` และปิดปุ่มที่เรียก operation เดิมระหว่างรอ เพื่อป้องกันการกดซ้ำ. หลัง auto-save สำเร็จ การบันทึกปุ่มสุดท้ายต้อง update ticket เดิมผ่าน `savedTicket.id` ไม่สร้างเอกสารซ้ำ. Server/database ยังคงเป็น source of truth และ UI ไม่ใช้ข้อมูลสำรองแบบ hard-code.
 
 เหตุผล: event การเพิ่มแถวกับ event การ persist ต้องแยกกันเพื่อให้ผู้ใช้กรอกต่อได้ทันที ขณะที่ข้อมูลหัวเอกสารยังถูกเก็บเป็น draft แบบ background. เมื่อ server ตอบกลับแล้วจึงผูก `ticket_id` เดิม และ final save update เอกสารเดียวกัน. WTI ยังคงใช้ contract เดิมที่อนุญาตให้บันทึกโดยไม่มีรายการสินค้า.
+
+## Read performance and private image preview boundary (2026-08-06)
+
+- list JSON ใช้ lightweight projection และ batch usage count; detail action ต้องรอ full detail ก่อนเปิด action ที่แก้ไข/ยืนยัน/พิมพ์/แชร์ เพื่อไม่ให้ list row ที่มี `lines` และ timeline ว่างถูกนำไปใช้เป็นรายละเอียดจริง
+- list/detail/preview API ที่อ่านข้อมูล WTI/WTO ใช้ `Cache-Control: private, no-store` เพราะมีข้อมูลสาขา สินค้า น้ำหนัก และสถานะธุรกรรม
+- preview จะ sign เฉพาะ reference ที่มี `bucket` และ `storageKey` ตรงกับ `WEIGHT_TICKET_IMAGE_BUCKET`; reference ที่เป็น bucket อื่น, URL-only, data URL หรือ filename-only จะถูกตัดออกจาก preview response แบบ fail-closed. การตรวจนี้เป็น read boundary เพิ่มจาก write validation เพื่อไม่เปิด URL ของ artifact bucket หรือข้อมูล legacy
+- modal ยกเลิก request detail, preview และ stock-return เมื่อปิดหรือเปลี่ยนเอกสาร เพื่อลดงานที่ค้างและป้องกัน response เก่าชน state ปัจจุบัน
 
 ## WTI Concurrent Draft / Auto-save Design (2026-07-23)
 

@@ -1,10 +1,6 @@
-const defaultAuthResponseHeaders = {
-  'cache-control': 'private, no-store',
-  expires: '0',
-  pragma: 'no-cache',
-} as const
+import { authNoStoreHeaders } from './auth-response-headers'
 
-export function preserveAuthResponseHeaders(source: Headers, target: Headers) {
+export function applyAuthResponseHeaders(source: Headers, target: Headers) {
   const sourceHeaders = source as Headers & { getSetCookie?: () => string[] }
   const setCookies = sourceHeaders.getSetCookie?.() ?? []
 
@@ -15,8 +11,8 @@ export function preserveAuthResponseHeaders(source: Headers, target: Headers) {
     if (setCookie) target.set('set-cookie', setCookie)
   }
 
-  Object.entries(defaultAuthResponseHeaders).forEach(([name, defaultValue]) => {
-    target.set(name, source.get(name) ?? defaultValue)
+  Object.entries(authNoStoreHeaders).forEach(([name, value]) => {
+    target.set(name, value)
   })
 
   return target

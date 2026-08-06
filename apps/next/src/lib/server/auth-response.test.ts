@@ -11,6 +11,8 @@ describe('auth response cache policy', () => {
     })
 
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Pragma')).toBe('no-cache')
+    expect(response.headers.get('Expires')).toBe('0')
     expect(response.headers.get('X-Test')).toBe('present')
     expect(authNoStoreHeaders['Cache-Control']).toBe('private, no-store')
   })
@@ -23,6 +25,8 @@ describe('auth response cache policy', () => {
 
     expect(response.status).toBe(403)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Pragma')).toBe('no-cache')
+    expect(response.headers.get('Expires')).toBe('0')
     expect(response.headers.get('X-Trace')).toBe('trace-id')
     await expect(response.json()).resolves.toEqual({ error: 'denied' })
   })

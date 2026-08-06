@@ -157,6 +157,15 @@ export type WeightTicketRecord = {
   godownName: string
 }
 
+export type WeightTicketImagePreviews = {
+  imageNames: string[]
+  lines: Array<{
+    imageNames: string[]
+    lineNo: number
+  }>
+  vehicleImageNames: string[]
+}
+
 export type OptionItem = {
   branchIds?: string[]
   category?: string
@@ -620,6 +629,15 @@ const weightTicketListResultSchema = z.object({
   canOpenSalesBill: z.boolean(),
   rows: z.array(weightTicketRecordSchema),
   totalRows: z.number().int().nonnegative(),
+})
+
+const weightTicketImagePreviewsSchema = z.object({
+  imageNames: z.array(z.string()),
+  lines: z.array(z.object({
+    imageNames: z.array(z.string()),
+    lineNo: z.number().int(),
+  })),
+  vehicleImageNames: z.array(z.string()),
 })
 
 function createClientUuid() {
@@ -1115,9 +1133,15 @@ export async function listWeightTickets(params: {
   return readJsonResponse(response, weightTicketListResultSchema, 'โหลดรายการใบรับ-ส่งของไม่ได้')
 }
 
-export async function getWeightTicket(id: string) {
-  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}`, { cache: 'no-store' })
+export async function getWeightTicket(id: string, options: { includeImagePreviews?: boolean; signal?: AbortSignal } = {}) {
+  const query = options.includeImagePreviews === false ? '?includeImagePreviews=false' : ''
+  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}${query}`, { cache: 'no-store', signal: options.signal })
   return readJsonResponse(response, weightTicketRecordSchema, 'โหลดใบรับ-ส่งของไม่ได้')
+}
+
+export async function getWeightTicketImagePreviews(id: string, options: { signal?: AbortSignal } = {}) {
+  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}/images/preview`, { cache: 'no-store', signal: options.signal })
+  return readJsonResponse(response, weightTicketImagePreviewsSchema, 'โหลด preview รูปใบรับ-ส่งของไม่ได้')
 }
 
 function payloadFromForm(values: WeightTicketFormValues) {

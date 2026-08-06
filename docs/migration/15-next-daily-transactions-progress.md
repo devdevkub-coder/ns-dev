@@ -4,6 +4,15 @@
 
 ติดตามงานดึงหน้ากลุ่ม `รายการประจำวัน` จาก legacy source เข้าสู่ Next.js พร้อม API, DB wiring, validation, permission guard และ reconciliation เบื้องต้น
 
+## WTI/WTO preview and read-response hardening — 2026-08-06
+
+Status: implementation complete and pushed to `sit-origin/main` in commits `f70e34f4a6239724eafbf8d4ffcbf3e655f2c2aa` and the following documentation checkpoint commit. The working line is `main` aligned with `sit-origin/main`.
+
+- Preview hydration now fails closed for wrong-bucket and legacy image references instead of echoing a stored URL; focused storage and preview-route tests cover the boundary.
+- WTI/WTO list/detail JSON and XLSX read responses now use `private, no-store`; preview route already keeps the same policy.
+- Detail modal cancels in-flight detail, preview, and stock-return fetches when its effect is cleaned up.
+- Validation completed so far: WTI/WTO focused tests `116/116`, lint, type-check, production build, and `git diff --check` pass. Browser UAT was not run in this code-only batch.
+
 ## WTI/WTO chooser scroll-lock follow-up — 2026-08-03
 
 Status: completed and published to `sit-origin/main` in implementation commit `e155cb97ab94c870b532440b534cd430fad7d972`; remote SHA verified.

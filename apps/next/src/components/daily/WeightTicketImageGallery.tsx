@@ -23,13 +23,17 @@ export function WeightTicketImageGallery({
   downloadFileName,
   downloadImageNames,
   imageNames,
+  isLoadingPreview = false,
   onOpen,
+  previewError = '',
 }: {
   downloadUrl?: string
   downloadFileName?: string
   downloadImageNames?: string[]
   imageNames: string[]
+  isLoadingPreview?: boolean
   onOpen: (payload: WeightTicketGalleryOpenPayload) => void
+  previewError?: string
 }) {
   const [downloadError, setDownloadError] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
@@ -41,7 +45,7 @@ export function WeightTicketImageGallery({
   const downloadableImages = decodedDownloadImages.filter((image) => Boolean(
     image.bucket && image.storageKey,
   ))
-  const legacyImageCount = decodedImages.length - images.length
+  const legacyImageCount = isLoadingPreview || previewError ? 0 : decodedImages.length - images.length
 
   async function handleDownloadAll() {
     if (!downloadUrl || downloadableImages.length === 0 || isDownloading) return
@@ -91,7 +95,10 @@ export function WeightTicketImageGallery({
       </div>
       <div className="space-y-3 p-4 sm:p-5">
         {downloadError ? <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{downloadError}</div> : null}
-        {images.length > 0 ? (
+        {previewError ? <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">{previewError}</div> : null}
+        {isLoadingPreview && imageNames.length > 0 ? (
+          <div className="text-sm text-slate-400" role="status">กำลังเตรียม preview รูปภาพ...</div>
+        ) : images.length > 0 ? (
           <div className="grid min-w-0 grid-cols-3 gap-3">
             {images.map((image, index) => (
               <button
@@ -118,7 +125,7 @@ export function WeightTicketImageGallery({
         ) : imageNames.length === 0 ? (
           <div className="text-sm text-slate-400">ยังไม่มีรูปภาพประกอบ</div>
         ) : null}
-        {legacyImageCount > 0 ? (
+        {!isLoadingPreview && !previewError && legacyImageCount > 0 ? (
           <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
             มีรูปเดิม {legacyImageCount} รูปที่ยังไม่มี preview ในระบบปัจจุบัน
           </div>

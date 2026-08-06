@@ -15,7 +15,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveBankNames, listActiveBranches, listActiveSalespersons } from '@/lib/server/reference-master-cache'
+import { invalidateSupplierReferenceCache, listActiveBankNames, listActiveBranches, listActiveSalespersons } from '@/lib/server/reference-master-cache'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -528,6 +528,7 @@ export async function POST(request: Request) {
         })
       }
     })
+    await invalidateSupplierReferenceCache()
 
     const updated = validRows.filter((row) => existingIds.has(String(row.id ?? ''))).length
     return NextResponse.json({
