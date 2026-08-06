@@ -275,8 +275,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
 
     const actor = currentActor(auth)
-    const documentDate = toDateOnly(existing.document_date)
-    const nextStatus = existing.status
     const totals = calculateTicketTotals(values.lines.map((line) => ({
       containerDeductionWeight: String(line.containerDeductionWeight),
       deductionMode: line.deductionMode,
@@ -303,6 +301,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
       }
       const collaborationCurrentUpdatedAt = existing.updated_at
+      const documentDate = toDateOnly(existing.document_date)
+      const nextStatus = existing.status
       const branchCode = requireWeightTicketBranchDocumentCode(branch.code)
       const mustRenumber = existing.branch_id !== branch.id
       const docNo = mustRenumber
@@ -390,6 +390,29 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
             ...values.lines,
             ...remoteOnlyLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo)),
           ],
+        }
+        const effectiveProductCodes = [...new Set(effectiveValues.lines.flatMap((line) => [
+          line.productId.trim().toUpperCase(),
+          line.impurityProductId?.trim().toUpperCase() ?? '',
+        ]).filter(Boolean))]
+        const missingEffectiveProductCodes = effectiveProductCodes.filter((code) => !productByCode.has(code))
+        if (missingEffectiveProductCodes.length) {
+          const persistedProducts = await tx.products.findMany({
+            select: { code: true, id: true, name: true },
+            where: { code: { in: missingEffectiveProductCodes } },
+          })
+          persistedProducts.forEach((product) => productByCode.set(product.code.trim().toUpperCase(), product))
+        }
+        const effectiveImpurityIds = [...new Set(effectiveValues.lines
+          .map((line) => parseInternalBigIntId(line.impurityId))
+          .filter((value): value is bigint => value != null))]
+        const missingEffectiveImpurityIds = effectiveImpurityIds.filter((id) => !impurityById.has(id))
+        if (missingEffectiveImpurityIds.length) {
+          const persistedImpurities = await tx.impurities.findMany({
+            select: { active: true, id: true, name: true },
+            where: { id: { in: missingEffectiveImpurityIds } },
+          })
+          persistedImpurities.forEach((impurity) => impurityById.set(impurity.id, impurity))
         }
         warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: effectiveValues.lines, type: effectiveValues.type })
         warehouseByCode.forEach((warehouse) => warehouseNameById.set(warehouse.id, warehouse.name))
@@ -633,6 +656,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
         if (existing.status !== 'draft' || !canMutateWeightTicket(existing, lockedUsage)) {
           throw new WeightTicketWriteValidationError('เอกสารถูกเปลี่ยนสถานะหรือถูกใช้งานแล้ว กรุณาโหลดข้อมูลล่าสุด', {})
+        }
+        if (existing.weight_ticket_lines.length === 0) {
+          throw new WeightTicketWriteValidationError('เพิ่มรายการสินค้าอย่างน้อย 1 รายการก่อนยืนยันเอกสาร', {
+            lines: ['เพิ่มรายการสินค้าอย่างน้อย 1 รายการก่อนยืนยันเอกสาร'],
+          })
         }
         const nextStatus = existing.doc_type === 'WTO' ? 'delivered' : 'received'
         let confirmedHoldIds: bigint[] = []

@@ -23,6 +23,15 @@ describe('WTO delivered edit release/rebuild contract', () => {
     expect(editRouteSource.slice(confirmStart)).toContain('applyWeightTicketCreateSideEffects')
   })
 
+  it('rechecks the locked ticket before confirming or preserving a concurrent draft status', () => {
+    const confirmStart = editRouteSource.indexOf("if (confirmParsed.success)")
+    const confirmSource = editRouteSource.slice(confirmStart)
+
+    expect(confirmSource).toContain('await tx.$executeRaw`select pg_advisory_xact_lock(${ticketId})`')
+    expect(confirmSource).toContain('if (existing.weight_ticket_lines.length === 0)')
+    expect(editRouteSource).toContain('const nextStatus = existing.status')
+  })
+
   it('releases the old holds before replacing lines and rebuilds cost snapshots', () => {
     const releaseIndex = editRouteSource.indexOf('await releaseActiveWtoPendingOut(tx, {')
     const deleteLinesIndex = editRouteSource.indexOf('await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })')
