@@ -48,7 +48,8 @@ Customer annotated screenshots clarified the target contract:
 
 ## Source Of Truth
 
-- รายการโอนที่บันทึกแล้วอ่านจาก `stock_ledger.ref_type = 'ST'`
+- source document ของรายการโอนอ่านจาก `stock_transfers` และ `stock_transfer_items`
+- ผลกระทบต่อ stock และ audit ของรายการโอนอ่านจาก `stock_ledger.ref_type = 'ST'` หรือ `ST-CANCEL`
 - 1 เลขที่ `ST` ต้องมีอย่างน้อย 2 ledger rows ต่อสินค้า:
   - source row: `qty_out`
   - destination row: `qty_in`

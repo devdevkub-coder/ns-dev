@@ -109,6 +109,21 @@ async function nextStockTransferDocNo(tx: Prisma.TransactionClient, date: string
   return `${startsWith}${String(Number.isFinite(lastNumber) ? lastNumber + 1 : 1).padStart(4, '0')}`
 }
 
+async function lockTransferSourceProducts(
+  tx: Prisma.TransactionClient,
+  input: { branchId: bigint; warehouseId: bigint; items: Array<{ productId: string }> },
+) {
+  const productIds = new Set<bigint>()
+  for (const item of input.items) {
+    const product = await normalizeStockReferenceInput({ productId: item.productId })
+    if (!product.productId) throw new Error(`สินค้า ${item.productId} ไม่ถูกต้องหรือถูกปิดใช้งาน`)
+    productIds.add(product.productId)
+  }
+  for (const productId of productIds) {
+    await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock-transfer:source:${input.branchId}:${input.warehouseId}:${productId}`}, 0))`
+  }
+}
+
 async function validateTransferReferences(values: {
   fromBranchId: string
   fromWarehouseId: string
@@ -760,15 +775,21 @@ export async function POST(request: Request) {
     const refs = await validateTransferReferences(values)
     const sourceBranchCode = refs.fromWarehouse.branchCode
     if (!sourceBranchCode) throw new Error('คลังต้นทางไม่มีรหัสสาขาสำหรับสร้างเลขเอกสาร')
-    const normalizedItems = await resolveTransferItems({
-      branchId: refs.fromBranch.id,
-      items: values.items,
-      warehouseId: refs.fromWarehouse.id,
-    })
-    const totalQty = normalizedItems.reduce((sum, item) => sum + item.qty, 0)
-    const totalValue = normalizedItems.reduce((sum, item) => sum + item.lineValue, 0)
-
     const created = await prisma.$transaction(async (tx) => {
+      if (values.submitMode === 'post') {
+        await lockTransferSourceProducts(tx, {
+          branchId: refs.fromBranch.id,
+          items: values.items,
+          warehouseId: refs.fromWarehouse.id,
+        })
+      }
+      const normalizedItems = await resolveTransferItems({
+        branchId: refs.fromBranch.id,
+        items: values.items,
+        warehouseId: refs.fromWarehouse.id,
+      })
+      const totalQty = normalizedItems.reduce((sum, item) => sum + item.qty, 0)
+      const totalValue = normalizedItems.reduce((sum, item) => sum + item.lineValue, 0)
       const docNo = values.docNo ?? await nextStockTransferDocNo(tx, values.date, sourceBranchCode)
       const transfer = await tx.stock_transfers.create({
         data: {
@@ -863,28 +884,34 @@ export async function PATCH(request: Request) {
     }
 
     if (action === 'edit' || action === 'post') {
-      const existing = await prisma.stock_transfers.findUnique({
-        include: { stock_transfer_items: true },
-        where: { doc_no: docNo },
-      })
-      if (!existing) throw new Error('ไม่พบเอกสารโอนสินค้า')
-      if (existing.status !== 'draft') throw new Error('แก้ไขหรือส่งได้เฉพาะเอกสารที่ยังไม่ส่งเข้าสต๊อก')
-
       const values = stockTransferFormSchema.parse({
         ...payload,
         docNo,
         submitMode: action === 'post' ? 'post' : 'draft',
       })
       const refs = await validateTransferReferences(values)
-      const normalizedItems = await resolveTransferItems({
-        branchId: refs.fromBranch.id,
-        items: values.items,
-        warehouseId: refs.fromWarehouse.id,
-      })
-      const totalQty = normalizedItems.reduce((sum, item) => sum + item.qty, 0)
-      const totalValue = normalizedItems.reduce((sum, item) => sum + item.lineValue, 0)
 
       await prisma.$transaction(async (tx) => {
+        if (action === 'post') {
+          await lockTransferSourceProducts(tx, {
+            branchId: refs.fromBranch.id,
+            items: values.items,
+            warehouseId: refs.fromWarehouse.id,
+          })
+        }
+        const existing = await tx.stock_transfers.findUnique({
+          include: { stock_transfer_items: true },
+          where: { doc_no: docNo },
+        })
+        if (!existing) throw new Error('ไม่พบเอกสารโอนสินค้า')
+        if (existing.status !== 'draft') throw new Error('แก้ไขหรือส่งได้เฉพาะเอกสารที่ยังไม่ส่งเข้าสต๊อก')
+        const normalizedItems = await resolveTransferItems({
+          branchId: refs.fromBranch.id,
+          items: values.items,
+          warehouseId: refs.fromWarehouse.id,
+        })
+        const totalQty = normalizedItems.reduce((sum, item) => sum + item.qty, 0)
+        const totalValue = normalizedItems.reduce((sum, item) => sum + item.lineValue, 0)
         await tx.stock_transfer_items.deleteMany({ where: { transfer_id: existing.id } })
         const transfer = await tx.stock_transfers.update({
           data: {
