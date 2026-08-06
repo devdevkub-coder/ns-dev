@@ -274,6 +274,14 @@ describe('weight ticket print HTML', () => {
       'product-second.jpg',
     ])
 
+    expect(buildWeightTicketAttachmentImages({
+      ...ticketWithAttachments,
+      imageNames: [vehicle, product],
+    }).map((image) => image.fileName)).toEqual([
+      'vehicle-first.jpg',
+      'product-second.jpg',
+    ])
+
     const html = buildReceiptPrintHtml(ticketWithAttachments, profile)
     expect(html).toContain('ใบรับสินค้า (รูปถ่ายแนบ)')
     expect(html).not.toContain('รูปรถส่งของ')

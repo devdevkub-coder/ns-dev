@@ -71,9 +71,18 @@ function missing(value: string | null | undefined) {
 export function buildWeightTicketAttachmentImages(
   ticket: Pick<WeightTicketRecord, 'imageNames' | 'vehicleImageNames'>,
 ): Array<StoredImageAsset & { url: string }> {
+  const seen = new Set<string>()
   return [...ticket.vehicleImageNames, ...ticket.imageNames]
     .map(decodeStoredImageAsset)
     .filter(isPreviewableStoredImageAsset)
+    .filter((asset) => {
+      const key = asset.bucket && asset.storageKey
+        ? `storage:${asset.bucket}:${asset.storageKey}`
+        : `raw:${asset.rawValue}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }
 
 function cleanNote(note: string | null | undefined): string {
