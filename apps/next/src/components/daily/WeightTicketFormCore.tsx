@@ -1460,16 +1460,20 @@ export function WeightTicketFormCore({
       && Boolean(firstLineError)
       && !form.lines.some((line) => !line.productId)
 
-    if (isSaving || isLoadingTicket || firstHeaderError || hasBlockingLineError || saveInFlightRef.current) {
-      if (!await saveDraftBeforeAdding()) return
-    } else {
+    if (firstHeaderError || hasBlockingLineError) {
       void saveDraftBeforeAdding()
+      return
     }
+
+    // Keep the add-product interaction independent from draft persistence.
+    // The new line must render immediately; the save request runs afterwards.
+    if (isSaving || isLoadingTicket || saveInFlightRef.current) return
 
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)
     setMobileProductView('editor')
+    void saveDraftBeforeAdding()
   }
 
   const closeMobileProductEditor = useCallback((focusTargetId = activeLineId, onClosed?: () => void) => {
