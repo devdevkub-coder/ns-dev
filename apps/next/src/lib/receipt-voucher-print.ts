@@ -168,74 +168,75 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบสำคัญรับเงิน ${escapeHtml(row.docNo)}</title>
     <style>
-      @page { size: A4 portrait; margin: 10mm; }
+      @page { size: A4 portrait; margin: 8mm; }
       * { box-sizing: border-box; }
       body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #f8fafc; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #059669; color: white; font: inherit; cursor: pointer; font-weight: bold; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 7mm; background: white; position: relative; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+      .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 5mm; background: white; position: relative; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
       .print-footer { display: none; }
-      .accent { height: 4px; background: linear-gradient(90deg, #065f46, #84cc16, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
-      .header { display: grid; grid-template-columns: 1fr .82fr; gap: 16px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
-      .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
-      .logo { width: 64px; height: 64px; object-fit: contain; }
-      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 850; text-align: center; width: 64px; height: 64px; }
-      .company-name { font-size: 15px; font-weight: 900; color: #0f172a; line-height: 1.2; }
-      .company-en { font-size: 12px; font-weight: 700; color: #475569; margin-top: 1px; }
-      .company-info { margin-top: 4px; color: #475569; font-size: 12px; line-height: 1.4; }
+      .accent { height: 4px; background: linear-gradient(90deg, #065f46, #84cc16, #cbd5e1); border-radius: 99px; margin-bottom: 8px; }
+      .header { display: grid; grid-template-columns: 1fr .82fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }
+      .company { display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: start; min-width: 0; }
+      .logo { width: 60px; height: 60px; object-fit: contain; }
+      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 11px; font-weight: 850; text-align: center; width: 60px; height: 60px; }
+      .company-name { font-size: 14.5px; font-weight: 900; color: #0f172a; line-height: 1.2; }
+      .company-en { font-size: 11.5px; font-weight: 700; color: #475569; margin-top: 1px; }
+      .company-info { margin-top: 3px; color: #475569; font-size: 11.5px; line-height: 1.35; }
       .doc-head { text-align: right; }
-      .doc-title { font-size: 22px; font-weight: 900; color: #065f46; letter-spacing: 0; }
-      .doc-subtitle { font-size: 12px; font-weight: bold; uppercase; color: #64748b; margin-top: 1px; }
-      .meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 12px; text-align: left; }
-      .meta-card { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; padding: 4px 8px; }
-      .meta-label { font-size: 12px; color: #64748b; }
-      .meta-value { font-weight: 900; color: #0f172a; margin-top: 2px; }
-      .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+      .doc-title { font-size: 21px; font-weight: 900; color: #065f46; letter-spacing: 0; }
+      .doc-subtitle { font-size: 11.5px; font-weight: bold; uppercase; color: #64748b; margin-top: 1px; }
+      .meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 8px; text-align: left; }
+      .meta-card { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; padding: 3px 6px; }
+      .meta-label { font-size: 11px; color: #64748b; }
+      .meta-value { font-weight: 900; color: #0f172a; margin-top: 1px; font-size: 11.5px; }
+      .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
       .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
-      .panel-title { padding: 6px 9px; background: #f1f5f9; color: #334155; font-weight: 900; font-size: 12px; }
-      .panel-body { padding: 8px 9px; }
-      .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
-      .field-label { color: #64748b; font-size: 12px; }
-      .field-value { font-weight: bold; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
+      .panel-title { padding: 4px 8px; background: #f1f5f9; color: #334155; font-weight: 900; font-size: 11.5px; }
+      .panel-body { padding: 6px 8px; }
+      .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
+      .field-label { color: #64748b; font-size: 11px; }
+      .field-value { font-weight: bold; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; font-size: 11.5px; }
       .field-wide { grid-span: 2; grid-column: span 2; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 12px; font-size: 11px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
+      .items { margin-top: 8px; font-size: 11px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
       .items thead { display: table-header-group; }
       .items tbody { break-inside: auto; page-break-inside: auto; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 4px 4px; text-align: left; font-weight: 900; }
-      .items td { border: 1px solid #dbe3ea; padding: 4px 4px; vertical-align: top; }
+      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 3px 4px; text-align: left; font-weight: 900; }
+      .items td { border: 1px solid #dbe3ea; padding: 3px 4px; vertical-align: top; }
       .items tr { break-inside: avoid; page-break-inside: avoid; }
-      .items .empty-row td { height: 24px; color: transparent; }
-      .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
+      .items .empty-row td { height: 20px; color: transparent; }
+      .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; padding: 4px 4px; }
       .items tfoot .final-amount { color: #059669; font-size: 11.5px; }
       .item-name { font-weight: bold; color: #0f172a; }
       .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .center { text-align: center; }
       
-      .bottom-grid { display: grid; grid-template-columns: 1fr 70mm; gap: 12px; margin-top: 12px; }
-      .notes-panel { display: flex; flex-direction: column; gap: 8px; }
+      .bottom-grid { display: grid; grid-template-columns: 1fr 70mm; gap: 8px; margin-top: 8px; }
+      .notes-panel { display: flex; flex-direction: column; gap: 6px; }
       .note-box { border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
-      .note-box-header { background: #f1f5f9; padding: 4px 8px; font-weight: 900; color: #475569; font-size: 12px; }
-      .note-content { padding: 8px; font-size: 12px; font-weight: bold; color: #0f172a; min-height: 32px; }
-      .note-content-small { padding: 6px 8px; font-size: 12px; color: #475569; min-height: 40px; white-space: pre-wrap; }
+      .note-box-header { background: #f1f5f9; padding: 3px 6px; font-weight: 900; color: #475569; font-size: 11px; }
+      .note-content { padding: 6px; font-size: 11.5px; font-weight: bold; color: #0f172a; min-height: 28px; }
+      .note-content-small { padding: 4px 6px; font-size: 11px; color: #475569; min-height: 32px; white-space: pre-wrap; }
       .summary-box { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
-      .summary-row { display: grid; grid-template-columns: 1fr 32mm; gap: 8px; border-bottom: 1px solid #cbd5e1; padding: 6px 8px; font-size: 12px; }
+      .summary-row { display: grid; grid-template-columns: 1fr 32mm; gap: 6px; border-bottom: 1px solid #cbd5e1; padding: 4px 6px; font-size: 11.5px; }
       .summary-row:last-child { border-bottom: 0; }
-      .summary-row.highlight { background: #065f46; color: white; padding: 8px; font-size: 12px; font-weight: 900; }
+      .summary-row.highlight { background: #065f46; color: white; padding: 6px; font-size: 11.5px; font-weight: 900; }
       
-      .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 48px; font-size: 12px; }
+      .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 16px; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }
       .sig-block { text-align: center; color: #475569; }
-      .sig-line { width: 78%; margin: 0 auto; height: 28px; border-bottom: 1px solid #475569; }
-      .sig-title { margin-top: 4px; font-weight: 900; color: #0f172a; }
-      .sig-name { margin-top: 2px; }
-      .sig-date { margin-top: 4px; font-size: 12px; color: #64748b; }
+      .sig-line { width: 78%; margin: 0 auto; height: 20px; border-bottom: 1px solid #475569; }
+      .sig-title { margin-top: 3px; font-weight: 900; color: #0f172a; }
+      .sig-name { margin-top: 1px; }
+      .sig-date { margin-top: 2px; font-size: 11px; color: #64748b; }
       
-      .legal-note { margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 8px; text-align: center; font-size: 12px; font-weight: bold; color: #64748b; }
+      .legal-note { margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 4px; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; break-inside: avoid; page-break-inside: avoid; }
       
       .watermark { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 72px; font-weight: 900; color: rgba(226, 232, 240, 0.7); transform: rotate(-18deg); z-index: 10; }
       
       @media print {
+        @page { size: A4 portrait; margin: 8mm; }
         body { background: white; margin: 0; }
         .toolbar { display: none !important; }
         .page { border: 0; box-shadow: none; margin: 0; padding: 0; width: 100%; min-height: 0; }
