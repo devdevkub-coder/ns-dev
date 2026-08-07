@@ -274,6 +274,14 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       <section class="bottom-grid">
         <div class="notes-panel">
           ${(() => {
+            if (isPage1) {
+              return `
+                <div class="note-box">
+                  <div class="note-box-header">จำนวนเงิน (ตัวอักษร)</div>
+                  <div class="note-content" style="color:#94a3b8;">-</div>
+                </div>
+              `
+            }
             if (selectedBankAccount) {
               return `
                 <div class="note-box">
@@ -296,24 +304,24 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           })()}
           <div class="note-box">
             <div class="note-box-header">หมายเหตุ</div>
-            <div class="note-content-small">${escapeHtml(row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)')}</div>
+            <div class="note-content-small" style="${isPage1 ? 'color:#94a3b8;' : ''}">${isPage1 ? '-' : escapeHtml(row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)')}</div>
           </div>
         </div>
         
         <div class="summary-box">
           <div class="summary-row">
             <div style="font-weight: bold; color: #475569;">จำนวนรวม</div>
-            <div style="text-align: right; font-weight: 900; color: #0f172a;">${escapeHtml(quantitySummary || '-')}</div>
+            <div style="text-align: right; font-weight: 900; color: ${isPage1 ? '#94a3b8' : '#0f172a'};">${isPage1 ? '-' : escapeHtml(quantitySummary || '-')}</div>
           </div>
           <div class="summary-row" style="border-bottom: 0;">
             <div style="font-weight: bold; color: #475569;">ยอดเงินรวม</div>
-            <div style="text-align: right; font-weight: 900; color: #0f172a;">${money(row.totalAmount)}</div>
+            <div style="text-align: right; font-weight: 900; color: ${isPage1 ? '#94a3b8' : '#0f172a'};">${isPage1 ? '-' : money(row.totalAmount)}</div>
           </div>
           <div class="summary-row highlight">
             <div>ยอดรับเงิน</div>
-            <div style="text-align: right; font-variant-numeric: tabular-nums;">${money(row.totalAmount)}</div>
+            <div style="text-align: right; font-variant-numeric: tabular-nums;">${isPage1 ? '-' : money(row.totalAmount)}</div>
           </div>
-          ${selectedBankAccount ? `
+          ${(selectedBankAccount && !isPage1) ? `
             <div style="padding: 6px 8px; text-align: right; font-size: 12px; font-weight: bold; color: #065f46; background: #ecfdf5; border-top: 1px solid #cbd5e1;">
               (${escapeHtml(row.amountInWords || '-')})
             </div>
