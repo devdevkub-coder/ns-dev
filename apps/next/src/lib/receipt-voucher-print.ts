@@ -393,9 +393,6 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
             ${page1EmptyRowsHtml}
           </tbody>
         </table>
-        <div style="text-align: right; margin-top: 14px; font-weight: bold; color: #059669; font-size: 11px;">
-          ( มีต่อหน้า 2 / Continued on Page 2 ➔ )
-        </div>
       </div>
 
       <div class="page is-dense page-break-before">
