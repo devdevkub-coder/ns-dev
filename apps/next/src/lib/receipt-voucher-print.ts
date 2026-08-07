@@ -509,14 +509,14 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .summary-row.highlight { background: #065f46; color: white; padding: 6px; font-size: 11.5px; font-weight: 900; }
       
       .footer-group { break-inside: avoid; page-break-inside: avoid; }
-      .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 16px; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }
+      .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 28px; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }
       .sig-block { text-align: center; color: #475569; }
-      .sig-line { width: 78%; margin: 0 auto; height: 20px; border-bottom: 1px solid #475569; }
-      .sig-title { margin-top: 3px; font-weight: 900; color: #0f172a; }
-      .sig-name { margin-top: 1px; }
-      .sig-date { margin-top: 2px; font-size: 11px; color: #64748b; }
+      .sig-line { width: 82%; margin: 0 auto; height: 38px; border-bottom: 1px solid #475569; }
+      .sig-title { margin-top: 6px; font-weight: 900; color: #0f172a; }
+      .sig-name { margin-top: 2px; }
+      .sig-date { margin-top: 4px; font-size: 11px; color: #64748b; }
       
-      .legal-note { margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 4px; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; break-inside: avoid; page-break-inside: avoid; }
+      .legal-note { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 6px; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; break-inside: avoid; page-break-inside: avoid; }
 
       /* Auto Dense Sizing */
       .page.is-dense { padding: 4mm; }
@@ -533,9 +533,9 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .page.is-dense .items { margin-top: 6px; font-size: 10.5px; }
       .page.is-dense .items th, .page.is-dense .items td { padding: 2px 3px; }
       .page.is-dense .bottom-grid { margin-top: 6px; gap: 6px; }
-      .page.is-dense .signatures { margin-top: 10px; gap: 20px; }
-      .page.is-dense .sig-line { height: 16px; }
-      .page.is-dense .legal-note { margin-top: 6px; padding-top: 3px; font-size: 10.5px; }
+      .page.is-dense .signatures { margin-top: 20px; gap: 28px; }
+      .page.is-dense .sig-line { height: 32px; }
+      .page.is-dense .legal-note { margin-top: 8px; padding-top: 4px; font-size: 10.5px; }
       
       .watermark { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 72px; font-weight: 900; color: rgba(226, 232, 240, 0.7); transform: rotate(-18deg); z-index: 10; }
       
