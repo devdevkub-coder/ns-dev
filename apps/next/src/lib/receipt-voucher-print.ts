@@ -349,6 +349,17 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     const page1Items = printItems.slice(0, 15)
     const page2Items = printItems.slice(15)
 
+    const page1EmptyCount = Math.max(0, 18 - page1Items.length)
+    const page1EmptyRowsHtml = Array.from({ length: page1EmptyCount }).map(() => `
+      <tr class="empty-row">
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+      </tr>
+    `).join('')
+
     const page2FilledCount = page2Items.length
     const page2EmptyCount = Math.max(0, 15 - page2FilledCount)
     const page2EmptyRowsHtml = Array.from({ length: page2EmptyCount }).map(() => `
@@ -379,9 +390,10 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           </thead>
           <tbody>
             ${renderRows(page1Items, 0)}
+            ${page1EmptyRowsHtml}
           </tbody>
         </table>
-        <div style="text-align: right; margin-top: 16px; font-weight: bold; color: #059669; font-size: 11px;">
+        <div style="text-align: right; margin-top: 14px; font-weight: bold; color: #059669; font-size: 11px;">
           ( มีต่อหน้า 2 / Continued on Page 2 ➔ )
         </div>
       </div>
