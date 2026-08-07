@@ -1154,7 +1154,8 @@ function AllocationLedgerView() {
                   </TableCell>
                   <TableCell className="p-3 text-center">
                     <span className="flex justify-center"><LedgerStatusText status={row.status} /></span>
-                    <span className="mt-0.5 block truncate text-xs text-slate-500" title={row.allocatedBy}>{row.allocatedBy}</span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-600" title={row.allocatedBy}>{row.allocatedBy}</span>
+                    <span className="mt-0.5 block text-[11px] font-sans text-slate-500">{formatDateTimeDisplay(row.allocatedAt)}</span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap p-3 text-center" onClick={(event) => event.stopPropagation()}>
                     <div className="flex justify-center">
@@ -1352,6 +1353,22 @@ function AllocationLedgerView() {
 
     </DualCostingPageSection>
   )
+}
+
+function formatDateTimeDisplay(value: string | null | undefined) {
+  if (!value) return '-'
+  try {
+    const d = new Date(value)
+    if (isNaN(d.getTime())) return formatDateDisplay(value)
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const year = d.getFullYear() + 543
+    const hours = String(d.getHours()).padStart(2, '0')
+    const mins = String(d.getMinutes()).padStart(2, '0')
+    return `${day}/${month}/${year} ${hours}:${mins}`
+  } catch {
+    return formatDateDisplay(value)
+  }
 }
 
 function compareSortValues(left: string | number, right: string | number) {
