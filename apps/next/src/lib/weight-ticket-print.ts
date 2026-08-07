@@ -310,6 +310,7 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
 }
 
 export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: CompanyProfilePrintValues) {
+  const attachmentImagesPerPage = 4
   const isReceipt = ticket.type === 'WTI'
   const docTitle = isReceipt ? 'ใบชั่งน้ำหนัก / ใบรับสินค้า' : 'ใบชั่งน้ำหนัก / ใบส่งของ'
   const partyLabel = isReceipt ? 'ผู้ขาย/ผู้ส่งของ' : 'ลูกค้า/ผู้รับสินค้า'
@@ -326,8 +327,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
 
   const attachmentImages = buildWeightTicketAttachmentImages(ticket)
   const attachmentChunks: Array<typeof attachmentImages> = []
-  for (let index = 0; index < attachmentImages.length; index += 8) {
-    attachmentChunks.push(attachmentImages.slice(index, index + 8))
+  for (let index = 0; index < attachmentImages.length; index += attachmentImagesPerPage) {
+    attachmentChunks.push(attachmentImages.slice(index, index + attachmentImagesPerPage))
   }
 
   const isLotLine = (line: WeightTicketRecord['lines'][number]) => {
@@ -431,6 +432,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </div>
         </section>
 
+        <div class="items-frame">
         <table class="items">
           <thead>
             <tr>
@@ -467,6 +469,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             </tfoot>
           ` : ''}
         </table>
+        </div>
 
         ${isLastPage ? `
           <section class="bottom-grid">
@@ -520,7 +523,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       <div class="album-separator"></div>
       <section class="album-grid">
         ${chunk.map((image, imageIndex) => {
-          const globalIndex = chunkIndex * 8 + imageIndex + 1
+          const globalIndex = chunkIndex * attachmentImagesPerPage + imageIndex + 1
           return `
             <article class="album-card">
               <div class="album-image-wrap">
@@ -544,6 +547,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700; font-display: swap; }
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
+      html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; line-height: 1.25; background: #f8fafc; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
@@ -567,7 +571,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .kv .value, .field-value { font-size: 10.5px; font-weight: 600; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
       .field-value.strong { font-size: 12.5px; color: #059669; font-weight: 700; }
       .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; flex: 0 0 auto; }
-      .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+      .panel { border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
       .panel-title { padding: 4px 7px; background: #f1f5f9; color: #334155; font-weight: 700; }
       .panel-body { padding: 5px 7px; }
       .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; }
@@ -576,7 +580,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .weight-info-net { grid-column: 2; min-width: 0; }
       .weight-info-net .field-value { margin-top: 1px; white-space: nowrap; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 8px; font-size: 10.5px; table-layout: fixed; flex: 0 0 auto; }
+      .items-frame { margin: 8px 1px 0; border-radius: 6px; box-shadow: 0 0 0 1px #cbd5e1; overflow: hidden; flex: 0 0 auto; }
+      .items { margin-top: 0; font-size: 10.5px; table-layout: fixed; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 4px 3px; text-align: left; font-weight: 700; }
       .items td { border: 1px solid #dbe3ea; padding: 4px 3px; vertical-align: top; }
       .items .empty td { height: 24px; color: transparent; }
@@ -598,7 +603,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .bottom-grid { display: grid; grid-template-columns: 1.15fr 0.8fr 1.05fr; gap: 8px; margin-top: 8px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 28px; color: #334155; white-space: pre-wrap; }
       .summary-cards { display: grid; gap: 8px; }
-      .summary-card { border: 1px solid #dbe3ea; border-radius: 8px; padding: 5px; background: #f8fafc; }
+      .summary-card { border: 1px solid #dbe3ea; border-radius: 6px; padding: 5px; background: #f8fafc; }
       .summary-card .value { font-size: 10.5px; font-weight: 700; color: #0f172a; margin-top: 2px; }
       .attachment-page { padding-top: 6mm; }
       .album-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
@@ -608,8 +613,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .album-separator { height: 1px; background: #cbd5e1; margin-bottom: 10px; }
       .album-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .album-card { border: 1px solid #dbe3ea; border-radius: 6px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
-      .album-image-wrap { position: relative; height: 120px; background: #f8fafc; }
-      .album-image-wrap img { width: 100%; height: 100%; display: block; object-fit: cover; }
+      .album-image-wrap { position: relative; aspect-ratio: 4 / 3; height: auto; min-height: 180px; background: #f8fafc; display: flex; align-items: center; justify-content: center; }
+      .album-image-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
       .album-card-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 7px; }
       .album-file-name { min-width: 0; overflow-wrap: anywhere; color: #334155; font-size: 9px; }
       .album-index { flex: 0 0 auto; border-radius: 4px; padding: 2px 5px; background: #f1f5f9; color: #475569; font-size: 9px; font-weight: 700; }
@@ -640,7 +645,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .panel-body { padding: 5px 7px; }
         .two-col { gap: 4px 8px; }
         .weight-info-grid { gap: 3px 8px; padding-bottom: 6px; }
-        .items { font-size: 10px; margin-top: 6px; }
+        .items-frame { margin-top: 6px; }
+        .items { font-size: 10px; }
         .items th, .items td { padding: 2.5px; }
         .items .empty td { height: 18px; }
         .muted { font-size: 9px; }
@@ -649,7 +655,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .album-title { font-size: 15px; }
         .album-subtitle { font-size: 9.5px; }
         .album-grid { gap: 7px; }
-        .album-image-wrap { height: 116px; }
+        .album-image-wrap { min-height: 170px; }
         .note { min-height: 24px; }
         .summary-card { padding: 5px; }
         .summary-card .value { font-size: 10.5px; }
