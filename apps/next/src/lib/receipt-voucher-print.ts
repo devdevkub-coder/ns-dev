@@ -501,7 +501,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .page-break-before { page-break-before: always !important; break-before: page !important; }
       .print-footer { display: none; }
       .accent { height: 4px; background: linear-gradient(90deg, #065f46, #84cc16, #cbd5e1); border-radius: 99px; margin-bottom: 8px; }
-      .header { display: grid; grid-template-columns: 1fr .82fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }
+      .header { display: grid; grid-template-columns: 1.2fr .8fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }
       .company { display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: start; min-width: 0; }
       .logo { width: 60px; height: 60px; object-fit: contain; }
       .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 11px; font-weight: 850; text-align: center; width: 60px; height: 60px; }
