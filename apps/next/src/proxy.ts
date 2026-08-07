@@ -31,13 +31,6 @@ function hasUsableSession(session: Session | null) {
   return session.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000)
 }
 
-function isPasswordChangeAllowedPath(pathname: string) {
-  return pathname === '/admin/change-password'
-    || pathname === '/api/auth/login-complete'
-    || pathname === '/api/auth/me'
-    || pathname === '/api/auth/password-changed'
-}
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -111,18 +104,7 @@ export async function proxy(request: NextRequest) {
 
   const currentAppUser = appUserAccessRows[0] as {
     app_user_id: number
-    must_change_password: boolean
   } | undefined
-
-  if (currentAppUser?.must_change_password === true && !isPasswordChangeAllowedPath(pathname)) {
-    if (pathname.startsWith('/api/')) {
-      return authErrorResponse(response, jsonError('ต้องเปลี่ยน password ก่อนใช้งาน', 403))
-    }
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/admin/change-password'
-    redirectUrl.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
-    return authErrorResponse(response, NextResponse.redirect(redirectUrl))
-  }
 
   const requiredPermissions = permissionCodesForPath(pathname)
 

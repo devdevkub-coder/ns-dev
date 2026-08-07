@@ -209,10 +209,10 @@ create employee -> pending -> invitation sent -> admin activates employee
   -> admin chooses one credential path:
        A. send password reset/setup link -> employee sets password -> credentials ready
        B. issue one-time visible temporary password -> must_change_password = true
-          -> employee logs in -> forced change-password page -> credentials ready
+          -> employee logs in -> change-password page remains available as a recommendation; other permitted menus remain accessible
 ```
 
-After authentication and any required password change complete, `/` resolves `app_roles.default_landing_path` from the user's active Role set before normal menu order. If more than one assigned Role defines a landing path, Role code order makes the choice deterministic. The preference never grants access: runtime accepts it only when the path exists in the active navigation registry and the user's effective permissions authorize that page; otherwise it falls back to the first accessible navigation item.
+After authentication, `/` resolves `app_roles.default_landing_path` from the user's active Role set before normal menu order. If more than one assigned Role defines a landing path, Role code order makes the choice deterministic. The preference never grants access: runtime accepts it only when the path exists in the active navigation registry and the user's effective permissions authorize that page; otherwise it falls back to the first accessible navigation item.
 
 Role `accountant` uses `/daily/expense-dashboard` as its default landing page, while `production_department` continues to use `/production/dashboard`. Migration `20260724120000_set_accountant_expense_dashboard_landing.sql` verifies that the active accountant Role already holds `reports.expense_dashboard.view` before writing the preference and fails closed if the Role, permission, or grant is missing. It was applied transactionally to production on 2026-07-24 and recorded in migration history. Why it stays this way: a landing preference must never become an implicit permission grant or redirect a user to a page they cannot open.
 

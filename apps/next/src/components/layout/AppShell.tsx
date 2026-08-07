@@ -18,7 +18,6 @@ type AppShellProps = {
 
 type AuthContextSummary = {
   authUserEmail: string
-  mustChangePassword: boolean
   permissions: string[]
   roles: Array<{ code: string; id: string; name: string }>
 }
@@ -189,7 +188,6 @@ export function AppShell({ children }: AppShellProps) {
           setAuthLoadError(null)
           setAuthContext({
             authUserEmail: typeof payload?.authUser?.email === 'string' ? payload.authUser.email : '',
-            mustChangePassword: payload?.appUser?.mustChangePassword === true,
             permissions: Array.isArray(payload?.permissions) ? payload.permissions : [],
             roles: normalizeAuthRoles(payload?.roles),
           })
@@ -220,13 +218,6 @@ export function AppShell({ children }: AppShellProps) {
       mounted = false
     }
   }, [isAuthPage, pathname, router])
-
-  useEffect(() => {
-    if (isAuthPage || pathname === '/admin/change-password') return
-    if (authContext?.mustChangePassword === true) {
-      router.replace(`/admin/change-password?redirect=${encodeURIComponent(pathname)}`)
-    }
-  }, [authContext?.mustChangePassword, isAuthPage, pathname, router])
 
   function handleSidebarBlur(event: FocusEvent<HTMLElement>) {
     if (event.currentTarget.contains(event.relatedTarget)) return
