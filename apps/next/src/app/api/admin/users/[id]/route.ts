@@ -6,7 +6,7 @@ import { authContextErrorResponse, getCurrentAuthContext, requirePermission } fr
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 import { adminUserEmailSchema, contactPhoneErrorMessage, isValidContactPhone } from '../admin-user-form-validation'
-import { adminUserReferenceErrorResponse } from '../admin-users-route-helpers'
+import { adminUserPermissionOverridesSchema, adminUserReferenceErrorResponse, assertUserPermissionOverrides } from '../admin-users-route-helpers'
 
 export const runtime = 'nodejs'
 
@@ -28,7 +28,8 @@ const adminUserFormSchema = z.object({
   namePrefix: z.enum(['', 'นาย', 'นาง', 'นางสาว', 'คุณ'], { message: 'คำนำหน้าชื่อไม่ถูกต้อง' }).optional().default(''),
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
     .refine((value) => !value || /^https?:\/\//i.test(value), 'URL รูป profile ต้องขึ้นต้นด้วย http:// หรือ https://'),
-  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).min(1, 'เลือกหน้าที่งานอย่างน้อย 1 รายการ'),
+  permissionOverrides: adminUserPermissionOverridesSchema,
+  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).length(1, 'เลือกหน้าที่งาน 1 รายการ'),
 })
 
 type AdminUserRouteProps = {
@@ -58,7 +59,7 @@ function displayNameFromProfile(values: { email: string; firstName: string; last
 function parseRoleIds(roleIds: string[]) {
   const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
 
-  if (parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
+  if (parsed.length !== 1 || parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
     throw new Error('Role ที่เลือกไม่ถูกต้อง')
   }
 
@@ -120,6 +121,12 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
     const id = parseAppUserId(rawId)
     const values = adminUserFormSchema.parse(await request.json())
     const { branchRefs, departmentId, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId)
+    const permissionOverrides = values.permissionOverrides === undefined
+      ? null
+      : await assertUserPermissionOverrides(values.permissionOverrides)
+    if (permissionOverrides !== null) {
+      requirePermission(context, 'system.permissions.update')
+    }
     const displayName = displayNameFromProfile(values)
 
     const existing = await prisma.app_users.findFirst({
@@ -174,6 +181,21 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
           })),
         })
       }
+
+      if (permissionOverrides !== null) {
+        await tx.app_user_permission_overrides.deleteMany({ where: { user_id: id } })
+      }
+      if (permissionOverrides?.length) {
+        await tx.app_user_permission_overrides.createMany({
+          data: permissionOverrides.map((override) => ({
+            created_by: actor,
+            effect: override.effect,
+            permission_id: override.permissionId,
+            updated_by: actor,
+            user_id: id,
+          })),
+        })
+      }
     })
 
     await recordAuthAuditEvent({
@@ -184,7 +206,7 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
         departmentId: departmentId.toString(),
         displayName,
         roleCount: values.roleIds.length,
-        permissionOverrideCount: 0,
+        permissionOverrideCount: permissionOverrides?.length ?? null,
         email: values.email,
       },
       request,

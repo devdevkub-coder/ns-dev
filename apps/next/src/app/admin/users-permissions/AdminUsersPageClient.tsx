@@ -609,6 +609,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const assignableRoles = useMemo(() => (
     (data?.roles ?? []).filter((role) => role.active)
   ), [data?.roles])
+  const assignableRoleOptions = useMemo(() => assignableRoles.map((role) => ({
+    description: role.code,
+    id: role.id,
+    label: role.name,
+    searchText: [role.code, role.name, role.description].filter(Boolean).join(' '),
+  })), [assignableRoles])
   const roleFilterOptions = useMemo(() => [
     { id: 'all', label: 'ทุกหน้าที่งาน' },
     ...(data?.roles ?? []).map((role) => ({
@@ -932,7 +938,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       namePrefix: user.namePrefix ?? '',
       permissionOverrides: user.permissionOverrides,
       profileImageUrl: user.profileImageUrl ?? '',
-      roleIds: user.roles.map((role) => role.id),
+      roleIds: user.roles.length === 1 ? [user.roles[0].id] : [],
     }
     setEditingUser(user)
     setForm(nextForm)
@@ -987,6 +993,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       return
     }
 
+    if (form.roleIds.length !== 1) {
+      setFormError('เลือกหน้าที่งาน / Role 1 รายการ')
+      return
+    }
+
     if (branchAccessMode === 'selected' && form.branchIds.length === 0) {
       setFormError('เลือกสาขาอย่างน้อย 1 สาขา หรือเลือก “ทุกสาขา”')
       return
@@ -1017,10 +1028,23 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         profileImageUrl = uploadedImage.url
         uploadedProfileImageUrl = uploadedImage.url
       }
+      const body: Omit<UserFormState, 'permissionOverrides'> & { branchIds: string[]; profileImageUrl: string; permissionOverrides?: UserFormState['permissionOverrides'] } = {
+        ...form,
+        branchIds: branchAccessMode === 'all' ? [] : form.branchIds,
+        profileImageUrl,
+      }
+      const sortPermissionOverrides = (items: UserFormState['permissionOverrides']) => [...items].sort(
+        (left, right) => left.permissionId.localeCompare(right.permissionId) || left.effect.localeCompare(right.effect),
+      )
+      const originalPermissionOverrides = sortPermissionOverrides(editingUser?.permissionOverrides ?? [])
+      const currentPermissionOverrides = sortPermissionOverrides(form.permissionOverrides)
+      if (JSON.stringify(originalPermissionOverrides) === JSON.stringify(currentPermissionOverrides)) {
+        delete body.permissionOverrides
+      }
       const response = await fetch(editingUser ? `/api/admin/users/${encodeURIComponent(editingUser.id)}` : '/api/admin/users', {
         method: editingUser ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, branchIds: branchAccessMode === 'all' ? [] : form.branchIds, profileImageUrl }),
+        body: JSON.stringify(body),
       })
       const savedUser = await readJsonResponse(response, saveUserResultSchema, 'บันทึกผู้ใช้ไม่ได้')
 
@@ -1706,30 +1730,17 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="mb-1 text-sm font-medium text-slate-700">หน้าที่งาน / Role <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
-                    <div className="mb-2 text-xs text-slate-500">ดึงจาก Role ที่ใช้งานอยู่ในหน้า Roles &amp; Permissions และใช้สิทธิ์ของ Role นี้เป็นสิทธิ์ตั้งต้น</div>
-                    <div className="space-y-2">
-                      {assignableRoles.map((role) => (
-                        <label key={role.id} className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                          <input
-                            checked={form.roleIds.includes(role.id)}
-                            className="mt-0.5 rounded border-slate-300"
-                            type="checkbox"
-                            onChange={() => setForm((current) => ({
-                              ...current,
-                              roleIds: current.roleIds.includes(role.id)
-                                ? current.roleIds.filter((id) => id !== role.id)
-                                : [...current.roleIds, role.id],
-                            }))}
-                          />
-                          <span className="min-w-0">
-                            <span className="block font-medium text-slate-800">{role.name}</span>
-                            <span className="block font-mono text-xs text-slate-400">{role.code}</span>
-                          </span>
-                        </label>
-                      ))}
-                      {assignableRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มี Role ที่ใช้งานได้</p> : null}
-                    </div>
+                    <SearchCombobox
+                      error={formError && form.roleIds.length !== 1 ? 'เลือกหน้าที่งาน / Role 1 รายการ' : undefined}
+                      inputId="admin-user-form-role"
+                      label="หน้าที่งาน / Role *"
+                      options={assignableRoleOptions}
+                      placeholder="เลือกหน้าที่งาน / Role"
+                      value={form.roleIds[0] ?? ''}
+                      onChange={(roleId) => setForm((current) => ({ ...current, roleIds: roleId ? [roleId] : [] }))}
+                    />
+                    {editingUser && editingUser.roles.length > 1 ? <div className="mt-2 text-xs text-amber-700">ผู้ใช้นี้มี Role เดิมมากกว่า 1 รายการ กรุณาเลือก Role ใหม่ 1 รายการก่อนบันทึก เพื่อไม่ให้ระบบตัดสินใจแทนโดยอัตโนมัติ</div> : null}
+                    <div className="mt-2 text-xs text-slate-500">เลือกได้ 1 Role จากรายการที่เปิดใช้งานอยู่ และสิทธิ์ตั้งต้นจะมาจาก Role นี้</div>
                   </div>
 
                   <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">

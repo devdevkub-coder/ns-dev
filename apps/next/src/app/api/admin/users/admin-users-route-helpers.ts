@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { parseInternalBigIntId } from '@/lib/business-code'
+import { prisma } from '@/lib/server/prisma'
 
 type BranchReferenceForAccess = {
   code: string
   id: bigint
 }
+
+export const adminUserPermissionOverridesSchema = z.array(z.object({
+  effect: z.enum(['allow', 'deny']),
+  permissionId: z.string().trim().regex(/^\d+$/, 'สิทธิ์ไม่ถูกต้อง'),
+})).optional()
 
 export class AdminUserReferenceError extends Error {
   constructor(message: string) {
@@ -32,4 +39,25 @@ export function findBranchReferenceForAccess(branchRefs: BranchReferenceForAcces
   }
 
   return branchRef
+}
+
+export async function assertUserPermissionOverrides(values: NonNullable<z.infer<typeof adminUserPermissionOverridesSchema>>) {
+  const seen = new Set<string>()
+  const parsed = values.map((override) => {
+    const permissionId = parseInternalBigIntId(override.permissionId)
+    const key = permissionId?.toString() ?? ''
+    if (permissionId == null || seen.has(key)) {
+      throw new AdminUserReferenceError('สิทธิ์รายผู้ใช้ไม่ถูกต้อง')
+    }
+    seen.add(key)
+    return { effect: override.effect, permissionId }
+  })
+  const permissions = await prisma.app_permissions.findMany({
+    select: { id: true },
+    where: { active: true, id: { in: parsed.map((item) => item.permissionId) } },
+  })
+  if (permissions.length !== parsed.length) {
+    throw new AdminUserReferenceError('สิทธิ์รายผู้ใช้ไม่ถูกต้องหรือถูกปิดใช้งาน')
+  }
+  return parsed
 }
