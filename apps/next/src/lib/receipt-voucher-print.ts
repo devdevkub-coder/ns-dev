@@ -144,7 +144,11 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     ? 'เอกสารนี้เป็นหลักฐานรับเงินจาก Supplier ตามบัญชีที่ระบุในเอกสาร'
     : 'เอกสารนี้เป็นหลักฐานรับเงินสดจาก Supplier เท่านั้น ไม่ใช่เอกสารโอนเงินหรือรายการธนาคาร'
 
-  const tableRowTarget = 7
+  const itemCount = printItems.length
+  const isDense = itemCount >= 9 && itemCount <= 15
+  const isLarge = itemCount > 15
+  const tableRowTarget = isDense ? itemCount : (isLarge ? 0 : 7)
+
   const itemsHtml = printItems.map((item, index) => {
     return `
       <tr>
@@ -213,7 +217,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .center { text-align: center; }
       
-      .bottom-grid { display: grid; grid-template-columns: 1fr 70mm; gap: 8px; margin-top: 8px; }
+      .bottom-grid { display: grid; grid-template-columns: 1fr 70mm; gap: 8px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
       .notes-panel { display: flex; flex-direction: column; gap: 6px; }
       .note-box { border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
       .note-box-header { background: #f1f5f9; padding: 3px 6px; font-weight: 900; color: #475569; font-size: 11px; }
@@ -224,6 +228,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .summary-row:last-child { border-bottom: 0; }
       .summary-row.highlight { background: #065f46; color: white; padding: 6px; font-size: 11.5px; font-weight: 900; }
       
+      .footer-group { break-inside: avoid; page-break-inside: avoid; }
       .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 16px; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }
       .sig-block { text-align: center; color: #475569; }
       .sig-line { width: 78%; margin: 0 auto; height: 20px; border-bottom: 1px solid #475569; }
@@ -232,6 +237,25 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .sig-date { margin-top: 2px; font-size: 11px; color: #64748b; }
       
       .legal-note { margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 4px; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; break-inside: avoid; page-break-inside: avoid; }
+
+      /* Auto Dense Sizing for 9-15 items to fit 1-page 100% */
+      .page.is-dense { padding: 4mm; }
+      .page.is-dense .company-name { font-size: 13.5px; }
+      .page.is-dense .company-info { font-size: 11px; margin-top: 2px; }
+      .page.is-dense .doc-title { font-size: 19px; }
+      .page.is-dense .doc-subtitle { font-size: 11px; }
+      .page.is-dense .meta-grid { margin-top: 5px; gap: 3px; }
+      .page.is-dense .meta-card { padding: 2px 5px; }
+      .page.is-dense .section-grid { margin-top: 6px; gap: 6px; }
+      .page.is-dense .panel-title { padding: 3px 6px; font-size: 11px; }
+      .page.is-dense .panel-body { padding: 4px 6px; }
+      .page.is-dense .two-col { gap: 3px 8px; }
+      .page.is-dense .items { margin-top: 6px; font-size: 10.5px; }
+      .page.is-dense .items th, .page.is-dense .items td { padding: 2px 3px; }
+      .page.is-dense .bottom-grid { margin-top: 6px; gap: 6px; }
+      .page.is-dense .signatures { margin-top: 10px; gap: 20px; }
+      .page.is-dense .sig-line { height: 16px; }
+      .page.is-dense .legal-note { margin-top: 6px; padding-top: 3px; font-size: 10.5px; }
       
       .watermark { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 72px; font-weight: 900; color: rgba(226, 232, 240, 0.7); transform: rotate(-18deg); z-index: 10; }
       
@@ -249,7 +273,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       <span style="font-size: 12px;color:#cbd5e1">A4 portrait corporate print</span>
     </div>
     
-    <div class="page">
+    <div class="page${isDense ? ' is-dense' : ''}">
       ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
       <div class="accent"></div>
       
@@ -426,23 +450,25 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
         </div>
       </section>
       
-      <div class="signatures">
-        <div class="sig-block">
-          <div class="sig-line"></div>
-          <div class="sig-title">ผู้จ่ายเงิน</div>
-          <div class="sig-name">( ${escapeHtml(row.payerSignerName || row.createdBy || '')} )</div>
-          <div class="sig-date">วันที่ ____ / ____ / ______</div>
+      <div class="footer-group">
+        <div class="signatures">
+          <div class="sig-block">
+            <div class="sig-line"></div>
+            <div class="sig-title">ผู้จ่ายเงิน</div>
+            <div class="sig-name">( ${escapeHtml(row.payerSignerName || row.createdBy || '')} )</div>
+            <div class="sig-date">วันที่ ____ / ____ / ______</div>
+          </div>
+          <div class="sig-block">
+            <div class="sig-line"></div>
+            <div class="sig-title">ผู้รับเงิน</div>
+            <div class="sig-name">( ${escapeHtml(row.sellerName)} )</div>
+            <div class="sig-date">วันที่ ____ / ____ / ______</div>
+          </div>
         </div>
-        <div class="sig-block">
-          <div class="sig-line"></div>
-          <div class="sig-title">ผู้รับเงิน</div>
-          <div class="sig-name">( ${escapeHtml(row.sellerName)} )</div>
-          <div class="sig-date">วันที่ ____ / ____ / ______</div>
+        
+        <div class="legal-note">
+          ${escapeHtml(legalNote)}
         </div>
-      </div>
-      
-      <div class="legal-note">
-        ${escapeHtml(legalNote)}
       </div>
     </div>
   </body></html>`

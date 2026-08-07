@@ -82,4 +82,37 @@ describe('receipt voucher print layout', () => {
     expect(html).toMatch(/\.panel\s*\{[^}]*page-break-inside:\s*avoid/)
     expect(html).toMatch(/\.field-wide\s*\{[^}]*grid-column:\s*span 2/)
   })
+
+  it('applies is-dense class and footer-group page break avoidance when item count is between 9 and 15', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      profile: { address: '99 กรุงเทพ', logoUrl: null, name: longCompanyName, phone: '021234567', taxId: '0105559999999' },
+      profileConfigured: true,
+      selectedBranchName: null,
+    }), { headers: { 'content-type': 'application/json' }, status: 200 })))
+
+    const twelveItemsDoc: ReceiptVoucherPrintDocument = {
+      ...document,
+      items: Array.from({ length: 12 }, (_, i) => ({
+        amount: 100 * (i + 1),
+        description: `สินค้า ${i + 1}`,
+        id: String(i + 1),
+        price: 10,
+        qty: i + 1,
+        unit: 'กก.',
+      })),
+    }
+
+    let html = ''
+    const printWindow = {
+      document: { close: vi.fn(), open: vi.fn(), write: vi.fn((val: string) => { html = val }) },
+      focus: vi.fn(),
+    } as unknown as Window
+
+    await openReceiptVoucherPrint(twelveItemsDoc, printWindow)
+
+    expect(html).toContain('class="page is-dense"')
+    expect(html).toContain('.page.is-dense')
+    expect(html).toContain('class="footer-group"')
+    expect(html).toMatch(/\.footer-group\s*\{[^}]*page-break-inside:\s*avoid/)
+  })
 })
