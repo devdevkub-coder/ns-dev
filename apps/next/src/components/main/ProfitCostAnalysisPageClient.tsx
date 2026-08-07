@@ -353,8 +353,8 @@ export function ProfitCostAnalysisPageClient() {
         <PairMetric
           className={`${profitKpiCardClass} col-span-2 xl:col-span-8`}
           label="ยอดคงเหลือเจ้าหนี้ / ลูกหนี้"
-          left={{ label: 'เจ้าหนี้คงเหลือ', note: `AP · ผู้ขายที่ซื้อ ${summary.supplierCount ?? 0} ราย`, value: money(summary.ap) }}
-          right={{ label: 'ลูกหนี้คงเหลือ', note: `AR · ลูกค้าที่ขาย ${summary.customerCount ?? 0} ราย`, value: money(summary.ar) }}
+          left={{ label: 'เจ้าหนี้คงเหลือ', note: `AP · ผู้ขายที่ซื้อ ${count(summary.supplierCount)} ราย`, value: money(summary.ap) }}
+          right={{ label: 'ลูกหนี้คงเหลือ', note: `AR · ลูกค้าที่ขาย ${count(summary.customerCount)} ราย`, value: money(summary.ar) }}
           tone="slate"
         />
       </div>
@@ -534,9 +534,9 @@ export function ProfitCostAnalysisPageClient() {
       <TablePager page={page} pageSize={pageSize} totalRows={totalRows} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1) }} />
       <div>
         {activeTab === 'products' ? <ProductTable rows={data?.rows.products ?? []} onSelect={setSelectedProduct} sortDirection={productSortDirection} sortKey={productSortKey} onSort={(key, direction) => { setProductSortKey(key); setProductSortDirection(direction); setPage(1) }} /> : null}
-        {activeTab === 'suppliers' ? <SimpleTable alignments={['left', 'right', 'right', 'right', 'right', 'right']} tableKey="suppliers" rows={(data?.rows.suppliers ?? []).map((row) => [row.name, money(row.qty), money(row.amount), money(row.paid), money(row.payable), String(row.billCount)])} headers={['ผู้ขาย', 'กก.', 'ซื้อ', 'จ่ายแล้ว', 'ค้างจ่าย', 'บิล']} sortKeys={['name', 'qty', 'amount', 'paid', 'payable', 'billCount']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
+        {activeTab === 'suppliers' ? <SimpleTable alignments={['left', 'right', 'right', 'right', 'right', 'right']} tableKey="suppliers" rows={(data?.rows.suppliers ?? []).map((row) => [row.name, money(row.qty), money(row.amount), money(row.paid), money(row.payable), count(row.billCount)])} headers={['ผู้ขาย', 'กก.', 'ซื้อ', 'จ่ายแล้ว', 'ค้างจ่าย', 'บิล']} sortKeys={['name', 'qty', 'amount', 'paid', 'payable', 'billCount']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
         {activeTab === 'customers' ? <SimpleTable alignments={['left', 'right', 'right', 'right', 'right', 'right']} tableKey="customers" rows={(data?.rows.customers ?? []).map((row) => [row.name, money(row.qty), money(row.amount), money(row.gp), `${pct(row.gpPct)}%`, money(row.receivable)])} headers={['ลูกค้า', 'กก.', 'ขาย', 'GP', 'GP %', 'ค้างรับ']} sortKeys={['name', 'qty', 'amount', 'gp', 'gp', 'receivable']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
-        {activeTab === 'channels' ? <SimpleTable alignments={['left', 'left', 'right', 'right', 'right', 'right']} tableKey="channels" rows={(data?.rows.channels ?? []).map((row) => [row.group, row.name, money(row.qty), money(row.amount), money(row.gp), String(row.billCount)])} headers={['กลุ่ม', 'ช่องทาง', 'กก.', 'ยอด', 'GP', 'บิล']} sortKeys={['group', 'name', 'qty', 'amount', 'gp', 'billCount']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
+        {activeTab === 'channels' ? <SimpleTable alignments={['left', 'left', 'right', 'right', 'right', 'right']} tableKey="channels" rows={(data?.rows.channels ?? []).map((row) => [row.group, row.name, money(row.qty), money(row.amount), money(row.gp), count(row.billCount)])} headers={['กลุ่ม', 'ช่องทาง', 'กก.', 'ยอด', 'GP', 'บิล']} sortKeys={['group', 'name', 'qty', 'amount', 'gp', 'billCount']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
         {activeTab === 'trend' ? <SimpleTable alignments={['center', 'right', 'right', 'right', 'right', 'right']} tableKey="trend" rows={(data?.rows.trend ?? []).map((row) => [formatDateDisplay(row.date), money(row.buyAmount), money(row.revenue), money(row.cogs), money(row.gp), money(row.sellQty)])} headers={['วันที่', 'ซื้อ', 'ขาย', 'COGS', 'GP', 'ขาย กก.']} sortKeys={['date', 'amount', 'amount', 'gp', 'gp', 'qty']} sortDirection={dimensionSortDirection} sortKey={dimensionSortKey} onSort={(key, direction) => { setDimensionSortKey(key); setDimensionSortDirection(direction); setPage(1) }} /> : null}
         {activeTab === 'alerts' ? <SimpleTable alignments={['center', 'left', 'left', 'right']} tableKey="alerts" rows={(data?.alerts ?? []).map((row) => [row.severity, row.type, row.label, money(row.amount)])} headers={['ระดับ', 'ประเภท', 'รายการ', 'ค่า']} /> : null}
       </div>
@@ -565,8 +565,12 @@ function money(value?: number) {
   return formatMoney(value ?? 0)
 }
 
+function count(value?: number) {
+  return (value ?? 0).toLocaleString('th-TH', { maximumFractionDigits: 0 })
+}
+
 function pct(value?: number) {
-  return (value ?? 0).toLocaleString('th-TH', { maximumFractionDigits: 1 })
+  return (value ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function formatProductCell(row: ProductRow, key: ProductColumnKey) {
@@ -666,11 +670,11 @@ function TablePager({ onPageChange, onPageSizeChange, page, pageSize, totalRows 
   if (totalRows === 0) return null
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-      <span>แสดง {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalRows)} จาก {totalRows} รายการ</span>
+      <span>แสดง {count((page - 1) * pageSize + 1)}-{count(Math.min(page * pageSize, totalRows))} จาก {count(totalRows)} รายการ</span>
       <div className="flex items-center gap-2">
         <PageSizeDropdown options={[...productPageSizeOptions]} value={pageSize} onChange={(value) => onPageSizeChange(value as (typeof productPageSizeOptions)[number])} />
         <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={page <= 1} type="button" onClick={() => onPageChange(page - 1)}>ก่อนหน้า</button>
-        <span className="px-1 text-sm">หน้า {page} / {totalPages}</span>
+        <span className="px-1 text-sm">หน้า {count(page)} / {count(totalPages)}</span>
         <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={page >= totalPages} type="button" onClick={() => onPageChange(page + 1)}>ถัดไป</button>
       </div>
     </div>
