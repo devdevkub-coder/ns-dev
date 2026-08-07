@@ -15,7 +15,7 @@
 ### Admin User Create Legacy Username Reconciliation — 2026-08-07
 
 - SIT preflight พบ `public.app_users.username` ยังเป็น `NOT NULL` แม้ migration email-only เดิมถูกบันทึกใน history แล้ว ทำให้ `POST /api/admin/users` ที่ไม่ส่ง legacy username ล้มเหลวด้วย HTTP 500.
-- Applied and recorded `20260807110000_drop_legacy_app_user_username` on SIT. The migration drops only the obsolete `username` column; it does not alter users, auth identities, roles, branches, or passwords.
+- Applied and recorded `20260807100000_add_weight_ticket_line_collaboration_version` and `20260807110000_drop_legacy_app_user_username` on SIT and Production. The first adds per-line collaboration version/timestamp/actor fields and its supporting index; the second drops only the obsolete `username` column. It does not alter users, auth identities, roles, branches, or passwords. Production postflight retained 25 app users and 280 weight-ticket lines, with both migration-history rows present and the expected columns/index verified.
 
 ### WTI/WTO Google Sheets Setting Retirement 2026-08-06
 
