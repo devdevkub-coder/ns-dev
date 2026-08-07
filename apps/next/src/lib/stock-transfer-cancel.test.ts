@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  availableStockForTransfer,
   availableStockForTransferCancel,
   normalizeNotAvailableForSale,
   normalizeStockTransferCancelReason,
@@ -22,6 +23,12 @@ describe('stock transfer cancellation reason', () => {
 })
 
 describe('stock transfer cancellation stock matching', () => {
+  it('excludes pending-in stock from transferable quantity', () => {
+    expect(availableStockForTransfer({ qty: 206.23, onHoldQty: 0 })).toBe(206.23)
+    expect(availableStockForTransfer({ qty: 206.23, onHoldQty: 6.23 })).toBe(200)
+    expect(availableStockForTransfer({ qty: 206.23, onHoldQty: 211.23 })).toBe(0)
+  })
+
   it('treats legacy NULL not_available_for_sale as false', () => {
     expect(normalizeNotAvailableForSale(null)).toBe(false)
     expect(normalizeNotAvailableForSale(undefined)).toBe(false)
