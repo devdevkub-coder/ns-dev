@@ -63,4 +63,24 @@ describe('LINE target sync transport', () => {
     })
     expect(db.updateTarget).not.toHaveBeenCalled()
   })
+
+  it('does not reactivate an inactive room without a real webhook event', async () => {
+    db.findTargets.mockResolvedValue([{
+      created_at: new Date(),
+      id: 2n,
+      is_active: false,
+      target_id: 'R-OLD-OA',
+      target_type: 'room',
+    }])
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({ basicId: '@nserp', displayName: 'NS ERP' }),
+      ok: true,
+    }))
+
+    await expect(syncLineTargetsFromAPI('token')).resolves.toMatchObject({
+      refreshed: 0,
+      total: 1,
+    })
+    expect(db.updateTarget).not.toHaveBeenCalled()
+  })
 })

@@ -889,3 +889,24 @@ LINE Messaging API **ไม่มี endpoint ลิสต์ทุกกลุ�
 
 - Focused tests ต้องครอบคลุม routing/dispatch ของ WTI, WTO, PB, SB, PMT และ RCP, post-commit trigger, branch-scoped admin test send, permanent/transient error classification, request ID contract, accepted 409 retry response และ timeout ของ LINE transports
 - หลัง deploy ต้องทดสอบ connection, webhook signature, target send และ retry job จริง พร้อมตรวจ `line_request_id`/attempt ใหม่ในหน้า `/admin/line-settings`
+
+---
+
+## Connection UX checkpoint 2026-08-06
+
+### What is what
+
+- แท็บ `การเชื่อมต่อ` สรุปสภาพแวดล้อม, Access Token, Channel Secret และ Webhook ภายในใน grouped card เดียว แบ่งเป็น 4 ช่อง responsive ด้วยเส้นคั่นบางแทนการ์ดย่อยหรือข้อความกระจายบน surface เดียว
+- feedback ของ `ทดสอบ Access Token`, `บันทึกการตั้งค่า` และ `ทดสอบ Webhook ภายใน` อยู่เหนือชุดปุ่มใน Connection card และมี state แยกจาก alert ทั่วหน้า จึงยังอยู่กับแท็บนี้แม้ผล async กลับหลังผู้ใช้สลับแท็บ; alert ส่วนบนยังคงใช้กับแท็บอื่น
+- ปุ่มทั้งสามใช้ข้อความคงเดิม, ความกว้างเท่ากันใน grid และแสดง spinner พร้อม `aria-busy` ระหว่างทำงาน จึงไม่เกิดการ wrap/ขยับเมื่อ loading
+
+### Why it has to work this way
+
+- ผลลัพธ์ต้องอยู่ใกล้จุดที่ผู้ใช้เพิ่งกดเพื่อให้แก้ credential หรือ Webhook ต่อได้โดยไม่ต้องเลื่อนกลับขึ้นบน และห้ามใช้ state ร่วมที่ทำให้ผล async ไปแสดงผิดแท็บ
+- สถานะที่อ่านง่ายต้องบอกขั้นที่พร้อม/ยังไม่พร้อมโดยไม่เปิดเผย token หรือ secret และไม่เปลี่ยน contract การบันทึก/ทดสอบเดิม
+- ขนาดปุ่มที่คงที่ช่วยให้การเรียงลำดับ `ทดสอบ Token → บันทึก → ทดสอบ Webhook` ไม่เปลี่ยนระหว่าง async action และยังใช้ได้บนมือถือเป็น 1 คอลัมน์
+
+### Verification
+
+- Focused connection/API contract tests `12/12`, targeted ESLint และ workspace type-check ผ่านในวันที่ 2026-08-06
+- ไม่มี browser/UAT หรือการส่ง LINE จริงใน checkpoint นี้; ต้องทดสอบด้วย credential และ target ที่ได้รับอนุญาตหลัง deploy แยกต่างหาก

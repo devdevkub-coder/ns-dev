@@ -28,3 +28,12 @@ approval_mode = "approve"
 
 [mcp_servers.supabase-prod-source]
 url = "https://mcp.supabase.com/mcp?project_ref=mqsgptraslgpyzbpndlg&read_only=true"
+
+[mcp_servers.codegraph]
+command = "npx"
+args = [
+    "--yes",
+    "@colbymchenry/codegraph",
+    "serve",
+    "--mcp",
+]

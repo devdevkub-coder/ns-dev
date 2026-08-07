@@ -12,13 +12,33 @@ import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Dialog, DialogContent, DialogFooter, DialogHeader } from '@/components/ui/Dialog'
 import { Select } from '@/components/ui/Select'
 import { KpiCard } from '@/components/ui/KpiCard'
-import { Bot, CircleAlert, Clock3, RefreshCw, Users, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, ChevronDown, CircleAlert, Clipboard, Clock3, Eye, EyeOff, ExternalLink, LockKeyhole, RefreshCw, Send, Users, XCircle } from 'lucide-react'
 import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
+import { resolveLineConnectionProfile } from '@/lib/line-connection-profile'
+
+export const MASKED_CREDENTIAL = '••••••••••••••••'
+
+export function isProtectedCredential(value: string | null | undefined) {
+  return Boolean(value?.includes('••'))
+}
+
+export function buildLineWebhookUrl(appUrl: string) {
+  if (!appUrl.trim()) return ''
+  try {
+    return new URL('/api/line/webhook', appUrl.trim()).toString()
+  } catch {
+    return ''
+  }
+}
+
+type CredentialEditMode = 'empty' | 'protected' | 'editing'
+type CheckState = 'idle' | 'testing' | 'passed' | 'failed'
 
 // Validation Schema for credentials and basic configs
 const credentialsSchema = z.object({
   lineChannelAccessToken: z.string().trim().nullable().or(z.literal('')),
   lineChannelSecret: z.string().trim().nullable().or(z.literal('')),
+  googleSheetsWebhookUrl: z.string().trim().url('รูปแบบ URL Google Sheets ไม่ถูกต้อง').or(z.literal('')),
   lineDefaultTargetId: z.string().trim().nullable().or(z.literal('')),
   pdfBucket: z.string().trim().min(1, 'กรุณาระบุชื่อ Storage Bucket'),
   appUrl: z.string().trim().url('รูปแบบ URL ไม่ถูกต้อง').or(z.literal('')),
@@ -341,6 +361,7 @@ export function LineSettingsPageClient() {
   const [form, setForm] = useState<CredentialsFormValues>({
     lineChannelAccessToken: '',
     lineChannelSecret: '',
+    googleSheetsWebhookUrl: '',
     lineDefaultTargetId: '',
     pdfBucket: '',
     appUrl: '',
@@ -357,6 +378,13 @@ export function LineSettingsPageClient() {
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null)
   const [botInfo, setBotInfo] = useState<BotInfo | null>(null)
+  const [tokenMode, setTokenMode] = useState<CredentialEditMode>('empty')
+  const [secretMode, setSecretMode] = useState<CredentialEditMode>('empty')
+  const [tokenCheck, setTokenCheck] = useState<CheckState>('idle')
+  const [webhookCheck, setWebhookCheck] = useState<CheckState>('idle')
+  const [selectedTestTargetId, setSelectedTestTargetId] = useState('')
+  const [browserHost, setBrowserHost] = useState('')
+  const [hasAcknowledgedLocalhost, setHasAcknowledgedLocalhost] = useState(false)
 
   // Loading & Action states
   const [isLoading, setIsLoading] = useState(true)
@@ -372,6 +400,8 @@ export function LineSettingsPageClient() {
   // Feedback messages
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [connectionMessage, setConnectionMessage] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CredentialsFormValues, string>>>({})
 
   // Password masking
@@ -396,6 +426,52 @@ export function LineSettingsPageClient() {
   const [templatePreviewJson, setTemplatePreviewJson] = useState<any | null>(null)
   const [previewDocNo, setPreviewDocNo] = useState('')
   const [templateFormBaseline, setTemplateFormBaseline] = useState<string | null>(null)
+
+  const savedCredentials = useMemo<Partial<CredentialsFormValues> | null>(() => {
+    if (!credentialsBaseline) return null
+    try {
+      return JSON.parse(credentialsBaseline) as CredentialsFormValues
+    } catch {
+      return null
+    }
+  }, [credentialsBaseline])
+  const hasUnsavedWebhookConfig = !savedCredentials
+    || form.lineChannelSecret !== savedCredentials.lineChannelSecret
+    || form.appUrl !== savedCredentials.appUrl
+  const activeTargets = useMemo(() => targets.filter((target) => target.is_active), [targets])
+  const selectedTestTarget = useMemo(
+    () => activeTargets.find((target) => target.id === selectedTestTargetId) ?? null,
+    [activeTargets, selectedTestTargetId],
+  )
+  const lineProfile = useMemo(() => resolveLineConnectionProfile({
+    appUrl: form.appUrl,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  }), [form.appUrl])
+  const isLocalhost = browserHost === 'localhost' || browserHost === '127.0.0.1'
+  const hasKnownProfileMismatch = lineProfile.dataProfileId !== 'custom'
+    && lineProfile.targetProfileId !== 'custom'
+    && !lineProfile.aligned
+  const hasDeployedHostMismatch = Boolean(
+    browserHost
+    && !isLocalhost
+    && lineProfile.appHost
+    && browserHost !== lineProfile.appHost,
+  )
+  const webhookUrl = buildLineWebhookUrl(form.appUrl)
+  const hasTokenForTest = Boolean(form.lineChannelAccessToken)
+  const canSaveCredentials = credentialsSchema.safeParse(form).success
+    && !isSaving
+    && (tokenMode !== 'editing' || tokenCheck === 'passed')
+  const canTestWebhook = Boolean(form.lineChannelSecret && webhookUrl)
+    && tokenCheck === 'passed'
+    && !hasUnsavedWebhookConfig
+    && !hasKnownProfileMismatch
+    && !hasDeployedHostMismatch
+    && !isTestingWebhook
+  const canSendTestMessage = Boolean(selectedTestTarget)
+    && tokenCheck === 'passed'
+    && !hasKnownProfileMismatch
+    && !hasDeployedHostMismatch
 
   const getTemplateConfig = useCallback((template?: Partial<MessageTemplate> | null): TemplateConfig => {
     const defaults = createDefaultTemplateConfig()
@@ -473,6 +549,18 @@ export function LineSettingsPageClient() {
   const { requestDiscard: requestDiscardRuleForm } = useUnsavedChangesGuard(hasUnsavedRuleForm)
   const { requestDiscard: requestDiscardTemplateForm } = useUnsavedChangesGuard(hasUnsavedTemplateForm)
 
+  useEffect(() => {
+    setBrowserHost(window.location.hostname)
+  }, [])
+
+  useEffect(() => {
+    setSelectedTestTargetId((current) => {
+      if (activeTargets.some((target) => target.id === current)) return current
+      const defaultTarget = activeTargets.find((target) => target.is_default)
+      return defaultTarget?.id ?? (activeTargets.length === 1 ? activeTargets[0].id : '')
+    })
+  }, [activeTargets])
+
   const requestCloseTargetForm = useCallback(() => requestDiscardTargetForm(closeTargetForm), [closeTargetForm, requestDiscardTargetForm])
   const requestCloseRuleForm = useCallback(() => requestDiscardRuleForm(closeRuleForm), [closeRuleForm, requestDiscardRuleForm])
   const requestCloseTemplateForm = useCallback(() => requestDiscardTemplateForm(closeTemplateForm), [closeTemplateForm, requestDiscardTemplateForm])
@@ -510,8 +598,15 @@ export function LineSettingsPageClient() {
     try {
       const response = await fetch('/api/admin/line-settings', { cache: 'no-store' })
       const data = await response.json()
-      setForm(data)
-      setCredentialsBaseline(JSON.stringify(data))
+      const nextForm = {
+        ...data,
+        googleSheetsWebhookUrl: data.googleSheetsWebhookUrl || '',
+      } as CredentialsFormValues
+      setForm(nextForm)
+      setCredentialsBaseline(JSON.stringify(nextForm))
+      setTokenMode(isProtectedCredential(nextForm.lineChannelAccessToken) ? 'protected' : 'empty')
+      setSecretMode(isProtectedCredential(nextForm.lineChannelSecret) ? 'protected' : 'empty')
+      setWebhookCheck('idle')
     } catch (err) {
       console.error('Failed to load line credentials settings', err)
     }
@@ -616,7 +711,7 @@ export function LineSettingsPageClient() {
   }, [])
 
   const loadBotInfo = useCallback(async () => {
-    // ดึงข้อมูลบอทผ่าน test-connection route เดิม (reuse ไม่สร้างใหม่)
+    setTokenCheck('testing')
     try {
       const res = await fetch('/api/admin/line-settings/test-connection', {
         method: 'POST',
@@ -631,10 +726,14 @@ export function LineSettingsPageClient() {
             basicId: data.basicId,
             pictureUrl: data.pictureUrl || null,
           })
+          setTokenCheck('passed')
+          return
         }
       }
+      setTokenCheck('failed')
     } catch (err) {
       console.error('Failed to load bot info', err)
+      setTokenCheck('failed')
     }
   }, [])
 
@@ -702,16 +801,24 @@ export function LineSettingsPageClient() {
     void initData()
   }, [initData])
 
-  // Save Channel Credentials
-  const saveCredentials = async () => {
-    setError(null)
-    setMessage(null)
+  const clearConnectionFeedback = () => {
+    setConnectionError(null)
+    setConnectionMessage(null)
+  }
+
+  const saveCredentials = async (confirmBotChange = false) => {
+    clearConnectionFeedback()
     setFieldErrors({})
 
     const parsed = credentialsSchema.safeParse(form)
     if (!parsed.success) {
       setFieldErrors(parsed.error.flatten().fieldErrors as any)
-      setError('กรุณากรอกข้อมูลให้ถูกต้อง')
+      setConnectionError('กรุณากรอกข้อมูลให้ถูกต้อง')
+      return
+    }
+    if (tokenMode === 'editing' && tokenCheck !== 'passed') {
+      setFieldErrors({ lineChannelAccessToken: 'ทดสอบ Access Token ที่พิมพ์ใหม่ให้ผ่านก่อนบันทึก' })
+      setConnectionError('กรุณาทดสอบ Access Token ก่อนบันทึก')
       return
     }
 
@@ -720,39 +827,48 @@ export function LineSettingsPageClient() {
       const res = await fetch('/api/admin/line-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed.data),
+        body: JSON.stringify({ ...parsed.data, confirmBotChange }),
       })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error || 'บันทึกข้อมูลการตั้งค่าล้มเหลว')
-      }
       const responseBody = await res.json().catch(() => ({}))
-      // sync อัตโนมัติเมื่อเปลี่ยน token: ถ้า sync ล้มเหลวจะคืน warning (แต่ token ยังบันทึกสำเร็จ)
-      if (responseBody.syncWarning) {
-        setMessage(`บันทึกการเชื่อมต่อสำเร็จ แต่ซิงค์กลุ่มล้มเหลว: ${responseBody.syncWarning}`)
+      if (res.status === 409 && responseBody.code === 'LINE_BOT_CHANGE_CONFIRMATION_REQUIRED') {
+        requestConfirmation({
+          title: 'ยืนยันการเปลี่ยน LINE OA',
+          description: `การยืนยันจะปิดใช้งานกลุ่มและกฎการส่งเดิมทั้งหมด แต่เก็บประวัติไว้ (${responseBody.previousBot?.name || responseBody.previousBot?.basicId || 'OA เดิม'} → ${responseBody.nextBot?.name || responseBody.nextBot?.basicId || 'OA ใหม่'})`,
+          confirmLabel: 'ยืนยันเปลี่ยน OA',
+          destructive: true,
+          onConfirm: () => saveCredentials(true),
+        })
+        return
+      }
+      if (!res.ok) {
+        throw new Error(responseBody.error || 'บันทึกข้อมูลการตั้งค่าล้มเหลว')
+      }
+      if (responseBody.requiresTargetRegistration) {
+        setConnectionMessage('บันทึก OA ใหม่แล้ว: โปรดตั้ง Webhook และให้ OA ใหม่ส่ง event จริงก่อนเลือกกลุ่มรับแจ้งเตือน')
+      } else if (responseBody.syncWarning) {
+        setConnectionMessage(`บันทึกการเชื่อมต่อสำเร็จ แต่ซิงค์กลุ่มล้มเหลว: ${responseBody.syncWarning}`)
       } else {
-        setMessage('บันทึกข้อมูลการเชื่อมต่อสำเร็จ')
+        setConnectionMessage('บันทึกข้อมูลการเชื่อมต่อสำเร็จ')
       }
       setCredentialsBaseline(JSON.stringify(parsed.data))
       void loadCredentials()
       void loadBotInfo()
       void loadTargets()
     } catch (caught) {
-      setError(getErrorMessage(caught, 'บันทึกข้อมูลไม่สำเร็จ'))
+      setConnectionError(getErrorMessage(caught, 'บันทึกข้อมูลไม่สำเร็จ'))
     } finally {
       setIsSaving(false)
     }
   }
 
-  // Quick Action Connection tests
   const testOAConnection = async () => {
-    setError(null)
-    setMessage(null)
+    clearConnectionFeedback()
     if (!form.lineChannelAccessToken) {
-      setError('กรุณากรอก LINE Channel Access Token ก่อนทดสอบ')
+      setConnectionError('กรุณากรอก LINE Channel Access Token ก่อนทดสอบ')
       return
     }
     setIsTestingOA(true)
+    setTokenCheck('testing')
     try {
       const res = await fetch('/api/admin/line-settings/test-connection', {
         method: 'POST',
@@ -761,31 +877,81 @@ export function LineSettingsPageClient() {
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'การเชื่อมต่อผิดพลาด')
-      setMessage(`🔌 เชื่อมต่อ LINE OA สำเร็จ! บอทชื่่อ "${body.botName}" (${body.basicId})`)
+      setBotInfo({ botName: body.botName, basicId: body.basicId, pictureUrl: body.pictureUrl || null })
+      setTokenCheck('passed')
+      setConnectionMessage(`เชื่อมต่อ LINE OA สำเร็จ: ${body.botName} (${body.basicId})`)
     } catch (caught) {
-      setError(getErrorMessage(caught, 'ตรวจสอบการเชื่อมต่อล้มเหลว'))
+      setTokenCheck('failed')
+      setConnectionError(getErrorMessage(caught, 'ตรวจสอบการเชื่อมต่อล้มเหลว'))
     } finally {
       setIsTestingOA(false)
     }
   }
 
   const testWebhookSignature = async () => {
-    setError(null)
-    setMessage(null)
-    if (!form.lineChannelSecret) {
-      setError('กรุณากรอก LINE Channel Secret ก่อนทดสอบ')
+    clearConnectionFeedback()
+    if (hasUnsavedWebhookConfig) {
+      setConnectionError('บันทึก Channel Secret และ Public App URL ก่อนทดสอบ Webhook')
+      return
+    }
+    if (tokenCheck !== 'passed') {
+      setConnectionError('ทดสอบ Access Token ให้ผ่านก่อนทดสอบ Webhook ภายใน')
+      return
+    }
+    if (hasKnownProfileMismatch || hasDeployedHostMismatch) {
+      setConnectionError('Environment ของฐานข้อมูล, Webhook URL และหน้าเว็บไม่ตรงกัน')
       return
     }
     setIsTestingWebhook(true)
+    setWebhookCheck('testing')
     try {
       const res = await fetch('/api/admin/line-settings/test-webhook', { method: 'POST' })
       const body = await res.json()
-      if (!res.ok || body.ok === false) throw new Error(body.message || 'ลายเซ็นไม่ถูกต้อง')
-      setMessage(`✅ ตรวจสอบความถูกต้องของ Webhook ลายเซ็นสำเร็จ: ${body.message}`)
+      if (!res.ok || body.ok === false) {
+        const remedies: Record<string, string> = {
+          LINE_SECRET_NOT_SAVED: 'บันทึก Channel Secret ก่อนทดสอบ',
+          LINE_APP_URL_INVALID: 'ตรวจสอบ Public App URL แล้วบันทึกใหม่',
+          LINE_ENVIRONMENT_MISMATCH: 'ตรวจสอบให้ฐานข้อมูลและ Webhook URL เป็น OA environment เดียวกัน',
+          LINE_WEBHOOK_SIGNATURE_REJECTED: 'Secret ที่บันทึกไม่ตรงกับ Channel Secret ของ OA เป้าหมาย',
+          LINE_WEBHOOK_TIMEOUT: 'Webhook ตอบกลับช้าเกินกำหนด โปรดลองอีกครั้งหลังตรวจสอบปลายทาง',
+          LINE_WEBHOOK_UNREACHABLE: 'ไม่สามารถติดต่อ Webhook URL ได้ โปรดตรวจสอบ URL และสถานะระบบ',
+        }
+        throw new Error(remedies[body.code] || body.error || 'ทดสอบ Webhook ภายในไม่สำเร็จ')
+      }
+      setWebhookCheck('passed')
+      setConnectionMessage('Webhook ภายในยืนยันลายเซ็นสำเร็จ')
     } catch (caught) {
-      setError(getErrorMessage(caught, 'ทดสอบ Webhook ล้มเหลว'))
+      setWebhookCheck('failed')
+      setConnectionError(getErrorMessage(caught, 'ทดสอบ Webhook ล้มเหลว'))
     } finally {
       setIsTestingWebhook(false)
+    }
+  }
+
+  const runExternalAction = (action: () => Promise<void>) => {
+    if (isLocalhost && !hasAcknowledgedLocalhost) {
+      requestConfirmation({
+        title: `Localhost กำลังจัดการ ${lineProfile.label}`,
+        description: 'การทดสอบนี้จะติดต่อบริการภายนอกตามค่าที่บันทึกไว้ โปรดยืนยันว่า environment ถูกต้องก่อนดำเนินการ',
+        confirmLabel: 'ยืนยันและดำเนินการ',
+        onConfirm: async () => {
+          setHasAcknowledgedLocalhost(true)
+          await action()
+        },
+      })
+      return
+    }
+    void action()
+  }
+
+  const copyWebhookUrl = async () => {
+    if (!webhookUrl) return
+    clearConnectionFeedback()
+    try {
+      await navigator.clipboard.writeText(webhookUrl)
+      setConnectionMessage('คัดลอก Webhook URL แล้ว')
+    } catch {
+      setConnectionError('ไม่สามารถคัดลอก Webhook URL ได้ โปรดคัดลอกจากช่องด้านบน')
     }
   }
 
@@ -1258,14 +1424,14 @@ export function LineSettingsPageClient() {
         </button>
       </div>
 
-      {error ? (
+      {activeTab !== 'credentials' && error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 animate-fade-in flex items-center gap-2">
           <span>⚠️</span>
           <span>{error}</span>
         </div>
       ) : null}
 
-      {message ? (
+      {activeTab !== 'credentials' && message ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 animate-fade-in flex items-center gap-2">
           <span>✅</span>
           <span>{message}</span>
@@ -1273,18 +1439,22 @@ export function LineSettingsPageClient() {
       ) : null}
 
       {/* Tabs Menu Switcher */}
-      <Tabs
-        className="gap-0"
-        value={activeTab}
-        onValueChange={(value) => {
-          setActiveTab(value as typeof activeTab)
-          setError(null)
-          setMessage(null)
-          if (value === 'outbox') void loadJobs()
-          if (value === 'analytics') void loadAnalytics()
-        }}
+      <div
+        data-line-mobile-tabs
+        className="sticky top-0 z-20 -mx-6 bg-slate-50/95 px-6 py-2 backdrop-blur lg:static lg:mx-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
       >
-        <TabsList className="grid w-full grid-cols-3 gap-y-1 sm:grid-cols-6" variant="line">
+        <Tabs
+          className="gap-0"
+          value={activeTab}
+          onValueChange={(value) => {
+            setActiveTab(value as typeof activeTab)
+            setError(null)
+            setMessage(null)
+            if (value === 'outbox') void loadJobs()
+            if (value === 'analytics') void loadAnalytics()
+          }}
+        >
+          <TabsList className="grid w-full grid-cols-3 gap-y-1 sm:grid-cols-6" variant="line">
         {[
           { key: 'overview', label: 'ภาพรวม' },
           { key: 'credentials', label: 'การเชื่อมต่อ' },
@@ -1298,13 +1468,14 @@ export function LineSettingsPageClient() {
             key={tab.key}
             value={tab.key}
             variant="line"
-            className="min-w-0 px-1 text-xs focus-visible:!ring-0 focus-visible:!ring-offset-0 focus-visible:border-slate-400 sm:px-3 sm:text-sm"
+            className="min-h-11 min-w-0 px-1 text-sm focus-visible:!ring-0 focus-visible:!ring-offset-0 focus-visible:border-slate-400 lg:min-h-10 lg:px-3"
           >
             {tab.label}
           </TabsTrigger>
         ))}
-        </TabsList>
-      </Tabs>
+          </TabsList>
+        </Tabs>
+      </div>
 
       {/* Tab Render Area */}
       <div className="grid grid-cols-1 gap-6">
@@ -1353,34 +1524,133 @@ export function LineSettingsPageClient() {
 
         {/* Tab 2: Channel Credentials */}
         {activeTab === 'credentials' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6 animate-fade-in" data-ns-field-scope="entry">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="text-base font-bold text-slate-900">การเชื่อมต่อ LINE</h3>
-              <p className="mt-1 text-sm text-slate-500">ระบุข้อมูลการเชื่อมต่อและบันทึกก่อนทดสอบการทำงาน</p>
+          <div className="space-y-4 animate-fade-in" data-ns-field-scope="entry">
+            <div data-line-connection-summary className="space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200/80 pb-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">สถานะการเชื่อมต่อ</h3>
+                  <p className="mt-1 text-xs text-slate-500">ตรวจสอบสถานะหลักให้ครบก่อนบันทึกและเปิดใช้งาน Webhook</p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
+                  <Bot aria-hidden="true" className="size-4 text-slate-500" />
+                  LINE OA
+                </span>
+              </div>
+
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <div className="grid grid-cols-2 xl:grid-cols-4">
+                  <div data-line-connection-status className="min-w-0 border-r border-b border-slate-200 px-4 py-3 xl:border-b-0">
+                    <div className="flex items-start gap-2.5">
+                      <span aria-hidden="true" className={`mt-1.5 size-2 shrink-0 rounded-full ${lineProfile.aligned ? 'bg-emerald-500' : hasKnownProfileMismatch ? 'bg-red-500' : 'bg-amber-500'}`} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-500">สภาพแวดล้อม</p>
+                        <p className="mt-0.5 truncate font-semibold text-slate-900">{lineProfile.label}</p>
+                        <p className="mt-1 hidden truncate text-xs text-slate-500 sm:block" title={lineProfile.reason}>{lineProfile.reason}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div data-line-connection-status className="min-w-0 border-b border-slate-200 px-4 py-3 xl:border-r xl:border-b-0">
+                    <div className="flex items-start gap-2.5">
+                      <span aria-hidden="true" className={`mt-1.5 size-2 shrink-0 rounded-full ${tokenCheck === 'passed' ? 'bg-emerald-500' : tokenCheck === 'failed' ? 'bg-red-500' : 'bg-slate-400'}`} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-500">Access Token</p>
+                        <p className="mt-0.5 truncate font-semibold text-slate-900">{tokenCheck === 'passed' ? 'ทดสอบผ่าน' : tokenCheck === 'testing' ? 'กำลังทดสอบ' : tokenCheck === 'failed' ? 'ทดสอบไม่ผ่าน' : tokenMode === 'protected' ? 'บันทึกแล้ว' : 'ยังไม่ได้ทดสอบ'}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">{tokenMode === 'protected' ? 'ค่าถูกปกป้องและไม่แสดงบนหน้า' : 'ทดสอบค่าที่พิมพ์ก่อนบันทึก'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div data-line-connection-status className="min-w-0 border-r border-slate-200 px-4 py-3">
+                    <div className="flex items-start gap-2.5">
+                      <span aria-hidden="true" className={`mt-1.5 size-2 shrink-0 rounded-full ${secretMode === 'protected' ? 'bg-emerald-500' : secretMode === 'editing' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-500">Channel Secret</p>
+                        <p className="mt-0.5 truncate font-semibold text-slate-900">{secretMode === 'protected' ? 'บันทึกแล้ว' : secretMode === 'editing' ? 'มีค่ารอการบันทึก' : 'ยังไม่ได้ตั้งค่า'}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">บันทึกก่อนจึงทดสอบ Webhook ได้</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div data-line-connection-status className="min-w-0 px-4 py-3">
+                    <div className="flex items-start gap-2.5">
+                      <span aria-hidden="true" className={`mt-1.5 size-2 shrink-0 rounded-full ${webhookCheck === 'passed' ? 'bg-emerald-500' : webhookCheck === 'failed' ? 'bg-red-500' : 'bg-slate-400'}`} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-500">Webhook ภายใน</p>
+                        <p className="mt-0.5 truncate font-semibold text-slate-900">{webhookCheck === 'passed' ? 'ทดสอบผ่าน' : webhookCheck === 'testing' ? 'กำลังทดสอบ' : webhookCheck === 'failed' ? 'ทดสอบไม่ผ่าน' : webhookUrl ? 'พร้อมทดสอบ' : 'ยังไม่มี URL'}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">ตรวจลายเซ็นโดยไม่สร้างข้อมูลธุรกิจ</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {hasDeployedHostMismatch || hasKnownProfileMismatch ? (
+              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                Environment ไม่ตรงกัน: ตรวจสอบ URL ของหน้าเว็บ, ฐานข้อมูล และ Public App URL ก่อนทดสอบหรือส่งข้อความจริง
+              </div>
+            ) : null}
+            {isLocalhost ? (
+              <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                Localhost กำลังจัดการ {lineProfile.label}; ระบบจะขอให้ยืนยันก่อนทดสอบ Webhook หรือส่งข้อความจริง
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 lg:grid-cols-12">
+              <section className="space-y-4 lg:col-span-8">
+                <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:space-y-6 lg:p-6">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">การเชื่อมต่อ LINE</h3>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
               {/* Channel Access Token */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700" htmlFor="line-channel-access-token">LINE Channel Access Token</label>
-                <div className="relative">
-                  <input
-                    id="line-channel-access-token"
-                    type={showToken ? 'text' : 'password'}
-                    aria-invalid={Boolean(fieldErrors.lineChannelAccessToken)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none pr-10 h-10"
-                    placeholder="ป้อนรหัสสิทธิ์ส่งบอทไลน์ Channel Access Token"
-                    value={form.lineChannelAccessToken || ''}
-                    onChange={(e) => setForm({ ...form, lineChannelAccessToken: e.target.value })}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
-                    onClick={() => setShowToken(!showToken)}
-                  >
-                    {showToken ? '🐵' : '🙈'}
-                  </button>
-                </div>
+                <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="line-channel-access-token">LINE Channel Access Token</label>
+                {tokenMode === 'protected' ? (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative min-w-0 flex-1">
+                      <LockKeyhole aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+                      <input id="line-channel-access-token" aria-readonly="true" className="h-11 w-full rounded-md border border-slate-300 !bg-slate-100 py-2 pl-9 pr-3 text-sm text-slate-700 lg:h-10" readOnly type="password" value={MASKED_CREDENTIAL} />
+                    </div>
+                    <button type="button" className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:h-10" onClick={() => {
+                      setForm((current) => ({ ...current, lineChannelAccessToken: '' }))
+                      setShowToken(false)
+                      setTokenCheck('idle')
+                      setTokenMode('editing')
+                    }}>เปลี่ยนค่า</button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative min-w-0 flex-1">
+                      <input
+                        id="line-channel-access-token"
+                        type={showToken ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        spellCheck={false}
+                        aria-invalid={Boolean(fieldErrors.lineChannelAccessToken)}
+                        className="h-11 w-full rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-2 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none dark:bg-amber-200/15 lg:h-10"
+                        placeholder="ป้อน Channel Access Token"
+                        value={form.lineChannelAccessToken || ''}
+                        onChange={(e) => {
+                          setForm({ ...form, lineChannelAccessToken: e.target.value })
+                          setTokenCheck('idle')
+                        }}
+                      />
+                      <button type="button" aria-label={showToken ? 'ซ่อน Access Token ที่กำลังพิมพ์' : 'แสดง Access Token ที่กำลังพิมพ์'} className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-800" onClick={() => setShowToken((current) => !current)}>
+                        {showToken ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
+                      </button>
+                    </div>
+                    {tokenMode === 'editing' ? <button type="button" className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:h-10" onClick={() => {
+                      setForm((current) => ({ ...current, lineChannelAccessToken: MASKED_CREDENTIAL }))
+                      setShowToken(false)
+                      setTokenCheck('idle')
+                      setTokenMode('protected')
+                    }}>ยกเลิกการเปลี่ยนค่า</button> : null}
+                  </div>
+                )}
+                <p className="text-xs text-slate-500">{tokenMode === 'protected' ? 'บันทึกแล้ว — Protected: ระบบจะไม่ส่งค่าจริงกลับมาแสดง' : 'ทดสอบค่าที่กำลังพิมพ์ได้ก่อนบันทึก'}</p>
                 {fieldErrors.lineChannelAccessToken && (
                   <p className="text-xs text-red-600">{fieldErrors.lineChannelAccessToken}</p>
                 )}
@@ -1388,25 +1658,50 @@ export function LineSettingsPageClient() {
 
               {/* Channel Secret */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700" htmlFor="line-channel-secret">LINE Channel Secret</label>
-                <div className="relative">
-                  <input
-                    id="line-channel-secret"
-                    type={showSecret ? 'text' : 'password'}
-                    aria-invalid={Boolean(fieldErrors.lineChannelSecret)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none pr-10 h-10"
-                    placeholder="ป้อน Channel Secret สำหรับตรวจสอบลายเซ็น"
-                    value={form.lineChannelSecret || ''}
-                    onChange={(e) => setForm({ ...form, lineChannelSecret: e.target.value })}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
-                    onClick={() => setShowSecret(!showSecret)}
-                  >
-                    {showSecret ? '🐵' : '🙈'}
-                  </button>
-                </div>
+                <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="line-channel-secret">LINE Channel Secret</label>
+                {secretMode === 'protected' ? (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative min-w-0 flex-1">
+                      <LockKeyhole aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+                      <input id="line-channel-secret" aria-readonly="true" className="h-11 w-full rounded-md border border-slate-300 !bg-slate-100 py-2 pl-9 pr-3 text-sm text-slate-700 lg:h-10" readOnly type="password" value={MASKED_CREDENTIAL} />
+                    </div>
+                    <button type="button" className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:h-10" onClick={() => {
+                      setForm((current) => ({ ...current, lineChannelSecret: '' }))
+                      setShowSecret(false)
+                      setWebhookCheck('idle')
+                      setSecretMode('editing')
+                    }}>เปลี่ยนค่า</button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative min-w-0 flex-1">
+                      <input
+                        id="line-channel-secret"
+                        type={showSecret ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        spellCheck={false}
+                        aria-invalid={Boolean(fieldErrors.lineChannelSecret)}
+                        className="h-11 w-full rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-2 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none dark:bg-amber-200/15 lg:h-10"
+                        placeholder="ป้อน Channel Secret สำหรับตรวจสอบลายเซ็น"
+                        value={form.lineChannelSecret || ''}
+                        onChange={(e) => {
+                          setForm({ ...form, lineChannelSecret: e.target.value })
+                          setWebhookCheck('idle')
+                        }}
+                      />
+                      <button type="button" aria-label={showSecret ? 'ซ่อน Channel Secret ที่กำลังพิมพ์' : 'แสดง Channel Secret ที่กำลังพิมพ์'} className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-800" onClick={() => setShowSecret((current) => !current)}>
+                        {showSecret ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
+                      </button>
+                    </div>
+                    {secretMode === 'editing' ? <button type="button" className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:h-10" onClick={() => {
+                      setForm((current) => ({ ...current, lineChannelSecret: MASKED_CREDENTIAL }))
+                      setShowSecret(false)
+                      setWebhookCheck('idle')
+                      setSecretMode('protected')
+                    }}>ยกเลิกการเปลี่ยนค่า</button> : null}
+                  </div>
+                )}
+                <p className="text-xs text-slate-500">{secretMode === 'protected' ? 'บันทึกแล้ว — Protected: ระบบจะไม่ส่งค่าจริงกลับมาแสดง' : 'ต้องบันทึกก่อนจึงทดสอบ Webhook ภายในได้'}</p>
                 {fieldErrors.lineChannelSecret && (
                   <p className="text-xs text-red-600">{fieldErrors.lineChannelSecret}</p>
                 )}
@@ -1414,12 +1709,12 @@ export function LineSettingsPageClient() {
 
               {/* Storage Bucket */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700" htmlFor="line-pdf-bucket">Storage Bucket เก็บเอกสาร PDF <span className="text-red-600">*</span></label>
+                <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="line-pdf-bucket">Storage Bucket เก็บเอกสาร PDF <span className="text-red-600">*</span></label>
                 <input
                   id="line-pdf-bucket"
                   type="text"
                   aria-invalid={Boolean(fieldErrors.pdfBucket)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none h-10"
+                  className="h-11 w-full rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none dark:bg-amber-200/15 lg:h-10"
                   required
                   value={form.pdfBucket}
                   onChange={(e) => setForm({ ...form, pdfBucket: e.target.value })}
@@ -1431,36 +1726,73 @@ export function LineSettingsPageClient() {
 
               {/* Public App URL */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700" htmlFor="line-public-app-url">Public App URL (ต้นทางระบบเว็บ)</label>
+                <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="line-public-app-url">Public App URL (ต้นทางระบบเว็บ)</label>
                 <input
                   id="line-public-app-url"
-                  type="text"
+                  type="url"
                   aria-invalid={Boolean(fieldErrors.appUrl)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none h-10"
+                  className="h-11 w-full rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none dark:bg-amber-200/15 lg:h-10"
                   placeholder="เช่น https://ns-dev.devkub.com"
                   value={form.appUrl}
-                  onChange={(e) => setForm({ ...form, appUrl: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, appUrl: e.target.value })
+                    setWebhookCheck('idle')
+                  }}
                 />
                 {fieldErrors.appUrl && (
                   <p className="text-xs text-red-600">{fieldErrors.appUrl}</p>
                 )}
               </div>
 
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="line-webhook-url">Webhook URL สำหรับ LINE Developers</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    id="line-webhook-url"
+                    aria-readonly="true"
+                    className="h-11 min-w-0 flex-1 rounded-md border border-slate-300 !bg-slate-100 px-3 py-2 font-mono text-sm text-slate-700 dark:!bg-slate-800 lg:h-10"
+                    readOnly
+                    type="text"
+                    value={webhookUrl}
+                    placeholder="กรอก Public App URL เพื่อสร้าง Webhook URL"
+                  />
+                  <button
+                    type="button"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 lg:h-10"
+                    disabled={!webhookUrl}
+                    onClick={() => void copyWebhookUrl()}
+                  >
+                    <Clipboard aria-hidden="true" className="size-4" />
+                    คัดลอก Webhook URL
+                  </button>
+                  <a
+                    className={`inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 lg:h-10 ${webhookUrl ? '' : 'pointer-events-none opacity-60'}`}
+                    href="https://developers.line.biz/console/"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <ExternalLink aria-hidden="true" className="size-4" />
+                    เปิด LINE Developers
+                  </a>
+                </div>
+                <p className="text-xs text-slate-500">คัดลอก URL นี้ไปวางใน Messaging API &gt; Webhook settings แล้วกด Update, Verify และเปิด Use webhook ใน LINE Developers</p>
+              </div>
+
               {/* Auto Send Options */}
-              <div className="md:col-span-2 flex flex-col md:flex-row gap-6 pt-2 select-none">
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700">
+              <div className="md:col-span-2 flex flex-col gap-2 pt-2 select-none md:flex-row md:gap-6">
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md px-1 py-2 text-sm font-semibold text-slate-700">
                   <input
                     type="checkbox"
-                    className="h-4.5 w-4.5 rounded border-slate-300 text-slate-900 focus:ring-0 focus:outline-none"
+                    className="mt-0.5 size-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-0 focus:outline-none"
                     checked={form.lineAutoSendWti}
                     onChange={(e) => setForm({ ...form, lineAutoSendWti: e.target.checked })}
                   />
                   <span>ส่งข้อความแจ้งเตือน WTI (บิลรับสินค้า) ไปไลน์กลุ่มอัตโนมัติเมื่อสร้างบิล</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700">
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md px-1 py-2 text-sm font-semibold text-slate-700">
                   <input
                     type="checkbox"
-                    className="h-4.5 w-4.5 rounded border-slate-300 text-slate-900 focus:ring-0 focus:outline-none"
+                    className="mt-0.5 size-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-0 focus:outline-none"
                     checked={form.lineAutoSendWto}
                     onChange={(e) => setForm({ ...form, lineAutoSendWto: e.target.checked })}
                   />
@@ -1469,7 +1801,7 @@ export function LineSettingsPageClient() {
               </div>
             </div>
 
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+            <div data-line-google-sheets-disclosure className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3">
                 <h4 className="text-sm font-bold text-slate-900">เชื่อมต่อ Google Sheets (ไม่บังคับ)</h4>
                 <p className="mt-1 text-xs text-slate-500">
@@ -1478,7 +1810,7 @@ export function LineSettingsPageClient() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700" htmlFor="google-sheets-webhook-url">
+                <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="google-sheets-webhook-url">
                   Google Sheets Webhook URL
                 </label>
                 <div className="relative">
@@ -1488,7 +1820,7 @@ export function LineSettingsPageClient() {
                     autoComplete="off"
                     spellCheck={false}
                     aria-invalid={Boolean(fieldErrors.googleSheetsWebhookUrl)}
-                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-20 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none"
+                    className="h-11 w-full rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-2 pr-11 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none dark:bg-amber-200/15 lg:h-10"
                     placeholder="https://script.google.com/macros/s/.../exec"
                     value={form.googleSheetsWebhookUrl || ''}
                     onChange={(e) => setForm({ ...form, googleSheetsWebhookUrl: e.target.value })}
@@ -1496,9 +1828,10 @@ export function LineSettingsPageClient() {
                   <button
                     type="button"
                     aria-label={showGoogleSheetsWebhook ? 'ซ่อน Google Sheets Webhook URL' : 'แสดง Google Sheets Webhook URL'}
-                    className="absolute inset-y-0 right-0 flex items-center px-3 text-xs font-semibold text-slate-500 transition hover:text-slate-800 focus:outline-none"
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[0px] text-slate-500 transition hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
                     onClick={() => setShowGoogleSheetsWebhook((current) => !current)}
                   >
+                    {showGoogleSheetsWebhook ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
                     {showGoogleSheetsWebhook ? 'ซ่อน' : 'แสดง'}
                   </button>
                 </div>
@@ -1509,37 +1842,142 @@ export function LineSettingsPageClient() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 lg:flex-row lg:items-center lg:justify-between">
+            {connectionError || connectionMessage ? (
+              <div data-line-connection-feedback className="space-y-2" aria-live="polite">
+                {connectionError ? (
+                  <div role="alert" className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 animate-fade-in">
+                    <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-red-700" />
+                    <span>{connectionError}</span>
+                  </div>
+                ) : null}
+                {connectionMessage ? (
+                  <div role="status" className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 animate-fade-in">
+                    <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+                    <span>{connectionMessage}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div data-line-connection-actions className="space-y-3 border-t border-slate-100 pt-4">
               <div>
-                <p className="text-sm font-medium text-slate-700">ทดสอบการเชื่อมต่อ</p>
-                <p className="text-xs text-slate-500">ใช้ตรวจสอบ Token และลายเซ็น Webhook หลังบันทึกข้อมูล</p>
+                <p className="text-sm font-medium text-slate-700">ทำตามลำดับเพื่อเชื่อมต่ออย่างปลอดภัย</p>
+                <p className="text-xs text-slate-500">Token ที่พิมพ์ใหม่ต้องผ่านการทดสอบก่อนบันทึก และ Webhook ภายในใช้เฉพาะค่าที่บันทึกแล้ว</p>
               </div>
-              <div className="flex flex-wrap gap-2 lg:justify-end">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <button
                   type="button"
-                  className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={() => void testOAConnection()}
-                  disabled={isTestingOA}
+                  className="relative inline-flex h-11 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 lg:h-10"
+                  onClick={() => runExternalAction(testOAConnection)}
+                  disabled={!hasTokenForTest || isTestingOA}
+                  aria-busy={isTestingOA}
                 >
-                  {isTestingOA ? 'กำลังทดสอบ Token...' : 'ทดสอบ Token'}
+                  <RefreshCw aria-hidden="true" className={`pointer-events-none absolute left-3 size-4 ${isTestingOA ? 'animate-spin' : 'opacity-0'}`} />
+                  <span className="whitespace-nowrap">ทดสอบ Access Token</span>
                 </button>
                 <button
                   type="button"
-                  className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={() => void testWebhookSignature()}
-                  disabled={isTestingWebhook}
+                  className="relative inline-flex h-11 w-full items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 lg:h-10"
+                  onClick={() => void saveCredentials()}
+                  disabled={!canSaveCredentials}
+                  aria-busy={isSaving}
                 >
-                  {isTestingWebhook ? 'กำลังทดสอบ Webhook...' : 'ทดสอบ Webhook'}
+                  <RefreshCw aria-hidden="true" className={`pointer-events-none absolute left-3 size-4 ${isSaving ? 'animate-spin' : 'opacity-0'}`} />
+                  <span className="whitespace-nowrap">บันทึกการตั้งค่า</span>
                 </button>
-              <button
-                type="button"
-                className="h-10 rounded-md bg-slate-900 px-5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                onClick={() => void saveCredentials()}
-                disabled={isSaving}
-              >
-                {isSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
-              </button>
+                <button
+                  type="button"
+                  className="relative inline-flex h-11 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 lg:h-10"
+                  onClick={() => runExternalAction(testWebhookSignature)}
+                  disabled={!canTestWebhook}
+                  aria-busy={isTestingWebhook}
+                >
+                  <RefreshCw aria-hidden="true" className={`pointer-events-none absolute left-3 size-4 ${isTestingWebhook ? 'animate-spin' : 'opacity-0'}`} />
+                  <span className="whitespace-nowrap">ทดสอบ Webhook ภายใน</span>
+                </button>
               </div>
+            </div>
+                </div>
+              </section>
+
+              <aside className="space-y-4 lg:col-span-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="text-base font-bold text-slate-900">ลำดับการเชื่อมต่อ</h3>
+                    <p className="mt-1 text-xs text-slate-500">ระบบตรวจสอบเฉพาะขั้นที่ทำได้จาก ERP ส่วน Verify ต้องทำใน LINE Developers</p>
+                  </div>
+                  <details open data-line-mobile-guide className="group mt-4 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-sm font-semibold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-200 lg:hidden">
+                      <span>ขั้นตอนการเชื่อมต่อ</span>
+                      <ChevronDown aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="border-t border-slate-200 p-4 lg:border-0 lg:p-0">
+                  <ol className="space-y-3 text-sm lg:mt-4">
+                    <li className="flex gap-3">
+                      <CheckCircle2 aria-hidden="true" className={`mt-0.5 size-4 shrink-0 ${lineProfile.aligned ? 'text-emerald-600' : 'text-amber-600'}`} />
+                      <div><p className="font-medium text-slate-800">1. Environment</p><p className="text-xs text-slate-500">{lineProfile.dataProfileLabel} → {lineProfile.targetProfileLabel}</p></div>
+                    </li>
+                    <li className="flex gap-3">
+                      <CheckCircle2 aria-hidden="true" className={`mt-0.5 size-4 shrink-0 ${tokenCheck === 'passed' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                      <div><p className="font-medium text-slate-800">2. Credentials</p><p className="text-xs text-slate-500">กรอกหรือใช้ค่าที่บันทึกแล้ว แล้วทดสอบ Access Token</p></div>
+                    </li>
+                    <li className="flex gap-3">
+                      <CheckCircle2 aria-hidden="true" className={`mt-0.5 size-4 shrink-0 ${!hasUnsavedWebhookConfig ? 'text-emerald-600' : 'text-slate-400'}`} />
+                      <div><p className="font-medium text-slate-800">3. Save</p><p className="text-xs text-slate-500">บันทึก Secret และ Public App URL ก่อนทดสอบ Webhook</p></div>
+                    </li>
+                    <li className="flex gap-3">
+                      <CheckCircle2 aria-hidden="true" className={`mt-0.5 size-4 shrink-0 ${webhookCheck === 'passed' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                      <div><p className="font-medium text-slate-800">4. Internal Webhook</p><p className="text-xs text-slate-500">ทดสอบลายเซ็นกับ URL ที่บันทึกไว้ โดยไม่สร้างข้อมูลธุรกิจ</p></div>
+                    </li>
+                    <li className="flex gap-3">
+                      <ExternalLink aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                      <div><p className="font-medium text-slate-800">5. LINE Developers</p><p className="text-xs text-slate-500">วาง URL, กด Verify และเปิด Use webhook ด้วยตนเอง</p></div>
+                    </li>
+                    <li className="flex gap-3">
+                      <Send aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                      <div><p className="font-medium text-slate-800">6. Target / ส่งจริง</p><p className="text-xs text-slate-500">ให้ OA ได้รับ event จริงก่อนเลือกปลายทางและส่งข้อความทดสอบ</p></div>
+                    </li>
+                  </ol>
+                    </div>
+                  </details>
+
+                  <div className="mt-4 border-t border-slate-100 pt-4">
+                    <h4 className="text-sm font-semibold text-slate-800">ส่งข้อความทดสอบจริง</h4>
+                    {activeTargets.length === 0 ? (
+                      <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                        <p>ยังไม่พบกลุ่มรับแจ้งเตือน: เชิญ OA เข้ากลุ่ม ส่งข้อความ 1 ครั้ง แล้วกดซิงค์กลุ่ม</p>
+                        <button type="button" className="mt-2 text-sm font-medium text-blue-700 hover:underline" onClick={() => setActiveTab('targets')}>ไปที่กลุ่มแจ้งเตือน</button>
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="line-test-target">ปลายทางที่ต้องการทดสอบ</label>
+                        <Select
+                          id="line-test-target"
+                          value={selectedTestTargetId}
+                          onChange={(event) => setSelectedTestTargetId(event.currentTarget.value)}
+                          className="h-11 bg-[#FFF7CC] text-sm dark:bg-amber-200/15 lg:h-10"
+                        >
+                          <option value="">เลือกกลุ่มรับข้อความทดสอบ</option>
+                          {activeTargets.map((target) => <option key={target.id} value={target.id}>{target.display_name}{target.is_default ? ' (Default)' : ''}</option>)}
+                        </Select>
+                        {activeTargets.length > 1 && !activeTargets.some((target) => target.is_default) ? <p className="text-xs text-amber-700">มีหลายปลายทางและยังไม่มี Default โปรดเลือกปลายทางก่อนส่ง</p> : null}
+                        <button
+                          type="button"
+                          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 lg:h-10"
+                          disabled={!canSendTestMessage}
+                          onClick={() => {
+                            if (!selectedTestTarget) return
+                            runExternalAction(() => handleTestTarget(selectedTestTarget.target_id, selectedTestTarget.id))
+                          }}
+                        >
+                          <Send aria-hidden="true" className="size-4" />
+                          ส่งข้อความทดสอบจริง
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </aside>
             </div>
           </div>
         )}

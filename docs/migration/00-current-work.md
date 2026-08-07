@@ -22,6 +22,8 @@ Required validation: focused Vitest, full lint, type-check, production build, `g
 
 Immediate next task: รัน full validation, ตรวจ intended diff, fetch/integrate SIT, commit/push/deploy แล้ว retry job จริงและทดสอบ target send; automatic frequent retry ยังต้องใช้ Vercel Pro หรือ external scheduler เพราะ SIT อยู่ Hobby plan
 
+Latest connection UX checkpoint 2026-08-06: แท็บ `การเชื่อมต่อ` แสดงผลสำเร็จ/ผิดพลาดเหนือปุ่มที่ผู้ใช้เพิ่งกดแทน alert ส่วนบนของหน้า และเก็บผล async ไว้กับแท็บนี้แม้ผู้ใช้สลับแท็บระหว่างรอ; ปุ่ม Token/บันทึก/Webhook เป็น grid ขนาดคงที่และใช้ spinner โดยไม่เปลี่ยนข้อความ; สถานะสภาพแวดล้อม, Token, Secret และ Webhook อยู่ใน surface เดียว แบ่งเป็น 4 ช่อง responsive ด้วยเส้นคั่นบาง โดยเอาการ์ดพื้นหลังชั้นนอกและการ์ดย่อยซ้อนออกแล้ว. ไม่เปลี่ยน API, credential, permission หรือการส่ง LINE จริง. Focused connection/API tests `12/12`, targeted ESLint และ workspace type-check ผ่านหลัง regenerate route types.
+
 # Dual Costing Allocation Ledger Audit — 2026-08-05
 
 ## Active implementation batch

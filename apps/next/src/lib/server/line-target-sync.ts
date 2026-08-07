@@ -224,6 +224,10 @@ export async function syncLineTargetsFromAPI(
   }
 
   for (const target of targets) {
+    // LINE cannot verify room membership proactively. An inactive room can
+    // belong to a previous OA, so only an actual webhook event may reactivate it.
+    if (target.target_type === 'room' && !target.is_active) continue
+
     const result = await enrichTarget(target.target_id, target.target_type as LineTargetType, token)
 
     if (result.unauthorized) {

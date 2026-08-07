@@ -56,4 +56,18 @@ describe('LINE webhook transport', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
   })
+
+  it('accepts a valid empty verification payload without registering a target', async () => {
+    const rawBody = JSON.stringify({ events: [] })
+    const signature = createHmac('sha256', 'secret').update(rawBody).digest('base64')
+
+    const response = await POST(new Request('https://erp.example.com/api/line/webhook', {
+      body: rawBody,
+      headers: { 'x-line-signature': signature },
+      method: 'POST',
+    }))
+
+    expect(response.status).toBe(200)
+    expect(db.upsertTarget).not.toHaveBeenCalled()
+  })
 })

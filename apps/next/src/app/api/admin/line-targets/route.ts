@@ -140,6 +140,13 @@ export async function PATCH(request: Request) {
     }
 
     if (action === 'test') {
+      if (!target.is_active) {
+        return NextResponse.json({
+          code: 'TARGET_INACTIVE',
+          error: 'ไม่สามารถส่งข้อความทดสอบไปยังปลายทางที่ปิดใช้งานได้',
+        }, { status: 409 })
+      }
+
       const config = await prisma.system_settings.findUnique({
         where: { key: 'LINE_CHANNEL_ACCESS_TOKEN' },
       })
