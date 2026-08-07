@@ -54,6 +54,38 @@ class WeightTicketCollaborationConflictError extends Error {
   }
 }
 
+function weightTicketLineWriteFingerprint(line: {
+  container_deduction_weight: unknown
+  deduction_mode: unknown
+  deduction_value: unknown
+  gross_weight: unknown
+  image_names: unknown
+  impurity_id: unknown
+  impurity_source_line_no: unknown
+  line_no: unknown
+  note: unknown
+  parent_line_no: unknown
+  product_id: unknown
+  product_name: unknown
+  warehouse_id: unknown
+}) {
+  return JSON.stringify({
+    container_deduction_weight: String(line.container_deduction_weight ?? 0),
+    deduction_mode: line.deduction_mode,
+    deduction_value: String(line.deduction_value ?? 0),
+    gross_weight: String(line.gross_weight ?? 0),
+    image_names: line.image_names ?? [],
+    impurity_id: line.impurity_id == null ? null : String(line.impurity_id),
+    impurity_source_line_no: line.impurity_source_line_no ?? null,
+    line_no: line.line_no,
+    note: line.note ?? null,
+    parent_line_no: line.parent_line_no ?? null,
+    product_id: line.product_id == null ? null : String(line.product_id),
+    product_name: line.product_name ?? null,
+    warehouse_id: line.warehouse_id == null ? null : String(line.warehouse_id),
+  })
+}
+
 const ticketInclude = {
   branches: true,
   customers: true,
@@ -387,10 +419,28 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         vehicleNo: existing.vehicle_no ?? '',
         godownName: existing.godown_name ?? '',
       }
+      const remoteChangedHeaderFields = hasRemoteLineChanges && values.collaborationBaseHeader
+        ? headerFields.filter((field) => JSON.stringify(currentHeader[field]) !== JSON.stringify(values.collaborationBaseHeader?.[field]))
+        : []
+      if (remoteChangedHeaderFields.length) {
+        throw new WeightTicketCollaborationConflictError([], remoteChangedHeaderFields)
+      }
       const conflictingHeaderFields = hasRemoteLineChanges && values.collaborationBaseHeader
         ? headerFields.filter((field) => values.collaborationChangedHeaderFields?.includes(field) && JSON.stringify(currentHeader[field]) !== JSON.stringify(values.collaborationBaseHeader?.[field]))
         : []
       if (conflictingHeaderFields.length) throw new WeightTicketCollaborationConflictError([], conflictingHeaderFields)
+      const changedHeaderFields = new Set(values.collaborationChangedHeaderFields ?? [])
+      if (hasCollaborationBaseline) {
+        effectiveValues = {
+          ...effectiveValues,
+          branchId: changedHeaderFields.has('branchId') ? effectiveValues.branchId : currentHeader.branchId,
+          partyId: changedHeaderFields.has('partyId') ? effectiveValues.partyId : currentHeader.partyId,
+          remark: changedHeaderFields.has('remark') ? effectiveValues.remark : currentHeader.remark,
+          vehicleImageNames: changedHeaderFields.has('vehicleImageNames') ? effectiveValues.vehicleImageNames : currentHeader.vehicleImageNames,
+          vehicleNo: changedHeaderFields.has('vehicleNo') ? effectiveValues.vehicleNo : currentHeader.vehicleNo,
+          godownName: changedHeaderFields.has('godownName') ? effectiveValues.godownName : currentHeader.godownName,
+        }
+      }
       if (
         !isDeliveredWtoEdit &&
         !shouldRebuildWtoPendingOut &&
@@ -513,8 +563,11 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         await Promise.all(lineRows.map(async (data) => {
           const existingLine = existingLineByLineNo.get(data.line_no)
           if (existingLine) {
+            const lineChanged = weightTicketLineWriteFingerprint(existingLine) !== weightTicketLineWriteFingerprint(data)
             await tx.weight_ticket_lines.update({
-              data: { ...data, updated_at: new Date(), updated_by: actor, version: { increment: 1 } },
+              data: lineChanged
+                ? { ...data, updated_at: new Date(), updated_by: actor, version: { increment: 1 } }
+                : data,
               where: { id: existingLine.id },
             })
           } else {

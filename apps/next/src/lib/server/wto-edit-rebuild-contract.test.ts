@@ -46,9 +46,9 @@ describe('WTO delivered edit release/rebuild contract', () => {
 
     const merged = mergeWeightTicketCollaborationBaseline({
       baselineTicket: baseline as never,
+      dirtyHeaderFields: new Set(),
       dirtyLineIds: new Set(['line-1']),
       latestTicket: latest as never,
-      preserveHeader: false,
     })
 
     expect(merged.lines).toEqual([
@@ -74,12 +74,27 @@ describe('WTO delivered edit release/rebuild contract', () => {
 
     const merged = mergeWeightTicketCollaborationBaseline({
       baselineTicket: baseline as never,
+      dirtyHeaderFields: new Set(),
       dirtyLineIds: new Set(['local-delete']),
       latestTicket: latest as never,
-      preserveHeader: false,
     })
 
     expect(merged.lines).toEqual([{ id: 'local-delete', lineNo: 1, version: 1 }])
+  })
+
+  it('preserves only dirty header fields while advancing clean header fields', () => {
+    const baseline = { branchId: 'branch-old', lines: [], partyId: 'party-old', remark: 'old', vehicleNo: 'AA-001', godownName: 'old' }
+    const latest = { ...baseline, branchId: 'branch-new', partyId: 'party-new', remark: 'new', vehicleNo: 'AA-999', godownName: 'new' }
+    const merged = mergeWeightTicketCollaborationBaseline({
+      baselineTicket: baseline as never,
+      dirtyHeaderFields: new Set(['vehicleNo']),
+      dirtyLineIds: new Set(),
+      latestTicket: latest as never,
+    })
+
+    expect(merged.vehicleNo).toBe('AA-001')
+    expect(merged.branchId).toBe('branch-new')
+    expect(merged.remark).toBe('new')
   })
 
   it('keeps draft writes free of pending_out until the confirm action', () => {
@@ -155,6 +170,9 @@ describe('WTO delivered edit release/rebuild contract', () => {
     expect(formSource).toContain('mergeWeightTicketCollaborationBaseline({')
     expect(formSource).toContain('setSavedTicket(mergedBaseline)')
     expect(formSource).toContain('setSavedTicket(ticket)')
+    expect(formSource).toContain('version: line.version')
+    expect(formSource).toContain("dirtyHeaderFieldsRef.current.add('vehicleImageNames')")
+    expect(formSource).toContain('function removeImpurityLine')
   })
 
   it('compares collaboration headers using the same business codes as the read model', () => {

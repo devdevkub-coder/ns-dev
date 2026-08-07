@@ -72,6 +72,8 @@ type FormState = {
   godownName: string
 }
 
+type CollaborationHeaderField = 'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'
+
 function collaborationLineSnapshot(line: Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight' | 'id' | 'impurityId' | 'impurityProductId' | 'note' | 'productId' | 'warehouseId'>, imageNames: string[]) {
   return JSON.stringify({
     containerDeductionWeight: line.containerDeductionWeight,
@@ -917,6 +919,7 @@ export function WeightTicketFormCore({
   const mobileProductEditorOpenAnimationFrameRef = useRef<number | null>(null)
   const saveInFlightRef = useRef<'auto_save' | 'save' | null>(null)
   const changedLineIdsRef = useRef<Set<string>>(new Set())
+  const dirtyHeaderFieldsRef = useRef<Set<CollaborationHeaderField>>(new Set())
   const remoteSyncInFlightRef = useRef(false)
   const pendingAttachmentUploadsRef = useRef<Set<Promise<unknown>>>(new Set())
   const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
@@ -1007,23 +1010,24 @@ export function WeightTicketFormCore({
         const latestById = new Map(latestForm.lines.map((line) => [line.id, line] as const))
         const baselineTicket = savedTicket ?? loadedTicket
         const currentForm = formRef.current
-        const hasDirtyHeader = Boolean(baselineTicket && (
-          currentForm.branchId !== baselineTicket.branchId
-          || currentForm.partyId !== baselineTicket.partyId
-          || currentForm.remark !== baselineTicket.remark
-          || currentForm.vehicleNo !== baselineTicket.vehicleNo
-          || currentForm.godownName !== baselineTicket.godownName
-          || JSON.stringify(currentForm.vehicleImageFiles.map((file) => file.rawValue)) !== JSON.stringify(baselineTicket.vehicleImageNames)
-        ))
+        const dirtyHeaderFields = new Set(dirtyHeaderFieldsRef.current)
+        if (baselineTicket) {
+          if (currentForm.branchId !== baselineTicket.branchId) dirtyHeaderFields.add('branchId')
+          if (currentForm.partyId !== baselineTicket.partyId) dirtyHeaderFields.add('partyId')
+          if (currentForm.remark !== baselineTicket.remark) dirtyHeaderFields.add('remark')
+          if (currentForm.vehicleNo !== baselineTicket.vehicleNo) dirtyHeaderFields.add('vehicleNo')
+          if (currentForm.godownName !== baselineTicket.godownName) dirtyHeaderFields.add('godownName')
+          if (JSON.stringify(currentForm.vehicleImageFiles.map((file) => file.rawValue)) !== JSON.stringify(baselineTicket.vehicleImageNames)) dirtyHeaderFields.add('vehicleImageNames')
+        }
         const dirtyLineIds = new Set(changedLineIdsRef.current)
         currentForm.lines
           .filter((line) => line.version == null)
           .forEach((line) => dirtyLineIds.add(line.id))
         const mergedBaseline = mergeWeightTicketCollaborationBaseline({
           baselineTicket,
+          dirtyHeaderFields,
           dirtyLineIds,
           latestTicket,
-          preserveHeader: hasDirtyHeader,
         })
         setLoadedTicket(latestTicket)
         setSavedTicket(mergedBaseline)
@@ -1037,7 +1041,18 @@ export function WeightTicketFormCore({
               : latestLine
           })
           const localOnlyDraftLines = current.lines.filter((line) => !latestById.has(line.id) && (changedLineIdsRef.current.has(line.id) || line.version == null))
-          return { ...current, lines: [...mergedLines, ...localOnlyDraftLines] }
+          return {
+            ...current,
+            branchId: dirtyHeaderFields.has('branchId') ? current.branchId : latestForm.branchId,
+            branchName: dirtyHeaderFields.has('branchId') ? current.branchName : latestForm.branchName,
+            partyId: dirtyHeaderFields.has('partyId') ? current.partyId : latestForm.partyId,
+            partyName: dirtyHeaderFields.has('partyId') ? current.partyName : latestForm.partyName,
+            remark: dirtyHeaderFields.has('remark') ? current.remark : latestForm.remark,
+            vehicleImageFiles: dirtyHeaderFields.has('vehicleImageNames') ? current.vehicleImageFiles : latestForm.vehicleImageFiles,
+            vehicleNo: dirtyHeaderFields.has('vehicleNo') ? current.vehicleNo : latestForm.vehicleNo,
+            godownName: dirtyHeaderFields.has('godownName') ? current.godownName : latestForm.godownName,
+            lines: [...mergedLines, ...localOnlyDraftLines],
+          }
         })
       })
       .catch(() => {
@@ -1283,6 +1298,8 @@ export function WeightTicketFormCore({
         setForm(nextForm)
         setFormBaseline(formSafetySnapshot(nextForm))
         setSavedTicket(ticket)
+        changedLineIdsRef.current.clear()
+        dirtyHeaderFieldsRef.current.clear()
         setActiveLineId('')
         setMobileProductView('list')
         setTouched({})
@@ -1493,7 +1510,18 @@ export function WeightTicketFormCore({
   }
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+    if (key === 'branchId' || key === 'partyId' || key === 'remark' || key === 'vehicleNo' || key === 'godownName') {
+      dirtyHeaderFieldsRef.current.add(key)
+    }
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function markLinesDirty(lineIds: Iterable<string>) {
+    for (const lineId of lineIds) changedLineIdsRef.current.add(lineId)
+  }
+
+  function markLinesDeleted(lineIds: Iterable<string>) {
+    markLinesDirty(lineIds)
   }
 
   function changeBranch(value: string | null) {
@@ -1513,6 +1541,9 @@ export function WeightTicketFormCore({
       },
       () => {
         setForm((current) => {
+          dirtyHeaderFieldsRef.current.add('branchId')
+          if (current.partyId && !currentParty) dirtyHeaderFieldsRef.current.add('partyId')
+          markLinesDirty(current.lines.map((line) => line.id))
           const selectedBranch = branches.find((branch) => branch.id === branchId)
           const party = (current.type === 'WTI' ? suppliers : customers)
             .find((option) => option.id === current.partyId && option.branchIds?.includes(branchId))
@@ -1537,6 +1568,8 @@ export function WeightTicketFormCore({
       const cleanedLines = target?.impurityPurchaseAction === 'buy'
         ? updatedLines
         : removeImpurityPurchaseLinesForSource(updatedLines, lineId)
+      markLinesDirty(cleanedLines.filter((line) => line.id === lineId || line.parentId === lineId).map((line) => line.id))
+      markLinesDeleted(current.lines.filter((line) => !cleanedLines.some((nextLine) => nextLine.id === line.id)).map((line) => line.id))
       if (target && !target.parentId) {
         return {
           ...current,
@@ -1699,7 +1732,7 @@ export function WeightTicketFormCore({
   }
 
   function changeLineProduct(lineId: string, productId: string) {
-    changedLineIdsRef.current.add(lineId)
+    markLinesDirty(form.lines.filter((line) => line.id === lineId || line.parentId === lineId).map((line) => line.id))
     setMergeNotice('')
     setForm((current) => {
       const targetLine = current.lines.find((line) => line.id === lineId)
@@ -1837,6 +1870,7 @@ export function WeightTicketFormCore({
   }
 
   function changeLineWarehouse(lineId: string, warehouseId: string, warehouse: WtoStockWarehouseOption | null | undefined) {
+    markLinesDirty(form.lines.filter((line) => line.id === lineId || line.parentId === lineId).map((line) => line.id))
     setMergeNotice('')
     setForm((current) => {
       const targetLine = current.lines.find((line) => line.id === lineId)
@@ -1871,6 +1905,7 @@ export function WeightTicketFormCore({
           && line.warehouseId === nextTargetLine.warehouseId
         )
         if (duplicateParent) {
+          markLinesDirty([duplicateParent.id])
           nextLines = nextLines.map((line) => line.id === lineId ? { ...line, parentId: duplicateParent.id } : line)
           setActiveLineId(duplicateParent.id)
           setMergeNotice('สินค้านี้อยู่ในคลังนี้แล้ว ระบบรวมเป็นเต๋าใหม่ในรายการเดิม')
@@ -1897,7 +1932,7 @@ export function WeightTicketFormCore({
           .map((line) => purchaseSourceIds.includes(line.id)
             ? { ...line, impurityPurchaseAction: 'none' as const }
             : line)
-        current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).forEach((line) => changedLineIdsRef.current.add(line.id))
+        markLinesDeleted(current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).map((line) => line.id))
         return {
           ...current,
           lines: nextLines,
@@ -1915,7 +1950,7 @@ export function WeightTicketFormCore({
         .map((line) => purchaseSourceIds.includes(line.id)
           ? { ...line, impurityPurchaseAction: 'none' as const }
           : line)
-      current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).forEach((line) => changedLineIdsRef.current.add(line.id))
+      markLinesDeleted(current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).map((line) => line.id))
       return {
         ...current,
         lines: nextLines,
@@ -1978,7 +2013,7 @@ export function WeightTicketFormCore({
   }
 
   function removeLot(lotId: string) {
-    changedLineIdsRef.current.add(lotId)
+    markLinesDeleted([lotId])
     setForm((current) => ({
       ...current,
       lines: current.lines.filter((line) => line.id !== lotId),
@@ -2036,10 +2071,12 @@ export function WeightTicketFormCore({
 
   function removeImpurityLine(sourceLineId: string) {
     setForm((current) => {
+      const nextLines = removeImpurityPurchaseLinesForSource(current.lines, sourceLineId)
+        .filter((line) => line.id !== sourceLineId)
+      markLinesDeleted(current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).map((line) => line.id))
       return {
         ...current,
-        lines: removeImpurityPurchaseLinesForSource(current.lines, sourceLineId)
-          .filter((line) => line.id !== sourceLineId),
+        lines: nextLines,
       }
     })
   }
@@ -2111,6 +2148,7 @@ export function WeightTicketFormCore({
     const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
     const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปสินค้าไม่สำเร็จ')] : [])
     if (nextFiles.length > 0) {
+      dirtyHeaderFieldsRef.current.add('vehicleImageNames')
       const currentForm = formRef.current
       formRef.current = {
         ...currentForm,
@@ -2154,6 +2192,7 @@ export function WeightTicketFormCore({
   }
 
   function removeVehicleImage(fileId: string) {
+    dirtyHeaderFieldsRef.current.add('vehicleImageNames')
     setForm((current) => ({
       ...current,
       vehicleImageFiles: current.vehicleImageFiles.filter((file) => file.id !== fileId),
@@ -2277,6 +2316,7 @@ export function WeightTicketFormCore({
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
       changedLineIdsRef.current.clear()
+      dirtyHeaderFieldsRef.current.clear()
       setRemoteChangedLineIds(new Set())
       if (formSafetySnapshot(formRef.current) === saveSnapshot) {
         setForm(nextForm)
@@ -2506,6 +2546,7 @@ export function WeightTicketFormCore({
                     onChange={(value) => {
                       const party = displayPartyOptions.find((option) => option.id === value)
                       markTouched('partyId')
+                      dirtyHeaderFieldsRef.current.add('partyId')
                       setForm((current) => ({
                         ...current,
                         partyId: value,

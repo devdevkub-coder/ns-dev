@@ -3,13 +3,13 @@ import type { WeightTicketRecord } from './weight-tickets'
 export function mergeWeightTicketCollaborationBaseline({
   baselineTicket,
   dirtyLineIds,
+  dirtyHeaderFields,
   latestTicket,
-  preserveHeader,
 }: {
   baselineTicket: WeightTicketRecord | null
   dirtyLineIds: ReadonlySet<string>
+  dirtyHeaderFields: ReadonlySet<'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'>
   latestTicket: WeightTicketRecord
-  preserveHeader: boolean
 }): WeightTicketRecord {
   if (!baselineTicket) return latestTicket
 
@@ -20,14 +20,12 @@ export function mergeWeightTicketCollaborationBaseline({
 
   return {
     ...latestTicket,
-    ...(preserveHeader ? {
-      branchId: baselineTicket.branchId,
-      partyId: baselineTicket.partyId,
-      remark: baselineTicket.remark,
-      vehicleImageNames: baselineTicket.vehicleImageNames,
-      vehicleNo: baselineTicket.vehicleNo,
-      godownName: baselineTicket.godownName,
-    } : {}),
+    ...(dirtyHeaderFields.has('branchId') ? { branchId: baselineTicket.branchId } : {}),
+    ...(dirtyHeaderFields.has('partyId') ? { partyId: baselineTicket.partyId } : {}),
+    ...(dirtyHeaderFields.has('remark') ? { remark: baselineTicket.remark } : {}),
+    ...(dirtyHeaderFields.has('vehicleImageNames') ? { vehicleImageNames: baselineTicket.vehicleImageNames } : {}),
+    ...(dirtyHeaderFields.has('vehicleNo') ? { vehicleNo: baselineTicket.vehicleNo } : {}),
+    ...(dirtyHeaderFields.has('godownName') ? { godownName: baselineTicket.godownName } : {}),
     lines: mergedBaselineLines,
   }
 }
