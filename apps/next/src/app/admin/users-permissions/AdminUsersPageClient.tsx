@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { sidebarPermissionSections } from '@/lib/navigation'
-import { branchAccessModeForRoleScopes, hasUnrestrictedBranchScope } from './admin-user-branch-access'
+import { branchAccessModeForRoleScopes, hasUnrestrictedBranchScope, type AdminUserBranchAccessMode } from './admin-user-branch-access'
 import { z } from 'zod'
 import { contactPhoneErrorMessage, emailErrorMessage, isValidAdminUserEmail, isValidContactPhone, sanitizeAdminUserEmail } from '@/app/api/admin/users/admin-user-form-validation'
 
@@ -220,7 +220,7 @@ type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'department'
 type RoleColumnKey = 'action' | 'active' | 'branchScope' | 'description' | 'name' | 'permissionCount' | 'type' | 'users'
 type SortDirection = 'asc' | 'desc'
 type UserStatusFilter = 'all' | 'active' | 'disabled' | 'pending'
-type BranchAccessMode = 'all' | 'selected' | 'unset'
+type BranchAccessMode = AdminUserBranchAccessMode
 
 const permissionActionLabels: Record<string, string> = {
   create: 'สร้าง',
@@ -1757,7 +1757,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </div>
                         <div className="mt-2 text-xs text-slate-500">
                           เลือกแล้ว {form.branchIds.length} สาขา
-                          {data && data.branches.length > 0 && form.branchIds.length === data.branches.length ? ' — ครบทุกสาขาที่เปิดใช้งาน (เทียบเท่าทุกสาขา)' : ''}
+                          {data && data.branches.length > 0 && form.branchIds.length === data.branches.length ? ' — ครบทุกสาขาที่เปิดใช้งานตอนนี้ (บันทึกเป็นรายการสาขาที่เลือก)' : ''}
                         </div>
                       </div>
                     ) : branchAccessMode === 'all' ? (
