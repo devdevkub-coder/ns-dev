@@ -133,7 +133,7 @@ finance/accounting read model: Stock Finance Analysis
   - `public.report_stock_finance_snapshot_invalidations` เก็บ invalidation จาก `stock_ledger`
   - trigger `trg_stock_ledger_mark_stock_finance_snapshot_invalidated` mark วันที่กระทบเมื่อ `stock_ledger` insert/update/delete
   - function `public.rebuild_stock_finance_daily_snapshots(p_from, p_to, p_branch_ids)` rebuild snapshot จาก `stock_ledger` เท่านั้น
-- Migration `20260731062542_create_stock_finance_daily_snapshots.sql` ถูก apply/record บน SIT `vbjlkxbytccklhqvxjuu` เท่านั้นตามคำสั่ง; ไม่ apply dev-target
+- Migration `20260731062542_create_stock_finance_daily_snapshots.sql` ถูก apply/record บน SIT `vbjlkxbytccklhqvxjuu` เท่านั้นตามคำสั่ง; ไม่ apply production
 - `GET /api/finance-accounting/stock-finance/history` ตรวจเฉพาะวันที่/สาขาที่ยังไม่เคย refresh หรือมี invalidation แล้ว rebuild ตั้งแต่วันกระทบถึง cutoff; ไม่ rebuild ทุกครั้งที่เปิดกราฟ และไม่อ่าน current-state ย้อนแทนอดีต
 - history API ใช้ permission/scope เดียวกับหน้าหลัก:
   - `ทุกสาขา` รวมเฉพาะ effective branch scope

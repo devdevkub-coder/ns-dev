@@ -65,7 +65,7 @@ updated: 2026-06-12
 
 ## API / DB Optimization Snapshot
 
-อัปเดตล่าสุด 2026-06-12 สำหรับ dev-target:
+อัปเดตล่าสุด 2026-06-12 สำหรับ production:
 
 - Migration `20260612225000_optimize_po_buy_queries.sql` เพิ่ม index สำหรับ list/sort, branch filter, status filter, doc no prefix lookup, product option lookup และ supplier option lookup
 - `GET /api/purchase/po-buy` ลด payload โดย `select` เฉพาะ field ที่ response ใช้จริงจาก `po_buys`, `suppliers`, `po_buy_allocation_logs`, และ `po_buy_status_logs`
@@ -74,7 +74,7 @@ updated: 2026-06-12
 - `POST /api/purchase/po-buy` ออกเลขเอกสารด้วย prefix-scoped advisory lock ตาม `POB{branchCode}{YYMM}-` และ query latest doc no เพียง 1 row แทนการ lock/global-scan ทั้งตาราง
 - ไม่มีการเปลี่ยน response contract หรือ business behavior ของหน้า PO Buy
 
-หลักฐาน query plan จาก dev-target หลังปรับ:
+หลักฐาน query plan จาก production หลังปรับ:
 
 - supplier option query ใช้ `idx_suppliers_active_name_cover` แบบ index-only scan; จาก baseline seq scan + sort ประมาณ `183ms` เหลือประมาณ `7.6ms` บนข้อมูล supplier 1,888 rows
 - product option query ใช้ `idx_products_active_code_name` แบบ index-only scan

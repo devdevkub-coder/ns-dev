@@ -23,6 +23,7 @@ import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canSh
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
+import { useWeightTicketRealtime } from './useWeightTicketRealtime'
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
@@ -139,6 +140,10 @@ export function WeightTicketDetailModal({
   const [shareNote, setShareNote] = useState('')
   const [shareError, setShareError] = useState('')
   const [isSendingLine, setIsSendingLine] = useState(false)
+  const realtimeBranchIds = useMemo(() => {
+    const branchId = ticket?.branchId ?? initialTicket?.branchId
+    return branchId ? [branchId] : []
+  }, [initialTicket?.branchId, ticket?.branchId])
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
   const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(ticket?.canCancel && cancelNote.trim()))
@@ -223,6 +228,10 @@ export function WeightTicketDetailModal({
 
   const vehicleImages = useMemo(
     () => (ticket?.vehicleImageNames ?? []).map(decodeStoredImageAsset),
+    [ticket],
+  )
+  const lineImageNames = useMemo(
+    () => ticket?.lines.flatMap((line) => line.imageNames) ?? [],
     [ticket],
   )
 
@@ -310,6 +319,13 @@ export function WeightTicketDetailModal({
       setCanReturnStock(false)
     }
   }
+
+  useWeightTicketRealtime((event) => {
+    if (event.documentNo !== ticketId) return
+    void reloadTicket().catch((caught) => {
+      setLoadError(getErrorMessage(caught, 'โหลดข้อมูลใบรับ-ส่งของล่าสุดไม่ได้'))
+    })
+  }, Boolean(ticketId), realtimeBranchIds)
 
   async function handleSendLineNotification() {
     if (!ticket || !canShareWeightTicket(ticket.status)) return
@@ -436,10 +452,6 @@ export function WeightTicketDetailModal({
               <Card className="p-4 sm:p-5">
                 <SectionTitle title="ข้อมูลเอกสาร" />
                 <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
-                  <DetailItem
-                    label={ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}
-                    value={ticket.documentNo}
-                  />
                   <DetailItem label="วันที่/เวลาสร้าง" value={formatDateTime(ticket.createdAt)} />
                   <DetailItem label="ผู้กรอก" value={ticket.enteredBy} />
                   <DetailItem label="อัปเดตล่าสุด" value={formatDateTime(ticket.updatedAt || ticket.createdAt)} />
@@ -449,13 +461,27 @@ export function WeightTicketDetailModal({
                   ) : (
                     <DetailItem label="อ้างอิงบิลขาย" value={`${ticket.usedInSalesBillCount} รายการ`} />
                   )}
+                  <div>
+                    <div className="text-sm font-medium text-slate-500">สถานะเอกสาร</div>
+                    <div className="mt-1">
+                      <span className={cn(
+                        'inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold',
+                        weightTicketStatusBadgeClass(ticket.type, ticket.status),
+                      )}
+                      >
+                        <span className="size-1.5 rounded-full bg-current" />
+                        {displayWeightTicketStatus(ticket.type, ticket.status)}
+                      </span>
+                    </div>
+                  </div>
+                  {ticket.cancelledAt ? <DetailItem label="ยกเลิกเมื่อ" value={formatDateTime(ticket.cancelledAt)} /> : null}
                 </div>
                 {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
                   <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
                     <div className="text-sm font-semibold text-slate-500">เลขที่บิลซื้อที่อ้างอิง</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                       {ticket.usedInPurchaseBillDocNos.map((docNo) => (
-                        <span className="rounded-md bg-white px-2.5 py-1 text-sm font-medium text-slate-700 shadow-sm" key={docNo}>
+                        <span className="font-mono text-sm font-medium text-blue-700" key={docNo}>
                           {docNo}
                         </span>
                       ))}
@@ -510,57 +536,15 @@ export function WeightTicketDetailModal({
                 </div>
               </Card>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-                <div className="space-y-4">
-                  <Card className="overflow-hidden p-0">
-                    <div className="border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
-                      <SectionTitle title="รายละเอียดสินค้าและที่มา" />
-                    </div>
-                    <WeightTicketProductBreakdownTable
-                      ticket={ticket}
-                      onOpenLineGallery={setLineGallery}
-                    />
-                  </Card>
+              <div className="space-y-4">
+                <Card className="w-full overflow-hidden p-0">
+                  <div className="border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
+                    <SectionTitle title="รายละเอียดสินค้าและที่มา" />
                   </div>
-
-                <Card className="p-4 sm:p-5">
-                  <SectionTitle title="สถานะ" />
-                  <div className="mt-4 space-y-3">
-                    <div className="rounded-md bg-slate-50 px-4 py-3">
-                      <div className="text-sm font-semibold text-slate-500">สถานะเอกสาร</div>
-                      <div className="mt-1">
-                        <span className={cn(
-                          'inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded',
-                          weightTicketStatusBadgeClass(ticket.type, ticket.status),
-                        )}
-                        >
-                          <span className="size-1.5 rounded-full bg-current" />
-                          {displayWeightTicketStatus(ticket.type, ticket.status)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="rounded-md bg-slate-50 px-4 py-3">
-                      <div className="text-sm font-semibold text-slate-500">การอ้างอิงเอกสาร</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">
-                        {ticket.type === 'WTI'
-                          ? `บิลซื้อ ${ticket.usedInPurchaseBillCount} รายการ`
-                          : `บิลขาย ${ticket.usedInSalesBillCount} รายการ`}
-                      </div>
-                      {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
-                        <div className="mt-2 space-y-1 text-sm text-slate-600">
-                          {ticket.usedInPurchaseBillDocNos.map((docNo) => (
-                            <div key={docNo}>{docNo}</div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                    {ticket.cancelledAt ? (
-                      <div className="rounded-md bg-slate-50 px-4 py-3">
-                        <div className="text-sm font-semibold text-slate-500">ยกเลิกเมื่อ</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(ticket.cancelledAt)}</div>
-                      </div>
-                    ) : null}
-                  </div>
+                  <WeightTicketProductBreakdownTable
+                    ticket={ticket}
+                    onOpenLineGallery={setLineGallery}
+                  />
                 </Card>
               </div>
 
@@ -568,7 +552,7 @@ export function WeightTicketDetailModal({
                 downloadUrl={`/api/daily/weight-tickets/${encodeURIComponent(ticket.documentNo)}/images/download`}
                 downloadFileName={`${ticket.documentNo}-images.zip`}
                 downloadImageNames={ticket.imageNames}
-                imageNames={ticket.imageNames}
+                imageNames={lineImageNames}
                 isLoadingPreview={isLoadingImagePreview}
                 onOpen={(gallery) => setLineGallery(gallery)}
                 previewError={imagePreviewError}

@@ -99,7 +99,7 @@ describe('weight-ticket product change behavior', () => {
       'utf8',
     )
 
-    expect(editRouteSource).toContain("if (values.type === 'WTO' && values.saveScope !== 'header')")
+    expect(editRouteSource).toContain("if (effectiveValues.type === 'WTO' && effectiveValues.saveScope !== 'header')")
     expect(createRouteSource).toContain("if (values.type === 'WTO' && values.saveScope !== 'header')")
     expect(editRouteSource).toContain('excludeWeightTicketId')
   })

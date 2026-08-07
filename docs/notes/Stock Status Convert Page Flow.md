@@ -17,6 +17,16 @@ updated: 2026-06-21
 
 # Stock Status Convert Page Flow / Flow หน้าปรับสถานะสินค้า
 
+## Stock Preview Permission Boundary
+
+หน้า Status Convert ใช้ `GET /api/stock/product-stock` สำหรับแสดง Stock Preview
+ของสินค้าที่เลือก โดยตรวจ `stock.ledger.view` เช่นเดียวกับ flow Stock อื่น ๆ
+เพราะข้อมูลนี้เป็น current stock/WAC จาก `stock_ledger` ไม่ใช่ข้อมูลใบสั่งผลิต
+และไม่ควรบังคับให้ผู้ใช้หน้าสต๊อกต้องมี `production.orders.view` เพียงเพื่อดูยอด
+ประกอบการทำรายการ ส่วนหน้า Production ยังคงใช้
+`GET /api/production/orders/product-stock` และ permission เดิมของ Production
+แยกจากกันเพื่อไม่ให้เปลี่ยนขอบเขตสิทธิ์ของผู้ใช้ฝ่ายผลิตโดยไม่ตั้งใจ
+
 ## Scope
 
 - Route: `/stock/status-convert`

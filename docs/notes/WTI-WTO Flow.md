@@ -717,7 +717,7 @@ WTI/WTO มีรูป 2 ระดับ:
 ### Contract รูปใน detail gallery
 
 - รูปหลักฐานเป็นข้อมูลเอกสารระดับ L5: Database เก็บ attachment metadata/storage key เป็น source of truth และ binary อยู่ใน object storage ตาม bucket/privacy policy
-- รูปหลักฐาน WTI/WTO ใช้ bucket private ที่ตั้งค่าผ่าน `WEIGHT_TICKET_IMAGE_BUCKET`; DB เก็บเฉพาะ `bucket`, `storageKey`, `fileName` โดย signed URL สร้างใหม่เฉพาะ response/preview/LINE/PDF ตามสิทธิ์และอายุที่กำหนด ห้ามเก็บ bearer URL ระยะยาวหรือใช้ public URL ของรูปต้นฉบับ
+- รูปหลักฐาน WTI/WTO ใช้ bucket private ที่ตั้งค่าผ่าน `WEIGHT_TICKET_IMAGE_BUCKET`; DB เก็บเฉพาะ `bucket`, `storageKey`, `fileName` โดย signed URL สร้างใหม่เฉพาะ response/preview/LINE/PDF ตามสิทธิ์และอายุที่กำหนด ห้ามเก็บ bearer URL ระยะยาวหรือใช้ public URL ของรูปต้นฉบับ. ทุก read/write boundary ต้องตรวจ bucket ให้ตรงและให้ `storageKey` อยู่ใต้ namespace `attachments/` โดย reject absolute path, `\\` และ `..` segment ก่อนอ่านหรือสร้าง signed URL
 - PDF ที่สร้างเพื่อส่งออกและรูปอัลบั้มที่สร้างเพื่อ LINE ใช้ bucket public แยกต่างหากผ่าน `WEIGHT_TICKET_PDF_BUCKET`; รูปอัลบั้มเป็น outbound artifact ไม่ใช่ source evidence ของเอกสาร
 - ทุก entry point ของ detail gallery ทั้งรูปรถ รูปรายการสินค้า และอัลบั้มรวม รับ preview เฉพาะ canonical reference ที่มี `bucket` + `storageKey` ของ private image bucket และ signed URL ที่สร้าง ณ เวลาอ่าน; `data:image`, URL-only, bucket อื่น และ filename-only เป็น legacy metadata ที่ unavailable จึงแสดงได้เพียงจำนวนแจ้งเตือนโดยไม่สร้าง `<img>` หรือ runtime fallback
 - หน้า detail โหลด stored/original asset เมื่อผู้ใช้เปิดดู ส่วน list/picker ยังคงใช้ thumbnail; รอบนี้ไม่เพิ่ม browser/Redis cache และอายุ signed URL/cache headers เป็น contract ของ Storage
@@ -748,6 +748,7 @@ WTI/WTO มีรูป 2 ระดับ:
 ### Print
 
 - `WTI` และ `WTO` ต้องพิมพ์ได้จากหน้า list และ detail
+- เอกสารสถานะ `แบบร่าง` พิมพ์ได้ทั้ง WTI และ WTO แม้ยังไม่มีรายการสินค้า/เต๋า เพื่อใช้เป็นเอกสารตรวจทานภายใน; การพิมพ์ไม่ถือเป็นการยืนยันรับ/ส่งของ และไม่บังคับรูปแบบข้อความสถานะบนใบพิมพ์
 - ใช้ข้อมูลบริษัทจาก `ข้อมูลบริษัท (สำหรับใบพิมพ์)`
 - HTML print popup ต้องใช้ `Noto Sans Thai` จาก `/fonts/` ของแอปและ system fallback เท่านั้น ไม่โหลด stylesheet หรือ font จากภายนอก เพื่อให้ผ่าน CSP เดียวกับแอปโดยไม่เปลี่ยน layout หรือสูตรน้ำหนักของใบพิมพ์
 - ใช้ wording แยกตามทิศทางเอกสาร
@@ -881,7 +882,7 @@ Implementation separation checkpoint 2026-06-30:
 
 | ประเภท/สถานะ | ปุ่มที่ควรเห็น | ปุ่มที่ไม่ควรเห็น |
 |---|---|---|
-| WTI/WTO `draft` | `รายละเอียด`, `ยืนยันรับของ`/`ยืนยันส่งของ` เมื่อมีรายการครบ, `แก้ไข`, `ยกเลิก` | `พิมพ์`, `แชร์`, `เปิดบิล`, `รับของคืน` |
+| WTI/WTO `draft` | `รายละเอียด`, `พิมพ์`, `ยืนยันรับของ`/`ยืนยันส่งของ` เมื่อมีรายการครบ, `แก้ไข`, `ยกเลิก` | `แชร์`, `เปิดบิล`, `รับของคืน` |
 | WTI `received` | `รายละเอียด`, `พิมพ์`, `แชร์`, `แก้ไข` (ถ้ามีสิทธิ์และยังไม่มี PB), `เปิดบิลซื้อ` (ถ้ามีสิทธิ์), `ยกเลิก` (ถ้ามีสิทธิ์) | `ยืนยันรับของ`, `รับของคืน` |
 | WTI `billed` | `รายละเอียด`, `พิมพ์`, `แชร์` | `แก้ไข`, `ยกเลิก`, `เปิดบิลซื้อ`, `รับของคืน` |
 | WTI `cancelled` | `รายละเอียด` | `พิมพ์`, `แชร์`, `แก้ไข`, `ยกเลิก`, `เปิดบิลซื้อ`, `รับของคืน` |
@@ -1043,6 +1044,14 @@ Google Sheets. ระบบยังคงบันทึกข้อมูล�
 #### 0. PDF ใน LINE/Storage คือใบพิมพ์พร้อมหน้าอัลบั้มรูป
 
 PDF ที่ `notifyWeightTicketLine` สร้างและอัปโหลดขึ้น Storage ต้องเริ่มด้วยเอกสารธุรกิจสำหรับพิมพ์: header บริษัท, ข้อมูลคู่ค้า, รายการน้ำหนัก, สรุป, ลายเซ็น และ footer ต้องอยู่ใน A4 ตาม template ใบพิมพ์เดียวกับระบบหน้า list/detail. หลังจากหน้าใบพิมพ์ ให้ต่อหน้า photo album เป็นหน้า 2+ จากรูปหลักฐานของเอกสารเดียวกัน เพื่อให้ไฟล์ PDF เดียวเปิดดูได้ครบทั้งใบชั่งและรูปหน้างาน. LINE ยังสามารถส่ง album/image path แยกได้เพื่อให้คนในแชทเห็นรูปทันที โดยไม่เปลี่ยนข้อกำหนดว่าหน้าแรกของ PDF ต้องยังเป็นใบพิมพ์ A4 ที่พอดี.
+
+ไฟล์ PDF และภาพ album ใน bucket นี้เป็น outbound derivatives ที่สร้างเพื่อการแจ้งเตือนและการดาวน์โหลด โดย `weight_ticket_notification_logs.pdf_storage_bucket/pdf_storage_key/pdf_url` เป็น audit reference ของไฟล์ที่ถูกส่ง. ระบบยังไม่ลบไฟล์อัตโนมัติจนกว่าจะมี retention policy และ cleanup job ที่อนุมัติชัดเจน; เมื่อเพิ่มภายหลังต้องลบเฉพาะไฟล์ที่ไม่ถูกอ้างอิงและห้ามลบ private source evidence หรือ audit log ตามอายุไฟล์โดยตรง.
+
+#### 0.1 ลำดับรูปในเอกสารพิมพ์และ PDF
+
+หน้าพิมพ์, PDF ใน LINE และภาพอัลบั้มต้องใช้ลำดับรูปจาก contract เดียวกัน: `vehicle_image_names` (รูปรถ) มาก่อนรายการรวมใน `image_names` และต้อง deduplicate ด้วย bucket/storage key เดียวกัน. ดังนั้นรูปรถจะแสดงเป็นรูปที่ 1 ใต้หัวข้อ `ใบรับสินค้า (รูปถ่ายแนบ)` หรือ `ใบส่งของ (รูปถ่ายแนบ)` เมื่อมีรูป โดยไม่แสดงซ้ำแม้ read model จะมีรูปรถอยู่ทั้งสองรายการ.
+
+กรอบรูปอัลบั้มใช้สัดส่วน 4:3 และต้องแสดง source image แบบ `contain` เพื่อรักษาอัตราส่วนเดิม ไม่ยืดหรือ crop รูปแนวตั้ง/แนวนอน; พื้นที่ว่างในกรอบเป็นผลที่ยอมรับได้เพื่อให้เห็นหลักฐานเต็มรูป. เอกสาร A4 แบ่ง 4 รูปต่อหน้าสำหรับพื้นที่อ่านและเลขหน้าที่ถูกต้อง ส่วนภาพ album ที่ส่งแยกใน LINE ยังใช้ chunk 8 รูปได้เพราะไม่ถูกจำกัดด้วยพื้นที่กระดาษ A4.
 
 #### 1. Auto-send ทำงานทันทีหลังยืนยัน
 

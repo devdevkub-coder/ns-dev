@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Download, Plus, Printer, RotateCcw, Search, Share2, SquarePen, XCircle } from 'lucide-react'
@@ -26,6 +26,7 @@ import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-
 import { WeightTicketDetailModal } from './WeightTicketDetailModal'
 import { WeightTicketStockReturnDialog } from './WeightTicketStockReturnDialog'
 import { WeightTicketsPageClient } from './WeightTicketsPageClient'
+import { useWeightTicketRealtime } from './useWeightTicketRealtime'
 import {
   WEIGHT_TICKET_COLUMN_STORAGE_KEY,
   WEIGHT_TICKET_TABLE_COLUMN_COUNT,
@@ -193,6 +194,8 @@ export function WeightTicketListPageClient() {
   const { requestConfirmation } = useActionConfirmation()
   const guardedFormCloseRef = useRef<() => void>(() => {})
   const autoOpenDetailRef = useRef('')
+  const realtimeRefreshEventRef = useRef('')
+  const realtimeRefreshTimeoutRef = useRef<number | null>(null)
   const [tickets, setTickets] = useState<WeightTicketRecord[]>([])
   const [canOpenPurchaseBill, setCanOpenPurchaseBill] = useState(false)
   const [canOpenSalesBill, setCanOpenSalesBill] = useState(false)
@@ -237,6 +240,7 @@ export function WeightTicketListPageClient() {
     ? tickets.find((ticket) => ticket.id === activeDetailId)
     : undefined
   const activeFilters = Boolean(searchInput || statusFilter.length > 0 || branchFilter !== 'all' || dateFrom || dateTo)
+  const realtimeBranchIds = useMemo(() => branches.map((branch) => branch.id), [branches])
   const statusOptions = useMemo(() => statusOptionsByType[typeFilter], [typeFilter])
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ format: 'xlsx', sortBy, sortDir, type: typeFilter })
@@ -333,6 +337,23 @@ export function WeightTicketListPageClient() {
       cancelled = true
     }
   }, [branchFilter, dateFrom, dateTo, isUrlStateReady, page, pageSize, query, sortBy, sortDir, statusFilter, typeFilter, refreshKey])
+
+  const scheduleRealtimeRefresh = useCallback((event: { documentNo: string; updatedAt: string | null; changeType: string }) => {
+    const eventKey = `${event.documentNo}:${event.updatedAt ?? ''}:${event.changeType}`
+    if (realtimeRefreshEventRef.current === eventKey) return
+    realtimeRefreshEventRef.current = eventKey
+    if (realtimeRefreshTimeoutRef.current !== null) return
+    realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+      realtimeRefreshTimeoutRef.current = null
+      setRefreshKey((previous) => previous + 1)
+    }, 250)
+  }, [])
+
+  useEffect(() => () => {
+    if (realtimeRefreshTimeoutRef.current !== null) window.clearTimeout(realtimeRefreshTimeoutRef.current)
+  }, [])
+
+  useWeightTicketRealtime(scheduleRealtimeRefresh, isUrlStateReady, realtimeBranchIds)
 
   useEffect(() => {
     if (!isUrlStateReady || searchInput === query) return
@@ -763,10 +784,8 @@ export function WeightTicketListPageClient() {
               )}>
                 <div>
                   <span className={cn(
-                    'inline-flex items-center gap-1.5 text-sm font-semibold px-2 py-0.5 rounded',
-                    isCancelled
-                      ? 'bg-red-100 text-red-800 ring-1 ring-red-200'
-                      : weightTicketStatusBadgeClass(ticket.type, ticket.status),
+                    'inline-flex items-center gap-1.5 text-sm font-semibold',
+                    weightTicketStatusBadgeClass(ticket.type, ticket.status),
                   )}
                   >
                     <span className="size-1.5 rounded-full bg-current" />
@@ -885,9 +904,7 @@ export function WeightTicketListPageClient() {
                       <div className="flex min-h-[23px] flex-col items-center justify-center">
                         <span className={cn(
                           'inline-flex items-center gap-1.5 text-xs font-medium',
-                          isCancelled
-                            ? 'rounded-md bg-red-100 px-2 py-0.5 font-semibold text-red-800 ring-1 ring-red-200'
-                            : weightTicketStatusBadgeClass(ticket.type, ticket.status),
+                          weightTicketStatusBadgeClass(ticket.type, ticket.status),
                         )}
                         >
                           <span className="size-1.5 rounded-full bg-current" />

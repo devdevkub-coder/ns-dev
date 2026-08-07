@@ -37,4 +37,4 @@ The following families still use `finance.cash.view` and require separate busine
 - Targeted ESLint passed for ADV, expense and navigation changes.
 - Workspace TypeScript check passed.
 - `git diff --check` is required before commit.
-- Database migrations are created but still require controlled apply to `dev-target`; blanket `supabase db push` is blocked by documented remote migration-history drift.
+- Database migrations are created but still require controlled apply to `production`; blanket `supabase db push` is blocked by documented remote migration-history drift.

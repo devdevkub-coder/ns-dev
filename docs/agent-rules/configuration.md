@@ -17,7 +17,7 @@ Keep these in project-level files:
 Do not put this project's MCP routing in global Codex config unless explicitly requested. Global MCP entries can cause other projects or future sessions to connect to the wrong project or vault.
 
 Project-level MCP entries in `.mcp.json`:
-- `supabase`: dev-target Supabase project
+- `supabase`: production Supabase project
 - `supabase-prod-source`: legacy production source, read-only
 - `obsidian`: Obsidian vault scoped to this repository path
 - `playwright`: Playwright MCP for browser QA

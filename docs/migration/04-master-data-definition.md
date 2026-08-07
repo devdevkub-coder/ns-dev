@@ -95,7 +95,7 @@ Tax-rate config notes:
 - branch list approved
 - warehouse list approved
 - customer/supplier keys approved
-- Thai address reference imported into dev-target and wired to customer form
+- Thai address reference imported into production and wired to customer form
 - product structure approved
 - account structure approved
 - channel definitions approved

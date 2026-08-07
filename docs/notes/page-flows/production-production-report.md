@@ -237,11 +237,11 @@ Target differences from legacy:
 ## Validation Result 2026-06-13
 
 - Added `npm run verify:production-report --workspace @ns-scrap-erp/next`.
-- The verifier checks formula invariants for fixture rows and the current dev-target dataset:
+- The verifier checks formula invariants for fixture rows and the current production dataset:
   - row `rmCostPerKg`, `productionCostPerKg`, `costPerKg`, `lossValue`, and `yieldPct`
   - summary `lossValue`, `rmCostPerKg`, `productionCostPerKg`, `yieldPct`, and `lossPct`
   - product summary qty/cost/unit cost grouping
-- Latest run passed. Current dev-target production report dataset had `checkedRows = 0`, so logged-in browser QA and live non-empty report evidence remain open.
+- Latest run passed. Current production production report dataset had `checkedRows = 0`, so logged-in browser QA and live non-empty report evidence remain open.
 
 ## API / DB Optimization 2026-06-13
 

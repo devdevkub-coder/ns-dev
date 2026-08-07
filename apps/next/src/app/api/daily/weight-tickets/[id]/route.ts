@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { calculateTicketTotals, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketFormSchema } from '@/lib/weight-tickets'
+import { calculateTicketTotals, isOtherProductImpurityLabel, OTHER_PRODUCT_IMPURITY_ID, parseImpurityProductMeta, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketFormSchema, type WeightTicketFormValues } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -39,6 +39,7 @@ import {
   weightTicketAuditSnapshot,
 } from '@/lib/server/weight-tickets'
 import { attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { publishWeightTicketChange } from '@/lib/server/weight-ticket-realtime'
 import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
 
 export const runtime = 'nodejs'
@@ -91,6 +92,30 @@ const ticketInclude = {
     orderBy: { source_line_no: 'asc' },
   },
 } as const
+
+function persistedLineToFormLine(
+  line: WeightTicketRow['weight_ticket_lines'][number],
+  lineIdByLineNo: Map<number, string>,
+): WeightTicketFormValues['lines'][number] {
+  const impurityMeta = parseImpurityProductMeta(line.note)
+  return {
+    containerDeductionWeight: Number(line.container_deduction_weight),
+    deductionMode: line.deduction_mode as 'none' | 'kg' | 'percent',
+    deductionValue: Number(line.deduction_value),
+    grossWeight: Number(line.gross_weight),
+    id: String(line.id),
+    imageNames: line.image_names ?? [],
+    impurityId: line.impurity_id == null
+      ? isOtherProductImpurityLabel(line.impurity_name) ? OTHER_PRODUCT_IMPURITY_ID : ''
+      : String(line.impurity_id),
+    impurityProductId: impurityMeta.impurityProductId,
+    impuritySourceLineId: line.impurity_source_line_no == null ? undefined : lineIdByLineNo.get(line.impurity_source_line_no),
+    note: impurityMeta.note,
+    parentId: line.parent_line_no == null ? undefined : lineIdByLineNo.get(line.parent_line_no),
+    productId: line.products.code ?? '',
+    warehouseId: line.warehouses?.code ?? '',
+  }
+}
 
 async function findScopedTicket(documentNo: string, scopedBranchIds: string[] | null) {
   if (scopedBranchIds !== null && !scopedBranchIds.length) return null
@@ -251,8 +276,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
 
     const actor = currentActor(auth)
-    const documentDate = toDateOnly(existing.document_date)
-    const nextStatus = existing.status
     const totals = calculateTicketTotals(values.lines.map((line) => ({
       containerDeductionWeight: String(line.containerDeductionWeight),
       deductionMode: line.deductionMode,
@@ -265,7 +288,22 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       productId: line.productId,
     })))
 
+    const collaborationBaseUpdatedAt = values.collaborationBaseUpdatedAt ?? null
+    const collaborationBaseLineIds = new Set(values.collaborationBaseLineIds ?? [])
+    const ticketId = existing.id
     const updated = await prisma.$transaction(async (tx) => {
+      // Every ticket mutation uses the same lock and then re-reads lifecycle
+      // state. PUT must not continue from a draft snapshot after confirm,
+      // cancel, or downstream usage has already changed the ticket.
+      await tx.$executeRaw`select pg_advisory_xact_lock(${ticketId})`
+      const existing = await tx.weight_tickets.findUniqueOrThrow({ include: ticketInclude, where: { id: ticketId } })
+      const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
+      if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, lockedUsage)) {
+        throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
+      }
+      const collaborationCurrentUpdatedAt = existing.updated_at
+      const documentDate = toDateOnly(existing.document_date)
+      const nextStatus = existing.status
       const branchCode = requireWeightTicketBranchDocumentCode(branch.code)
       const mustRenumber = existing.branch_id !== branch.id
       const docNo = mustRenumber
@@ -276,33 +314,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         : existing.doc_no
       const partySnapshot = weightTicketPartySnapshot({ customer, supplier, type: values.type })
 
-      await tx.weight_tickets.update({
-        data: {
-          branch_id: branch.id,
-          cancel_note: null,
-          cancelled_at: null,
-          cancelled_by: null,
-          container_deduction_weight: totals.containerDeductionWeight,
-          customer_id: partySnapshot.customerId,
-          deduct_weight: totals.deductionWeight,
-          doc_no: docNo,
-          doc_type: values.type,
-          gross_weight: totals.grossWeight,
-          godown_name: values.godownName,
-          image_count: values.vehicleImageNames.length,
-          net_weight: totals.netWeight,
-          party_name: partySnapshot.partyName,
-          remark: values.remark || null,
-          status: nextStatus,
-          supplier_id: partySnapshot.supplierId,
-          updated_at: new Date(),
-          updated_by: actor,
-          vehicle_image_count: values.vehicleImageNames.length,
-          vehicle_image_names: values.vehicleImageNames,
-          vehicle_no: values.vehicleNo,
-        },
-        where: { id: existing.id },
-      })
       await tx.weight_ticket_product_summary_lines.deleteMany({
         where: {
           weight_ticket_product_summaries: {
@@ -310,28 +321,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           },
         },
       })
-      const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
+      let warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
       const warehouseNameById = new Map([...warehouseByCode.values()].map((warehouse) => [warehouse.id, warehouse.name] as const))
-      const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
-      if (values.type === 'WTO' && values.saveScope !== 'header') {
-        await validateWeightTicketStockForWrite(tx, {
-          branchId: branch.id,
-          excludeWeightTicketId: existing.status === 'delivered' ? existing.id : undefined,
-          lineRows,
-          type: values.type,
-        })
-      }
-      const editChanges = buildWeightTicketEditChanges({
-        branchName: branch.name,
-        customerName: customer?.name ?? '',
-        docNo,
-        existing: existing as WeightTicketRow,
-        lineRows,
-        supplierName: supplier?.name ?? '',
-        totals,
-        values,
-        warehouseNameById,
+      existing.weight_ticket_lines.forEach((line) => {
+        if (line.warehouses) warehouseNameById.set(line.warehouses.id, line.warehouses.name)
       })
+      const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
       const isDeliveredWtoEdit = existing.status === 'delivered' && values.type === 'WTO'
       const shouldRebuildWtoPendingOut = isDeliveredWtoEdit && shouldRebuildWtoPendingOutOnEdit({
         branchChanged: existing.branch_id !== branch.id,
@@ -353,7 +348,102 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       }
       await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
       let createdLines
-      if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
+      let effectiveValues = values
+      let effectiveLineRows = lineRows
+      let effectiveTotals = totals
+      // The request may have read the ticket before another save committed;
+      // compare against the locked version, not the outer request snapshot.
+      const hasRemoteLineChanges = Boolean(
+        collaborationBaseUpdatedAt
+        && collaborationBaseUpdatedAt !== (collaborationCurrentUpdatedAt?.toISOString() ?? null),
+      )
+      if (hasRemoteLineChanges && !isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
+        // Multiple users may be editing the same draft. Use immutable DB line
+        // ids when available, while accepting the previous docNo:lineNo ids
+        // from an already-open tab during the transition.
+        const latestLines = existing.weight_ticket_lines
+        const latestLineByClientId = new Map<string, (typeof latestLines)[number]>()
+        latestLines.forEach((line) => {
+          latestLineByClientId.set(String(line.id), line)
+          latestLineByClientId.set(`${existing.doc_no}:${line.line_no}`, line)
+          if (values.collaborationBaseDocumentNo) {
+            latestLineByClientId.set(`${values.collaborationBaseDocumentNo}:${line.line_no}`, line)
+          }
+        })
+        const lineIdByLineNo = new Map(latestLines.map((line) => {
+          const incomingLine = values.lines.find((valueLine) => latestLineByClientId.get(valueLine.id)?.id === line.id)
+          return [line.line_no, incomingLine?.id ?? String(line.id)] as const
+        }))
+        const incomingExistingIds = new Set(
+          values.lines
+            .map((line) => latestLineByClientId.get(line.id)?.id)
+            .filter((lineId): lineId is bigint => lineId != null),
+        )
+        const wasInBase = (line: (typeof latestLines)[number]) => [
+          String(line.id),
+          `${existing.doc_no}:${line.line_no}`,
+          values.collaborationBaseDocumentNo ? `${values.collaborationBaseDocumentNo}:${line.line_no}` : '',
+        ].some((key) => key && collaborationBaseLineIds.has(key))
+        const remoteOnlyLines = latestLines.filter((line) => !incomingExistingIds.has(line.id) && !wasInBase(line))
+        effectiveValues = {
+          ...values,
+          lines: [
+            ...values.lines,
+            ...remoteOnlyLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo)),
+          ],
+        }
+        const effectiveProductCodes = [...new Set(effectiveValues.lines.flatMap((line) => [
+          line.productId.trim().toUpperCase(),
+          line.impurityProductId?.trim().toUpperCase() ?? '',
+        ]).filter(Boolean))]
+        const missingEffectiveProductCodes = effectiveProductCodes.filter((code) => !productByCode.has(code))
+        if (missingEffectiveProductCodes.length) {
+          const persistedProducts = await tx.products.findMany({
+            select: { code: true, id: true, name: true },
+            where: { code: { in: missingEffectiveProductCodes } },
+          })
+          persistedProducts.forEach((product) => productByCode.set(product.code.trim().toUpperCase(), product))
+        }
+        const effectiveImpurityIds = [...new Set(effectiveValues.lines
+          .map((line) => parseInternalBigIntId(line.impurityId))
+          .filter((value): value is bigint => value != null))]
+        const missingEffectiveImpurityIds = effectiveImpurityIds.filter((id) => !impurityById.has(id))
+        if (missingEffectiveImpurityIds.length) {
+          const persistedImpurities = await tx.impurities.findMany({
+            select: { active: true, id: true, name: true },
+            where: { id: { in: missingEffectiveImpurityIds } },
+          })
+          persistedImpurities.forEach((impurity) => impurityById.set(impurity.id, impurity))
+        }
+        warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: effectiveValues.lines, type: effectiveValues.type })
+        warehouseByCode.forEach((warehouse) => warehouseNameById.set(warehouse.id, warehouse.name))
+        effectiveLineRows = buildWeightTicketLineRows(existing.id, effectiveValues, productByCode, impurityById, warehouseByCode)
+        effectiveTotals = calculateTicketTotals(effectiveValues.lines.map((line) => ({
+          containerDeductionWeight: line.containerDeductionWeight,
+          deductionMode: line.deductionMode,
+          deductionValue: line.deductionValue,
+          grossWeight: line.grossWeight,
+          id: line.id,
+          impurityId: line.impurityId,
+          impuritySourceLineId: line.impuritySourceLineId,
+          parentId: line.parentId,
+          productId: line.productId,
+        })))
+        const removedLineIds = latestLines
+          .filter((line) => wasInBase(line) && !incomingExistingIds.has(line.id))
+          .map((line) => line.id)
+        if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
+        await Promise.all(effectiveLineRows.map(async (data, index) => {
+          const valueLine = effectiveValues.lines[index]
+          const currentLine = latestLineByClientId.get(valueLine.id)
+          if (currentLine) {
+            await tx.weight_ticket_lines.update({ data, where: { id: currentLine.id } })
+          } else {
+            await tx.weight_ticket_lines.create({ data })
+          }
+        }))
+        createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
+      } else if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
         const existingLineByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
         const retainedLineNos = new Set(lineRows.map((line) => line.line_no))
         await Promise.all(lineRows.map(async (data) => {
@@ -373,6 +463,53 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
         createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
       }
+      if (effectiveValues.type === 'WTO' && effectiveValues.saveScope !== 'header') {
+        await validateWeightTicketStockForWrite(tx, {
+          branchId: branch.id,
+          excludeWeightTicketId: existing.status === 'delivered' ? existing.id : undefined,
+          lineRows: effectiveLineRows,
+          type: effectiveValues.type,
+        })
+      }
+      const editChanges = buildWeightTicketEditChanges({
+        branchName: branch.name,
+        customerName: customer?.name ?? '',
+        docNo,
+        existing: existing as WeightTicketRow,
+        lineRows: effectiveLineRows,
+        supplierName: supplier?.name ?? '',
+        totals: effectiveTotals,
+        values: effectiveValues,
+        warehouseNameById,
+      })
+      const imageCount = effectiveValues.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
+      await tx.weight_tickets.update({
+        data: {
+          branch_id: branch.id,
+          cancel_note: null,
+          cancelled_at: null,
+          cancelled_by: null,
+          container_deduction_weight: effectiveTotals.containerDeductionWeight,
+          customer_id: partySnapshot.customerId,
+          deduct_weight: effectiveTotals.deductionWeight,
+          doc_no: docNo,
+          doc_type: effectiveValues.type,
+          gross_weight: effectiveTotals.grossWeight,
+          godown_name: effectiveValues.godownName,
+          image_count: imageCount,
+          net_weight: effectiveTotals.netWeight,
+          party_name: partySnapshot.partyName,
+          remark: effectiveValues.remark || null,
+          status: nextStatus,
+          supplier_id: partySnapshot.supplierId,
+          updated_at: new Date(),
+          updated_by: actor,
+          vehicle_image_count: effectiveValues.vehicleImageNames.length,
+          vehicle_image_names: effectiveValues.vehicleImageNames,
+          vehicle_no: effectiveValues.vehicleNo,
+        },
+        where: { id: existing.id },
+      })
       const createdPendingOutHoldIds = shouldRebuildWtoPendingOut
         ? await applyWeightTicketEditSideEffects(tx, {
           actor,
@@ -385,7 +522,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           weightTicketId: existing.id,
         })
         : []
-      const imageCount = values.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
       const { summaryRows } = buildWeightTicketProductSummaryRows(existing.id, createdLines)
       const createdSummaries = await Promise.all(summaryRows.map(({ lineIds, ...data }) => tx.weight_ticket_product_summaries.create({ data })))
       const summaryIdByProductId = new Map(createdSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
@@ -401,12 +537,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       if (bridgeRows.length) {
         await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
       }
-      await tx.weight_tickets.update({
-        data: {
-          image_count: imageCount,
-        },
-        where: { id: existing.id },
-      })
       const statusLogEventKey = await appendWeightTicketStatusLog(tx, {
         action: WEIGHT_TICKET_STATUS_ACTION.EDITED,
         actor,
@@ -415,10 +545,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           changes: editChanges,
           previousDocumentNo: existing.doc_no,
           reason: 'weight_ticket_edit',
-          type: values.type,
+          type: effectiveValues.type,
         },
         note: buildWtoEditTimelineNote({
-          newLines: lineRows,
+          newLines: effectiveLineRows,
           oldLines: existing.weight_ticket_lines,
         }),
         toStatus: nextStatus,
@@ -477,6 +607,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
     })
+    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
     return NextResponse.json({
       ...mapped,
     })
@@ -520,8 +651,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       }
 
       const confirmedAt = new Date()
-      const nextStatus = existing.doc_type === 'WTO' ? 'delivered' : 'received'
+      const ticketId = existing.id
       const updated = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`select pg_advisory_xact_lock(${ticketId})`
+        const existing = await tx.weight_tickets.findUniqueOrThrow({ include: ticketInclude, where: { id: ticketId } })
+        const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
+        if (existing.status !== 'draft' || !canMutateWeightTicket(existing, lockedUsage)) {
+          throw new WeightTicketWriteValidationError('เอกสารถูกเปลี่ยนสถานะหรือถูกใช้งานแล้ว กรุณาโหลดข้อมูลล่าสุด', {})
+        }
+        if (existing.weight_ticket_lines.length === 0) {
+          throw new WeightTicketWriteValidationError('เพิ่มรายการสินค้าอย่างน้อย 1 รายการก่อนยืนยันเอกสาร', {
+            lines: ['เพิ่มรายการสินค้าอย่างน้อย 1 รายการก่อนยืนยันเอกสาร'],
+          })
+        }
+        const nextStatus = existing.doc_type === 'WTO' ? 'delivered' : 'received'
         let confirmedHoldIds: bigint[] = []
         if (existing.doc_type === 'WTO') {
           await validateWeightTicketStockForWrite(tx, {
@@ -581,7 +724,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         })
       })
 
-      const mapped = mapWeightTicketRow(updated as WeightTicketRow, usage)
+      const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
+      const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
       const responseMapped = await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
       await recordAuditLog({
         action: 'status',
@@ -602,6 +746,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
       })
+      void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'confirmed', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
       const autoSendKey = mapped.type === 'WTI' ? 'LINE_AUTO_SEND_WTI' : 'LINE_AUTO_SEND_WTO'
       const autoSendConfig = await prisma.system_settings.findUnique({ where: { key: autoSendKey } })
       if (autoSendConfig?.value === 'true') {
@@ -635,7 +780,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     requirePermission(auth, 'daily.weight_tickets.cancel')
     const values = weightTicketCancelSchema.parse(rawValues)
     const cancelledAt = new Date()
+    const ticketId = existing.id
     const updated = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`select pg_advisory_xact_lock(${ticketId})`
+      const existing = await tx.weight_tickets.findUniqueOrThrow({ include: ticketInclude, where: { id: ticketId } })
+      const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
+      if (!canMutateWeightTicket(existing, lockedUsage)) {
+        throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('cancel', lockedUsage), {})
+      }
       const cancellingHoldIds = existing.doc_type === 'WTO'
         ? (await tx.stock_holds.findMany({
           select: { id: true },
@@ -690,7 +842,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       })
     })
 
-    const mapped = mapWeightTicketRow(updated as WeightTicketRow, usage)
+    const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
+    const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
     const responseMapped = await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
     await recordAuditLog({
       action: 'status',
@@ -712,6 +865,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       targetLabel: updated.doc_no,
       targetType: 'weight_ticket',
     })
+    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'cancelled', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
     const [timeline, pendingOutEvents] = await Promise.all([
       getWeightTicketTimeline(prisma, updated.id),
       getWeightTicketPendingOutEvents(prisma, updated.id),

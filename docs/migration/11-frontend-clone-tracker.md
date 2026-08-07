@@ -120,7 +120,7 @@ Clone the legacy frontend screens from `old-apps/legacy/index.html` into the Vue
 
 ## Next Active Work
 
-1. Connect Supabase Auth login against `dev-target`.
+1. Connect Supabase Auth login against `production`.
 2. Persist session, protect routes, and map sidebar/action visibility by role.
 3. Wire real read/write services page-by-page, starting with master data and low-risk setup pages before transaction-heavy pages.
 4. Add validation/type coverage before connecting each real mutation.

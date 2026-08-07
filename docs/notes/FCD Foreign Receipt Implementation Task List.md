@@ -77,7 +77,7 @@ FCD conversion
 
 ## Phase 0: Contract And Accounting Sign-off
 
-- [x] `FCD-000` ตั้ง functional currency ของบริษัทเป็น `THB` จาก Currency Master ใน singleton `finance_currency_policies` ทั้ง dev-target และ SIT; runtime ห้ามสมมติจาก account currency
+- [x] `FCD-000` ตั้ง functional currency ของบริษัทเป็น `THB` จาก Currency Master ใน singleton `finance_currency_policies` ทั้ง production และ SIT; runtime ห้ามสมมติจาก account currency
 - [x] `FCD-001` ใช้ moving weighted-average carrying rate ต่อ `FCD account + currency`: receipt เพิ่ม native/carrying THB เข้า pool, conversion ตัด carrying THB ตาม native ที่ถอน x weighted rate, และ revaluation ที่ post แล้วปรับ carrying rate ของยอดคงเหลือโดยไม่เปลี่ยน native balance
 - [x] `FCD-002` ยอดเงิน native และ book amount คำนวณ/เก็บ/แสดงที่ 2 ตำแหน่ง; FX rate ของ Customer Receipt ใช้ 2 ตำแหน่ง. คอลัมน์ rate เดิมคง precision ที่รองรับข้อมูลประเภทอื่นโดยไม่ทำ migration ปัดข้อมูลเดิม แต่ RCP write path รับ rate ได้ไม่เกิน 2 ตำแหน่งและปัดยอดเงินครั้งเดียวเมื่อสร้างรายการ
 - [x] `FCD-003` Customer Receipt ขอ suggested rate จาก API ตามวันรับเงิน; ผู้ใช้แก้ rate ได้ก่อนบันทึกและระบบเก็บ rate ที่ใช้จริงเป็น snapshot โดยไม่เพิ่ม global rate policy ใน batch นี้
@@ -146,7 +146,7 @@ FCD conversion
 - [x] `FCD-141` ใช้ additive migration: nullable columns/tables -> deploy writers -> reconcile -> enforce constraints
 - [x] `FCD-142` ไม่ backfill currency/rate ด้วย THB, USD, account master หรือ latest rate โดยอัตโนมัติ
 - [x] `FCD-143` สร้าง reconciliation SQL เปรียบเทียบ receipt, statement, FCD ledger, allocation และ FX entry
-- [x] `FCD-144` ทดสอบ migration บน dev-target ก่อน และบันทึก migration history ผ่านกระบวนการมาตรฐาน
+- [x] `FCD-144` ทดสอบ migration บน production ก่อน และบันทึก migration history ผ่านกระบวนการมาตรฐาน
 
 ## Phase 2: Domain Services And Posting Engine
 
@@ -286,9 +286,9 @@ FCD conversion
 - [x] `FCD-RCP-FX-12` FX report และ Receipt detail แสดง `AR Settlement`, receipt reference, branch, native/rate, Settlement THB, cash applied, AR settled และ FX gain จาก persisted snapshot
 - [x] `FCD-RCP-FX-13` cancel/replacement reverse AR, FCD ledger, Bank Statement และ FX fact ใน transaction เดียวจาก receipt snapshot; integration test ยืนยัน positive/reversal FX net เป็นศูนย์
 - [x] `FCD-RCP-FX-14` audit consumer ยืนยันว่า THB read model อ่าน Bank Statement/Cash Position ตามเดิม, FCD audit แยก, P&L อ่าน FX fact ครั้งเดียว และ AP ไม่อ่าน foreign customer receipt fact
-- [x] `FCD-RCP-FX-15` focused unit/consumer/P&L tests และ dev-target write integration test ครอบคลุม partial/multi-bill/discount/fee/FX/cancel/branch scope/anti-double-count
+- [x] `FCD-RCP-FX-15` focused unit/consumer/P&L tests และ production write integration test ครอบคลุม partial/multi-bill/discount/fee/FX/cancel/branch scope/anti-double-count
 - [x] `FCD-RCP-FX-16` อัปเดต flow note และ data dictionary ด้วย owner, หน่วย และสูตร native receipt, Settlement THB, cash applied, AR settled, AR remaining, carrying THB, Bank Fee และ AR Settlement FX
-- [x] `FCD-RCP-FX-17` focused tests `33/33`, dev-target write integration `2/2`, lint, type-check, build และ `git diff --check` ผ่าน; migration applied/recorded บน dev-target. Browser/UAT และ SIT promotion ยังเป็นคำสั่งแยก
+- [x] `FCD-RCP-FX-17` focused tests `33/33`, production write integration `2/2`, lint, type-check, build และ `git diff --check` ผ่าน; migration applied/recorded บน production. Browser/UAT และ SIT promotion ยังเป็นคำสั่งแยก
 
 #### Scope exclusions for this follow-up
 
@@ -404,7 +404,7 @@ FCD conversion
 - [x] `FCD-903` integration tests สำหรับ THB receipt เดิม, USD receipt, partial receipt, multiple bills, fee, overpayment และ cancellation: เรียก customer receipt service จริงด้วย fixture ชั่วคราว; THB receipt/cancel, USD partial + 2 bills + Bank Fee, settlement FX ที่มากกว่า AR และ foreign cancellation ผ่าน Dev/SIT พร้อม cleanup. แก้ foreign receipt transaction timeout สำหรับ multi-bill และ deferred contract ให้ receipt ที่ cancelled ไม่ต้อง reconcile กับ allocation active (2026-07-30)
 - [x] `FCD-904` concurrency tests ยืนยันว่า balance ไม่ติดลบ/ไม่ใช้ OD เกิน contract: integration fixture ตั้ง OD สูงแต่ seed native USD เพียง 100 แล้วแข่งถอน 75 สอง transaction; Dev และ SIT อนุญาตเพียง 1 conversion, native balance เหลือ 25 USD และ postflight fixture cleanup เหลือ 0 แถวใน accounts/FCD ledger/Bank Statement/conversion (2026-07-30)
 - [x] `FCD-905` reconciliation fixtures ครอบคลุม receipt -> revaluation -> conversion -> reversal: integration fixture สร้าง Customer/Sales Bill/FCD/THB account ชั่วคราว, post receipt 100 foreign currency ที่ carrying 3,500, revalue เป็น 3,600, convert 50, reverse conversion/revaluation/receipt และตรวจ native กับ carrying balance กลับเป็น 0; ผ่าน Dev/SIT พร้อม cleanup fixture (2026-07-30)
-- [x] `FCD-906` migration preflight/postflight บน dev-target โดยไม่แก้ legacy-prod-source: ตรวจ read-only เมื่อ 2026-07-30 ทั้ง dev-target และ SIT หลัง transaction reset; แต่ละ environment มี functional-currency policy 1 แถว, FCD ledger/receipt/Bank Statement เป็น 0 แถว และ `supabase/preflight/reconcile_fcd_foreign_events.sql` คืน 0 issue โดยไม่แตะ legacy-prod-source หรือเขียนข้อมูลใด ๆ
+- [x] `FCD-906` migration preflight/postflight บน production โดยไม่แก้ legacy-prod-source: ตรวจ read-only เมื่อ 2026-07-30 ทั้ง production และ SIT หลัง transaction reset; แต่ละ environment มี functional-currency policy 1 แถว, FCD ledger/receipt/Bank Statement เป็น 0 แถว และ `supabase/preflight/reconcile_fcd_foreign_events.sql` คืน 0 issue โดยไม่แตะ legacy-prod-source หรือเขียนข้อมูลใด ๆ
 - [x] `FCD-907` lint, type-check, build, focused tests และ `git diff --check` ผ่านเมื่อ 2026-07-30: lint ไม่มี error (warnings เดิม 7 รายการนอกขอบเขต FCD), type-check และ production build ผ่าน; เพิ่ม `Suspense` wrapper ให้ FCD Ledger/Revaluation/Conversion ซึ่งอ่าน query string เพื่อแก้ production prerender failure. Focused FCD/UI contract tests 22/22 ผ่าน
 - [x] `FCD-908` browser/API UAT เฉพาะเมื่อร้องขอ ครอบคลุม desktop/mobile และทุก event flow (2026-07-31)
   - SIT ตรวจยืนยัน `ACC01-002|USD` แสดงใน Receipt/FCD Ledger/Revaluation/Conversion options หลัง invalidate account reference cache.
@@ -418,7 +418,7 @@ FCD conversion
 | Batch | Scope | Exit criteria |
 |---|---|---|
 | A | `FCD-000` ถึง `FCD-009` | accounting contract และตัวอย่าง posting ได้รับการยืนยัน |
-| B | `FCD-101` ถึง `FCD-144` | additive schema/migration และ reconciliation SQL ผ่าน dev-target |
+| B | `FCD-101` ถึง `FCD-144` | additive schema/migration และ reconciliation SQL ผ่าน production |
 | C | `FCD-201` ถึง `FCD-211` | posting engine, concurrency และ anti-double-count tests ผ่าน |
 | D | `FCD-301` ถึง `FCD-342` | Customer Receipt เลือก SB/CADV ก่อนบัญชี รับ USD ผ่าน FCD และ list/detail/print/notification/reverse ใช้ snapshot ถูกต้อง |
 | E | `FCD-401` ถึง `FCD-507` | BST/Cash Position ใช้ book THB เป็นหลัก และ FCD Ledger เก็บ native+carrying facts สำหรับ drilldown/conversion โดย reconcile กันได้ |

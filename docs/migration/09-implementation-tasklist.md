@@ -40,7 +40,7 @@
 - [x] Update Sales selectors/API validation: WTO customer, PO Sell, Sales Bill, and AR filters that select Customer with branch
 - [x] Add focused service checks for branch mapping audit and unmapped reject behavior
   - Audit command: `npm run audit:party-branch-mappings --workspace @ns-scrap-erp/next`
-  - Current dev-target data has no mapped active Customer/Supplier rows, so mapped-accepted checks are `null` until master mappings are populated.
+  - Current production data has no mapped active Customer/Supplier rows, so mapped-accepted checks are `null` until master mappings are populated.
   - Unmapped Customer/Supplier reject checks pass; strict runtime intentionally blocks new branch-bound writes for unmapped parties.
 - [x] Run validation proportional to touched code and update checkpoint docs after each batch
   - Latest completed check: `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`
@@ -53,7 +53,7 @@
 - AP/AR are read/report surfaces, not write surfaces; their Customer/Supplier filters now carry `branchIds` from mapping tables and filter by selected branch.
 - Customer Advance, Supplier Advance finance reports, Sales Receipt, Purchase Payment, and Receipt Voucher surfaces derive party from existing statements/source documents or do not own a branch + party write contract in the current runtime slice. Enforcement remains at the upstream branch-bound document writes.
 - Daily Expense currently has no visible branch selector in the form even though the API schema keeps optional `branchId`; no new branch-party behavior was added there to avoid changing the expense flow outside this batch.
-- Initial operational data task completed on dev-target: `51` active Customers and `1871` active Suppliers were assigned to branch `01` / `สมุทรสาคร` as active primary mappings. Users can correct branch ownership later in Customer/Supplier master data.
+- Initial operational data task completed on production: `51` active Customers and `1871` active Suppliers were assigned to branch `01` / `สมุทรสาคร` as active primary mappings. Users can correct branch ownership later in Customer/Supplier master data.
 
 ## Active Follow-up: Supplier ADV Type And VAT-Aware PB Allocation
 
@@ -83,7 +83,7 @@
 - [x] Update ADV list/detail/print/export/timeline to show type, invoice no, VAT, and tax breakdown
 - [x] Update PB ADV option/read model to expose VAT breakdown and block invalid VAT pairing
 - [x] Update PB allocation and settlement logic so no-VAT ADV uses total-amount deduction and VAT ADV uses base/VAT deduction
-- [x] Apply migration to dev-target and regenerate Prisma client
+- [x] Apply migration to production and regenerate Prisma client
 - [x] Update AP, Tax VAT/WHT, PB print/detail, and payment approval handoff to read VAT-aware PB/ADV settlement
   - AP drilldown, PB detail/direct detail/print, and payment approval now expose ADV type, invoice no, VAT mode, and allocated base/VAT/total where available.
   - Tax VAT/WHT intentionally continues to read purchase VAT from `purchase_bills` as the filing/report source; supplier ADV VAT is an allocation support snapshot and must not be counted as a second independent input-VAT document until a normalized tax ledger/filing flow is designed.
@@ -98,13 +98,13 @@
 - [x] Update `/api/sales/bills` create/edit/cancel to select CADV from `customer_advances`, write allocation breakdown, and refresh CADV `allocated_amount`/`available_amount`/status
 - [x] Update AR drilldown, Sales Bill detail, and print read models to display CADV allocated total from allocation facts
 - [x] Add focused CADV calculation tests for receipt base capacity, allocation split, VAT recalculation, and cap-at-bill-base behavior
-- [x] Apply the CADV allocation-breakdown migration to dev-target `fhglqymcdmrgbsbadnwr` and record migration version `20260716082726`
+- [x] Apply the CADV allocation-breakdown migration to production `fhglqymcdmrgbsbadnwr` and record migration version `20260716082726`
 - [ ] Apply the CADV allocation-breakdown migration to any SIT/UAT/production runtime database before deploying this code there
 - [x] Implement `/sales/receipts` -> CADV receipt allocation so RCP populates CADV `received_amount` and `available_amount` from real cash receipts
   - Receipt modal now requires explicit `sourceType` (`SB` or `CADV`) and keeps source line collections separate; mixed-source payloads are rejected without fallback.
   - CADV RCP writes `customer_receipt_advance_allocations`, bank statement cash-in, CADV received/remaining/status snapshots, and reverses those facts on cancel/reissue.
   - GET `/api/sales/receipts` exposes pending CADV options and source-aware receipt history.
-  - Migration `20260718100000_add_customer_receipt_advance_allocations.sql` was applied to dev-target, SIT, and customer UAT with Supabase CLI; migration history `20260718100000` is present in all three environments.
+  - Migration `20260718100000_add_customer_receipt_advance_allocations.sql` was applied to production, SIT, and customer UAT with Supabase CLI; migration history `20260718100000` is present in all three environments.
 
 ## Active Follow-up: Reference Master Redis Cache
 
@@ -602,27 +602,27 @@
 ### 0.2 Local Development Readiness
 
 - [x] ดึง DB dump ลง local
-- [x] สร้าง Supabase dev/target project
+- [x] กำหนด Supabase SIT project สำหรับ development และการทดสอบ
 - [x] เพิ่ม project-level `.mcp.json`
 - [x] ย้าย Supabase MCP ออกจาก global config มาไว้ที่ project-level เป็น canonical config
 - [x] เพิ่ม Supabase MCP เข้า Codex runtime/global config เป็นข้อยกเว้น เพราะ CLI ปัจจุบันไม่ auto-load `.mcp.json`
 - [x] ทำ `.env.example` สำหรับ local development
 - [x] กำหนด rule ว่าไฟล์ dump/data sensitive ห้าม push
 - [x] login MCP project-level server `supabase` ผ่าน CLI OAuth แล้ว
-- [x] ทำ README วิธีรันระบบใหม่/ดู legacy source และ Supabase dev/target
+- [x] ทำ README วิธีรันระบบใหม่/ดู legacy source และ Supabase SIT
 - [x] restart Codex session แล้ว verify MCP runtime เห็น `supabase`
 - [ ] เติม dev anon key และ dev DB URL จริงใน `.env.local`
   - [x] เติม dev frontend publishable key ใน `.env.local`
   - [x] เติม dev pooler host/user ใน `.env.local`
   - [x] เติม dev database password จริงใน `.env.local` สำหรับ local shell; ห้าม commit ไฟล์นี้
-  - [x] import legacy `public` baseline เข้า `dev-target`
+  - [x] import legacy `public` baseline เข้า `production`
 
 ### 0.3 Scope Agreement
 
 - [ ] ยืนยันกับลูกค้าว่า Phase 1 ทำเฉพาะ foundation + master data
 - [ ] ระบุ module ที่ freeze ไว้ก่อน
 - [ ] ระบุ flow ที่ห้ามกระทบในช่วง refactor
-- [ ] ยืนยันแผน environment ระยะถัดไป: `dev-target` -> `staging-uat` -> final production decision
+- [ ] ยืนยันแผน environment ระยะถัดไป: `production` -> `staging-uat` -> final production decision
 - [ ] ตัดสินภายหลังว่าจะ deploy กลับ old env ลูกค้า หรือสร้าง `new-prod`
 
 ## Phase 1: Project Structure
@@ -677,8 +677,8 @@
 - [x] รัน `npm install`
 - [x] รัน `npm run build` ผ่าน
 - [x] รัน `npm test` ผ่านหลัง route cleanup
-- [x] เติม dev Supabase anon/publishable key จริงใน `.env.local` ก่อนทดสอบ login จริง
-- [x] เริ่ม Auth/Permission schema + RLS ใน `dev-target`
+- [x] เติม SIT Supabase anon/publishable key จริงใน `.env.local` ก่อนทดสอบ login จริง
+- [x] เริ่ม Auth/Permission schema + RLS ใน `production`
 
 ### 1.6 Frontend Clone Surface
 
@@ -801,11 +801,11 @@ Reporting rule:
 - [x] บันทึก strategy reset เป็น `DB-first identifier cutover` แยกใน `docs/migration/21-db-first-identifier-cutover.md`
 - [x] migrate `branches.id` / `warehouses.id` และ downstream FKs ไป internal `bigint`
   - direct-cutover audit on 2026-06-05 already proved this touches at least admin users / `app_user_branch_access`, `/api/branches`, daily expense, WTI/WTO, finance AP/AR, dashboard/report helpers, supplier import/export, and shared auth-context/filter logic in addition to purchase/stock/master-data
-  - runtime/schema-prep follow-up on 2026-06-05 compiled and built cleanly before DB cutover, and Wave 1 DB apply was completed later the same day on `dev-target`
+  - runtime/schema-prep follow-up on 2026-06-05 compiled and built cleanly before DB cutover, and Wave 1 DB apply was completed later the same day on `production`
 - [x] migrate `customers.id` / `salespersons.id` และ downstream FKs ไป internal `bigint`
-- runtime/prisma fallout checkpoint on 2026-06-05 passed `type-check`, `lint`, and `build` before DB cutover, and Wave 1 DB apply was completed later the same day on `dev-target`
+- runtime/prisma fallout checkpoint on 2026-06-05 passed `type-check`, `lint`, and `build` before DB cutover, and Wave 1 DB apply was completed later the same day on `production`
 - [x] migrate `suppliers.id` และ downstream FKs ไป internal `bigint`
-- runtime/prisma fallout checkpoint on 2026-06-05 passed `type-check`, `lint`, and `build` before DB cutover, and Wave 1 DB apply was completed later the same day on `dev-target`
+- runtime/prisma fallout checkpoint on 2026-06-05 passed `type-check`, `lint`, and `build` before DB cutover, and Wave 1 DB apply was completed later the same day on `production`
 - [x] execute Wave 1 DB cutover from `21-db-first-identifier-cutover.md`
   - [x] master PKs: `branches`, `warehouses`, `customers`, `salespersons`, `suppliers`
   - [x] branch refs: `accounts`, `app_user_branch_access`, `assets`, `expenses`, `payments`, `po_buys`, `po_sells`, `production_lines`, `production_machines`, `production_orders`, `purchase_bills`, `receipts`, `sales_bills`, `stock_adjustments`, `stock_issues`, `stock_ledger`, `supplier_advance_payments`, `suppliers`, `users`, `warehouses`, `weight_tickets`
@@ -813,7 +813,7 @@ Reporting rule:
   - [x] customer refs: `po_sells`, `receipts`, `sales_bills`, `stock_issues`, `trading_deals`, `weight_tickets`
   - [x] supplier refs: `assets`, `payments`, `po_buys`, `purchase_bills`, `supplier_advance_payments`, `supplier_bank_accounts`, `trading_deals`, `weight_tickets`
   - [x] salesperson refs: `customers.sales_id`, `suppliers.sales_id`, `purchase_bills.sales_id`, `sales_bills.sales_id`
-  - [x] apply cutover to `dev-target`
+  - [x] apply cutover to `production`
   - [x] rerun runtime validation after DB apply
 - [x] remove temporary Wave 1 compatibility columns after cutover validation
   - [x] drop master `legacy_id` columns from `branches`, `warehouses`, `customers`, `salespersons`, `suppliers`
@@ -840,7 +840,7 @@ Reporting rule:
   - [x] `/api/finance/ap` และ `/api/finance/ar` ใช้ `doc_no` เป็น outward `id` ของ aging rows แล้ว และ AR channel filter ใช้ `sales_channels.code`
   - [x] `/api/daily/bill-swap-history` ไม่ใช้ internal bigint row id ออกข้างนอกแล้ว; row key ใช้ business composite จาก `billDocNo:itemIndex:swapDate`
 - [x] execute Wave 2 DB cutover from `21-db-first-identifier-cutover.md`
-  - [x] apply `20260605082953_db_first_identifier_wave2_remaining_text_ids.sql` to `dev-target`
+  - [x] apply `20260605082953_db_first_identifier_wave2_remaining_text_ids.sql` to `production`
   - [x] convert every remaining `public.id text` table to `id bigint`
   - [x] add missing business-key columns in the same pass for `accounts`, `currencies`, `impurities`, `purchase_channels`, `sales_channels`, and `overseas_remittance_purposes`
   - [x] add `loans.contract_no`
@@ -851,8 +851,8 @@ Reporting rule:
   - [x] backfill existing supplier bank-account rows from `bank_names`
   - [x] refactor supplier master-data / import-export / payment flows to read primary bank data from `supplier_bank_accounts`
   - [x] drop `suppliers.bank_name`, `suppliers.bank_account`, `suppliers.bank_account_name`, and `supplier_bank_accounts.bank_name`
-  - [x] apply migration to `dev-target` and rerun runtime validation
-  - [x] rerun `prisma db pull` / `prisma generate` against `dev-target`
+  - [x] apply migration to `production` and rerun runtime validation
+  - [x] rerun `prisma db pull` / `prisma generate` against `production`
 - [x] close Wave 2 runtime fallout after DB/schema sync
   - [x] update server/API code that still assumes converted ids are `string`
   - [x] rerun `npm run type-check --workspace @ns-scrap-erp/next`
@@ -931,7 +931,7 @@ Reporting rule:
   - [x] แยก `/api/sales/receipts` queue query เป็น outstanding SB และ active-allocation SB เพื่อลด OR-heavy query
   - [x] ลด broad ORM relation payload ด้วย `select` เฉพาะ field ที่ response ใช้จริง
   - [x] เพิ่ม index `idx_sales_bills_customer_receipt_outstanding_queue`, `idx_customer_receipt_allocations_active_sales_bill`, และ `idx_customer_receipts_history_order`
-  - [x] apply migration `20260612131350_optimize_customer_receipt_queries.sql` ไป dev-target และ verify ด้วย EXPLAIN
+  - [x] apply migration `20260612131350_optimize_customer_receipt_queries.sql` ไป production และ verify ด้วย EXPLAIN
 - [ ] เพิ่ม Document Aging read model/report สำหรับ `PB/SB/WTI/WTO/POB/POS`
   - [x] บันทึก target contract ที่ `docs/notes/Document Aging Policy.md`
   - [ ] ใช้ bucket เดียวกับ AP/AR สำหรับ `PB/SB` financial due aging
@@ -1003,7 +1003,7 @@ Reporting rule:
 - [x] ตั้ง Next app baseline ใน `apps/next`
 - [x] ตั้ง Prisma data path สำหรับ Next API routes
 - [x] ทำ `/master-data/customers` เป็น baseline page แรก
-- [x] ต่อ `/api/master-data/customers` กับ Prisma/dev-target
+- [x] ต่อ `/api/master-data/customers` กับ Prisma/production
 - [x] ต่อ `/api/master-data/thai-address` กับ Thai address reference tables
 - [x] Batch 1: `salespersons`, `currencies`, `expense-categories`, `channels`
 - [x] Batch 2: `branches`, `warehouses`, `accounts`
@@ -1299,7 +1299,7 @@ Tracker: [16-next-production-progress.md](/Users/watcharathatsrithanesiganon/Doc
 - [ ] configure Supabase redirect URLs
 - [ ] configure preview deployment
 - [ ] create `staging-uat` Supabase project when ready for user testing
-- [ ] deploy tested schema from `dev-target` to `staging-uat`
+- [ ] deploy tested schema from `production` to `staging-uat`
 - [ ] seed sanitized or approved snapshot data into `staging-uat`
 - [ ] run UAT against `staging-uat`
 - [ ] decide final production target: old customer environment or new production project

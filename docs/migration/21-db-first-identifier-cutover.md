@@ -34,9 +34,9 @@
 - จากนั้นค่อยไล่แก้ Prisma/runtime/code ให้ conform กับ schema จริง
 - ถ้ามีจุดพังใน dev ให้แก้ตรงจุดนั้น ไม่เพิ่ม fallback debt
 
-## Dev-Target Inventory Snapshot
+## Production Inventory Snapshot
 
-Audit วันที่ `2026-06-05` จาก `dev-target` (`fhglqymcdmrgbsbadnwr`) ยืนยันว่า `public` schema ยังมี legacy `text id` กระจายเป็นวงกว้าง
+Audit วันที่ `2026-06-05` จาก `production` (`fhglqymcdmrgbsbadnwr`) ยืนยันว่า `public` schema ยังมี legacy `text id` กระจายเป็นวงกว้าง
 
 ### Already On Target Direction
 
@@ -309,8 +309,8 @@ Planned follow-up:
   - decision: `weight_ticket_lines`, `weight_ticket_product_summaries`, and `weight_ticket_product_summary_lines` stay internal-only bridge/detail rows; no new persisted outward key was added
   - `/api/daily/weight-tickets` and `/api/daily/weight-tickets/[id]` now resolve `products.code` at the API boundary and map to internal bigint ids only after validation
   - shared weight-ticket helpers now expose line ids as `${doc_no}:${line_no}` and summary ids as `${doc_no}:${productCode}:${lineCount}`, while `/api/purchase/bills` receipt options now derive `sourceLineIds` from outward line composites instead of `weight_ticket_line_id`
-  - dev-target apply for this slice was executed directly via `psql` against `apps/next/.env.local` `DATABASE_URL` after `supabase db push --include-all` exposed pre-existing remote migration-history drift (`20260518035804_create_product_units_master.sql` attempted to replay old text-id inserts and failed before the new migration)
-  - direct apply succeeded with 728 backfilled log rows, so the active runtime and dev-target DB are aligned for this slice even though remote migration history still needs separate cleanup
+  - production apply for this slice was executed directly via `psql` against `apps/next/.env.local` `DATABASE_URL` after `supabase db push --include-all` exposed pre-existing remote migration-history drift (`20260518035804_create_product_units_master.sql` attempted to replay old text-id inserts and failed before the new migration)
+  - direct apply succeeded with 728 backfilled log rows, so the active runtime and production DB are aligned for this slice even though remote migration history still needs separate cleanup
   - remaining Batch C execution order is now narrowed to two reviewable follow-up batches:
     - `C8 finance/support history contract`: normalize remaining `fx_gain_loss`, `payment_approvals`, `stock_ledger`, `bank_statement`, and report/helper read rows onto `doc_no/ref_no/event_key/code` only
     - `C9 support/admin declaration`: explicitly mark support/admin tables that remain internal-only so future waves stop auditing them as if they still needed business keys
@@ -353,14 +353,14 @@ Planned follow-up:
   - migration `supabase/migrations/20260606100000_add_ledger_key_to_stock_ledger.sql` adds persisted `ledger_key` with DB default and backfills existing rows
   - `/api/stock/ledger` now uses `stock_ledger.ledger_key` as outward row identity instead of fabricating row ids from `ref_type/ref_no/product/date/lot/status`
   - `stock_ledger` keeps bigint PK/FK columns internal-only; `ref_no` / `doc_no` remain the outward business references for document linkage
-  - direct apply to `dev-target` succeeded via `psql` with `1844` rows backfilled
+  - direct apply to `production` succeeded via `psql` with `1844` rows backfilled
   - current `C8` audit conclusion:
     - `payment_approvals`, `bank_statement`, `fx_gain_loss`, customer/supplier advance support routes, admin transaction ledger, and `stock_ledger` active payloads are aligned with `doc_no/ref_no/code/ledger_key` outward
   - current `C9` declaration shortlist:
     - business-key backlog should exclude `audit_logs`, `deletion_log`, `deletion_tombstones`, `company_profiles`, `roles`, `user_profiles`, `app_users`, `app_auth_events`, `app_user_roles`, and `app_user_branch_access`
     - `auth.*` / Supabase identity-layer UUID tables remain explicitly out of scope for Batch C business-flow cutover
 
-- app-owned UUID wave applied to `dev-target` with migration:
+- app-owned UUID wave applied to `production` with migration:
   - `supabase/migrations/20260605110000_convert_app_public_uuid_ids_to_bigint.sql`
 - scope completed in this wave:
   - standalone/near-standalone:
@@ -421,7 +421,7 @@ Planned follow-up:
   - `npm run lint --workspace @ns-scrap-erp/next`
   - `npm run build --workspace @ns-scrap-erp/next`
   - `git diff --check`
-- current UUID primary-key inventory in `dev-target` is now outside ordinary business-schema scope:
+- current UUID primary-key inventory in `production` is now outside ordinary business-schema scope:
   - GoTrue/auth managed: `auth.*` including `auth.users`
   - maintenance helper: `maintenance.branch_id_remap_20260520_1720_user_profiles_branch_ids`
   - platform schemas: `realtime.messages`, `storage.buckets_analytics`, `storage.objects`, `storage.s3_multipart_uploads_parts`, `vault.decrypted_secrets`, `vault.secrets`
@@ -481,11 +481,11 @@ Planned follow-up:
     - still failing out of slice: `type-check` / `build` stop on `src/app/api/admin/users/[id]/invite/route.ts`, `src/app/api/admin/users/[id]/status/route.ts`, and `src/app/api/admin/users/[id]/route.ts`
 
 - ยืนยัน policy ใหม่ว่า migration ชุดนี้ต้องเป็น `DB-first`, ไม่ใช่ boundary-first cleanup
-- audit `dev-target` แล้วพบว่า `public` schema ยังมี `text id` จำนวนมาก แม้ Prisma/app runtime จะเริ่มขยับไป `bigint` บาง family แล้ว
+- audit `production` แล้วพบว่า `public` schema ยังมี `text id` จำนวนมาก แม้ Prisma/app runtime จะเริ่มขยับไป `bigint` บาง family แล้ว
 - สร้าง migration scaffold:
   - `supabase/migrations/20260605080737_db_first_identifier_wave1_foundation_masters.sql`
-- runtime failure ปัจจุบันของ `/api/branches` และ `/api/purchase/bills` ถูกยืนยันว่า root cause มาจาก `Prisma BigInt schema` ไม่ตรงกับ `DB text id` ใน `dev-target`
-- apply Wave 1 ลง `dev-target` สำเร็จแบบ transaction เดียว
+- runtime failure ปัจจุบันของ `/api/branches` และ `/api/purchase/bills` ถูกยืนยันว่า root cause มาจาก `Prisma BigInt schema` ไม่ตรงกับ `DB text id` ใน `production`
+- apply Wave 1 ลง `production` สำเร็จแบบ transaction เดียว
   - master PKs ที่ถูกสลับแล้ว:
     - `branches.id bigint`, `branches.legacy_id text`
     - `warehouses.id bigint`, `warehouses.legacy_id text`
@@ -506,7 +506,7 @@ Planned follow-up:
   - anonymous `GET /api/branches` และ `GET /api/purchase/bills` ตอนนี้ตอบ `401` ตาม auth guard แทน `500`, ยืนยันว่า `BigInt mismatch` ชั้น DB สำหรับ Wave 1 ถูกตัดออกแล้ว
 - apply Wave 1 cleanup migration สำเร็จ:
   - `supabase/migrations/20260605082330_drop_wave1_legacy_identifier_columns.sql`
-  - ลบ `legacy_id` และ `*_legacy_id` ออกจาก `dev-target` ทั้งหมดแล้ว
+  - ลบ `legacy_id` และ `*_legacy_id` ออกจาก `production` ทั้งหมดแล้ว
   - verify แล้วว่า query inventory ไม่เหลือคอลัมน์ชื่อ `legacy_id` หรือ `*_legacy_id` ใน `public`
   - validation หลัง cleanup ยังผ่าน:
     - `npm run type-check --workspace @ns-scrap-erp/next`
@@ -553,7 +553,7 @@ Planned follow-up:
   - verification for this pass is scoped only:
     - `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false 2>&1 | rg "weight-tickets"` returned no matches
     - `git diff --check -- apps/next/src/app/api/daily/weight-tickets/route.ts apps/next/src/app/api/daily/weight-tickets/[id]/route.ts apps/next/src/lib/server/weight-tickets.ts`
-- apply Wave 2 ลง `dev-target` สำเร็จ:
+- apply Wave 2 ลง `production` สำเร็จ:
   - migration `20260605082953_db_first_identifier_wave2_remaining_text_ids.sql` now converts every remaining `public.id text` table to `id bigint`
   - verified post-apply inventory:
     - `public.id text` remaining = `0`
@@ -1000,4 +1000,4 @@ Planned follow-up:
 3. legacy string ids ถูกเก็บเป็น `legacy_id` หรือ equivalent compatibility field แทนการเป็น PK/FK หลัก
 4. Prisma schema ตรงกับ DB จริง
 5. active Next runtime ผ่าน `type-check`, `lint`, `build`
-6. `/api/branches` และ `/api/purchase/bills` กลับมาทำงานได้บน `dev-target`
+6. `/api/branches` และ `/api/purchase/bills` กลับมาทำงานได้บน `production`

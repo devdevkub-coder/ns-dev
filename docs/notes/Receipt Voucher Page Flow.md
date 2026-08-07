@@ -92,7 +92,7 @@ Target decision ล่าสุดของ active Next คือ modal ต้�
 - ปุ่ม `ยกเลิก` เปิดใช้งานแล้วสำหรับเอกสารสถานะ `active`; ต้องกรอกเหตุผลและจะ mark เอกสารเป็น `cancelled` พร้อม timeline
 - print preview ใช้ redesigned A4 template แบบ compact ที่อิงโครง legacy: company header จาก Company Profile, ชื่อเอกสารกลาง, วันที่/เลขเอกสาร, ข้อมูลผู้รับเงินแบบบรรทัดข้อความ, block `ได้รับเงินจาก` บริษัท, ตารางรายการ, summary แยกหน่วย, จำนวนเงินตัวอักษร, ลายเซ็นผู้จ่าย/ผู้รับ, และหมายเหตุแนบสำเนาบัตรประชาชน
 - API มี `GET`, `POST`, `PATCH save`, และ `PATCH action=cancel`; ไม่มี hard delete
-- Runtime RV contract ถือว่า complete สำหรับ batch นี้: create/edit/cancel/detail/timeline/print/no-fallback behavior มีใน code แล้ว และ migration status log ถูก apply/backfill บน dev-target แล้ว
+- Runtime RV contract ถือว่า complete สำหรับ batch นี้: create/edit/cancel/detail/timeline/print/no-fallback behavior มีใน code แล้ว และ migration status log ถูก apply/backfill บน production แล้ว
 - สิ่งที่เหลือก่อนส่งขึ้น remote คือ delivery step เท่านั้น: rerun validation ซ้ำหลัง worktree สงบ และ stage/push เฉพาะไฟล์ RV เพราะ worktree ปัจจุบันมีงาน stock/production/sales อื่นปนอยู่
 - DB/API optimization checkpoint: `GET` ยังเป็น one-call page bootstrap เหมือนเดิม แต่ server เลือกเฉพาะ timeline fields ที่ต้องส่ง, Supplier options เรียง `code/name` เพื่อใช้ active Supplier index, และการออกเลข RV ใช้ monthly advisory lock แล้วอ่านเฉพาะ `doc_no` ล่าสุดของ prefix นั้น
 
@@ -444,9 +444,9 @@ Print document must include:
 Status ณ 2026-06-12:
 
 - Runtime implementation: complete for current RV scope
-- Dev-target migration: applied and existing RV create log backfilled
-- DB/API optimization: migration `20260612224500_optimize_receipt_voucher_queries.sql` applied to dev-target; it adds indexes for RV list ordering, RV doc-number prefix lookup, RV timeline ordering, active PB options, and active Supplier selector ordering
-- Query-plan result: active Supplier selector changed from seq scan + sort around 190ms on 1,870 active rows to `idx_suppliers_active_code_name` index scan around 5.5ms on dev-target; RV/PB tables are currently small so Postgres may still choose seq scan, but the target indexes are present for growth
+- Production migration: applied and existing RV create log backfilled
+- DB/API optimization: migration `20260612224500_optimize_receipt_voucher_queries.sql` applied to production; it adds indexes for RV list ordering, RV doc-number prefix lookup, RV timeline ordering, active PB options, and active Supplier selector ordering
+- Query-plan result: active Supplier selector changed from seq scan + sort around 190ms on 1,870 active rows to `idx_suppliers_active_code_name` index scan around 5.5ms on production; RV/PB tables are currently small so Postgres may still choose seq scan, but the target indexes are present for growth
 - Browser smoke: passed for list load, detail/timeline modal, cancel dialog open/close, and print preview
 - Validation: Prisma generate passed after the optimization migration/schema update, targeted ESLint passed for RV route/Prisma guard, full lint passed earlier with one unrelated existing `<img>` warning in Products, `git diff --check` passed, type-check passed once before final Prisma stale-guard update; later reruns after optimization exited `143` with no TypeScript diagnostic output
 - Push: not done in this checkpoint because worktree contains unrelated dirty files; push should stage only the RV migration/schema/API/UI/doc/prisma guard files

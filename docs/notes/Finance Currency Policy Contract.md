@@ -43,7 +43,7 @@ Runtime reader ต้อง fail closed เมื่อไม่มีหรื�
 
 ## Current Status
 
-วันที่ 2026-07-30 ได้ apply migration `20260730110000_create_finance_currency_policy.sql` และตั้ง policy row เดียวเป็น `THB` จาก Currency Master ทั้ง dev-target และ SIT แล้ว. Runtime reader จึงอ่าน functional currency จาก configuration ได้โดยไม่ต้อง hardcode. Foreign posting service ยังไม่เปิดจนกว่า schema/ledger/service tasks ที่เกี่ยวข้องจะเสร็จ.
+วันที่ 2026-07-30 ได้ apply migration `20260730110000_create_finance_currency_policy.sql` และตั้ง policy row เดียวเป็น `THB` จาก Currency Master ทั้ง production และ SIT แล้ว. Runtime reader จึงอ่าน functional currency จาก configuration ได้โดยไม่ต้อง hardcode. Foreign posting service ยังไม่เปิดจนกว่า schema/ledger/service tasks ที่เกี่ยวข้องจะเสร็จ.
 
 ## Related
 

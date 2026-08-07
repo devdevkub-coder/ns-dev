@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - ใช้ active app ใต้ `apps/next/` เท่านั้น
-- ใช้ `dev-target` สำหรับ schema/migration และ validation ที่แตะ DB
+- ใช้ `production` สำหรับ schema/migration และ validation ที่แตะ DB
 - `sourceType` ต้องเป็น `SB` หรือ `CADV` เท่านั้น
 - RCP หนึ่งใบเลือกได้หลายรายการ แต่ห้ามผสม SB/CADV
 - ไม่มี fallback จาก `billId`, JSON snapshot, allocation คนละประเภท หรือ ref type อื่น
@@ -99,7 +99,7 @@ git commit -m "feat(receipts): define SB and CADV source contract"
 
 - [ ] **Step 4: Generate/check Prisma client without applying production changes**
 
-Run: `npx prisma validate --schema apps/next/prisma/schema.prisma` และ migration-specific check ต่อ dev-target ตาม environment rule
+Run: `npx prisma validate --schema apps/next/prisma/schema.prisma` และ migration-specific check ต่อ production ตาม environment rule
 
 - [ ] **Step 5: Commit**
 

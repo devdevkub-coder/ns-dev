@@ -131,9 +131,9 @@ Target stack:
 
 Next implementation focus:
 
-- เติม dev Supabase anon key จริงใน `.env.local`
+- เติม SIT Supabase anon key จริงใน `.env.local`
 - verify Supabase MCP/runtime หลังเปิด session ใหม่
-- เริ่ม Auth/Permission schema ใน `dev-target`
+- เริ่ม Auth/Permission schema ใน `production`
 - ขยาย master data จาก read-only pilot ไป create/edit, active/inactive, import/export และ validation/reconciliation
 
 ยังไม่ใช้:
@@ -174,7 +174,7 @@ DB เดิมมีข้อมูลจริงและมีคุณค�
 - ลด `jsonb` ใน transaction-critical data
 - ใช้ FK จริงเท่าที่ทำได้
 - ทำ ledger ให้ trace ได้
-- ใช้ RLS ใน Supabase dev/target
+- ใช้ RLS ใน Supabase SIT
 - migration ต้องมี reconciliation
 
 > [!warning] Database Migration Risk
@@ -190,9 +190,14 @@ project_ref: mqsgptraslgpyzbpndlg
 account/context: Supabase เก่าของลูกค้า
 usage: source/read-only/audit/migration mapping
 
-dev-target
+production
 project_ref: fhglqymcdmrgbsbadnwr
-account/context: Supabase dev ของเรา
+account/context: Supabase Production ของเรา
+usage: Production runtime/database; read-only by default
+
+sit
+project_ref: vbjlkxbytccklhqvxjuu
+account/context: Supabase SIT ของเรา
 usage: development, Auth/RLS testing, schema migration testing, frontend integration
 
 staging-uat
@@ -210,12 +215,12 @@ Final production strategy ยังไม่ตัดสินใจ:
 
 Preference ตอนนี้:
 
-- ทำงานใน `dev-target`
+- ทำงานใน `production`
 - สร้าง `staging-uat` ตอนพร้อมให้ user test
 - ค่อยตัดสิน final production หลัง UAT, backup, rollback, migration dry run และ reconciliation ชัดเจน
 
 > [!important] Environment Decision
-> `legacy-prod-source` เป็นแหล่งข้อมูลเก่าแบบ read-only/audit/migration mapping ส่วนงานพัฒนา, Auth/RLS testing, schema migration testing, และ frontend integration ต้องทำใน `dev-target`
+> `legacy-prod-source` เป็นแหล่งข้อมูลเก่าแบบ read-only/audit/migration mapping ส่วนงานพัฒนา, Auth/RLS testing, schema migration testing, และ frontend integration ต้องทำใน `production`
 
 ## MCP Decision
 
@@ -223,7 +228,7 @@ MCP ที่ผูกกับ project นี้ควรอยู่ใน pro
 
 Current project-level MCP:
 
-- `supabase`: dev-target project
+- `supabase`: production project
 - `supabase-prod-source`: legacy-prod-source แบบ read-only
 - `obsidian`: vault path scoped to this repository
 
@@ -266,10 +271,10 @@ repo นี้ทำหน้าที่เป็น Obsidian vault สำห�
 1. Restart Codex session so project-level MCP is loaded.
 2. Verify `/mcp` shows `supabase`, `supabase-prod-source`, and `obsidian`.
 3. Login project-level `supabase` MCP if needed.
-4. Fill dev Supabase values in `.env.local`:
+4. Fill SIT Supabase values in `.env.local`:
    - `VITE_SUPABASE_ANON_KEY`
    - `DATABASE_URL`
-5. Set Supabase dev project:
+5. Set Supabase SIT project:
    - Auth URL configuration
    - Email/password provider
    - Automatic RLS

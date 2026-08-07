@@ -741,7 +741,7 @@ GET    /api/admin/line-analytics/targets
 - ห้าม commit token, secret, `.env.local`, scratch scripts ที่มี credential
 - ห้าม `git add .`
 - Stage เฉพาะไฟล์ที่เกี่ยวข้อง
-- ถ้าต้อง query dev Supabase ให้ใช้ env/secret จากเครื่องหรือระบบ deploy เท่านั้น และห้ามพิมพ์ secret ลง log
+- ถ้าต้อง query Supabase ให้ระบุ environment ให้ชัดเจน: ใช้ SIT สำหรับ development/testing และใช้ Production เฉพาะงานที่ได้รับอนุมัติเท่านั้น พร้อมใช้ env/secret จากเครื่องหรือระบบ deploy และห้ามพิมพ์ secret ลง log
 - ทุกครั้งที่แก้ flow ส่ง LINE ต้องทดสอบทั้ง 2 ทาง:
   - ปุ่มทดสอบจาก settings
   - ส่งจริงจากใบชั่ง WTI/WTO

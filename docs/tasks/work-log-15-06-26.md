@@ -3,7 +3,7 @@
 ## 📅 ข้อมูลทั่วไป
 - **วันที่:** 15 มิถุนายน 2569 (2026-06-15)
 - **แอปพลิเคชันหลัก:** `apps/next/` (Next.js Target)
-- **ฐานข้อมูลพัฒนา (Dev Target):** Supabase `fhglqymcdmrgbsbadnwr`
+- **ฐานข้อมูลพัฒนา (Production):** Supabase `fhglqymcdmrgbsbadnwr`
 
 ---
 

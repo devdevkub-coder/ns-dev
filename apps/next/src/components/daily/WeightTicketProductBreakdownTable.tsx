@@ -533,7 +533,7 @@ export function WeightTicketProductBreakdownTable({
   )
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto pb-3 sm:pb-5 [&_td]:px-5 [&_th]:px-5">
       <table className="ns-table hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
         <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold text-slate-500">
           <tr>

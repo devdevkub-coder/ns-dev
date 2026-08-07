@@ -173,7 +173,7 @@ export function ProfilePageClient() {
     }
 
     if (!supabase) {
-      setSecurityError('ยังไม่ได้ตั้งค่า Supabase dev ใน environment')
+      setSecurityError('ยังไม่ได้ตั้งค่า Supabase ใน environment')
       return
     }
 

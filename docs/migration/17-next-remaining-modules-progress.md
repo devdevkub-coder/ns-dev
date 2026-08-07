@@ -237,7 +237,7 @@ Priority: สูง เพราะเป็นฐานของ purchase, sale
   - `/stock/adjust`
   - `/stock/customer-return`
 - [x] สรุป field/filter/button/modal/action ต่อหน้า
-- [x] map DB tables/columns ที่มีใน dev-target
+- [x] map DB tables/columns ที่มีใน production
 - [x] ระบุ movement types/ref types ที่ใช้จริง
 - [x] ระบุจุดที่ต้องเขียน stock ledger
 - [x] สรุปภาพรวม flow ทั้งหมวดก่อนเริ่ม S1
@@ -664,7 +664,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Legacy refs: `old-apps/vue/src/views/finance/SupplierAdvanceView.vue`, legacy `view-supplierAdvance` in `old-apps/legacy/index.html`.
 - Files changed: `apps/next/src/app/api/finance/supplier-advance/route.ts`, `apps/next/src/app/finance/supplier-advance/page.tsx`, `apps/next/src/components/finance/SupplierAdvancePageClient.tsx`, `docs/api/openapi.yaml`, `docs/migration/18-next-system-sitemap.md`, this tracker.
 - DB/API changes: added `GET /api/finance/supplier-advance`; no schema migration; reads `bank_statement` rows with `ref_type = 'SADV'`, plus `suppliers` and `accounts`.
-- Source/schema note: dev-target currently has no `supplier_advances` or `advance_allocations` table and no `SADV` bank rows; allocation is exposed as missing source metadata, not guessed.
+- Source/schema note: production currently has no `supplier_advances` or `advance_allocations` table and no `SADV` bank rows; allocation is exposed as missing source metadata, not guessed.
 - Buttons/actions checked: read-only page with filters and `.xlsx` export; no create/cancel/allocation mutation.
 - Modal/form checked: intentionally deferred until allocation rule and table ownership are confirmed.
 - Validation added: query parsing, date/search/status/supplier filters, summary totals, source schema metadata.
@@ -686,7 +686,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Legacy refs: `old-apps/vue/src/views/finance/CustomerAdvanceView.vue`, legacy `view-customerAdvance` in `old-apps/legacy/index.html`.
 - Files changed: `apps/next/src/app/api/finance/customer-advance/route.ts`, `apps/next/src/app/finance/customer-advance/page.tsx`, `apps/next/src/components/finance/CustomerAdvancePageClient.tsx`, `docs/api/openapi.yaml`, `docs/migration/18-next-system-sitemap.md`, this tracker.
 - DB/API changes: added `GET /api/finance/customer-advance`; no schema migration; reads `bank_statement` rows with `ref_type = 'CADV'`, plus `customers` and `accounts`.
-- Source/schema note: dev-target currently has no `customer_advances` or `advance_allocations` table and no `CADV` bank rows; allocation is exposed as missing source metadata, not guessed.
+- Source/schema note: production currently has no `customer_advances` or `advance_allocations` table and no `CADV` bank rows; allocation is exposed as missing source metadata, not guessed.
 - Buttons/actions checked: read-only page with filters and `.xlsx` export; no create/cancel/allocation mutation.
 - Modal/form checked: intentionally deferred until allocation rule and table ownership are confirmed.
 - Validation added: query parsing, date/search/status/customer filters, summary totals, source schema metadata.
@@ -709,7 +709,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - API/export checked during slices: AR/AP/bank/cash-position/supplier-advance/customer-advance APIs returned `200`; `.xlsx` export checked for AR/AP/bank/supplier-advance/customer-advance.
 - Browser smoke checked during slices: desktop and mobile smoke completed for each implemented finance page; no console warnings/errors recorded in the latest page-specific smoke checks.
 - Commands: latest finance batch validation included `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`.
-- Result: Finance/debt read baseline batch F1-F6 is validated and pushed. Supplier/customer advance remain read-only because dev-target has no dedicated advance/allocation tables yet.
+- Result: Finance/debt read baseline batch F1-F6 is validated and pushed. Supplier/customer advance remain read-only because production has no dedicated advance/allocation tables yet.
 - Commit: `1c0b5c7` (`docs: add finance qa checkpoint`), pushed to `main`.
 
 ## Batch T: Tracking 360
@@ -929,7 +929,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
   - Preserve meaningful document numbers as user-facing identifiers; keep UUID/opaque ids internal.
 - Risks/open decisions:
   - `items` JSON remains non-normalized and sparse for `po_buys`; target line-table design is still carry-over.
-  - `po_sells` has zero dev-target rows, so D1 must support empty state and not fake data.
+  - `po_sells` has zero production rows, so D1 must support empty state and not fake data.
   - Status names vary across PO/bills/trading (`Open`, `Received`, `Cancelled`, `paid`, `partial`, `Completed`, etc.); normalize display carefully but preserve raw status in read baselines.
   - `po_buys.doc_no`, `po_sells.doc_no`, and `trading_deals.deal_no` are not unique yet; write flows need running-number and uniqueness policy first.
 - Implementation order:
@@ -976,7 +976,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Validation added: OpenAPI documents `docNo` as the user-facing document identifier; UUID/opaque ids remain internal.
 - Playwright smoke: authenticated `/sales/po-sell` render passed on desktop/mobile; `GET /api/sales/po-sell` returned `200` with zero dev rows; XLSX export returned `200`, spreadsheet content type, and `PK` signature. Subagent unauth smoke confirmed route/API guards return login/`401`.
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
-- Result: D1 PO Sell read baseline implemented and validated; dev-target `po_sells` currently has zero rows, so empty state is expected.
+- Result: D1 PO Sell read baseline implemented and validated; production `po_sells` currently has zero rows, so empty state is expected.
 - Commit: `5f2afc4 feat: add po sell read baseline` pushed to `main`.
 
 ### D2: PO Buy Polish
@@ -1014,7 +1014,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - DB/API changes: added `POST /api/purchase/po-buy` using existing `po_buys` fields only; no schema migration. New rows use the generated `doc_no` as both business document number and meaningful `id` for created PO Buy rows. PO issue time is stamped server-side at save time in `created_at` / `updated_at`; `date` remains date-only for existing report/filter compatibility and the running `POB{branchCode}{YYMM}-NNNN` number uses the selected active branch code plus Bangkok date derived from that timestamp. The create payload no longer needs a client-owned issue date, now requires `branchId`, writes `branch_id` directly, and leaves `warehouse_id`/`channel_id` null because warehouse is removed from this PO Buy flow.
 - Validation added: shared Zod schema validates active branch, supplier, optional delivery date, notes length/syntax, and 1-50 item rows with product/positive quantity/positive unit price. Server verifies active Branch/Supplier/Product before insert, requires a two-digit branch code for PO numbering, and compares delivery date to the server-owned PO issue date.
 - UI behavior: enabled the existing blue `+ PO Buy ใหม่` CTA and added the legacy-style modal with amber purpose selector, delivery/costing radio cards, 2-column header fields, required branch selector, searchable Supplier selector, multi-line item table, live totals, remove row behavior only when more than one row exists, note field, and blue save button. The modal intentionally hides PO issue date/document number and removes `ช่องทางรับซื้อ`.
-- Playwright smoke: unauth QA subagent confirmed `/purchase/po-buy` redirects to login. Main authenticated Playwright QA passed after restarting the stale dev server: modal opened, required-field validation showed, add/remove item worked, costing-only radio hid delivery date, live total updated to `1.00`, API `POST /api/purchase/po-buy` created dev-target row `POB2605-0009`, and search found it as `Received` with `requireDelivery=false`, `remainingQty=0`, and `totalAmount=1`. Desktop/mobile screenshots saved under `/tmp/ns-scrap-erp-po-buy-auth-qa/`; mobile had no horizontal overflow and no non-HMR console/request errors.
+- Playwright smoke: unauth QA subagent confirmed `/purchase/po-buy` redirects to login. Main authenticated Playwright QA passed after restarting the stale dev server: modal opened, required-field validation showed, add/remove item worked, costing-only radio hid delivery date, live total updated to `1.00`, API `POST /api/purchase/po-buy` created production row `POB2605-0009`, and search found it as `Received` with `requireDelivery=false`, `remainingQty=0`, and `totalAmount=1`. Desktop/mobile screenshots saved under `/tmp/ns-scrap-erp-po-buy-auth-qa/`; mobile had no horizontal overflow and no non-HMR console/request errors.
 - Commands: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, `git diff --check`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
 - Behavior intentionally deferred: edit existing PO Buy, cancel, move delivery/costing purpose, audit-log table, and allocation/reversal side effects remain disabled/deferred.
 
@@ -1099,7 +1099,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Files changed: `apps/next/src/app/api/dual-costing/cost-allocator/route.ts`, `apps/next/src/app/dual-costing/cost-allocator/page.tsx`, `apps/next/src/components/dual-costing/CostAllocatorPageClient.tsx`, `docs/api/openapi.yaml`, and migration tracker docs.
 - DB/API changes: added runtime `GET /api/dual-costing/cost-allocator` with `productId`, `poSellId`, and `mode`; combines available Cost Pool rows with open PO Sell lines and returns read-only simulation candidates. No schema migration.
 - Buttons/actions checked: source selector, product selector, PO Sell selector, allocation mode, cancel/reset, and preview are implemented. Confirm/write remains disabled/deferred because allocation logs and reversal rules are not locked.
-- Playwright smoke: subagent unauth smoke confirmed `/dual-costing/cost-allocator` redirects to `/login?redirect=%2Fdual-costing%2Fcost-allocator` and unauth API returns `401`. Authenticated main smoke confirmed purple intro band, source selector buttons, product selector, product Cost Pool summary, PO Sell selector section, no horizontal overflow on desktop/mobile, and no console errors. Dev-target currently has no active `/api/sales/po-sell` rows, so candidate preview was verified as contract-ready but cannot render a real preview row until a PO Sell exists for a product with available Cost Pool.
+- Playwright smoke: subagent unauth smoke confirmed `/dual-costing/cost-allocator` redirects to `/login?redirect=%2Fdual-costing%2Fcost-allocator` and unauth API returns `401`. Authenticated main smoke confirmed purple intro band, source selector buttons, product selector, product Cost Pool summary, PO Sell selector section, no horizontal overflow on desktop/mobile, and no console errors. Production currently has no active `/api/sales/po-sell` rows, so candidate preview was verified as contract-ready but cannot render a real preview row until a PO Sell exists for a product with available Cost Pool.
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
 - Result: D6 Cost Allocator read-only simulation baseline implemented and validated; confirm/write remains deferred.
 - Commit: `bb42402 feat: add cost allocator simulation baseline` pushed to `main`.

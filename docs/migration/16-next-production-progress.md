@@ -44,7 +44,7 @@ Current Next/DB status:
 - `production_lines` exists and is used by master data page/API.
 - `production_orders`, `production_inputs`, and `production_outputs` exist in Prisma schema.
 - `stock_ledger.output_category` exists and can preserve legacy category code.
-- `production_output_categories` target table now exists in dev-target with legacy seed values.
+- `production_output_categories` target table now exists in production with legacy seed values.
 - `production_outputs.output_category` and `production_outputs.output_status` were added additively for future output write flow.
 
 ## Target Design
@@ -219,7 +219,7 @@ Tasks:
 - [x] Correct PI/PO2 `doc_no` and reversal doc numbers to non-unique document group keys so one input/output document can contain multiple lines.
 - [x] Add `production_reconciliation_issues` DB view for production document/ledger checks.
 - [x] Generate Prisma client.
-- [x] Apply migration to `dev-target` only.
+- [x] Apply migration to `production` only.
 - [x] Run DB smoke checks and document result.
 
 #### Batch P3C: Server Services
@@ -289,7 +289,7 @@ Tasks:
 
 #### 2026-06-12 Logged-in Browser QA Result
 
-- Environment: production build + `next start` on `http://127.0.0.1:3003`, dev-target Supabase.
+- Environment: production build + `next start` on `http://127.0.0.1:3003`, production Supabase.
 - Result doc: `PO2606-0021`.
 - Passed click flow: create order, input round 1 `SKU001 10kg`, input round 2 `SKU001 10kg` in the same modal, output round 1 `FG SKU001 8kg`, output round 2 `RM SKU001 7kg + loss 5kg` with complete checked.
 - Final state: `Completed`, `inputCount=2`, `inputQty=20`, `outputCount=3`, `outputQty=20`.
@@ -345,7 +345,7 @@ Tasks:
 - Approved a focused refactor for `/production/dashboard` and `GET /api/production/dashboard` only; `/production/report` and `/api/production/machine-utilization` remain outside this batch.
 - Dashboard-specific service/query modules will replace direct dependence on the shared `production-reports.ts` orchestration while preserving the existing response contract.
 - Required corrections are branch-scoped authorization, scoped current-WIP query, output/loss/machine aggregation correctness, safe BigInt serialization, `private, no-store`, and focused contract tests.
-- Dashboard query separation batch completed for `DASH-01` through `DASH-12`; no schema migration was needed after dev-target `EXPLAIN ANALYZE` review. Focused production tests `19/19`, formula verification `ok: true` for 7 rows, workspace type-check, production build, and diff-check passed. The task list is maintained in `docs/notes/page-flows/production-production-dashboard.md` under `Dashboard Query Separation Task List 2026-07-23`.
+- Dashboard query separation batch completed for `DASH-01` through `DASH-12`; no schema migration was needed after production `EXPLAIN ANALYZE` review. Focused production tests `19/19`, formula verification `ok: true` for 7 rows, workspace type-check, production build, and diff-check passed. The task list is maintained in `docs/notes/page-flows/production-production-dashboard.md` under `Dashboard Query Separation Task List 2026-07-23`.
   - `Yield % = Output Qty / Input Qty * 100`
   - `Loss % = Loss Qty / Input Qty * 100`
   - `Top 10 สินค้าที่ผลิตมากสุด` groups actual output stock-in products, excluding loss.
@@ -398,9 +398,9 @@ Scope: `/production/report` and `GET /api/production/report` only. Do not includ
 - Machine filter now resolves the outward machine option used by the existing production options API.
 - `/production/report` UI now has date, branch, machine, and status filters; removes ambiguous KPI `บาท/กก. เฉลี่ย`; adds `Loss Value (บาท)`; keeps in-page WIP section; and uses explicit unit-cost columns `RM บาท/กก.` and `ต้นทุนผลิต บาท/กก.`.
 - CSV export uses the visible detail columns with explicit unit-cost labels.
-- Added `apps/next/scripts/verify-production-report-formulas.ts` and package script `verify:production-report`. The verifier loads the active Next env, checks formula invariants against fixture rows, then checks the current dev-target dataset for row, summary, and product-summary consistency.
+- Added `apps/next/scripts/verify-production-report-formulas.ts` and package script `verify:production-report`. The verifier loads the active Next env, checks formula invariants against fixture rows, then checks the current production dataset for row, summary, and product-summary consistency.
 - Validation passed: `verify:production-report`, targeted ESLint for production report API/client files, `type-check`, `build`, and `git diff --check`.
-- Latest `verify:production-report` run found `checkedRows = 0` in the current dev-target dataset, so the fixture coverage is the current formula evidence until dev-target has live production report rows again.
+- Latest `verify:production-report` run found `checkedRows = 0` in the current production dataset, so the fixture coverage is the current formula evidence until production has live production report rows again.
 - Browser smoke reached `/production/report` and correctly redirected unauthenticated users to `/login?redirect=%2Fproduction%2Freport` with no console warning/error. Logged-in browser QA for report filters/KPI/export remains open because this run did not have an authenticated browser session.
 
 #### 2026-06-13 Production Report/Dashboard API DB Optimization
@@ -412,7 +412,7 @@ Scope: `/production/report` and `GET /api/production/report` only. Do not includ
   - keys: `(ref_type, ref_id, movement_type)`
   - partial predicate: `ref_id is not null and ref_type in ('PI', 'PO2')`
 - Reason: report/dashboard read model maps active `production_inputs.id` and `production_outputs.id` to `stock_ledger.ref_id`, while older production ledger indexes primarily optimize `ref_no` reconciliation/reversal paths.
-- Dev-target apply succeeded and was marked in Supabase migration history.
+- Production apply succeeded and was marked in Supabase migration history.
 - EXPLAIN verification showed the ledger lookup uses `Bitmap Index Scan on idx_stock_ledger_production_source_movement`.
 
 #### 2026-06-13 Production Menu Scope Update
@@ -437,8 +437,8 @@ Scope: `/production/report` and `GET /api/production/report` only. Do not includ
 - API review found `/api/production/dashboard` called `loadProductionMetrics()` twice: once for the requested date range and once unfiltered only to calculate total WIP. The unfiltered call loaded branches, products, machines, process costs, active inputs/outputs, and ledger rows for every production order.
 - Added `loadProductionTotalWipQty()` as a lean WIP read model. It selects only active production input/output ids for non-closed orders, reads only matching `stock_ledger` PI/PO2 qty fields, and keeps the same WIP formula: `WIP_IN - PRODUCTION_OUTPUT_WIP_OUT - PRODUCTION_LOSS`.
 - `GET /api/production/dashboard` now uses the lean helper for `summary.totalWipQty`, reducing the dashboard from two broad production metric loads to one broad range load plus one narrow WIP lookup.
-- DB review confirmed the current dev-target production tables are empty, so `EXPLAIN ANALYZE` is not useful as production-size evidence. Index decisions were based on query shape and current `pg_indexes` inventory.
-- Added migration `supabase/migrations/20260613093000_optimize_production_dashboard_queries.sql` and applied it to dev-target:
+- DB review confirmed the current production production tables are empty, so `EXPLAIN ANALYZE` is not useful as production-size evidence. Index decisions were based on query shape and current `pg_indexes` inventory.
+- Added migration `supabase/migrations/20260613093000_optimize_production_dashboard_queries.sql` and applied it to production:
   - `idx_production_orders_active_date_doc`
   - `idx_production_orders_active_branch_date_doc`
   - `idx_production_orders_active_machine_date_doc`
@@ -448,7 +448,7 @@ Scope: `/production/report` and `GET /api/production/report` only. Do not includ
   - `idx_process_costs_order_status_include`
 - Also verified the already-applied production ledger lookup index `idx_stock_ledger_production_source_movement` from `supabase/migrations/20260613124402_optimize_production_report_ledger_lookup.sql`, which supports PI/PO2 `stock_ledger(ref_type, ref_id, movement_type)` lookups used by the shared report/dashboard read model.
 - Prisma schema was updated with the same indexes so future schema pulls/generation remain aligned.
-- Dev-target verification returned all 7 new indexes, and the migration was marked in `supabase_migrations.schema_migrations`.
+- Production verification returned all 7 new indexes, and the migration was marked in `supabase_migrations.schema_migrations`.
 
 ### Batch P4: Production Reports Baseline
 
@@ -494,7 +494,7 @@ Tasks:
 - Legacy flow inventory and output category finding documented.
 - Batch P1 and P2 implemented locally.
 - Batch P4 report/dashboard read baseline implemented locally.
-- Dev-target DB has `production_output_categories` with 4 legacy values.
+- Production DB has `production_output_categories` with 4 legacy values.
 - Next has `/production/output-categories`, `/api/production/output-categories`, `/production/orders`, and `/api/production/orders`.
 - Next had ported the legacy production report surfaces as DB-connected read baselines, but the target Production navigation was narrowed on 2026-06-13 and must expose only `/production/orders`, `/production/output-categories`, `/production/dashboard`, and `/production/report`. Legacy/supporting read surfaces must not be shown in the Production menu:
   - `/production/dashboard`

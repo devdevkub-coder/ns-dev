@@ -38,7 +38,7 @@
 - Resolved hardening: `AppShell` now redirects HTTP 401 to login and presents explicit 403/500/network errors. It no longer fabricates an empty role/permission context when `/api/auth/me` fails.
 - Resolved hardening: password login must complete `POST /api/auth/login-complete`, which validates the Prisma application-user context and records the successful login audit before navigation. A missing/inactive app user or server failure signs out the local Supabase session and displays an explicit error.
 - Invalid credentials now use a stable Thai message instead of exposing the raw Supabase provider error.
-- Dev-target migration apply passed for project `fhglqymcdmrgbsbadnwr`. Post-fix browser smoke passed invalid-password handling, `login-complete = 200`, `/api/auth/me = 200`, role `system_admin`, 38 permission codes, protected landing, logout, and post-logout `/api/auth/me = 401`.
+- Production migration apply passed for project `fhglqymcdmrgbsbadnwr`. Post-fix browser smoke passed invalid-password handling, `login-complete = 200`, `/api/auth/me = 200`, role `system_admin`, 38 permission codes, protected landing, logout, and post-logout `/api/auth/me = 401`.
 - Validation passed: Next type-check, lint with one pre-existing unrelated `qa-thai-font.tsx` warning, production build, and `git diff --check`.
 
 ## Current Status as of 2026-05-18
@@ -75,13 +75,13 @@
 - `/admin/users-permissions` exists as a Next page over real `app_users`, `app_roles`, and active branches, with create/edit modal flow.
 - User active/inactive can be changed from `/admin/users-permissions` through `/api/admin/users/[id]/status`; self-deactivation is blocked.
 - Admin Supabase Auth user has been linked into `app_users` through `scripts/seed-app-admin.mjs`; the script reads `APP_ADMIN_EMAIL` or `DEV_LOGIN_IDENTIFIER` and does not store passwords.
-- App auth SQL helper functions exist in `dev-target`: `current_app_user_id`, `current_app_role_codes`, `current_app_permission_codes`, `is_app_admin`, and `has_app_permission`.
+- App auth SQL helper functions exist in `production`: `current_app_user_id`, `current_app_role_codes`, `current_app_permission_codes`, `is_app_admin`, and `has_app_permission`.
 - Next `proxy.ts` now checks normalized app permissions by path, allows active app users on non-mapped paths, and falls back to legacy `user_profiles` admin/owner guard during transition.
 - Sidebar navigation now fetches `/api/auth/me` and hides menu items that require permissions the current user does not have.
 - `lookup_app_login_email(identifier)` exists for pre-auth username/email lookup and is granted to `anon`/`authenticated`; it returns email only for active `app_users`.
 - B5 hardening has started:
   - Audit / Activity logging has been redesigned after B5: `app_audit_logs` is the append-only source for trace-critical security/write/permission events, while `app_activity_logs` is the append-only source for page/session/action activity.
-  - `app_auth_events` remains in `dev-target` as compatibility/history storage only; new user create/edit/status/invite/reset actions write to `app_audit_logs` and still backfill the old table during transition.
+  - `app_auth_events` remains in `production` as compatibility/history storage only; new user create/edit/status/invite/reset actions write to `app_audit_logs` and still backfill the old table during transition.
   - `/api/activity` records authenticated best-effort page/action activity, and `/api/admin/auth-events` remains the compatibility list endpoint that now reads a unified feed from `app_audit_logs` + `app_activity_logs`.
   - `/admin/audit` exposes audit/activity events to users with `system.audit.view`; the page supports group/search/actor/target/event-type filters, server pagination, current-page CSV export, and row detail metadata; `/admin/user-activity` is intentionally folded into `/admin/audit` in the Next navigation.
   - Implemented admin/master-data error case baseline: API responses normalize auth, validation, conflict, not-found, database, and server failures; client pages normalize network, permission, conflict, and invalid-response messages before showing them in Thai.
@@ -119,7 +119,7 @@ Legacy source has these auth-adjacent structures:
 Important risks:
 - `public.users.password` exists in the legacy model and must not be used in the target app.
 - Existing `roles_config.permissions` is JSONB and should be used as migration/reference input, not as final permission storage.
-- `user_profiles_user_id_fkey` was not cleanly restored into `dev-target` because legacy auth users were not migrated. This is acceptable until auth migration is designed.
+- `user_profiles_user_id_fkey` was not cleanly restored into `production` because legacy auth users were not migrated. This is acceptable until auth migration is designed.
 
 Legacy row counts from the audit snapshot:
 - `public.users`: 29
@@ -176,7 +176,7 @@ Permission dimensions already implied by legacy UI:
 - Normalize permissions instead of relying on duplicated JSON permission blobs.
 - Use `app_*` table names for new target auth/permission tables so they do not collide with legacy `public.roles` or `public.users`.
 - Enforce permissions in both UI and API. Hiding buttons is not enough.
-- Use RLS only after the application permission model is verified in `dev-target`.
+- Use RLS only after the application permission model is verified in `production`.
 - Keep legacy `public.users`, `user_profiles`, and `roles_config` as reference until migration mapping is signed off.
 
 ## Proposed Target Schema
@@ -240,7 +240,7 @@ Goal:
 - Confirm how old login/users/roles/permissions worked and what must be preserved.
 
 Tasks:
-- Audit `public.users`, `user_profiles`, `roles`, `roles_config` columns and row counts in `dev-target`.
+- Audit `public.users`, `user_profiles`, `roles`, `roles_config` columns and row counts in `production`.
 - Extract legacy role names, role ids, and permission JSON shape from `roles_config`.
 - Compare DB roles with Vue clone fixture roles.
 - Map legacy menu keys to Next route paths.
@@ -267,7 +267,7 @@ Validation:
 - Login success/failure smoke.
 - Logout smoke.
 - Forgot password request smoke.
-- Reset-password route smoke with simulated/real recovery link in dev-target.
+- Reset-password route smoke with simulated/real recovery link in production.
 
 ### Batch B2: Target Auth Schema
 
@@ -283,7 +283,7 @@ Tasks:
 
 Validation:
 - `supabase db push --dry-run`.
-- `supabase db push` to `dev-target`.
+- `supabase db push` to `production`.
 - Row count checks.
 - FK/orphan checks.
 - RLS remains conservative until enforcement design is validated.
@@ -303,7 +303,7 @@ Tasks:
 
 Validation:
 - Admin-only route/API smoke.
-- Create/update/deactivate user smoke in dev-target.
+- Create/update/deactivate user smoke in production.
 - Zod validation for every field.
 
 ### Batch B4: Permission Enforcement
@@ -386,7 +386,7 @@ Create one pure resolver in the server auth module that accepts the minimal bran
 - Decide whether direct per-user `deny` overrides may restrict system administrators, then make proxy and server enforcement identical.
 - Replace module-wide path permissions with explicit `view/create/update/cancel/approve/export` guards per API action.
 - Decide whether role assignment remains one access profile per employee or supports multiple active profiles; separate job title from access role.
-- Apply RLS table by table only after the application-level policy and data mappings are verified in `dev-target`.
+- Apply RLS table by table only after the application-level policy and data mappings are verified in `production`.
 
 ## Latest Validation
 
@@ -395,7 +395,7 @@ Create one pure resolver in the server auth module that accepts the minimal bran
 | 2026-05-18 | Legacy source audit pass | In progress | Reviewed Vue users/roles fixture and legacy DB auth-adjacent tables/functions from dump |
 | 2026-05-18 | Prisma/schema audit pass | In progress | Confirmed Prisma has `auth_users`, `public_users`, `user_profiles`, `roles`, and `roles_config`; audit snapshot counts users 29, user_profiles 17, roles 14, roles_config 7 |
 | 2026-05-18 | B1 reset-password implementation slice: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added forgot/reset password pages, password syntax validation, login link, and public proxy paths; build route table includes `/forgot-password` and `/reset-password` |
-| 2026-05-18 | B2 target schema migration: Supabase `db push --dry-run`, `db push`, row-count verification, `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Applied additive `app_*` auth/permission tables to `dev-target`; counts: app_users 0, app_roles 7, app_permissions 27, app_role_permissions 132, app_user_roles 0, app_user_branch_access 0; Prisma schema/client regenerated; legacy `public.users`, `user_profiles`, `roles`, and `roles_config` remain untouched |
+| 2026-05-18 | B2 target schema migration: Supabase `db push --dry-run`, `db push`, row-count verification, `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Applied additive `app_*` auth/permission tables to `production`; counts: app_users 0, app_roles 7, app_permissions 27, app_role_permissions 132, app_user_roles 0, app_user_branch_access 0; Prisma schema/client regenerated; legacy `public.users`, `user_profiles`, `roles`, and `roles_config` remain untouched |
 | 2026-05-18 | Server auth context helper: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added server helper for Supabase user, `app_users`, roles, permissions, legacy profile fallback, and protected `/api/auth/me`; build route table includes `/api/auth/me` |
 | 2026-05-18 | Admin app user seed: `node --check scripts/seed-app-admin.mjs`, `APP_ADMIN_EMAIL=... npm run seed:app-admin`, row-count verification | Passed | Linked current admin Auth user to `app_users`; counts after seed: app_users 1, app_user_roles 1, admin_assignments 1 |
 | 2026-05-18 | App auth SQL helpers + proxy primary app guard: Supabase `db push --dry-run`, `db push`, function verification, `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added security-definer helper functions and updated proxy to check `is_app_admin()` before legacy profile fallback |
@@ -407,9 +407,9 @@ Create one pure resolver in the server auth module that accepts the minimal bran
 | 2026-05-18 | B3 invite/reset user action: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added trusted-server Supabase admin helper, `/api/admin/users/[id]/invite`, user-table Invite/Reset action, and `.env.example` placeholders for Next Supabase env/service-role key; no secrets committed |
 | 2026-05-18 | B4 permission-aware navigation/proxy: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added path-to-permission mapping, sidebar filtering from `/api/auth/me`, and proxy enforcement through `has_app_permission`; legacy admin/owner fallback remains during transition |
 | 2026-05-18 | B5 audit schema/hardening: Supabase `db push --dry-run`, `db push`, table/RLS verification query, advisors filtered for `app_`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed with legacy caveat | Added `app_auth_events`, RLS select policy for `system.audit.view`, user-management audit writes, `/api/admin/auth-events`, `/admin/audit`, and hardened `app_set_updated_at`; advisors no longer show app-schema warning, but still report legacy tables/functions outside this batch |
-| 2026-05-20 | Audit / Activity redesign | In progress | Added split source-of-truth tables `app_audit_logs` and `app_activity_logs` in dev-target with RLS, append-only guards, `system.activity.view`, and migration from `app_auth_events`. Next user-management events now write to `app_audit_logs`; `/api/activity` records page/branch activity; `/api/admin/auth-events` reads a unified feed from the two new tables while preserving the existing route contract. |
+| 2026-05-20 | Audit / Activity redesign | In progress | Added split source-of-truth tables `app_audit_logs` and `app_activity_logs` in production with RLS, append-only guards, `system.activity.view`, and migration from `app_auth_events`. Next user-management events now write to `app_audit_logs`; `/api/activity` records page/branch activity; `/api/admin/auth-events` reads a unified feed from the two new tables while preserving the existing route contract. |
 | 2026-05-18 | B4/B5 route-level permission guards for key master APIs: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added direct `requirePermission` checks to customer, supplier, and product list/create/status/export API handlers; proxy remains a second layer |
-| 2026-05-18 | Legacy user seed into `app_users`: migration applied to `dev-target`, row/role verification query | Passed | Added canonical legacy users `ns-aom`, `ns-dao`, `ns-june`, `ns-kwan`, `ns-mint`, `ns-or`, `ns-ploy`, `ns-poopae`, `ns-tik`, `ns-tong` to `app_users` with mapped app roles and legacy IDs; no legacy passwords migrated; Auth linking/invite remains separate |
+| 2026-05-18 | Legacy user seed into `app_users`: migration applied to `production`, row/role verification query | Passed | Added canonical legacy users `ns-aom`, `ns-dao`, `ns-june`, `ns-kwan`, `ns-mint`, `ns-or`, `ns-ploy`, `ns-poopae`, `ns-tik`, `ns-tong` to `app_users` with mapped app roles and legacy IDs; no legacy passwords migrated; Auth linking/invite remains separate |
 | 2026-08-05 | Login/Forgot Password discard-guard regression: focused Vitest 2/2, workspace lint, type-check (4 GB Node heap), production build, navigation guard 112/112, scoped `git diff --check` | Passed | Login and Forgot Password now use plain auth links and do not register unsaved-change guards; Reset Password and business-form safety guards remain unchanged |
 # Department role boundary checkpoint — 2026-08-04
 

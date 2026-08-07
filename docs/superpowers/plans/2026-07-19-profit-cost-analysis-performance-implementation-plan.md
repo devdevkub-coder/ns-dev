@@ -10,18 +10,18 @@
 
 ## Execution Status 2026-07-19
 
-- Tasks 1-7 are implemented on isolated branch `codex/profit-cost-performance` and the migration/backfill is applied to dev-target only.
+- Tasks 1-7 are implemented on isolated branch `codex/profit-cost-performance` and the migration/backfill is applied to production only.
 - Source normalization, fact ledger, daily rollup, reconciliation, split APIs, applied filters, independent summary/rankings/table request lifecycles, branch scope and server pagination/sort are implemented. Alerts evaluate the complete scoped daily read model before limiting the result set.
 - The page remains one component instead of the optional hook/section file split in the original file map; request lifecycles are independent and validated without adding an abstraction used only once.
 - Backfill/verify scripts use TypeScript (`.ts`) rather than the provisional `.mjs` filenames in this plan.
-- Dev-target reconciliation for 2026-01-01 through 2026-07-31 reports zero issues and exact fact/daily parity. Warm reader measurement for summary + products + rankings averaged 88.6 ms across three warm runs.
+- Production reconciliation for 2026-01-01 through 2026-07-31 reports zero issues and exact fact/daily parity. Warm reader measurement for summary + products + rankings averaged 88.6 ms across three warm runs.
 - Focused tests, full lint, source type-check and diff check pass. The full Next build remains blocked by the pre-existing invalid route export `getCostPoolRowsData` in `dual-costing/cost-pool/route.ts`, which is outside this batch and unchanged.
 - Browser/UAT was not run because it was not requested. SIT/UAT migration and promotion remain pending explicit instruction.
 
 ## Global Constraints
 
 - Active app คือ `apps/next/`; legacy/Vue ใช้อ้างอิงเท่านั้น
-- ใช้ dev-target Supabase ก่อน environment อื่น
+- ใช้ production Supabase ก่อน environment อื่น
 - เงินใช้ PostgreSQL `numeric(18,2)` และน้ำหนักใช้ `numeric(18,3)`
 - API decimal fields ส่งเป็น string; ห้าม aggregate เงิน/น้ำหนักด้วย JavaScript floating point
 - Draft ไม่สร้าง fact; confirmed/open/unpaid/paid/partial ตาม source contract สร้าง fact; cancelled/canceled/void/reversed ไม่รวม
@@ -233,7 +233,7 @@ Expected: FAIL because reporting objects/functions do not exist
 
 - [ ] **Step 3: Create tables and constraints**
 
-Use the exact columns/scales from the approved spec. Add unique source key, fact-type checks, required dimensions by fact type, and indexes for source lookup plus date/dimension queries. Add `system_settings.key = 'profit_cost_target_margin_pct'` only through an explicit data migration value approved for dev-target; API must fail configuration validation if absent.
+Use the exact columns/scales from the approved spec. Add unique source key, fact-type checks, required dimensions by fact type, and indexes for source lookup plus date/dimension queries. Add `system_settings.key = 'profit_cost_target_margin_pct'` only through an explicit data migration value approved for production; API must fail configuration validation if absent.
 
 - [ ] **Step 4: Implement DB projector functions**
 
@@ -280,7 +280,7 @@ Backfill must print target project ref, date range, source counts, blocking issu
 }
 ```
 
-- [ ] **Step 3: Run dry-run against dev-target**
+- [ ] **Step 3: Run dry-run against production**
 
 Run: `npm run backfill:profit-cost-report --workspace @ns-scrap-erp/next -- --from 2026-01-01 --to 2026-07-19`
 
@@ -288,7 +288,7 @@ Expected: target project ref is `fhglqymcdmrgbsbadnwr`; no write occurs without 
 
 - [ ] **Step 4: Apply migration/backfill only after preflight has zero blocking source issues**
 
-Run the project Supabase MCP first. If unavailable, use a verified CLI workdir linked to dev-target. Never use legacy-prod-source.
+Run the project Supabase MCP first. If unavailable, use a verified CLI workdir linked to production. Never use legacy-prod-source.
 
 - [ ] **Step 5: Verify parity and query plans**
 
@@ -425,7 +425,7 @@ git commit -m "feat: lazy load profit cost analysis sections"
 
 Compare old/new summary by day and month plus product/supplier/customer/channel totals. The script must print exact source keys for mismatches and exit nonzero.
 
-- [ ] **Step 2: Run dev-target parity across representative ranges**
+- [ ] **Step 2: Run production parity across representative ranges**
 
 Run month-to-date, previous month, year-to-date, each branch and all branches. Expected: zero monetary delta, scale-3 weight parity, zero blocking reconciliation issues.
 
@@ -467,7 +467,7 @@ git commit -m "refactor: cut over profit cost analysis read model"
 ## Execution Order And Checkpoints
 
 1. Tasks 1-3 form the source/schema checkpoint. Do not apply migration if preflight finds source rows without exact COGS/channel mapping.
-2. Task 4 applies and verifies dev-target only.
+2. Task 4 applies and verifies production only.
 3. Task 5 may merge while frontend still uses old endpoint.
 4. Task 6 switches local UI to split endpoints.
 5. Task 7 controls parity and retirement. Do not promote to SIT/UAT until parity and performance acceptance pass.

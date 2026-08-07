@@ -67,7 +67,7 @@ The saved PB/SB establishes or updates AP/AR, the saved PMT records actual suppl
 2. Send a message in each group so the webhook registers its target ID.
 3. In `/admin/line-settings`, create explicit rules for `WTI,WTO`, `PB`, `SB`, `PMT`, and `RCP` and select the intended target for each rule.
 4. Set `stop after match` for the one-group-per-document policy.
-5. Create one PB, one SB, one PMT, and one active RCP in the development target and verify the job, attempt log, target group, and detail link.
+5. Create one PB, one SB, one PMT, and one active RCP in SIT and verify the job, attempt log, target group, and detail link.
 
 ## Admin setup UX
 
@@ -77,13 +77,13 @@ The add/edit rule form uses the shared application dialog so typography and swit
 
 LINE target avatars are loaded only from the exact `https://sprofile.line-scdn.net` origin allowed by the application CSP. Target rows render avatars inside fixed-size wrappers with a group/room/user initial underneath; if a CDN URL later expires or fails, the image hides and the initial remains without changing table-row height.
 
-## Dev-target verification (2026-07-13)
+## Production verification (2026-07-13)
 
 Real multi-product verification on 2026-07-17 used active Sales Bill `SB2606-0008`, whose current detail contains four products. The preview resolved to the first three product names plus `และสินค้าอื่นๆ` and routed to `Peach, NAMPEC Official, Meng Watcharathat🤖`. Initial job `181` exposed LINE validation error `must be non-empty text` because the summary row retained an empty right-side text node. The empty node was removed and locked with a regression assertion that the Flex payload contains no `"text":""`; retry job `182` then reached `sent` on attempt 1 with LINE HTTP 200 and a LINE request ID.
 
 Edit-save notification verification on 2026-07-17 confirmed the missing trigger was in both PB/SB `PATCH` handlers: create paths enqueued LINE after commit, while edit paths returned immediately after their database transactions. Both edit paths now enqueue after commit with `force: true` and swallow LINE failures so a valid bill edit remains saved. A red/green contract test covers both post-commit call sites. Live real-document delivery then created PB job `179` for `PB012607-0013` to `ทดสอบ` and SB job `180` for `SB2607-0011` to `Peach, NAMPEC Official, Meng Watcharathat🤖`; both reached `sent` on attempt 1 with LINE HTTP 200 and a LINE request ID.
 
-Dev-target `fhglqymcdmrgbsbadnwr` uses active test LINE groups for five separate rules:
+Production `fhglqymcdmrgbsbadnwr` uses active test LINE groups for five separate rules:
 
 - `WTI,WTO` -> `ทดสอบ`
 - `PB` -> `ทดสอบ`
@@ -97,8 +97,8 @@ After the wider white-body PB/SB theme update on 2026-07-16, live delivery was r
 
 The six-card visual preview was then sent to the same temporary group shown as five participants in LINE (four user members returned by the LINE API plus the Official Account bot). PB `173`, SB `174`, PMT `175`, and RCP `176` succeeded on attempt 1 with HTTP 200. Initial WTI/WTO jobs `171` and `172` failed LINE validation because PDF/album generation had failed and the photo-bubble action URI was empty. The photo action now falls back to the ERP detail URL when neither an album URL nor a PDF URL exists; WTI retry `177` and WTO retry `178` then succeeded on attempt 1 with HTTP 200 and LINE request IDs. The local PDF generator still reported `Cannot read properties of undefined (reading 'S')`, so the successful WTI/WTO preview messages contained no PDF attachment.
 
-The PMT rule was created independently with `stop after match` and the real resolver returned only `ทดสอบ` for document type `PMT`. A read-only check against the latest dev-target PMT loaded its PMA and payout-account snapshots, reconciled account splits to net cash out, rendered a 4,870-byte Flex payload, retained only the final four destination-account digits, and produced the history link. The official LINE push validator returned HTTP 200 for the capped six-PMA/six-account case. Live delivery of `PMT012607-0007` then reached `status = sent` in `ทดสอบ`; after screenshot review, the final `mega`/wrapped-label revision was sent and LINE accepted it.
+The PMT rule was created independently with `stop after match` and the real resolver returned only `ทดสอบ` for document type `PMT`. A read-only check against the latest production PMT loaded its PMA and payout-account snapshots, reconciled account splits to net cash out, rendered a 4,870-byte Flex payload, retained only the final four destination-account digits, and produced the history link. The official LINE push validator returned HTTP 200 for the capped six-PMA/six-account case. Live delivery of `PMT012607-0007` then reached `status = sent` in `ทดสอบ`; after screenshot review, the final `mega`/wrapped-label revision was sent and LINE accepted it.
 
 The RCP rule was created independently with `stop after match`; no prior or duplicate RCP rule existed, and the real loader/resolver returned only `ทดสอบ`. The latest active RCP had one active SB allocation and one positive bank-statement row; receipt, discount, WHT, AR-allocation, fee, net-cash, and statement totals all reconciled. The payload privacy check found no account-number, tax, contact, address, or internal-ID fields, and the official LINE push validator returned HTTP 200. Live job `168` reached `sent` on attempt 1 with one successful HTTP 200 attempt and no duplicate source-target job.
 
-Dev-target has no `NEXT_PUBLIC_APP_URL`, so the verified live RCP card used `http://localhost:3000` for its open-system button. The message itself is valid and delivered, but the button cannot work from a phone until the real public URL for this environment is configured; do not reuse the UAT URL by assumption.
+Production has no `NEXT_PUBLIC_APP_URL`, so the verified live RCP card used `http://localhost:3000` for its open-system button. The message itself is valid and delivered, but the button cannot work from a phone until the real public URL for this environment is configured; do not reuse the UAT URL by assumption.

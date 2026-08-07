@@ -327,6 +327,9 @@ const weightTicketLinePayloadSchema = z.object({
 
 export const weightTicketFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
+  collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
+  collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
+  collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
   id: z.string().trim().max(80).optional(),
   lines: z.array(weightTicketLinePayloadSchema),
   partyId: z.string().trim().min(1, 'เลือกคู่ค้า'),
@@ -1042,7 +1045,7 @@ export const statusLabels: Record<WeightTicketStatus, string> = {
 }
 
 export function canPrintWeightTicket(status: WeightTicketStatus) {
-  return status !== 'draft' && status !== 'cancelled'
+  return status !== 'cancelled'
 }
 
 export function canShareWeightTicket(status: WeightTicketStatus) {

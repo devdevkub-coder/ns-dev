@@ -3,8 +3,8 @@ import { buildWeightTicketDetailUrl } from './weight-ticket-share'
 import { canPrintWeightTicket, canShareWeightTicket } from './weight-tickets'
 
 describe('weight-ticket print action', () => {
-  it('does not allow printing draft or cancelled tickets', () => {
-    expect(canPrintWeightTicket('draft')).toBe(false)
+  it('allows printing draft tickets but not cancelled tickets', () => {
+    expect(canPrintWeightTicket('draft')).toBe(true)
     expect(canPrintWeightTicket('cancelled')).toBe(false)
   })
 

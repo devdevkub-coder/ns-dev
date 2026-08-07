@@ -102,7 +102,7 @@ export function LoginPageClient() {
     }
 
     if (!supabase) {
-      setError('ยังไม่ได้ตั้งค่า Supabase dev ใน environment')
+      setError('ยังไม่ได้ตั้งค่า Supabase ใน environment')
       return
     }
 
@@ -181,7 +181,7 @@ export function LoginPageClient() {
 
         {!isSupabaseReady ? (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            ยังไม่ได้ตั้งค่า Supabase dev ใน environment
+            ยังไม่ได้ตั้งค่า Supabase ใน environment
           </div>
         ) : null}
 

@@ -88,6 +88,15 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 
 What is what: source chooser เป็นเพียงทางเลือกนำรูปเข้าสู่ฟอร์ม ไม่ใช่กล้องหรือคลังรูปใหม่ในระบบ และแถวช่องน้ำหนักเป็น presentation ของข้อมูลเต๋าเดิม. Why it has to be like this: ผู้ใช้หน้างานต้องเลือกถ่ายหลักฐานทันทีหรือใช้รูปเดิมได้โดยไม่เดาพฤติกรรม file picker ของแต่ละเครื่อง ขณะที่หลักฐานทั้งหมดต้องยังผ่านสิทธิ์ ชนิดไฟล์ ขนาดไฟล์ storage reference และประวัติเอกสารชุดเดิม; การวางค่าน้ำหนักสามช่องในแถวเดียวช่วยลดพื้นที่แนวตั้งโดยไม่เปลี่ยน business contract
 - หน้า list แสดง WTI/WTO และส่ง context ประเภทเอกสารไปหน้า create/edit ให้ถูกต้อง
+
+### Concurrent draft save contract — 2026-08-06
+
+- การกดเพิ่มสินค้า/เพิ่มเต๋าแยกจากการบันทึก: ฟอร์มเพิ่มรายการในหน้าจอทันที แล้วส่ง draft save เป็น background request เพื่อให้ผู้ใช้กรอกต่อได้โดยไม่รอ response
+- เมื่อมีหลายคนแก้ draft เดียวกัน API ใช้ `updatedAt` และรายการ line ที่ผู้ใช้เห็นเป็นฐานเปรียบเทียบ; line ใหม่ของผู้ใช้อื่นที่ไม่อยู่ในฐานจะถูก merge เข้ามา ส่วน line ที่ผู้ใช้กำลังแก้ยังใช้ค่าจาก request ปัจจุบัน
+- การระบุ line ใช้ immutable database line id เป็นหลัก ไม่ใช้ `documentNo:lineNo` ซึ่งเปลี่ยนได้เมื่อย้ายสาขาหรือจัดลำดับใหม่; รูปแบบเดิมยังรับได้เฉพาะเพื่อรองรับ tab ที่เปิดค้างระหว่างเปลี่ยนสัญญา
+- การแก้ไข/ยืนยัน/ยกเลิกใช้ transaction advisory lock ต่อเอกสารและอ่านสถานะ/usage ใหม่ภายใน transaction เดียวกัน เพื่อไม่ให้ draft ที่อ่านเก่าทับ lifecycle หรือ stock state ที่เพิ่งเปลี่ยน
+
+What is what: `updatedAt` และ line id เป็น collaboration metadata ไม่ใช่ business field ที่ผู้ใช้ต้องกรอก ส่วนการ merge เป็นขอบเขตของ draft line ที่เพิ่มจากผู้ใช้คนอื่น. Why it has to be like this: ผู้ใช้หลายคนต้องกรอกเอกสารพร้อมกันได้ โดยยังคงความเร็วของหน้าจอและป้องกันการบันทึกซ้ำ/การแก้เอกสารที่ถูกยืนยันหรือยกเลิกไปแล้ว
 - Desktop table ใช้ balanced default-width contract รวม `1,660px` ที่ viewport `1440px`: ให้พื้นที่ผู้ขายและ action ตามข้อมูลจริง แต่ลดช่องว่างเกินจำเป็นในวันที่สร้าง, สาขา, ทะเบียนรถ, น้ำหนัก, สถานะ และอัปเดตล่าสุด. คอลัมน์ `จัดการ` ใช้ default/minimum 390px; ความกว้างต้องรองรับ action ที่ขึ้นกับสถานะ/สิทธิ์หลายปุ่ม และตารางยังคง internal horizontal scroll. รายการ action ที่เป็น source of truth อยู่ในหัวข้อ `ตารางสถานะและปุ่มที่แสดงบน WTI/WTO` ของ `docs/notes/WTI-WTO Flow.md`.
 - Customer-approved readability follow-up (2026-07-14): ตารางรายการใช้เส้นแนวนอนบาง `1px` สี `--color-scrap-line` ระหว่างแถวจาก global `table.ns-table` rule เพื่อช่วยไล่อ่านรายการที่มีหลายคอลัมน์ โดยไม่เพิ่มเส้นตั้ง ไม่เปลี่ยน row hover และไม่ลดความเด่นของสถานะหรือแถวยกเลิก. สี `slate-100` จากรอบแรกถูกยกเลิกเพราะจางจนผู้ใช้มองไม่เห็นบนพื้นขาว.
 - modal create/edit ของใบรับ/ส่งของใช้รายการสินค้าเป็น card หลัก และในแต่ละ card แยกเป็น `เต๋าสินค้า`, `สรุปน้ำหนักเต๋า`, `ซื้อเพิ่มจากสิ่งเจือปน`, `สิ่งเจือปน`, และ summary รวมท้ายรายการ
@@ -118,6 +127,10 @@ What is what: สีปุ่มเป็นตัวแยก intent ของ 
 - PDF/ใบพิมพ์ WTI/WTO ต้องจัดความสูงจากแถวข้อมูลจริงโดยไม่เติมแถวว่างให้ครบโควตา เพื่อให้ตาราง สรุป และลายเซ็นอยู่ใน A4 หน้าหลักเดียวกันเมื่อเนื้อหาพอดี; ส่วนลายเซ็นใช้พื้นที่ว่างที่เหลือเหนือช่วงล่างของหน้ากระดาษเพื่อเว้นพื้นที่เซ็นจริง โดยไม่วาดกรอบเพิ่มและไม่กำหนดช่องว่างตายตัวที่อาจดันเอกสารไปหน้าใหม่; ตัดเส้นประและข้อความท้ายเอกสาร `ขอบคุณที่ใช้บริการค่ะ/ครับ` ที่ไม่มีข้อมูลธุรกิจและอาจสร้างหน้าว่าง ส่วนหน้ารูปถ่ายแนบยังเริ่มหน้าใหม่ตามเดิม
 - เมื่อกดแก้ไขเอกสาร ต้องโหลดโครงสร้างกลับมาเหมือนตอนสร้าง: เต๋าจริงต้องยังเป็นเต๋า, รายการซื้อเพิ่มจากสิ่งเจือปนต้องไม่กลายเป็นเต๋าปลอม, และแถว `สินค้าอื่น` ต้องจำ `ซื้อ/ไม่ซื้อ` กับสินค้าที่ปนมาได้
 - Runtime update 2026-06-20: `weight_ticket_lines.parent_line_no` และ `weight_ticket_lines.impurity_source_line_no` เป็น source of truth สำหรับโหลดโครงสร้าง edit กลับมา ไม่เดาจากลำดับสินค้า/หมายเหตุเป็นหลักอีกต่อไป
+- Multi-user draft editing follow-up 2026-08-06: WTI/WTO draft สามารถเปิดให้หลายคนช่วยกรอกเอกสารเดียวกันได้. แต่ละ save ส่ง `collaborationBaseUpdatedAt` และ `collaborationBaseLineIds` จาก snapshot ล่าสุดของผู้ใช้; server ล็อกเฉพาะ ticket ระหว่างจัดสรร line number, อัปเดต line เดิมแยกกัน, เก็บ line ที่ผู้ใช้อื่นเพิ่มหลัง snapshot และลบเฉพาะ line เดิมที่ผู้ใช้ปัจจุบันลบ. การ save ยังเป็น background และไม่บังคับปิดช่องกรอก.
+- Realtime collaboration follow-up 2026-08-06: หลัง create/edit/confirm/cancel สำเร็จ server จะ broadcast invalidation event ผ่าน private channel ตาม `branchId` โดยมี `documentNo`, `changeType`, `updatedAt` และ `branchId`; list/detail จะโหลดข้อมูลล่าสุดผ่าน API ที่ตรวจสิทธิ์อีกครั้ง. ฟอร์มที่กำลังกรอกจะไม่ถูกทับ แต่จะแจ้งว่ามีผู้ใช้อื่นบันทึกแล้วให้ตรวจสอบก่อน save. Realtime เป็นตัวเร่งการเห็นข้อมูล ไม่ใช่ source of truth และถ้า Realtime ใช้งานไม่ได้การ save/โหลดปกติยังทำงานต่อ. รายการจะแยก event ซ้ำและหน่วง refresh สั้น ๆ เพื่อไม่ยิงโหลดซ้ำจาก broadcast ถี่ ๆ.
+
+What is what: `collaborationBase*` คือหลักฐานว่า request เริ่มจากเอกสาร/รายการชุดใด ส่วน `weight_ticket_lines` เป็นข้อมูลรายการปัจจุบันที่ผู้ใช้ทุกคนร่วมกันแก้. Why it has to be like this: การส่งทั้ง snapshot แล้วลบ/สร้าง line ใหม่ทำให้ผู้ใช้คนหลังทับรายการของคนแรก; การ merge ตาม base และล็อก ticket ทำให้การเพิ่มสินค้า/เต๋าพร้อมกันไม่ทำข้อมูลหาย ขณะที่การลบรายการยังคงเป็นเจตนาของผู้ใช้คนที่กดลบเอง
 
 ### Detail Image Album
 
@@ -196,6 +209,8 @@ What is what: album เป็นภาพรวมหลักฐานทั้
   - must save the WTO draft without creating `pending_out`
   - must not write `stock_ledger`; ledger stock-out is owned by Sales Bill when it consumes the WTO `pending_out`
 - `PUT /api/daily/weight-tickets/[id]`
+  - must accept optional `collaborationBaseUpdatedAt` and `collaborationBaseLineIds` from the editor snapshot
+  - when the ticket changed after that snapshot, must merge current-user line updates with remote-added lines under a per-ticket transaction lock; it must not delete/recreate the entire line set
   - must append an `edited` timeline row to `weight_ticket_status_logs` with `meta.changes` for field-level before/after detail when submitted data differs from the existing document
   - for editable draft `WTO`, must validate all current lines against current available stock, update document lines only, and leave stock unreserved
   - for confirmed `WTO`, must use the delta rule: release decreases back to on-hand/available stock, preserve existing cost snapshots for unchanged/decreased remaining qty, and snapshot current average cost only for increased qty or new SKU

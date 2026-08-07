@@ -19,29 +19,27 @@
 
 ## Environment Rules
 
-Use a separate Supabase dev/target project for development, auth testing, RLS testing, and frontend integration.
-
-The customer's old production Supabase should be treated as a legacy source system only.
-
 Environment naming:
-- `dev-target`: `fhglqymcdmrgbsbadnwr`
+- `production`: `fhglqymcdmrgbsbadnwr`
+- `sit`: `vbjlkxbytccklhqvxjuu`
 - `legacy-prod-source`: `mqsgptraslgpyzbpndlg`
-- `staging-uat`: not created yet
-- `new-prod`: not created yet
+- customer UAT: separate deployment/environment when required
 
 Note: `staging-uat` is a future Supabase environment/project name. Customer UAT promotion uses `uat-origin/main`; `new-origin/uat` was retired on 2026-07-17 and must not be recreated.
 
 Account boundary:
-- `dev-target`, `legacy-prod-source`, and future `staging-uat` should be separate Supabase account/project contexts where practical.
+- `production`, `legacy-prod-source`, and future `staging-uat` should be separate Supabase account/project contexts where practical.
 - Do not assume access tokens, Auth users, API keys, Storage buckets, or project settings are shared.
 
 Rules:
-- For Supabase access, try the project-level MCP server first (`supabase` for `dev-target`, `supabase-prod-source` for read-only legacy source) before falling back to Supabase CLI, `psql`, or direct connection strings.
+- `production` (`fhglqymcdmrgbsbadnwr`) is the current Production runtime/database. It is read-only by default; schema or data changes require explicit user approval.
+- `sit` (`vbjlkxbytccklhqvxjuu`) is the development, integration, Auth/RLS testing, and schema-validation target.
+- `legacy-prod-source` (`mqsgptraslgpyzbpndlg`) is the old customer source and is read-only for audit/migration work.
+- For Supabase access, try the project-level MCP server first (`supabase` for current Production, `supabase-prod-source` for read-only legacy source) before falling back to Supabase CLI, `psql`, or direct connection strings.
 - If MCP is not visible or not authenticated, report that explicitly and only use CLI/`psql` as a fallback with the target project verified first.
 - Do not develop directly against `legacy-prod-source`.
 - Do not run destructive operations against `legacy-prod-source` unless the user explicitly asks for it and the command scope is clear.
 - Use legacy production DB credentials only for read-only audit, dump, and migration-source work.
-- Apply schema changes to `dev-target` first.
-- Test Supabase Auth and RLS in `dev-target`, not in plain local Postgres.
-- Use future `staging-uat` for customer/user testing before any production cutover.
-- Final production target is open: either validated migration back into the customer's old environment or a new production Supabase project.
+- Apply and validate schema changes in `sit` first, then promote/apply them to `production` only with explicit approval.
+- Test Supabase Auth and RLS in `sit`, not in Production or plain local Postgres, unless Production verification is explicitly requested.
+- Use the approved customer UAT environment for customer/user testing before any Production change.
