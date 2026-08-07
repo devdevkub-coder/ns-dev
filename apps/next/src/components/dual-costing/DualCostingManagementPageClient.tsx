@@ -768,8 +768,7 @@ function AllocationLedgerView() {
     { key: 'totalCost', label: 'ต้นทุนรวม (บาท)', defaultWidth: 120, minWidth: 110, align: 'right' },
     { key: 'allocatedRevenue', label: 'รายได้ (บาท)', defaultWidth: 115, minWidth: 105, align: 'right' },
     { key: 'grossProfit', label: 'กำไรขั้นต้น (บาท)', defaultWidth: 140, minWidth: 125, align: 'right' },
-    { key: 'allocatedBy', label: 'ผู้บันทึกข้อมูล', defaultWidth: 130, minWidth: 110, align: 'left', className: 'ns-table-textual-column' },
-    { key: 'status', label: 'สถานะ', defaultWidth: 100, minWidth: 90, align: 'center' },
+    { key: 'status', label: 'สถานะ', defaultWidth: 115, minWidth: 100, align: 'center' },
     { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
   const ledgerResize = useResizableColumns('dual-costing.allocation-ledger.v1', ledgerColumns)
@@ -1153,11 +1152,9 @@ function AllocationLedgerView() {
                     {formatMoney(row.grossProfit)}
                     <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{row.gpPct.toFixed(2)}%</span>
                   </TableCell>
-                  <TableCell className="ns-table-textual-column p-3 text-left text-xs text-slate-700">
-                    <span className="block truncate" title={row.allocatedBy}>{row.allocatedBy}</span>
-                  </TableCell>
                   <TableCell className="p-3 text-center">
                     <span className="flex justify-center"><LedgerStatusText status={row.status} /></span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-500" title={row.allocatedBy}>{row.allocatedBy}</span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap p-3 text-center" onClick={(event) => event.stopPropagation()}>
                     <div className="flex justify-center">
