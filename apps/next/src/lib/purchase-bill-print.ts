@@ -122,11 +122,11 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
       .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 7mm; background: white; position: relative; }
       .print-only { display: none; }
       .accent { height: 4px; background: linear-gradient(90deg, #166534, #65a30d, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
-      .header { display: grid; grid-template-columns: 1.25fr .75fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
+      .header { display: grid; grid-template-columns: 1.4fr .6fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
       .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
-      .company-name { font-size: 16px; font-weight: 800; color: #0f172a; }
+      .company-name { font-size: 14px; font-weight: 900; color: #0f172a; line-height: 1.25; }
       .company-en { font-size: 12px; font-weight: 700; color: #475569; margin-top: 1px; }
       .company-info { margin-top: 4px; color: #475569; font-size: 12px; }
       .doc-head { text-align: right; }
