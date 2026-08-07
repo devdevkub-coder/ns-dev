@@ -136,6 +136,14 @@ export function WeightTicketDetailModal({
     title: string
   } | null>(null)
   const [galleryZoom, setGalleryZoom] = useState(1)
+  const [galleryPan, setGalleryPan] = useState({ x: 0, y: 0 })
+  const galleryDragRef = useRef<{
+    originX: number
+    originY: number
+    pointerId: number
+    startX: number
+    startY: number
+  } | null>(null)
   const activeThumbnailRef = useRef<HTMLButtonElement | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [shareNote, setShareNote] = useState('')
@@ -356,6 +364,7 @@ export function WeightTicketDetailModal({
 
   useEffect(() => {
     setGalleryZoom(1)
+    setGalleryPan({ x: 0, y: 0 })
     const thumbnail = activeThumbnailRef.current
     if (thumbnail && typeof thumbnail.scrollIntoView === 'function') {
       thumbnail.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
@@ -368,6 +377,7 @@ export function WeightTicketDetailModal({
     title: string
   }) {
     setGalleryZoom(1)
+    setGalleryPan({ x: 0, y: 0 })
     setLineGallery(payload)
   }
 
@@ -817,7 +827,37 @@ export function WeightTicketDetailModal({
               </DialogHeader>
               <div className="space-y-4 bg-slate-950 p-4">
                 <div
-                  className="relative flex h-[min(65vh,48rem)] w-full items-center justify-center overflow-hidden rounded-md bg-slate-950"
+                  className={cn(
+                    'relative flex h-[min(65vh,48rem)] w-full items-center justify-center overflow-hidden rounded-md bg-slate-950 select-none',
+                    galleryZoom > 1 ? 'cursor-grab touch-none' : 'cursor-default',
+                  )}
+                  onPointerDown={(event) => {
+                    if (galleryZoom <= 1 || event.button !== 0 || (event.target as HTMLElement).closest('button')) return
+                    event.currentTarget.setPointerCapture(event.pointerId)
+                    galleryDragRef.current = {
+                      originX: galleryPan.x,
+                      originY: galleryPan.y,
+                      pointerId: event.pointerId,
+                      startX: event.clientX,
+                      startY: event.clientY,
+                    }
+                  }}
+                  onPointerMove={(event) => {
+                    const drag = galleryDragRef.current
+                    if (!drag || drag.pointerId !== event.pointerId) return
+                    setGalleryPan({
+                      x: drag.originX + event.clientX - drag.startX,
+                      y: drag.originY + event.clientY - drag.startY,
+                    })
+                  }}
+                  onPointerUp={(event) => {
+                    if (galleryDragRef.current?.pointerId !== event.pointerId) return
+                    galleryDragRef.current = null
+                    event.currentTarget.releasePointerCapture(event.pointerId)
+                  }}
+                  onPointerCancel={() => {
+                    galleryDragRef.current = null
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'ArrowLeft' && lineGallery.images.length > 1) {
                       setLineGallery((current) => current ? ({ ...current, activeIndex: current.activeIndex === 0 ? current.images.length - 1 : current.activeIndex - 1 }) : current)
@@ -830,10 +870,10 @@ export function WeightTicketDetailModal({
                 >
                   <Image
                     alt={activeGalleryImage.fileName}
-                    className="object-contain transition-transform duration-200"
+                    className="pointer-events-none object-contain transition-transform duration-200"
                     fill
                     src={activeGalleryImage.url}
-                    style={{ transform: `scale(${galleryZoom})` }}
+                    style={{ transform: `translate(${galleryPan.x}px, ${galleryPan.y}px) scale(${galleryZoom})` }}
                     unoptimized
                     sizes="(max-width: 768px) 100vw, 80vw"
                   />
@@ -843,7 +883,11 @@ export function WeightTicketDetailModal({
                       className="inline-flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
                       disabled={galleryZoom <= 1}
                       type="button"
-                      onClick={() => setGalleryZoom((current) => Math.max(1, Number((current - 0.25).toFixed(2))))}
+                      onClick={() => setGalleryZoom((current) => {
+                        const next = Math.max(1, Number((current - 0.25).toFixed(2)))
+                        if (next === 1) setGalleryPan({ x: 0, y: 0 })
+                        return next
+                      })}
                     >
                       <ZoomOut className="size-4" />
                     </button>
