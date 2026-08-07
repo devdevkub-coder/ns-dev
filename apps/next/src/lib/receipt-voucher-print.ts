@@ -147,6 +147,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
   const itemCount = printItems.length
   const isDense = itemCount >= 9 && itemCount <= 15
   const isLarge = itemCount > 15
+  const hasPageBreak = itemCount > 15
   const tableRowTarget = isDense ? itemCount : (isLarge ? 0 : 7)
 
   const itemsHtml = printItems.map((item, index) => {
@@ -256,6 +257,12 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .page.is-dense .signatures { margin-top: 10px; gap: 20px; }
       .page.is-dense .sig-line { height: 16px; }
       .page.is-dense .legal-note { margin-top: 6px; padding-top: 3px; font-size: 10.5px; }
+
+      /* Maximum 15 items per page: break to page 2 cleanly after 15th row */
+      .page.has-page-break .items tbody tr:nth-child(15) {
+        page-break-after: always;
+        break-after: page;
+      }
       
       .watermark { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 72px; font-weight: 900; color: rgba(226, 232, 240, 0.7); transform: rotate(-18deg); z-index: 10; }
       
@@ -273,7 +280,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       <span style="font-size: 12px;color:#cbd5e1">A4 portrait corporate print</span>
     </div>
     
-    <div class="page${isDense ? ' is-dense' : ''}">
+    <div class="page${isDense ? ' is-dense' : ''}${hasPageBreak ? ' has-page-break' : ''}">
       ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
       <div class="accent"></div>
       
