@@ -7,7 +7,7 @@ on realtime.messages
 for select
 to authenticated
 using (
-  topic() like 'weight-ticket-updates:%'
+  realtime.topic() like 'weight-ticket-updates:%'
   and exists (
     select 1
     from public.app_users users
@@ -23,7 +23,7 @@ using (
           select 1
           from public.app_user_branch_access access_branch
           where access_branch.user_id = users.id
-            and access_branch.branch_id::text = split_part(topic(), ':', 2)
+            and access_branch.branch_id::text = split_part(realtime.topic(), ':', 2)
         )
       )
   )
