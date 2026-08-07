@@ -1,3 +1,13 @@
+## Current objective — Corporate print/PDF standardization — 2026-08-07
+
+Apply the accepted A4 preview and unlimited-pagination contract to every formal business document, not only WTI/WTO. The active uncommitted batch covers POB, PB, SB, PO Sell, ADV, RV, PMT, RCP, WTI/WTO, PMA and EXP while preserving document snapshots, cancellation marks, permissions and read-only printing.
+
+Latest gap closed: PMA and EXP now use 15 table rows per page, repeat header/document metadata, keep blank table footer plus two empty summary frames and continuation text on pages `1..N-1`, and show real totals/notes/signatures only on page `N`. PMA group-total rows count toward the 15-row physical table capacity.
+
+Validation completed: focused print/FCD tests `104/104`, full lint, type-check, production build (337 static pages) and `git diff --check` passed. Independent code review is `APPROVED`, architecture contract is `PASS`, and fresh-context acceptance is `ACCEPTED`. Browser/PDF visual UAT remains unrun unless the user explicitly requests testing.
+
+Delivery checkpoint: fetched `sit-origin/main` at `85f545c4` with ahead/behind `0/0`; no remote integration is required before the focused local commit. Include the new PMT/RCP behavioral test explicitly and leave unrelated dirty/untracked files untouched. Push/deploy only on a separate user request.
+
 ## Current objective — WTI/WTO Production baseline — 2026-08-07
 
 Restore the WTI/WTO runtime to the locally cached `production-origin/main` commit `0e15be424a208f4dbdf43d0422b4723653af6efa`, then apply collaboration changes incrementally instead of carrying the whole experimental SIT redesign forward.

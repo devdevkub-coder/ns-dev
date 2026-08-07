@@ -30,6 +30,7 @@ import { calculateCustomerReceiptCashRequired, calculateCustomerReceiptSettlemen
 import { customerReceiptFormSchema, dailyFetchJson, formatMoney, supplierPaymentFormSchema, todayDateInput, type CustomerReceiptFormValues, type DailyAccountOption, type SupplierPaymentFormValues } from '@/lib/daily'
 import { formatAccountNoDisplay, formatDateDisplay } from '@/lib/format'
 import { normalizePaymentMethod, paymentDestinationKey } from '@/lib/payment-destination'
+import { paginateStandardPrintItems } from '@/lib/print-pagination'
 
 type PartyBankAccount = {
   accountNo?: string | null
@@ -73,7 +74,7 @@ type CustomerAdvance = {
   status?: string
   targetAmount: number
 }
-type MoneyRow = {
+export type MoneyRow = {
   accountId?: string
   accountName: string
   accountNames?: string[]
@@ -152,7 +153,7 @@ type FxRateLookup = {
   source?: 'Google Finance'
   status: 'manual_required' | 'not_required' | 'suggested'
 }
-type PaymentHistoryDetail = {
+export type PaymentHistoryDetail = {
   accountRows: Array<{ accountName: string; amount: number; bankStatementDocNo: string }>
   approvalRows: Array<{ amount: number; docNo: string; sourceDocNo: string }>
   detailCards: Array<{ label: string; value: string }>
@@ -210,6 +211,13 @@ const companyProfilePayloadSchema = z.object({
   ...companyProfileResponseSchema.shape,
   selectedBranchName: z.string().nullable().default(null),
 })
+
+async function loadCompanyProfileForPrint(branchId?: string | null) {
+  const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : ''
+  const response = await fetch(`/api/admin/company-profile${query}`, { cache: 'no-store' })
+  const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
+  return companyProfileForPrint(payload)
+}
 const paymentQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey>> = [
   { key: 'docNo', defaultWidth: 180, minWidth: 150 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
@@ -648,6 +656,7 @@ function paymentDailyReportDateRangeLabel(dateFrom: string, dateTo: string) {
 
 function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePrintValues, params: { dateFrom: string; dateTo: string; kind: 'payment' | 'receipt'; printedAt: Date }) {
   const isReceipt = params.kind === 'receipt'
+  const companyName = missingCompanyData(profile.name).replace(/\s+/g, ' ').trim()
   const reportTitle = isReceipt ? 'รายงานประวัติการรับเงินประจำวัน' : 'รายงานประวัติการจ่ายเงินประจำวัน'
   const docLabel = isReceipt ? 'RCP' : 'PMT'
   const partyLabel = isReceipt ? 'ลูกค้า' : 'ผู้รับเงิน'
@@ -692,14 +701,15 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(reportTitle)}</title>
     <style>
       @page { size: A4 landscape; margin: 10mm; }
-      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
-      .toolbar { background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; text-align: center; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #334155; padding: 16px 0; }
+      .toolbar { background: #0f172a; color: white; padding: 8px; text-align: center; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
-      .page { padding: 10px; }
+      .page { width: 277mm; min-height: 190mm; margin: 0 auto 16px; padding: 7mm; background: #fff; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
       .header { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
       .logo { max-height: 52px; max-width: 180px; object-fit: contain; margin-bottom: 4px; }
       .no-logo { display: flex; align-items: center; justify-content: center; width: 120px; height: 52px; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
-      .co-name { font-size: 18px; font-weight: 800; }
+      .co-name { font-size: 18px; font-weight: 800; white-space: nowrap; }
       .co-info { color: #475569; line-height: 1.45; margin-top: 3px; }
       .doc-title { text-align: right; }
       .doc-title h1 { font-size: 20px; margin: 0 0 4px; white-space: nowrap; }
@@ -724,7 +734,11 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
       .empty-row td { height: 24px; }
       .final-amount { color: #047857; font-weight: 900; }
       .footer { border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 12px; margin-top: 12px; padding-top: 8px; }
-      @media print { .toolbar { display: none; } .page { padding: 0; } }
+      @media print {
+        body { background: white; padding: 0; }
+        .toolbar { display: none; }
+        .page { width: auto; min-height: auto; margin: 0; padding: 0; background: #fff; box-shadow: none; border-radius: 0; }
+      }
     </style>
   </head><body>
     <div class="toolbar">
@@ -735,7 +749,7 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
       <div class="header">
         <div>
           ${profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="logo no-logo">ไม่มีข้อมูล</div>'}
-          <div class="co-name">${escapeHtml(missingCompanyData(profile.name))}</div>
+          <div class="co-name">${escapeHtml(companyName)}</div>
           ${profile.nameEn ? `<div>${escapeHtml(profile.nameEn)}</div>` : ''}
           <div class="co-info">${companyInfoForPrint(profile)}</div>
         </div>
@@ -790,129 +804,219 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
   </body></html>`
 }
 
-function buildCustomerReceiptPrintHtml(row: MoneyRow) {
-  const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billDocNo || row.billId || '-']
-  const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName || '-']
-  const receiptLines = row.receiptLines?.length ? row.receiptLines : billDocNos.map((docNo, index) => ({
-    discountAmount: index === 0 ? row.discount ?? 0 : 0,
-    lineNo: index + 1,
-    receiptAmount: index === 0 ? receiptBookAmount(row) : 0,
-    salesBillDocNo: docNo,
-    withholdingTaxAmount: index === 0 ? row.withholdingTax ?? 0 : 0,
-  }))
-  const lineRows = receiptLines.map((line, index) => `<tr>
-    <td class="c">${index + 1}</td>
-    <td class="mono">${escapeHtml(line.salesBillDocNo || '-')}</td>
-    <td class="r">${escapeHtml(formatMoney(line.receiptAmount))}</td>
-    <td class="r">${escapeHtml(formatMoney(line.withholdingTaxAmount))}</td>
-    <td class="r">${escapeHtml(formatMoney(line.discountAmount))}</td>
-  </tr>`).join('')
-  const fillerRows = printEmptyRows(5, 10 - receiptLines.length)
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(row.docNo)}</title>
+export function buildPaymentVoucherPrintHtml(row: MoneyRow, detail: PaymentHistoryDetail, profile: CompanyProfilePrintValues) {
+  const companyName = missingCompanyData(profile.name).replace(/\s+/g, ' ').trim()
+  const companyNameEn = profile.nameEn?.replace(/\s+/g, ' ').trim() || ''
+  const isCancelled = row.status === 'cancelled' || detail.latestStatusLabel === 'ยกเลิก'
+  const paymentLines = [
+    ...detail.approvalRows.map((approval) => ({
+      amount: approval.amount,
+      kind: 'PMA / ต้นทาง',
+      primary: approval.docNo || '-',
+      secondary: approval.sourceDocNo || '-',
+    })),
+    ...detail.accountRows.map((account) => ({
+      amount: account.amount,
+      kind: 'บัญชีจ่าย',
+      primary: account.accountName || '-',
+      secondary: account.bankStatementDocNo || '-',
+    })),
+  ]
+  const pages = paginateStandardPrintItems(paymentLines)
+  const pagesHtml = pages.map((page) => {
+    const placeholder = !page.isFinalPage
+    const lineRows = page.items.map((line, index) => `<tr data-row-slot="${page.startIndex + index + 1}">
+      <td class="c">${page.startIndex + index + 1}</td>
+      <td>${escapeHtml(line.kind)}</td>
+      <td class="mono">${escapeHtml(line.primary)}</td>
+      <td class="mono">${escapeHtml(line.secondary)}</td>
+      <td class="r">${escapeHtml(formatMoney(line.amount))}</td>
+    </tr>`).join('')
+    const fillerRows = printEmptyRows(5, page.emptyRowCount)
+
+    return `<main class="page" data-document-type="PMT" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
+      <div class="watermark">ยกเลิก / CANCELLED</div>
+      <div class="header">
+        <div class="company">
+          ${profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="no-logo">ไม่มีข้อมูล</div>'}
+          <div>
+            <div class="co-name">${escapeHtml(companyName)}</div>
+            ${companyNameEn ? `<div>${escapeHtml(companyNameEn)}</div>` : ''}
+            <div class="co-info">${companyInfoForPrint(profile)}</div>
+          </div>
+        </div>
+        <div class="doc-title">
+          <h1>ใบสำคัญจ่าย</h1>
+          <div>Payment Voucher <span class="page-label">(หน้า ${page.pageNo} / ${page.totalPages})</span></div>
+          <div class="mono value">${escapeHtml(detail.docNo)}</div>
+          <div>${escapeHtml(formatDateDisplay(row.date))}</div>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="box"><div class="label">ผู้รับเงิน</div><div class="value">${escapeHtml(row.partyName || '-')}</div></div>
+        <div class="box"><div class="label">วิธีจ่ายเงิน</div><div class="value">${escapeHtml(row.method || '-')}</div></div>
+        <div class="box"><div class="label">สถานะ</div><div class="value">${escapeHtml(detail.latestStatusLabel)}</div></div>
+      </div>
+      <div class="section-title">รายการ PMA / เอกสารต้นทาง / บัญชีที่ใช้ทำจ่าย</div>
+      <table>
+        <thead><tr><th class="c" style="width:9mm">#</th><th style="width:28mm">ประเภท</th><th>เอกสาร / บัญชี</th><th style="width:42mm">รายการอ้างอิง</th><th class="r" style="width:30mm">ยอด</th></tr></thead>
+        <tbody>${lineRows}${fillerRows}</tbody>
+        ${placeholder ? `
+        <tfoot data-page-totals="placeholder"><tr><td colspan="5">&nbsp;</td></tr></tfoot>
+        ` : `
+        <tfoot data-page-totals="final"><tr><td colspan="4" class="r">รวมยอดจ่าย</td><td class="r final">${escapeHtml(formatMoney(detail.summary.amount))}</td></tr></tfoot>
+        `}
+      </table>
+      ${placeholder ? `
+        <section class="continuation-summary" data-continuation-summary="empty" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+        </section>
+        <div class="continuation-signature">( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )</div>
+      ` : `
+        <div class="totals">
+          <div class="box"><div class="label">ยอดจ่าย</div><div class="value">${escapeHtml(formatMoney(detail.summary.amount))}</div></div>
+          <div class="box"><div class="label">ภาษีหัก ณ ที่จ่าย</div><div class="value">${escapeHtml(formatMoney(detail.summary.withholdingTax))}</div></div>
+          <div class="box"><div class="label">ค่าธรรมเนียมธนาคาร</div><div class="value">${escapeHtml(formatMoney(detail.summary.fee))}</div></div>
+          <div class="box"><div class="label">เงินออกสุทธิ</div><div class="value final">${escapeHtml(formatMoney(detail.summary.netAmount))}</div></div>
+        </div>
+        <div class="box note"><div class="label">หมายเหตุ</div><div>${escapeHtml(row.notes || '-')}</div></div>
+        <section class="signatures" data-signatures="final">
+          <div class="sig"><div class="sig-line">ผู้จัดทำ</div><div>วันที่ ____ / ____ / ______</div></div>
+          <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
+          <div class="sig"><div class="sig-line">ผู้รับเงิน</div><div>วันที่ ____ / ____ / ______</div></div>
+        </section>
+      `}
+      <footer class="footer"><span>${page.isFinalPage ? escapeHtml(profile.footerNote || '') : ''}</span><span>หน้า ${page.pageNo} / ${page.totalPages}</span></footer>
+    </main>`
+  }).join('')
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(detail.docNo)}</title>
     <style>
-      @page { size: A4; margin: 12mm; }
-      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
-      .toolbar { background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; text-align: center; }
-      .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
-      .page { padding: 10px; }
-      h1 { font-size: 22px; margin: 0 0 4px; }
-      .muted { color: #64748b; }
-      .header { border-bottom: 2px solid #0f172a; display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
-      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin: 14px 0; }
-      .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
-      .label { color: #64748b; font-size: 12px; }
-      .value { font-weight: 800; margin-top: 2px; }
-      table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+      @page { size: A4 portrait; margin: 8mm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; line-height: 1.35; margin: 0; background: #334155; padding: 16px 0; }
+      .toolbar { background: #0f172a; color: white; padding: 8px; text-align: center; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
+      .toolbar button { background: #15803d; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
+      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: #fff; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; position: relative; display: flex; flex-direction: column; page-break-after: always; break-after: page; }
+      .page:last-child { page-break-after: avoid; break-after: avoid; }
+      .header { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+      .company { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; align-items: start; }
+      .logo, .no-logo { width: 56px; height: 56px; object-fit: contain; }
+      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 10px; font-weight: 800; text-align: center; }
+      .co-name { font-size: 16px; font-weight: 800; white-space: nowrap; }
+      .co-info { color: #475569; line-height: 1.4; margin-top: 3px; }
+      .doc-title { text-align: right; }
+      .doc-title h1 { color: #14532d; font-size: 21px; margin: 0 0 2px; }
+      .page-label { color: #15803d; font-weight: 800; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+      .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; }
+      .label { color: #64748b; font-size: 11px; }
+      .value { font-weight: 800; margin-top: 2px; overflow-wrap: anywhere; }
+      .section-title { background: #f1f5f9; border: 1px solid #cbd5e1; border-bottom: 0; font-weight: 900; padding: 6px 8px; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
       th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; }
       td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
-      tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
-      .empty-row td { height: 24px; color: transparent; }
+      .empty-row td { color: transparent; height: 24px; }
+      tfoot td { background: #ecfdf5; font-weight: 900; }
+      tfoot[data-page-totals="placeholder"] td { background: white; color: transparent; height: 28px; }
       .r { text-align: right; }
       .c { text-align: center; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-      .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
-      .green { color: #047857; }
-      .final-amount { color: #047857; font-weight: 900; }
-      @media print { .toolbar { display: none; } .page { padding: 0; } }
+      .totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+      .final { color: #047857; }
+      .note { margin-top: 10px; }
+      .continuation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+      .continuation-empty-panel { min-height: 58px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+      .continuation-signature { margin-top: auto; padding-top: 28px; color: #475569; font-weight: 800; text-align: center; }
+      .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: auto; padding-top: 28px; }
+      .sig { color: #475569; text-align: center; }
+      .sig-line { border-top: 1px solid #94a3b8; color: #1e293b; font-weight: 800; margin-top: 24px; padding-top: 5px; }
+      .footer { border-top: 1px dashed #cbd5e1; color: #64748b; display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 6px; }
+      .watermark { display: ${isCancelled ? 'block' : 'none'}; position: absolute; top: 108mm; left: 42mm; transform: rotate(-18deg); color: rgba(239,68,68,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
+      @media print {
+        body { background: white; padding: 0; }
+        .toolbar { display: none; }
+        .page { width: auto; min-height: 281mm; margin: 0; padding: 0; background: #fff; box-shadow: none; border-radius: 0; }
+      }
     </style>
   </head><body>
     <div class="toolbar">
       <button onclick="window.print()">พิมพ์ / Save as PDF</button>
       <button onclick="window.close()" style="background:#64748b">ปิด</button>
     </div>
-    <div class="page">
-      <div class="header">
-        <div>
-          <h1>Receipt Voucher</h1>
-          <div class="muted">ใบสำคัญรับเงินลูกค้า</div>
-        </div>
-        <div style="text-align:right">
-          <div class="label">เลขที่เอกสาร</div>
-          <div class="value mono">${escapeHtml(row.docNo)}</div>
-          <div class="label" style="margin-top:6px">วันที่</div>
-          <div class="value">${escapeHtml(formatDateDisplay(row.date))}</div>
-        </div>
-      </div>
-      <div class="grid">
-        <div class="box"><div class="label">ลูกค้า</div><div class="value">${escapeHtml(row.partyName || '-')}</div></div>
-        <div class="box"><div class="label">บัญชีรับเงิน</div><div class="value">${accountSummaries.map(escapeHtml).join('<br>')}</div></div>
-        <div class="box"><div class="label">วิธีรับเงิน</div><div class="value">${escapeHtml(row.method || '-')}</div></div>
-        <div class="box"><div class="label">สถานะ</div><div class="value">${escapeHtml(row.status === 'cancelled' ? 'ยกเลิก' : 'รับเงินแล้ว')}</div></div>
-      </div>
-      <table>
-        <thead><tr><th class="c">#</th><th>บิลขาย</th><th class="r">ยอดรับ</th><th class="r">ภาษีหัก ณ ที่จ่าย</th><th class="r">ส่วนลด</th></tr></thead>
-        <tbody>${lineRows}${fillerRows}</tbody>
-        <tfoot>
-          <tr>
-            <td colspan="2" class="r">รวมทั้งสิ้น</td>
-            <td class="r final-amount">${escapeHtml(formatMoney(receiptBookAmount(row)))}</td>
-            <td class="r">${escapeHtml(formatMoney(row.withholdingTax ?? 0))}</td>
-            <td class="r">${escapeHtml(formatMoney(row.discount ?? 0))}</td>
-          </tr>
-        </tfoot>
-      </table>
-      <div class="summary">
-        <div class="box"><div class="label">ยอดรับ (THB)</div><div class="value">${escapeHtml(formatMoney(receiptBookAmount(row)))}</div></div>
-        <div class="box"><div class="label">ภาษีหัก ณ ที่จ่าย</div><div class="value">${escapeHtml(formatMoney(row.withholdingTax ?? 0))}</div></div>
-        <div class="box"><div class="label">ค่าธรรมเนียมธนาคาร</div><div class="value">${escapeHtml(formatMoney(row.fee ?? 0))}</div></div>
-        <div class="box"><div class="label">ยอดสุทธิ (THB)</div><div class="value green">${escapeHtml(formatMoney(receiptBookNetCashIn(row)))}</div></div>
-      </div>
-      ${buildForeignReceiptAuditPrintHtml(row)}
-      <div class="box" style="margin-top:12px"><div class="label">หมายเหตุ</div><div>${escapeHtml(row.notes || '-')}</div></div>
-    </div>
+    ${pagesHtml}
   </body></html>`
 }
 
-function buildBatchReceiptPrintHtml(rows: MoneyRow[]) {
-  const pagesHtml = rows.map((row) => {
-    const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billDocNo || row.billId || '-']
+export function buildCustomerReceiptPrintHtml(row: MoneyRow, profile: CompanyProfilePrintValues) {
+  return buildBatchReceiptPrintHtml([{ profile, row }], row.docNo)
+}
+
+type CustomerReceiptPrintEntry = { profile: CompanyProfilePrintValues; row: MoneyRow }
+
+async function loadCustomerReceiptPrintEntries(rows: MoneyRow[]) {
+  const profileRequests = new Map<string, Promise<CompanyProfilePrintValues>>()
+  return Promise.all(rows.map(async (row) => {
+    const branchKey = row.branchId ?? ''
+    const profileRequest = profileRequests.get(branchKey) ?? loadCompanyProfileForPrint(row.branchId)
+    profileRequests.set(branchKey, profileRequest)
+    return { profile: await profileRequest, row }
+  }))
+}
+
+function buildBatchReceiptPrintHtml(entries: CustomerReceiptPrintEntry[], title = 'พิมพ์ใบเสร็จรับเงินหลายรายการ') {
+  const pagesHtml = entries.flatMap(({ profile, row }) => {
+    const companyName = missingCompanyData(profile.name).replace(/\s+/g, ' ').trim()
+    const companyNameEn = profile.nameEn?.replace(/\s+/g, ' ').trim() || ''
+    const billDocNos = row.sourceType === 'CADV'
+      ? (row.customerAdvanceDocNos?.length ? row.customerAdvanceDocNos : ['-'])
+      : (row.billDocNos?.length ? row.billDocNos : [row.billDocNo || row.billId || '-'])
     const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName || '-']
-    const receiptLines = row.receiptLines?.length ? row.receiptLines : billDocNos.map((docNo, index) => ({
-      discountAmount: index === 0 ? row.discount ?? 0 : 0,
-      lineNo: index + 1,
-      receiptAmount: index === 0 ? receiptBookAmount(row) : 0,
-      salesBillDocNo: docNo,
-      withholdingTaxAmount: index === 0 ? row.withholdingTax ?? 0 : 0,
-    }))
-    const lineRows = receiptLines.map((line, index) => `<tr>
-      <td class="c">${index + 1}</td>
+    const receiptLines = row.sourceType === 'CADV' && row.customerAdvanceLines?.length
+      ? row.customerAdvanceLines.map((line, index) => ({
+          discountAmount: 0,
+          lineNo: index + 1,
+          receiptAmount: line.receiptAmount,
+          salesBillDocNo: line.customerAdvanceDocNo,
+          withholdingTaxAmount: 0,
+        }))
+      : row.receiptLines?.length ? row.receiptLines : billDocNos.map((docNo, index) => ({
+          discountAmount: index === 0 ? row.discount ?? 0 : 0,
+          lineNo: index + 1,
+          receiptAmount: index === 0 ? receiptBookAmount(row) : 0,
+          salesBillDocNo: docNo,
+          withholdingTaxAmount: index === 0 ? row.withholdingTax ?? 0 : 0,
+        }))
+    const sourceDocumentLabel = row.sourceType === 'CADV' ? 'เงินรับล่วงหน้า Customer' : 'บิลขาย'
+    const pages = paginateStandardPrintItems(receiptLines)
+
+    return pages.map((page) => {
+      const placeholder = !page.isFinalPage
+      const lineRows = page.items.map((line, index) => `<tr data-row-slot="${page.startIndex + index + 1}">
+      <td class="c">${page.startIndex + index + 1}</td>
       <td class="mono">${escapeHtml(line.salesBillDocNo || '-')}</td>
       <td class="r">${escapeHtml(formatMoney(line.receiptAmount))}</td>
       <td class="r">${escapeHtml(formatMoney(line.withholdingTaxAmount))}</td>
       <td class="r">${escapeHtml(formatMoney(line.discountAmount))}</td>
     </tr>`).join('')
-    const fillerRows = printEmptyRows(5, 10 - receiptLines.length)
+      const fillerRows = printEmptyRows(5, page.emptyRowCount)
 
-    return `<div class="page">
+      return `<main class="page" data-document-type="RCP" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
+      <div class="watermark" style="display:${row.status === 'cancelled' ? 'block' : 'none'}">ยกเลิก / CANCELLED</div>
       <div class="header">
-        <div>
-          <h1>Receipt Voucher</h1>
-          <div class="muted">ใบสำคัญรับเงินลูกค้า</div>
+        <div class="company">
+          ${profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="no-logo">ไม่มีข้อมูล</div>'}
+          <div>
+            <div class="co-name">${escapeHtml(companyName)}</div>
+            ${companyNameEn ? `<div>${escapeHtml(companyNameEn)}</div>` : ''}
+            <div class="co-info">${companyInfoForPrint(profile)}</div>
+          </div>
         </div>
-        <div style="text-align:right">
-          <div class="label">เลขที่เอกสาร</div>
+        <div class="doc-title">
+          <h1>ใบสำคัญรับเงินลูกค้า</h1>
+          <div class="muted">Receipt Voucher <span class="page-label">(หน้า ${page.pageNo} / ${page.totalPages})</span></div>
           <div class="value mono">${escapeHtml(row.docNo)}</div>
-          <div class="label" style="margin-top:6px">วันที่</div>
           <div class="value">${escapeHtml(formatDateDisplay(row.date))}</div>
         </div>
       </div>
@@ -923,39 +1027,60 @@ function buildBatchReceiptPrintHtml(rows: MoneyRow[]) {
         <div class="box"><div class="label">สถานะ</div><div class="value">${escapeHtml(row.status === 'cancelled' ? 'ยกเลิก' : 'รับเงินแล้ว')}</div></div>
       </div>
       <table>
-        <thead><tr><th class="c">#</th><th>บิลขาย</th><th class="r">ยอดรับ</th><th class="r">ภาษีหัก ณ ที่จ่าย</th><th class="r">ส่วนลด</th></tr></thead>
+        <thead><tr><th class="c">#</th><th>${escapeHtml(sourceDocumentLabel)}</th><th class="r">ยอดรับ</th><th class="r">ภาษีหัก ณ ที่จ่าย</th><th class="r">ส่วนลด</th></tr></thead>
         <tbody>${lineRows}${fillerRows}</tbody>
-        <tfoot>
-          <tr>
-            <td colspan="2" class="r">รวมทั้งสิ้น</td>
-            <td class="r final-amount">${escapeHtml(formatMoney(receiptBookAmount(row)))}</td>
-            <td class="r">${escapeHtml(formatMoney(row.withholdingTax ?? 0))}</td>
-            <td class="r">${escapeHtml(formatMoney(row.discount ?? 0))}</td>
-          </tr>
+        ${placeholder ? `
+        <tfoot data-page-totals="placeholder"><tr><td colspan="5">&nbsp;</td></tr></tfoot>
+        ` : `
+        <tfoot data-page-totals="final">
+          <tr><td colspan="2" class="r">รวมทั้งสิ้น</td><td class="r final-amount">${escapeHtml(formatMoney(receiptBookAmount(row)))}</td><td class="r">${escapeHtml(formatMoney(row.withholdingTax ?? 0))}</td><td class="r">${escapeHtml(formatMoney(row.discount ?? 0))}</td></tr>
         </tfoot>
+        `}
       </table>
-      <div class="summary">
-        <div class="box"><div class="label">ยอดรับ (THB)</div><div class="value">${escapeHtml(formatMoney(receiptBookAmount(row)))}</div></div>
-        <div class="box"><div class="label">ภาษีหัก ณ ที่จ่าย</div><div class="value">${escapeHtml(formatMoney(row.withholdingTax ?? 0))}</div></div>
-        <div class="box"><div class="label">ค่าธรรมเนียมธนาคาร</div><div class="value">${escapeHtml(formatMoney(row.fee ?? 0))}</div></div>
-        <div class="box"><div class="label">ยอดสุทธิ (THB)</div><div class="value green">${escapeHtml(formatMoney(receiptBookNetCashIn(row)))}</div></div>
-      </div>
-      ${buildForeignReceiptAuditPrintHtml(row)}
-      <div class="box" style="margin-top:12px"><div class="label">หมายเหตุ</div><div>${escapeHtml(row.notes || '-')}</div></div>
-    </div>`
+      ${placeholder ? `
+        <section class="continuation-summary" data-continuation-summary="empty" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+        </section>
+        <div class="continuation-signature">( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )</div>
+      ` : `
+        <div class="summary">
+          <div class="box"><div class="label">ยอดรับ (THB)</div><div class="value">${escapeHtml(formatMoney(receiptBookAmount(row)))}</div></div>
+          <div class="box"><div class="label">ภาษีหัก ณ ที่จ่าย</div><div class="value">${escapeHtml(formatMoney(row.withholdingTax ?? 0))}</div></div>
+          <div class="box"><div class="label">ค่าธรรมเนียมธนาคาร</div><div class="value">${escapeHtml(formatMoney(row.fee ?? 0))}</div></div>
+          <div class="box"><div class="label">ยอดสุทธิ (THB)</div><div class="value green">${escapeHtml(formatMoney(receiptBookNetCashIn(row)))}</div></div>
+        </div>
+        ${buildForeignReceiptAuditPrintHtml(row)}
+        <div class="box" style="margin-top:12px"><div class="label">หมายเหตุ</div><div>${escapeHtml(row.notes || '-')}</div></div>
+        <section class="signatures" data-signatures="final">
+          <div class="sig"><div class="sig-line">ผู้จ่ายเงิน / Customer</div><div>วันที่ ____ / ____ / ______</div></div>
+          <div class="sig"><div class="sig-line">ผู้รับเงิน / Receiver</div><div>วันที่ ____ / ____ / ______</div></div>
+        </section>
+      `}
+      <footer class="footer"><span>${page.isFinalPage ? escapeHtml(profile.footerNote || '') : ''}</span><span>หน้า ${page.pageNo} / ${page.totalPages}</span></footer>
+    </main>`
+    })
   }).join('')
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>พิมพ์ใบเสร็จรับเงินหลายรายการ</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
     <style>
-      @page { size: A4; margin: 12mm; }
-      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
-      .toolbar { background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; text-align: center; }
-      .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
-      .page { padding: 10px; page-break-after: always; }
-      .page:last-child { page-break-after: avoid; }
-      h1 { font-size: 22px; margin: 0 0 4px; }
+      @page { size: A4 portrait; margin: 8mm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #334155; padding: 16px 0; }
+      .toolbar { background: #0f172a; color: white; padding: 8px; text-align: center; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
+      .toolbar button { background: #15803d; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
+      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: #fff; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; page-break-after: always; break-after: page; position: relative; display: flex; flex-direction: column; }
+      .page:last-child { page-break-after: avoid; break-after: avoid; }
+      h1 { color: #14532d; font-size: 21px; margin: 0 0 2px; }
       .muted { color: #64748b; }
-      .header { border-bottom: 2px solid #0f172a; display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
+      .header { border-bottom: 2px solid #0f172a; display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 16px; padding-bottom: 12px; }
+      .company { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; align-items: start; }
+      .logo, .no-logo { width: 56px; height: 56px; object-fit: contain; }
+      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 10px; font-weight: 800; text-align: center; }
+      .co-name { font-size: 16px; font-weight: 800; white-space: nowrap; }
+      .co-info { color: #475569; line-height: 1.4; margin-top: 3px; }
+      .doc-title { text-align: right; }
+      .page-label { color: #15803d; font-weight: 800; }
       .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin: 14px 0; }
       .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
       .label { color: #64748b; font-size: 12px; }
@@ -964,6 +1089,7 @@ function buildBatchReceiptPrintHtml(rows: MoneyRow[]) {
       th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; }
       td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
       tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
+      tfoot[data-page-totals="placeholder"] td { background: white; color: transparent; height: 28px; }
       .empty-row td { height: 24px; color: transparent; }
       .r { text-align: right; }
       .c { text-align: center; }
@@ -971,7 +1097,19 @@ function buildBatchReceiptPrintHtml(rows: MoneyRow[]) {
       .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
       .green { color: #047857; }
       .final-amount { color: #047857; font-weight: 900; }
-      @media print { .toolbar { display: none; } .page { padding: 0; } }
+      .continuation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+      .continuation-empty-panel { min-height: 58px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+      .continuation-signature { margin-top: auto; padding-top: 28px; color: #475569; font-weight: 800; text-align: center; }
+      .signatures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; margin-top: auto; padding-top: 28px; }
+      .sig { color: #475569; text-align: center; }
+      .sig-line { border-top: 1px solid #94a3b8; color: #1e293b; font-weight: 800; margin-top: 24px; padding-top: 5px; }
+      .footer { border-top: 1px dashed #cbd5e1; color: #64748b; display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 6px; }
+      .watermark { position: absolute; top: 105mm; left: 42mm; transform: rotate(-18deg); color: rgba(239,68,68,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
+      @media print {
+        body { background: white; padding: 0; }
+        .toolbar { display: none; }
+        .page { width: auto; min-height: 281mm; margin: 0; padding: 0; background: #fff; box-shadow: none; border-radius: 0; }
+      }
     </style>
   </head>
   <body>
@@ -994,6 +1132,12 @@ function buildForeignReceiptAuditPrintHtml(row: MoneyRow) {
       <div><div class="label">สกุลเงินที่รับจริง</div><div class="value">${escapeHtml(foreign.currencyCode)}</div></div>
       <div><div class="label">ยอดที่ลูกค้าโอน (${escapeHtml(foreign.currencyCode)})</div><div class="value">${escapeHtml(formatNativeAmount(foreign.nativeAmount))}</div></div>
       <div><div class="label">อัตราแลกเปลี่ยน</div><div class="value">${escapeHtml(formatFxRate(foreign.fxRate))}</div></div>
+      <div><div class="label">มูลค่าเงินรับ ณ วันรับเงิน (THB)</div><div class="value">${escapeHtml(formatMoney(foreign.settlementBookAmount))}</div></div>
+      ${row.sourceType === 'SB' ? `
+        <div><div class="label">เงินสดตัดลูกหนี้ (THB)</div><div class="value">${escapeHtml(formatMoney(foreign.cashAppliedThb))}</div></div>
+        <div><div class="label">ยอดตัดลูกหนี้ (THB)</div><div class="value">${escapeHtml(formatMoney(foreign.arSettledThb))}</div></div>
+        <div><div class="label">กำไร FX จากการปิดบิล (THB)</div><div class="value">${escapeHtml(formatMoney(foreign.settlementFxDifference))}</div></div>
+      ` : ''}
       <div><div class="label">Carrying (THB)</div><div class="value">${escapeHtml(formatMoney(foreign.carryingBookAmount))}</div></div>
     </div>
   </div>`
@@ -1031,10 +1175,11 @@ function buildReceivableBillPrintHtml(bill: Bill, customerName: string) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(receiptDocNo)}</title>
     <style>
       @page { size: A4; margin: 12mm; }
-      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
-      .toolbar { background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; text-align: center; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #334155; padding: 16px 0; }
+      .toolbar { background: #0f172a; color: white; padding: 8px; text-align: center; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
-      .page { padding: 10px; }
+      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: #fff; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
       h1 { font-size: 22px; margin: 0 0 4px; }
       .muted { color: #64748b; }
       .header { border-bottom: 2px solid #0f172a; display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
@@ -1045,7 +1190,11 @@ function buildReceivableBillPrintHtml(bill: Bill, customerName: string) {
       .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
       .green { color: #047857; }
       .blue { color: #1d4ed8; }
-      @media print { .toolbar { display: none; } .page { padding: 0; } }
+      @media print {
+        body { background: white; padding: 0; }
+        .toolbar { display: none; }
+        .page { width: auto; min-height: auto; margin: 0; padding: 0; background: #fff; box-shadow: none; border-radius: 0; }
+      }
     </style>
   </head><body>
     <div class="toolbar">
@@ -2024,7 +2173,7 @@ export function MoneyMovementPageClient({
     }
   }
 
-  function printSelectedReceipts() {
+  async function printSelectedReceipts() {
     const rowsToPrint = rows.filter((row) => selectedReceiptIds.includes(row.id))
     if (rowsToPrint.length === 0) return
     const printWindow = window.open('', '_blank', 'width=960,height=900,scrollbars=yes')
@@ -2033,9 +2182,20 @@ export function MoneyMovementPageClient({
       return
     }
     printWindow.document.open()
-    printWindow.document.write(buildBatchReceiptPrintHtml(rowsToPrint))
+    printWindow.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมเอกสาร</title></head><body style="font-family:Noto Sans Thai,Arial,sans-serif;margin:32px;color:#0f172a">กำลังเตรียมใบสำคัญรับเงิน...</body></html>')
     printWindow.document.close()
     printWindow.focus()
+    setError(null)
+    try {
+      const entries = await loadCustomerReceiptPrintEntries(rowsToPrint)
+      printWindow.document.open()
+      printWindow.document.write(buildBatchReceiptPrintHtml(entries))
+      printWindow.document.close()
+      printWindow.focus()
+    } catch (caught) {
+      printWindow.close()
+      setError(caught instanceof Error ? caught.message : 'พิมพ์ใบสำคัญรับเงินไม่ได้')
+    }
   }
 
   function openReceiptDetail(row: MoneyRow) {
@@ -2044,16 +2204,50 @@ export function MoneyMovementPageClient({
     setReceiptDetailOpen(true)
   }
 
-  function printCustomerReceipt(row: MoneyRow) {
+  async function printPaymentVoucher(row: MoneyRow, detail: PaymentHistoryDetail) {
     const printWindow = window.open('', '_blank', 'width=960,height=900,scrollbars=yes')
     if (!printWindow) {
       setError('Browser block popup — กรุณาอนุญาต popup สำหรับเว็บนี้')
       return
     }
     printWindow.document.open()
-    printWindow.document.write(buildCustomerReceiptPrintHtml(row))
+    printWindow.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมเอกสาร</title></head><body style="font-family:Noto Sans Thai,Arial,sans-serif;margin:32px;color:#0f172a">กำลังเตรียมใบสำคัญจ่าย...</body></html>')
     printWindow.document.close()
     printWindow.focus()
+    setError(null)
+    try {
+      const profile = await loadCompanyProfileForPrint(row.branchId)
+      printWindow.document.open()
+      printWindow.document.write(buildPaymentVoucherPrintHtml(row, detail, profile))
+      printWindow.document.close()
+      printWindow.focus()
+    } catch (caught) {
+      printWindow.close()
+      setError(caught instanceof Error ? caught.message : 'พิมพ์ใบสำคัญจ่ายไม่ได้')
+    }
+  }
+
+  async function printCustomerReceipt(row: MoneyRow) {
+    const printWindow = window.open('', '_blank', 'width=960,height=900,scrollbars=yes')
+    if (!printWindow) {
+      setError('Browser block popup — กรุณาอนุญาต popup สำหรับเว็บนี้')
+      return
+    }
+    printWindow.document.open()
+    printWindow.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมเอกสาร</title></head><body style="font-family:Noto Sans Thai,Arial,sans-serif;margin:32px;color:#0f172a">กำลังเตรียมใบสำคัญรับเงิน...</body></html>')
+    printWindow.document.close()
+    printWindow.focus()
+    setError(null)
+    try {
+      const profile = await loadCompanyProfileForPrint(row.branchId)
+      printWindow.document.open()
+      printWindow.document.write(buildCustomerReceiptPrintHtml(row, profile))
+      printWindow.document.close()
+      printWindow.focus()
+    } catch (caught) {
+      printWindow.close()
+      setError(caught instanceof Error ? caught.message : 'พิมพ์ใบสำคัญรับเงินไม่ได้')
+    }
   }
 
   function openReceivableBillDetail(bill: Bill) {
@@ -4514,6 +4708,7 @@ export function MoneyMovementPageClient({
           open={paymentDetailOpen}
           row={paymentDetailRow}
           onCancel={(row) => setCancelPaymentTarget(row)}
+          onPrint={printPaymentVoucher}
           onOpenChange={(open) => {
             setPaymentDetailOpen(open)
             if (!open) {
@@ -4730,6 +4925,7 @@ function PaymentHistoryDetailDialog({
   isLoading,
   onCancel,
   onOpenChange,
+  onPrint,
   open,
   row,
 }: {
@@ -4738,6 +4934,7 @@ function PaymentHistoryDetailDialog({
   isLoading: boolean
   onCancel: (row: MoneyRow) => void
   onOpenChange: (open: boolean) => void
+  onPrint: (row: MoneyRow, detail: PaymentHistoryDetail) => void
   open: boolean
   row: MoneyRow | null
 }) {
@@ -4754,6 +4951,12 @@ function PaymentHistoryDetailDialog({
             <p className="mt-1 truncate text-xs">{detailPartyName}</p>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            {row && detail?.type === 'payment' ? (
+              <UiButton className="h-9 gap-2 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white" type="button" variant="outline" onClick={() => onPrint(row, detail)}>
+                <Printer className="h-4 w-4" />
+                พิมพ์
+              </UiButton>
+            ) : null}
             {row && row.status !== 'cancelled' ? (
               <UiButton
                 className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white"
@@ -5053,12 +5256,12 @@ function ReceiptDetailDialog({
             <DialogDescription className="mt-1 truncate text-xs text-slate-300">{row?.partyName || '-'}</DialogDescription>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            <UiButton className="h-9 gap-2 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white" disabled={!row} type="button" variant="outline" onClick={() => row && onPrint(row)}>
+              <Printer className="h-4 w-4" />
+              พิมพ์
+            </UiButton>
             {!readOnly ? (
               <>
-                <UiButton className="h-9 gap-2 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white" disabled={!row} type="button" variant="outline" onClick={() => row && onPrint(row)}>
-                  <Printer className="h-4 w-4" />
-                  พิมพ์
-                </UiButton>
                 {row && !isCancelled ? (
                   <>
                     <UiButton className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" type="button" variant="outline" onClick={() => onEdit(row)}>แก้ไข</UiButton>

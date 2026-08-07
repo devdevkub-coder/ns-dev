@@ -146,6 +146,7 @@ const styles = StyleSheet.create({
   companyInfo: { fontSize: 7, color: TEXT_SECONDARY, marginTop: 1, lineHeight: 1.16 },
   docHead: { flex: 0.7, alignItems: 'flex-end' },
   docTitle: { fontSize: 13, fontWeight: 700, color: DOC_TITLE_GREEN },
+  pageLabel: { fontSize: 8, fontWeight: 700, color: DOC_TITLE_GREEN, marginTop: 2 },
 
   // Section grid (party + doc info)
   sectionGrid: { flexDirection: 'row', gap: 7, marginBottom: 8 },
@@ -267,6 +268,13 @@ const styles = StyleSheet.create({
   bgSourceRow: { backgroundColor: BG_SOURCE_ROW },
   bgPurchaseRow: { backgroundColor: BG_PURCHASE_ROW },
   bgProductTotal: { backgroundColor: BG_PRODUCT_TOTAL, fontWeight: 700 },
+  tablePlaceholderFooter: {
+    height: 20,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: BORDER_LIGHT,
+    backgroundColor: '#ffffff',
+  },
 
   // Bottom section
   bottomGrid: { flexDirection: 'row', gap: 7, marginTop: 6 },
@@ -282,6 +290,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   noteText: { fontSize: 9, color: TEXT_DARK },
+  continuationPanel: {
+    minHeight: 70,
+    backgroundColor: '#ffffff',
+  },
 
   // Signatures
   signatures: { flexDirection: 'row', gap: 12, marginTop: 'auto', marginBottom: 14 },
@@ -304,11 +316,12 @@ const styles = StyleSheet.create({
 
   // Continued marker
   continued: {
-    textAlign: 'right',
+    textAlign: 'center',
     fontSize: 9,
     fontWeight: 700,
-    color: TEXT_MUTED,
+    color: DOC_TITLE_GREEN,
     paddingTop: 8,
+    paddingBottom: 8,
   },
   albumHeader: {
     flexDirection: 'row',
@@ -536,6 +549,14 @@ function TableFooter({ ticket, isReceipt }: { ticket: WeightTicketRecord; isRece
   )
 }
 
+function EmptyTableFooter() {
+  return (
+    <View style={styles.tablePlaceholderFooter}>
+      <Text>{' '}</Text>
+    </View>
+  )
+}
+
 // ============================================================
 // Main Document
 // ============================================================
@@ -582,20 +603,8 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
     albumChunks.push(decodedImages.slice(i, i + albumChunkSize))
   }
 
-  const companyNameText = missing(profile.name)
-  const renderCompanyName = () => {
-    const suffix = '(สำนักงานใหญ่)'
-    if (companyNameText.endsWith(suffix)) {
-      const base = companyNameText.slice(0, -suffix.length).trim()
-      return (
-        <>
-          <Text style={styles.companyName}>{nt(base)}</Text>
-          <Text style={styles.companyName}>{nt(suffix)}</Text>
-        </>
-      )
-    }
-    return <Text style={styles.companyName}>{nt(companyNameText)}</Text>
-  }
+  const companyNameText = missing(profile.name).replace(/[\r\n]+/g, ' ').trim()
+  const companyNameEnText = profile.nameEn?.replace(/[\r\n]+/g, ' ').trim() || ''
 
   const rawAddress = missing(profile.address)
   const renderAddress = () => {
@@ -641,8 +650,8 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
-                  {renderCompanyName()}
-                  {profile.nameEn ? <Text style={styles.companyEn}>{nt(profile.nameEn)}</Text> : null}
+                  <Text style={styles.companyName}>{nt(companyNameText)}</Text>
+                  {companyNameEnText ? <Text style={styles.companyEn}>{nt(companyNameEnText)}</Text> : null}
                   {renderAddress()}
                   {otherInfoLines.map((line, i) => (
                     <Text key={i} style={styles.companyInfo}>{nt(line)}</Text>
@@ -651,6 +660,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
               </View>
               <View style={styles.docHead}>
                 <Text style={styles.docTitle}>{nt(docTitle)}</Text>
+                <Text style={styles.pageLabel}>{nt(`หน้า ${pageIndex + 1} / ${totalPages}`)}</Text>
               </View>
             </View>
 
@@ -706,7 +716,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
               {page.items.map((row, idx) => (
                 <ItemRow key={idx} row={row} isReceipt={isReceipt} />
               ))}
-              {isLastPage ? <TableFooter ticket={ticket} isReceipt={isReceipt} /> : null}
+              {isLastPage ? <TableFooter ticket={ticket} isReceipt={isReceipt} /> : <EmptyTableFooter />}
             </View>
 
             {!isLastPage ? <View style={styles.spacer} /> : null}
@@ -784,7 +794,14 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                 </View>
               </>
             ) : (
-              <Text style={styles.continued}>{nt('ต่อหน้าถัดไป')}</Text>
+              <>
+                <View style={styles.bottomGrid} wrap={false}>
+                  <View style={[styles.panel, styles.continuationPanel, { flex: 1.15 }]} />
+                  <View style={[styles.panel, styles.continuationPanel, { flex: 0.8 }]} />
+                  <View style={[styles.panel, styles.continuationPanel, { flex: 1.05 }]} />
+                </View>
+                <Text style={styles.continued}>{nt(`( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )`)}</Text>
+              </>
             )}
 
           </Page>

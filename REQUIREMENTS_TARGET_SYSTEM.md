@@ -215,13 +215,13 @@ Customer/Supplier branch eligibility เป็นส่วนหนึ่งข�
 - WHT ต้องดึงจาก master/config `wht_settings` ไม่ hardcode ในหน้าจอ โดยมีรายการมาตรฐาน 1% (ขนส่ง/รับเหมา), 2% (โฆษณา), 3% (บริการ), 5% (ค่าเช่า), 10% (ต่างชาติ), และ 15% (ดอกเบี้ย/เงินปันผล)
 - หน้า `ระบบ > ตั้งค่าระบบ > VAT / WHT` ต้องแสดง WHT ทุกอัตราและให้แก้เปอร์เซ็นต์ได้รายแถว; อัตราที่ใช้คำนวณ runtime ต้องมาจาก row default ที่ active เพื่อไม่ให้การแก้/เพิ่ม option เปลี่ยนสูตรโดยไม่ตั้งใจ
 - รองรับ approval flow สำหรับการจ่ายเงิน
-- เอกสารจ่ายเงินในแท็บประวัติ `/purchase/payments?tab=history` ต้องพิมพ์ได้เฉพาะรายการ snapshot ที่จบเหตุการณ์แล้ว: `PMT จ่ายแล้ว` เป็น Payment Voucher, `PMT ยกเลิก` เป็น Payment Voucher ฉบับยกเลิก/สำเนา audit, และ `PMA voided` ที่ยังไม่มี PMT เป็นใบยกเลิกรายการอนุมัติจ่าย ไม่ใช่ Payment Voucher
+- เอกสารจ่ายเงินในแท็บประวัติ `/purchase/payments?tab=history` ต้องพิมพ์ได้เฉพาะรายการ snapshot ที่จบเหตุการณ์แล้ว: `PMT จ่ายแล้ว` เป็น Payment Voucher และ `PMT ยกเลิก` เป็น Payment Voucher ฉบับยกเลิก/สำเนา audit; `PMA voided` ที่ยังไม่มี PMT ไม่มีสิทธิ์พิมพ์ตามนโยบายยกเลิกรายการอนุมัติจ่าย
 - แท็บประวัติการจ่ายเงินต้อง default filter วันที่เป็นวันนี้ตอนเปิดหน้า แต่ปุ่มล้าง filter ต้องกลับไปดูทุกวัน และต้องพิมพ์เอกสารประจำวันตาม filter ที่ผู้ใช้เห็นบนจอ; ขอบเขต implementation ปัจจุบันรวมเฉพาะ PMT โดยต้องแสดงจำนวน PMT ทั้งหมดของวัน/ช่วงวันที่นั้น, จำนวน `จ่ายแล้ว`, จำนวน `ยกเลิก`, และยอดเงินออกสุทธิที่นับเฉพาะ `PMT จ่ายแล้ว`
 - เมื่อบันทึก PMT ใหม่จาก `/purchase/payments` สำเร็จ ระบบต้องส่ง LINE Flex Message หลัง transaction commit ไปยังกลุ่มที่ผูกกฎประเภทเอกสาร `PMT`; LINE ล้มเหลวต้องไม่ rollback การจ่ายเงิน และหากไม่มีกฎตรงต้องไม่ fallback ไป default/กลุ่มอื่น
 - PMT Flex ต้องรวมทุก payment row/PMA allocation ของ outward PMT เดียวกัน แสดงสถานะ วันที่/สาขา ผู้รับ/วิธีจ่าย/ปลายทาง PMA/เอกสารต้นทาง บัญชีบริษัทที่จ่าย ยอดจ่าย/ส่วนลด/WHT/ค่าธรรมเนียม/เงินออกสุทธิ หมายเหตุ และลิงก์กลับระบบ โดย mask เลขบัญชีเหลือท้าย 4 หลักและไม่แสดง internal ID, tax ID หรือข้อมูลติดต่อที่ไม่จำเป็น
 - เมื่อบันทึก RCP จาก `/sales/receipts` จนเป็น active สำเร็จ ระบบต้องส่ง LINE Flex Message หลัง transaction commit ไปยังกลุ่มที่ผูกกฎประเภทเอกสาร `RCP`; RCP pending ที่ระบบสร้างจาก GET และการยกเลิก RCP ต้องไม่ส่ง, ส่วน cancel-and-reissue ต้องส่งเฉพาะเลข RCP ใหม่ และ LINE ล้มเหลวต้องไม่ rollback การรับเงิน
 - RCP Flex ต้องรวม allocation ของบิลขายและบัญชีบริษัทที่รับเงินจริง แสดงสถานะ วันที่/สาขา ลูกค้า วิธีรับหลัก ยอดรับ/ส่วนลด/WHT/ค่าธรรมเนียม/ยอดตัดลูกหนี้/เงินเข้าสุทธิ หมายเหตุ และลิงก์กลับระบบ โดยไม่แสดงเลขบัญชีเต็ม, internal ID, tax ID หรือข้อมูลติดต่อที่ไม่จำเป็น; routing ต้องเป็น explicit `RCP` และห้าม fallback ไป default/กลุ่มอื่น
-- ระบบต้องมีเอกสารพิมพ์/Save as PDF สำหรับเอกสารธุรกิจหลักตาม `docs/notes/Printable Documents.md`: `POB`, `PB`, `SB`, `WTI/WTO`, `PMA`, `PMT`, `RV`, และ `RCP`; ทุกเอกสารต้องใช้ Company Profile เป็นหัวกระดาษและต้องไม่ก่อ side effect ตอนพิมพ์
+- ระบบต้องมีเอกสารพิมพ์/Save as PDF สำหรับเอกสารธุรกิจหลักตาม `docs/notes/Printable Documents.md`: `POB`, `PO Sell`, `PB`, `SB`, `WTI/WTO`, `ADV`, `PMA`, `EXP`, `PMT`, `RV`, และ `RCP`; ทุกเอกสารต้องใช้ Company Profile เป็นหัวกระดาษและต้องไม่ก่อ side effect ตอนพิมพ์
 
 ### 5.6 Expense Management
 

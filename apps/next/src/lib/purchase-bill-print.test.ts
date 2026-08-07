@@ -106,7 +106,12 @@ describe('purchase bill print', () => {
       expect(page).toContain(`หน้า ${index + 1} / ${expectedPages}`)
       if (index < expectedPages - 1) {
         expect(page).toContain('data-page-totals="placeholder"')
-        expect(page).toMatch(/data-page-totals="placeholder"[\s\S]*?>-\s*</)
+        const placeholderFooter = page.match(/<tfoot[^>]*data-page-totals="placeholder"[\s\S]*?<\/tfoot>/)?.[0]
+        expect(placeholderFooter).toContain('&nbsp;')
+        expect(placeholderFooter).not.toMatch(/>\s*-\s*</)
+        expect(page).toContain('data-continuation-summary="empty"')
+        expect(page.match(/class="continuation-empty-panel"/g)).toHaveLength(2)
+        expect(page).toContain('data-continuation-signature="true"')
         expect(page).toContain(`Continued on Page ${index + 2}`)
         expect(page).not.toContain('data-signatures="final"')
       } else {
@@ -118,6 +123,17 @@ describe('purchase bill print', () => {
     expect([...html.matchAll(/data-row-slot="(\d+)"/g)].map((match) => Number(match[1]))).toEqual(
       Array.from({ length: count }, (_, index) => index + 1),
     )
+  })
+
+  it('keeps the legal company name on one line', () => {
+    const html = buildPurchaseBillPrintHtml(makeBill({}, 1), {
+      ...profile,
+      name: 'บริษัท เอ็นเอส สแครป จำกัด\n(สำนักงานใหญ่)',
+    })
+
+    expect(html).toContain('<div class="company-name">บริษัท เอ็นเอส สแครป จำกัด (สำนักงานใหญ่)</div>')
+    expect(html).not.toContain('จำกัด\n(สำนักงานใหญ่)')
+    expect(html).toMatch(/\.company-name\s*\{[^}]*white-space:\s*nowrap/)
   })
 
   it('omits payment progress while preserving the complete purchase document', () => {

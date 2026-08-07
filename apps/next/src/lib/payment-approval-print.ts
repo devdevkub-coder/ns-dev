@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
 import { formatDateDisplay } from '@/lib/format'
+import { paginateStandardPrintItems } from './print-pagination'
 
 const companyProfilePayloadSchema = z.object({
   ...companyProfileResponseSchema.shape,
@@ -243,81 +244,199 @@ function convertToThaiText(numberStr: string): string {
 
 export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyProfilePrintValues, modeLabel: string) {
   const currentDate = formatDateDisplay(new Date().toISOString().split('T')[0])
+  const companyName = missing(profile.name).replace(/[\r\n]+/g, ' ').trim()
+  const companyNameEn = profile.nameEn?.replace(/[\r\n]+/g, ' ').trim() || ''
+  const logoHtml = profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="logo no-logo">ไม่มีข้อมูล</div>'
   const totalAmountToPay = rows.reduce((sum, row) => sum + amountToPay(row), 0)
   const sortedRows = sortedRowsForPaymentSummary(rows)
   const noteHeader = rows.some(r => r.sourceType === 'petty_advance_return') ? 'หมายเหตุ' : 'รายละเอียด'
   const isApMode = rows.some(r => r.sourceType === 'purchase_bill')
 
-  const rowsHtml = buildPaymentSummaryGroups(sortedRows).map(({ group, row, shouldRenderGroupSummary }) => {
-    const payee = payeeName(row)
-    const billTotal = row.totalAmount
-    const billPaid = row.paidAmount ?? 0
-    const remaining = billRemain(row)
+  type GroupedRow = ReturnType<typeof buildPaymentSummaryGroups>[number]
+  type PaymentSummaryEntry =
+    | { kind: 'approval'; row: PrintPmaRow; sourceIndex: number }
+    | { group: NonNullable<GroupedRow['group']>; kind: 'group-total'; slotId: string }
 
-    const rowHtml = `
-      <tr>
+  const entries: PaymentSummaryEntry[] = []
+  buildPaymentSummaryGroups(sortedRows).forEach(({ group, row, shouldRenderGroupSummary }, sourceIndex) => {
+    entries.push({ kind: 'approval', row, sourceIndex })
+    if (shouldRenderGroupSummary && group) {
+      entries.push({ group, kind: 'group-total', slotId: `group-${sourceIndex + 1}` })
+    }
+  })
+  const pages = paginateStandardPrintItems(entries)
+
+  function entryHtml(entry: PaymentSummaryEntry) {
+    if (entry.kind === 'group-total') {
+      return `
+        <tr class="group-total" data-row-slot="${entry.slotId}">
+          ${isApMode ? `
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="font-bold text-slate-900">${escapeHtml(entry.group.payeeName)} รวม</td>
+            <td>${entry.group.destinationHtml}</td>
+          ` : `
+            <td></td>
+            <td></td>
+            <td class="font-bold text-slate-900">${escapeHtml(entry.group.payeeName)} รวม</td>
+            <td></td>
+            <td>${entry.group.destinationHtml}</td>
+          `}
+          <td class="num font-bold">${money(entry.group.totalAmount)}</td>
+          <td class="num font-bold">${money(entry.group.paidAmount)}</td>
+          <td class="num font-bold">${money(entry.group.payableBalance)}</td>
+          <td class="num font-bold">${money(entry.group.totalToPay)}</td>
+        </tr>
+      `
+    }
+
+    const { row, sourceIndex } = entry
+    return `
+      <tr data-row-slot="${sourceIndex + 1}">
         <td class="font-medium">${escapeHtml(formatDateDisplay(row.date))}</td>
         ${isApMode ? `
           <td class="font-semibold text-slate-700">${escapeHtml(documentNo(row))}</td>
           <td class="font-semibold text-slate-700">${escapeHtml(referenceDocNo(row))}</td>
-          <td class="font-bold text-slate-800">${escapeHtml(payee)}</td>
+          <td class="font-bold text-slate-800">${escapeHtml(payeeName(row))}</td>
           <td>${bankAccountHtml(row)}</td>
         ` : `
           <td class="font-semibold text-slate-700">${escapeHtml(referenceDocNo(row))}</td>
-          <td class="font-bold text-slate-800">${escapeHtml(payee)}</td>
+          <td class="font-bold text-slate-800">${escapeHtml(payeeName(row))}</td>
           <td class="text-slate-700">${escapeHtml(row.description || '')}</td>
           <td>${bankAccountHtml(row)}</td>
         `}
-        <td class="num font-semibold text-slate-700">${money(billTotal)}</td>
-        <td class="num text-slate-600">${money(billPaid)}</td>
-        <td class="num font-semibold text-slate-700">${money(remaining)}</td>
+        <td class="num font-semibold text-slate-700">${money(row.totalAmount)}</td>
+        <td class="num text-slate-600">${money(row.paidAmount ?? 0)}</td>
+        <td class="num font-semibold text-slate-700">${money(billRemain(row))}</td>
         <td class="num font-bold text-slate-900">${money(amountToPay(row))}</td>
       </tr>
     `
-    if (!shouldRenderGroupSummary || !group) return rowHtml
+  }
 
-    return `${rowHtml}
-      <tr class="group-total">
-        ${isApMode ? `
-          <td></td>
-          <td></td>
-          <td></td>
-          <td class="font-bold text-slate-900">${escapeHtml(group.payeeName)} รวม</td>
-          <td>${group.destinationHtml}</td>
+  function emptyRowsHtml(count: number) {
+    return Array.from({ length: count }, (_, index) => (
+      `<tr class="empty" data-row-slot="empty-${index + 1}"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`
+    )).join('')
+  }
+
+  const pagesHtml = pages.map((page) => `
+    <main class="page${page.pageNo > 1 ? ' page-break-before' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
+      <section class="document-header">
+        <div class="company">
+          ${logoHtml}
+          <div>
+            <div class="company-name">${escapeHtml(companyName)}</div>
+            ${companyNameEn ? `<div class="company-en">${escapeHtml(companyNameEn)}</div>` : ''}
+            <div class="company-info">${companyInfo(profile)}</div>
+          </div>
+        </div>
+        <div class="doc-head">
+          <div class="doc-title">ใบอนุมัติจ่ายเงิน</div>
+          <div class="doc-mode">${escapeHtml(modeLabel)}</div>
+          <div class="page-label">หน้า ${page.pageNo} / ${page.totalPages}</div>
+        </div>
+      </section>
+
+      <div class="meta-info">วันที่พิมพ์: ${currentDate} · จำนวน ${rows.length} รายการ</div>
+
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th style="width: 8%;">วันที่เอกสาร</th>
+            ${isApMode ? `
+              <th style="width: 11%;">เลขที่ PMA</th>
+              <th style="width: 12%;">เอกสารอ้างอิง</th>
+              <th style="width: 20%;">ผู้ขาย</th>
+              <th style="width: 21%;">ช่องทางจ่าย / ปลายทาง</th>
+            ` : `
+              <th style="width: 11%;">เอกสารอ้างอิง</th>
+              <th style="width: 18%;">ผู้รับเงิน</th>
+              <th style="width: 17%;">${escapeHtml(noteHeader)}</th>
+              <th style="width: 18%;">ช่องทางจ่าย / ปลายทาง</th>
+            `}
+            <th class="num" style="width: 10%;">ยอดเต็ม</th>
+            <th class="num" style="width: 6%;">ชำระแล้ว</th>
+            <th class="num" style="width: 6%;">คงเหลือ</th>
+            <th class="num" style="width: 6%;">ยอดอนุมัติ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${page.items.map(entryHtml).join('')}
+          ${emptyRowsHtml(page.emptyRowCount)}
+        </tbody>
+        ${page.isFinalPage ? `
+        <tfoot data-page-totals="final">
+          <tr>
+            <td colspan="8" class="num">รวมทั้งสิ้น</td>
+            <td class="num final-amount">${money(totalAmountToPay)}</td>
+          </tr>
+        </tfoot>
         ` : `
-          <td></td>
-          <td></td>
-          <td class="font-bold text-slate-900">${escapeHtml(group.payeeName)} รวม</td>
-          <td></td>
-          <td>${group.destinationHtml}</td>
+        <tfoot class="placeholder-total" data-page-totals="placeholder">
+          <tr><td colspan="9">&nbsp;</td></tr>
+        </tfoot>
         `}
-        <td class="num font-bold">${money(group.totalAmount)}</td>
-        <td class="num font-bold">${money(group.paidAmount)}</td>
-        <td class="num font-bold">${money(group.payableBalance)}</td>
-        <td class="num font-bold">${money(group.totalToPay)}</td>
-      </tr>
-    `
-  }).join('')
+      </table>
+
+      ${page.isFinalPage ? `
+      <section class="summary-grid">
+        <div class="summary-panel">
+          <div class="summary-label">จำนวนเงิน (ตัวอักษร)</div>
+          <div class="summary-value">${escapeHtml(thaiBahtText(totalAmountToPay))}</div>
+        </div>
+        <div class="summary-panel amount-panel">
+          <div class="summary-label">ยอดอนุมัติรวม</div>
+          <div class="summary-value">${money(totalAmountToPay)} บาท</div>
+        </div>
+      </section>
+      <section class="signatures" data-signatures="final">
+        <div class="sig"><div class="sig-line">ผู้จัดทำ</div><div>วันที่ ____ / ____ / ______</div></div>
+        <div class="sig"><div class="sig-line">ผู้ตรวจสอบ</div><div>วันที่ ____ / ____ / ______</div></div>
+        <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
+        <div class="sig"><div class="sig-line">ผู้จ่ายเงิน / Cashier</div><div>วันที่ ____ / ____ / ______</div></div>
+      </section>
+      ` : `
+      <section class="summary-grid continuation-summary" data-continuation-summary="empty" aria-label="Continuation page reserved summary area">
+        <div class="continuation-empty-panel" aria-hidden="true"></div>
+        <div class="continuation-empty-panel" aria-hidden="true"></div>
+      </section>
+      <div class="continuation-signature" data-continuation-signature="true">
+        ( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )
+      </div>
+      `}
+      <footer class="footer"><span>${escapeHtml(profile.footerNote || '')}</span><span>หน้า ${page.pageNo} / ${page.totalPages}</span></footer>
+    </main>
+  `).join('')
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบอนุมัติโอนเงิน (Summary Print)</title>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 500 900; font-display: swap; }
       
       @page { size: A4 landscape; margin: 10mm; }
       * { box-sizing: border-box; }
-      body { margin: 0; color: #1e293b; font-family: 'Noto Sans Thai', 'Outfit', sans-serif; font-size: 12px; line-height: 1.45; background: #fff; }
+      body { margin: 0; color: #1e293b; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #334155; padding: 16px 0; }
       
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
       .toolbar button { border: 0; border-radius: 6px; padding: 8px 18px; background: #2563eb; color: white; font: inherit; cursor: pointer; font-weight: bold; transition: all 0.2s ease; box-shadow: 0 2px 4px rgb(0 0 0 / 0.1); }
       .toolbar button:hover { background: #1d4ed8; }
       .toolbar button.secondary { background: #475569; }
       
-      .page { padding: 15px 25px; }
-      
-      .header-title { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
-      .sub-title { font-size: 16px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #1e40af; }
-      .meta-info { font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 12px; }
-      .meta-info .total { color: #dc2626; }
+      .page { width: 277mm; min-height: 190mm; margin: 0 auto 16px; padding: 7mm; background: #fff; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
+      .page-break-before { page-break-before: always !important; break-before: page !important; }
+      .document-header { display: grid; grid-template-columns: 1.45fr .55fr; gap: 16px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; }
+      .company { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: start; min-width: 0; }
+      .logo { width: 58px; height: 58px; object-fit: contain; }
+      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 11px; font-weight: 800; text-align: center; }
+      .company-name { color: #0f172a; font-size: 17px; font-weight: 800; line-height: 1.25; white-space: nowrap; }
+      .company-en { color: #475569; font-size: 11px; font-weight: 700; margin-top: 1px; }
+      .company-info { color: #475569; font-size: 11px; line-height: 1.25; margin-top: 3px; }
+      .doc-head { text-align: right; }
+      .doc-title { color: #1e40af; font-size: 21px; font-weight: 900; }
+      .doc-mode { color: #334155; font-size: 12px; font-weight: 700; margin-top: 2px; }
+      .page-label { color: #1e40af; font-size: 12px; font-weight: 800; margin-top: 4px; }
+      .meta-info { color: #475569; font-size: 11px; font-weight: 600; margin-top: 7px; }
       
       .summary-table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #cbd5e1; table-layout: fixed; }
       .summary-table th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; font-size: 12px; }
@@ -325,8 +444,21 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       .summary-table tr { break-inside: avoid; page-break-inside: avoid; }
       .summary-table .num { text-align: right; font-variant-numeric: tabular-nums; }
       .summary-table .group-total td { background: #f1f5f9; border-top: 1px solid #94a3b8; border-bottom: 1px solid #cbd5e1; }
-      
+      .summary-table .empty td { height: 24px; color: transparent; }
       .summary-table tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; border-top: 1px solid #cbd5e1; }
+      .summary-table tfoot.placeholder-total td { height: 28px; background: #ffffff; color: transparent; }
+      .summary-table tfoot .final-amount { color: #1e40af; font-size: 13px; }
+      .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+      .summary-panel { min-height: 70px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 11px; background: #ffffff; }
+      .summary-label { color: #64748b; font-size: 11px; }
+      .summary-value { color: #0f172a; font-size: 13px; font-weight: 800; margin-top: 5px; }
+      .amount-panel { text-align: right; }
+      .continuation-empty-panel { min-height: 70px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-signature { min-height: 56px; display: flex; align-items: center; justify-content: center; color: #1e40af; font-size: 13px; font-weight: 800; text-align: center; }
+      .signatures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin-top: 16px; }
+      .sig { color: #475569; text-align: center; }
+      .sig-line { border-top: 1px solid #94a3b8; color: #1e293b; font-weight: 800; margin-top: 24px; padding-top: 4px; }
+      .footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 11px; margin-top: auto; padding-top: 5px; }
       
       .text-red { color: #dc2626; }
       .text-slate-800 { color: #1e293b; }
@@ -339,8 +471,9 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       
       @media print {
         @page { size: A4 landscape; margin: 10mm; }
+        body { background: white; padding: 0; }
         .toolbar { display: none; }
-        .page { padding: 0; }
+        .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
         .summary-table th { background: #e2e8f0 !important; -webkit-print-color-adjust: exact; }
         .summary-table .group-total td { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
         .summary-table tfoot td { background: #ecfdf5 !important; -webkit-print-color-adjust: exact; }
@@ -348,49 +481,10 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
     </style>
   </head><body>
     <div class="toolbar">
-      <button onclick="window.print()">พิมพ์เอกสารสรุป / Save as PDF</button>
+      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
       <button class="secondary" onclick="window.close()">ปิดหน้านี้</button>
     </div>
-    <main class="page">
-      <div class="header-title">${escapeHtml(missing(profile.name))}</div>
-      <div class="sub-title">📋 ใบอนุมัติโอนเงิน — ${escapeHtml(modeLabel)}</div>
-      <div class="meta-info">วันที่: ${currentDate} • จำนวน ${rows.length} รายการ • รวม <span class="total">${money(totalAmountToPay)} บาท</span></div>
-      
-      <table class="summary-table">
-        <thead>
-          <tr>
-            <th style="width: 8%;">วันที่เอกสาร</th>
-            ${isApMode ? `
-              <th style="width: 11%;">เลขที่เอกสาร</th>
-              <th style="width: 12%;">เอกสารอ้างอิง</th>
-              <th style="width: 20%;">Supplier</th>
-              <th style="width: 21%;">เลขบัญชีธนาคาร</th>
-            ` : `
-              <th style="width: 11%;">เอกสารอ้างอิง</th>
-              <th style="width: 18%;">Supplier</th>
-              <th style="width: 17%;">${escapeHtml(noteHeader)}</th>
-              <th style="width: 18%;">เลขบัญชีธนาคาร</th>
-            `}
-            <th class="num" style="width: 10%;">ยอดเต็ม</th>
-            <th class="num" style="width: 6%;">ชำระแล้ว</th>
-            <th class="num" style="width: 6%;">คงเหลือ</th>
-            <th class="num" style="width: 6%;">ยอดที่จะจ่าย</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colspan="8" class="num" style="font-size: 14px;">รวมทั้งสิ้น:</td>
-            <td class="num" style="font-size: 13px; color: #000;">
-              <div style="font-weight: 900; padding-bottom: 2px;">${money(totalAmountToPay)}</div>
-              <div style="font-size: 12px; font-weight: bold; color: #475569;">บาท</div>
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-    </main>
+    ${pagesHtml}
   </body></html>`
 }
 

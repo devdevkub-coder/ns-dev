@@ -74,7 +74,13 @@ describe('receipt voucher print layout', () => {
       expect(page).toContain(`หน้า ${index + 1} / ${expectedPages}`)
       if (index < expectedPages - 1) {
         expect(page).toContain('data-page-totals="placeholder"')
-        expect(page).toMatch(/data-page-totals="placeholder"[\s\S]*?>-\s*</)
+        expect(page).toContain('data-continuation-summary="empty"')
+        expect(page.match(/class="continuation-empty-panel"/g)).toHaveLength(2)
+        expect(page).toContain('data-continuation-signature="true"')
+        expect(page).toContain('class="legal-note"')
+        expect(page).toContain('เอกสารนี้เป็นหลักฐานรับเงินสดจาก Supplier เท่านั้น ไม่ใช่เอกสารโอนเงินหรือรายการธนาคาร')
+        expect(page).not.toContain('class="note-box-header"')
+        expect(page).not.toContain('class="summary-row"')
         expect(page).toContain(`Continued on Page ${index + 2}`)
         expect(page).not.toContain('data-signatures="final"')
       } else {
@@ -141,6 +147,32 @@ describe('receipt voucher print layout', () => {
     expect(html).toMatch(/@page\s*\{\s*size:\s*A4 portrait/)
     expect(html).toMatch(/\.panel\s*\{[^}]*page-break-inside:\s*avoid/)
     expect(html).toMatch(/\.field-wide\s*\{[^}]*grid-column:\s*span 2/)
+  })
+
+  it('keeps the legal company name on one line', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      profile: {
+        address: '99 ถนนอุตสาหกรรม กรุงเทพมหานคร',
+        logoUrl: null,
+        name: 'บริษัท เอ็นเอส สแครป จำกัด\n(สำนักงานใหญ่)',
+        phone: '021234567',
+        taxId: '0105559999999',
+      },
+      profileConfigured: true,
+      selectedBranchName: null,
+    }), { headers: { 'content-type': 'application/json' }, status: 200 })))
+
+    let html = ''
+    const printWindow = {
+      document: { close: vi.fn(), open: vi.fn(), write: vi.fn((value: string) => { html = value }) },
+      focus: vi.fn(),
+    } as unknown as Window
+
+    await openReceiptVoucherPrint(document, printWindow)
+
+    expect(html).toContain('<div class="company-name">บริษัท เอ็นเอส สแครป จำกัด (สำนักงานใหญ่)</div>')
+    expect(html).not.toContain('จำกัด\n(สำนักงานใหญ่)')
+    expect(html).toMatch(/\.company-name\s*\{[^}]*white-space:\s*nowrap/)
   })
 
   it('applies is-dense class and footer-group page break avoidance when item count is between 9 and 15', async () => {

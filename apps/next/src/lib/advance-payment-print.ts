@@ -117,7 +117,6 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
     : '<div class="logo no-logo">ไม่มีข้อมูล</div>'
 
   const pagesHtml = pages.map((page) => {
-    const display = (value: string) => page.isFinalPage ? value : '-'
     return `
       <main class="page${page.pageNo > 1 ? ' page-break-before' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
         <div class="page-content">
@@ -127,8 +126,8 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
             <div class="company">
               ${logoHtml}
               <div>
-                <div class="company-name">${escapeHtml(missing(profile.name).replace(/[\r\n]+/g, ' ').trim())}</div>
-                ${profile.nameEn ? `<div class="company-en">${escapeHtml(profile.nameEn.replace(/[\r\n]+/g, ' ').trim())}</div>` : ''}
+                <div class="company-name">${escapeHtml(missing(profile.name).replace(/\s+/g, ' ').trim())}</div>
+                ${profile.nameEn ? `<div class="company-en">${escapeHtml(profile.nameEn.replace(/\s+/g, ' ').trim())}</div>` : ''}
                 <div class="company-info">${companyInfo(profile, doc)}</div>
               </div>
             </div>
@@ -179,32 +178,45 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
               ${allocationRows(page.items, page.startIndex)}
               ${emptyRows(page.emptyRowCount)}
             </tbody>
-            <tfoot data-page-totals="${page.isFinalPage ? 'final' : 'placeholder'}">
-              <tr><td colspan="2" class="num">รวมทั้งสิ้น</td><td class="num final-amount">${display(money(doc.allocatedAmount))}</td><td></td></tr>
+            ${page.isFinalPage ? `
+            <tfoot data-page-totals="final">
+              <tr><td colspan="2" class="num">รวมทั้งสิ้น</td><td class="num final-amount">${money(doc.allocatedAmount)}</td><td></td></tr>
             </tfoot>
+            ` : `
+            <tfoot class="placeholder-total" data-page-totals="placeholder">
+              <tr><td colspan="4">&nbsp;</td></tr>
+            </tfoot>
+            `}
           </table>
 
-          <section class="bottom-grid">
-            <div class="panel">
-              <div class="panel-title">หมายเหตุ / Note</div>
-              <div class="panel-body note${page.isFinalPage ? '' : ' placeholder'}">${display(escapeHtml(plain(doc.remark)))}</div>
-            </div>
-            <div class="totals">
-              <div class="total-row"><div>ยอดก่อน VAT</div><div class="num">${display(money(doc.subtotalAmount ?? doc.amount))}</div></div>
-              <div class="total-row"><div>${escapeHtml(doc.vatTypeLabel || 'VAT')}${doc.vatRatePercent ? ` (${money(doc.vatRatePercent).replace('.00', '')}%)` : ''}</div><div class="num">${display(money(doc.vatAmount))}</div></div>
-              <div class="total-row"><div>ยอดรวมมัดจำ / Total Advance</div><div class="num">${display(money(doc.totalAmount ?? doc.amount))}</div></div>
-              <div class="total-row allocated"><div>เครดิตฐานที่ใช้หักบิลแล้ว</div><div class="num">${display(money(doc.allocatedAmount))}</div></div>
-              <div class="total-row final"><div>เครดิตฐานคงเหลือ</div><div class="num">${display(money(doc.remainingAmount))}</div></div>
-            </div>
-          </section>
-
           ${page.isFinalPage ? `
+            <section class="bottom-grid">
+              <div class="panel">
+                <div class="panel-title">หมายเหตุ / Note</div>
+                <div class="panel-body note">${escapeHtml(plain(doc.remark))}</div>
+              </div>
+              <div class="totals">
+                <div class="total-row"><div>ยอดก่อน VAT</div><div class="num">${money(doc.subtotalAmount ?? doc.amount)}</div></div>
+                <div class="total-row"><div>${escapeHtml(doc.vatTypeLabel || 'VAT')}${doc.vatRatePercent ? ` (${money(doc.vatRatePercent).replace('.00', '')}%)` : ''}</div><div class="num">${money(doc.vatAmount)}</div></div>
+                <div class="total-row"><div>ยอดรวมมัดจำ / Total Advance</div><div class="num">${money(doc.totalAmount ?? doc.amount)}</div></div>
+                <div class="total-row allocated"><div>เครดิตฐานที่ใช้หักบิลแล้ว</div><div class="num">${money(doc.allocatedAmount)}</div></div>
+                <div class="total-row final"><div>เครดิตฐานคงเหลือ</div><div class="num">${money(doc.remainingAmount)}</div></div>
+              </div>
+            </section>
             <section class="signatures" data-signatures="final">
               <div class="sig"><div class="sig-line">ผู้ขอเบิกเงินล่วงหน้า</div><div>วันที่ ____ / ____ / ______</div></div>
               <div class="sig"><div class="sig-line">ผู้อนุมัติจ่ายเงิน</div><div>วันที่ ____ / ____ / ______</div></div>
               <div class="sig"><div class="sig-line">ผู้จ่ายเงิน (แคชเชียร์)</div><div>วันที่ ____ / ____ / ______</div></div>
             </section>
-          ` : `<div class="continued">( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )</div>`}
+          ` : `
+            <section class="continuation-summary" data-continuation-summary="empty" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
+              <div class="continuation-empty-panel" aria-hidden="true"></div>
+              <div class="continuation-empty-panel" aria-hidden="true"></div>
+            </section>
+            <div class="continuation-signature" data-continuation-signature="true">
+              ( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )
+            </div>
+          `}
           <div class="footer">${escapeHtml(profile.footerNote || '')}</div>
         </div>
       </main>
@@ -231,7 +243,7 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
       .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-weight: 700; text-align: center; }
-      .company-name { font-size: 15px; font-weight: 900; color: #0f172a; }
+      .company-name { font-size: 15px; font-weight: 900; color: #0f172a; white-space: nowrap; }
       .company-en { font-weight: 700; color: #475569; margin-top: 1px; }
       .company-info { margin-top: 4px; color: #475569; }
       .doc-head { text-align: right; }
@@ -256,12 +268,16 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty td { height: 24px; color: transparent; }
       .items tfoot td { background: #ecfdf5; font-weight: 900; }
+      .items tfoot.placeholder-total td { height: 24px; background: #ffffff; color: transparent; }
       .items tfoot .final-amount { color: #1e3a8a; }
       .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .center { text-align: center; }
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .placeholder { color: #94a3b8; }
+      .continuation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; color: #1e3a8a; font-size: 13px; font-weight: 800; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 35mm; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }

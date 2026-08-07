@@ -168,7 +168,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
         <div class="company">
           ${logoHtml}
           <div>
-            <div class="company-name">${escapeHtml(missing(profile.name))}</div>
+            <div class="company-name">${escapeHtml(missing(profile.name).replace(/\s+/g, ' ').trim())}</div>
             ${profile.nameEn ? `<div class="company-en">${escapeHtml(profile.nameEn)}</div>` : ''}
             <div class="company-info">${companyInfo(profile, po)}</div>
           </div>
@@ -204,37 +204,47 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       </section>
   `
   const pageSummary = (isFinalPage: boolean, nextPageNo: number) => {
-    const display = (value: string) => isFinalPage ? value : '-'
+    if (!isFinalPage) {
+      return `
+        <section class="continuation-summary" data-continuation-summary="empty" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+        </section>
+        <div class="continuation-signature" data-continuation-signature="true">
+          ( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )
+        </div>
+        <div class="footer">${escapeHtml(profile.footerNote || '')}</div>
+      `
+    }
+
     return `
       <div class="summary-cards">
-        <div class="summary-card"><div class="label">จำนวนสั่งซื้อรวม</div><div class="value">${display(escapeHtml(totalQtyText))}</div></div>
-        <div class="summary-card"><div class="label">จำนวนรายการ</div><div class="value">${display(`${escapeHtml(String(po.items.length))} รายการ`)}</div></div>
+        <div class="summary-card"><div class="label">จำนวนสั่งซื้อรวม</div><div class="value">${escapeHtml(totalQtyText)}</div></div>
+        <div class="summary-card"><div class="label">จำนวนรายการ</div><div class="value">${escapeHtml(String(po.items.length))} รายการ</div></div>
       </div>
 
       <section class="bottom-grid">
         <div class="panel">
           <div class="panel-title">หมายเหตุ</div>
           <div class="panel-body">
-            <div class="note${isFinalPage ? '' : ' placeholder'}">${display(escapeHtml(plain(po.notes)))}</div>
-            ${isFinalPage && po.shortClosedNote ? `<div class="note" style="margin-top:8px;color:#9f1239"><strong>เหตุผลปิดรับไม่ครบ:</strong><br>${escapeHtml(po.shortClosedNote)}</div>` : ''}
+            <div class="note">${escapeHtml(plain(po.notes))}</div>
+            ${po.shortClosedNote ? `<div class="note" style="margin-top:8px;color:#9f1239"><strong>เหตุผลปิดรับไม่ครบ:</strong><br>${escapeHtml(po.shortClosedNote)}</div>` : ''}
           </div>
         </div>
         <div class="totals">
-          <div class="total-row"><div>ยอดรวมสินค้าก่อนภาษี / Subtotal</div><div class="num">${display(money(subtotal))}</div></div>
-          <div class="total-row"><div>ภาษีมูลค่าเพิ่ม / VAT (${vatRate}%)</div><div class="num">${display(money(vatAmount))}</div></div>
-          <div class="total-row remaining"><div>มูลค่าคงเหลือ / Remaining</div><div class="num">${display(money(po.remainingAmount))}</div></div>
-          <div class="total-row"><div>มูลค่าที่รับแล้ว / Received</div><div class="num">${display(money(Math.max(0, po.totalAmount - po.remainingAmount)))}</div></div>
-          <div class="total-row final"><div>ยอดรวมทั้งสิ้น / Grand Total</div><div class="num">${display(money(po.totalAmount))}</div></div>
+          <div class="total-row"><div>ยอดรวมสินค้าก่อนภาษี / Subtotal</div><div class="num">${money(subtotal)}</div></div>
+          <div class="total-row"><div>ภาษีมูลค่าเพิ่ม / VAT (${vatRate}%)</div><div class="num">${money(vatAmount)}</div></div>
+          <div class="total-row remaining"><div>มูลค่าคงเหลือ / Remaining</div><div class="num">${money(po.remainingAmount)}</div></div>
+          <div class="total-row"><div>มูลค่าที่รับแล้ว / Received</div><div class="num">${money(Math.max(0, po.totalAmount - po.remainingAmount))}</div></div>
+          <div class="total-row final"><div>ยอดรวมทั้งสิ้น / Grand Total</div><div class="num">${money(po.totalAmount)}</div></div>
         </div>
       </section>
 
-      ${isFinalPage ? `
-        <section class="signatures" data-signatures="final">
-          <div class="sig"><div class="sig-line">ผู้สั่งซื้อ</div><div>วันที่ ____ / ____ / ______</div></div>
-          <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
-          <div class="sig"><div class="sig-line">ผู้ขาย / Supplier</div><div>วันที่ ____ / ____ / ______</div></div>
-        </section>
-      ` : `<div class="continued">( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )</div>`}
+      <section class="signatures" data-signatures="final">
+        <div class="sig"><div class="sig-line">ผู้สั่งซื้อ</div><div>วันที่ ____ / ____ / ______</div></div>
+        <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
+        <div class="sig"><div class="sig-line">ผู้ขาย / Supplier</div><div>วันที่ ____ / ____ / ______</div></div>
+      </section>
       <div class="footer">${escapeHtml(profile.footerNote || '')}</div>
     `
   }
@@ -262,15 +272,21 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
           ${itemRows(page.items, page.startIndex)}
           ${emptyRows(page.emptyRowCount)}
         </tbody>
-        <tfoot data-page-totals="${page.isFinalPage ? 'final' : 'placeholder'}">
+        ${page.isFinalPage ? `
+        <tfoot data-page-totals="final">
           <tr>
             <td colspan="2" class="num">รวมทั้งสิ้น</td>
-            <td class="num">${page.isFinalPage ? escapeHtml(totalQtyText) : '-'}</td>
+            <td class="num">${escapeHtml(totalQtyText)}</td>
             <td></td>
-            <td class="num final-amount">${page.isFinalPage ? money(po.totalAmount) : '-'}</td>
-            <td class="num">${page.isFinalPage ? escapeHtml(remainingQtyText) : '-'}</td>
+            <td class="num final-amount">${money(po.totalAmount)}</td>
+            <td class="num">${escapeHtml(remainingQtyText)}</td>
           </tr>
         </tfoot>
+        ` : `
+        <tfoot class="placeholder-total" data-page-totals="placeholder">
+          <tr><td colspan="6">&nbsp;</td></tr>
+        </tfoot>
+        `}
       </table>
       <div class="final-block">${pageSummary(page.isFinalPage, page.pageNo + 1)}</div>
       </div>
@@ -295,7 +311,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
       .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
-      .company-name { font-size: 16px; font-weight: 800; color: #0f172a; }
+      .company-name { font-size: 16px; font-weight: 800; color: #0f172a; white-space: nowrap; }
       .company-en { font-size: 12px; font-weight: 700; color: #475569; margin-top: 1px; }
       .company-info { margin-top: 4px; color: #475569; font-size: 12px; }
       .doc-head { text-align: right; }
@@ -320,6 +336,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty td { height: 23px; color: transparent; }
       .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
+      .items tfoot.placeholder-total td { height: 24px; background: #ffffff; color: transparent; }
       .items tfoot .final-amount { color: #14532d; }
       .item-name { font-weight: 850; color: #0f172a; }
       .muted { color: #64748b; font-size: 12px; margin-top: 1px; }
@@ -334,6 +351,9 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .placeholder { color: #94a3b8; }
+      .continuation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; color: #166534; font-size: 13px; font-weight: 800; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 32mm; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }

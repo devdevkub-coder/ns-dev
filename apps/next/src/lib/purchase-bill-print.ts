@@ -140,6 +140,19 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
     const isPlaceholderPage = options?.isPlaceholderPage ?? false
     const nextPageNo = options?.nextPageNo ?? 2
 
+    if (isPlaceholderPage) {
+      return `
+        <section class="bottom-grid continuation-summary" data-continuation-summary="empty" aria-label="Continuation page reserved summary area">
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+        </section>
+        <div class="continuation-signature" data-continuation-signature="true">
+          ( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )
+        </div>
+        <div class="footer">${escapeHtml(profile.footerNote || '')}</div>
+      `
+    }
+
     return `
       <section class="bottom-grid">
         <div class="panel-group" style="display: flex; flex-direction: column; gap: 10px;">
@@ -147,9 +160,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
             <div class="panel">
               <div class="panel-title">เลขที่บัญชี / Bank Account</div>
               <div class="panel-body">
-                ${isPlaceholderPage ? `
-                  <div style="font-size: 12px; color: #94a3b8;">-</div>
-                ` : bill.supplierBankAccounts.slice(0, 2).map((account, index) => `
+                ${bill.supplierBankAccounts.slice(0, 2).map((account, index) => `
                   <div style="font-size: 12px; ${index > 0 ? 'margin-top: 6px; border-top: 1px dashed #cbd5e1; padding-top: 6px;' : ''}">
                     <strong>${escapeHtml(account.paymentMethod)}</strong> · ${escapeHtml(account.bankName || '-')} · <span style="font-variant-numeric: tabular-nums;">${escapeHtml(account.accountNo || '-')}</span>
                     <div style="color: #475569; margin-top: 2px;">ชื่อบัญชี: ${escapeHtml(account.accountName || '-')} ${account.branchCode ? `· สาขา: ${escapeHtml(account.branchCode)}` : ''}</div>
@@ -161,31 +172,25 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
           <div class="panel">
             <div class="panel-title">หมายเหตุ</div>
             <div class="panel-body">
-              <div class="note" style="${isPlaceholderPage ? 'color: #94a3b8;' : ''}">${isPlaceholderPage ? '-' : escapeHtml(plain(bill.note))}</div>
+              <div class="note">${escapeHtml(plain(bill.note))}</div>
             </div>
           </div>
         </div>
         <div class="totals">
-          <div class="total-row"><div>ยอดรวมรายการ</div><div class="num" style="${isPlaceholderPage ? 'color: #94a3b8;' : ''}">${isPlaceholderPage ? '-' : money(bill.subtotal)}</div></div>
-          <div class="total-row"><div>หักส่วนลด</div><div class="num" style="${isPlaceholderPage ? 'color: #94a3b8;' : ''}">${isPlaceholderPage ? '-' : money(bill.discount)}</div></div>
-          ${isPlaceholderPage ? '' : advanceBreakdownHtml}
-          <div class="total-row"><div>${bill.hasVat ? 'ยอดที่ต้องจ่ายก่อน VAT' : 'ยอดที่ต้องจ่าย'}</div><div class="num" style="${isPlaceholderPage ? 'color: #94a3b8;' : ''}">${isPlaceholderPage ? '-' : money(postAdvanceTotals.taxableBaseAmount)}</div></div>
-          ${(bill.hasVat && !isPlaceholderPage) ? `<div class="total-row"><div>${escapeHtml(vatLabel)}</div><div class="num">${money(postAdvanceTotals.vatAmount)}</div></div>` : ''}
-          <div class="total-row final"><div>${bill.hasVat ? 'ยอดสุทธิรวม VAT ที่ต้องจ่าย' : 'ยอดสุทธิที่ต้องจ่าย'}</div><div class="num">${isPlaceholderPage ? '-' : money(postAdvanceTotals.totalAmount)}</div></div>
+          <div class="total-row"><div>ยอดรวมรายการ</div><div class="num">${money(bill.subtotal)}</div></div>
+          <div class="total-row"><div>หักส่วนลด</div><div class="num">${money(bill.discount)}</div></div>
+          ${advanceBreakdownHtml}
+          <div class="total-row"><div>${bill.hasVat ? 'ยอดที่ต้องจ่ายก่อน VAT' : 'ยอดที่ต้องจ่าย'}</div><div class="num">${money(postAdvanceTotals.taxableBaseAmount)}</div></div>
+          ${bill.hasVat ? `<div class="total-row"><div>${escapeHtml(vatLabel)}</div><div class="num">${money(postAdvanceTotals.vatAmount)}</div></div>` : ''}
+          <div class="total-row final"><div>${bill.hasVat ? 'ยอดสุทธิรวม VAT ที่ต้องจ่าย' : 'ยอดสุทธิที่ต้องจ่าย'}</div><div class="num">${money(postAdvanceTotals.totalAmount)}</div></div>
         </div>
       </section>
 
-      ${isPlaceholderPage ? `
-        <div style="text-align: center; padding: 22px 0 10px; font-weight: bold; color: #166534; font-size: 13px; letter-spacing: 0.5px;">
-          ( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )
-        </div>
-      ` : `
-        <section class="signatures" data-signatures="final">
-          <div class="sig"><div class="sig-line">ผู้ส่งสินค้า / Supplier</div><div>วันที่ ____ / ____ / ______</div></div>
-          <div class="sig"><div class="sig-line">ผู้ตรวจรับ / ตรวจนับ</div><div>วันที่ ____ / ____ / ______</div></div>
-          <div class="sig"><div class="sig-line">ผู้รับสินค้า / บริษัท</div><div>วันที่ ____ / ____ / ______</div></div>
-        </section>
-      `}
+      <section class="signatures" data-signatures="final">
+        <div class="sig"><div class="sig-line">ผู้ส่งสินค้า / Supplier</div><div>วันที่ ____ / ____ / ______</div></div>
+        <div class="sig"><div class="sig-line">ผู้ตรวจรับ / ตรวจนับ</div><div>วันที่ ____ / ____ / ______</div></div>
+        <div class="sig"><div class="sig-line">ผู้รับสินค้า / บริษัท</div><div>วันที่ ____ / ____ / ______</div></div>
+      </section>
       <div class="footer">${escapeHtml(profile.footerNote || '')}</div>
     `
   }
@@ -209,7 +214,6 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
 
   const pagesHtml = pages.map((page) => {
     const placeholder = !page.isFinalPage
-    const display = (value: string) => placeholder ? '-' : value
 
     return `
       <main class="page${page.pageNo > 1 ? ' page-break-before' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
@@ -234,16 +238,22 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
             ${itemRowsSlice(page.items, page.startIndex)}
             ${emptyRows(page.emptyRowCount)}
           </tbody>
-          <tfoot data-page-totals="${placeholder ? 'placeholder' : 'final'}">
+          ${placeholder ? `
+          <tfoot class="placeholder-total" data-page-totals="placeholder">
+            <tr><td colspan="8">&nbsp;</td></tr>
+          </tfoot>
+          ` : `
+          <tfoot data-page-totals="final">
             <tr>
               <td colspan="3" class="num" style="padding-right: 6px;">รวมทั้งสิ้น</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${display(escapeHtml(grossSummaryText))}</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${display(escapeHtml(deductSummaryText))}</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${display(escapeHtml(totalSummaryText))}</td>
+              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(grossSummaryText)}</td>
+              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(deductSummaryText)}</td>
+              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(totalSummaryText)}</td>
               <td></td>
-              <td class="num final-amount">${display(money(bill.subtotal))}</td>
+              <td class="num final-amount">${money(bill.subtotal)}</td>
             </tr>
           </tfoot>
+          `}
         </table>
         ${renderBottomGridAndSignatures({ isPlaceholderPage: placeholder, nextPageNo: page.pageNo + 1 })}
       </main>
@@ -266,7 +276,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
       .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
-      .company-name { font-size: 14px; font-weight: 900; color: #0f172a; line-height: 1.25; }
+      .company-name { font-size: 14px; font-weight: 900; color: #0f172a; line-height: 1.25; white-space: nowrap; }
       .company-en { font-size: 12px; font-weight: 700; color: #475569; margin-top: 1px; }
       .company-info { margin-top: 4px; color: #475569; font-size: 12px; }
       .doc-head { text-align: right; }
@@ -291,6 +301,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty td { height: 24px; color: transparent; }
       .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
+      .items tfoot.placeholder-total td { height: 28px; background: #ffffff; color: transparent; }
       .items tfoot .final-amount { color: #14532d; }
       .item-name { font-weight: 850; color: #0f172a; }
       .muted { color: #64748b; font-size: 12px; margin-top: 1px; }
@@ -299,6 +310,8 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
       .rank-cell { padding-left: 2px !important; padding-right: 2px !important; }
       .strong { font-weight: 900; }
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
+      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; color: #166534; font-size: 13px; letter-spacing: 0.5px; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 30mm; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }

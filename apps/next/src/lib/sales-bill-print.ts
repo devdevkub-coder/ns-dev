@@ -100,7 +100,6 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
 
   const pagesHtml = pages.map((page) => {
     const placeholder = !page.isFinalPage
-    const display = (value: string) => placeholder ? '-' : value
     const nextPageNo = page.pageNo + 1
     return `
       <main class="page${page.pageNo > 1 ? ' page-break-before' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
@@ -163,41 +162,51 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
             ${itemRows(page.items, page.startIndex)}
             ${emptyRows(page.emptyRowCount)}
           </tbody>
-          <tfoot data-page-totals="${placeholder ? 'placeholder' : 'final'}">
+          ${placeholder ? `
+          <tfoot class="placeholder-total" data-page-totals="placeholder">
+            <tr><td colspan="6">&nbsp;</td></tr>
+          </tfoot>
+          ` : `
+          <tfoot data-page-totals="final">
             <tr>
               <td colspan="2" class="num">รวมทั้งสิ้น</td>
-              <td class="num">${display(escapeHtml(qtySummaryText))}</td>
+              <td class="num">${escapeHtml(qtySummaryText)}</td>
               <td></td>
-              <td class="num">${display(money(lineDiscountTotal))}</td>
-              <td class="num final-amount">${display(money(bill.subtotal))}</td>
+              <td class="num">${money(lineDiscountTotal)}</td>
+              <td class="num final-amount">${money(bill.subtotal)}</td>
             </tr>
           </tfoot>
+          `}
         </table>
 
-        <div class="summary-grid">
-          <div class="summary-card"><div class="label">จำนวนสุทธิรวม</div><div class="value">${display(escapeHtml(qtySummaryText))}</div></div>
-          <div class="summary-card"><div class="label">มูลค่ารายการรวม</div><div class="value">${display(escapeHtml(amountSummaryText))}</div></div>
-        </div>
-
-        <section class="bottom-grid">
-          <div class="panel">
-            <div class="panel-title">หมายเหตุ</div>
-            <div class="panel-body"><div class="note${placeholder ? ' placeholder' : ''}">${display(escapeHtml(plain(bill.note)))}</div></div>
-          </div>
-          <div class="totals">
-            <div class="total-row"><div>ยอดเงินรวม</div><div class="num">${display(money(bill.subtotal))}</div></div>
-            <div class="total-row"><div>หักส่วนลดท้ายบิล</div><div class="num">${display(money(bill.discount))}</div></div>
-            <div class="total-row"><div>ยอดหลังหักส่วนลด</div><div class="num">${display(money(afterDiscount))}</div></div>
-            <div class="total-row"><div>VAT ${escapeHtml(bill.vatType)}</div><div class="num">${display(money(bill.vatAmount))}</div></div>
-            <div class="total-row final"><div>ยอดรวมทั้งสิ้น</div><div class="num">${display(money(bill.totalAmount))}</div></div>
-            <div class="total-row advance"><div>ใช้มัดจำ Customer${bill.customerAdvanceDocNo ? ` (${escapeHtml(bill.customerAdvanceDocNo)})` : ''}</div><div class="num">${display(money(bill.customerAdvanceAmount))}</div></div>
-            <div class="total-row"><div>ยอดลูกหนี้สุทธิ</div><div class="num strong">${display(money(bill.receivableBalance))}</div></div>
-          </div>
-        </section>
-
         ${placeholder ? `
-          <div class="continued">( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )</div>
+          <section class="bottom-grid continuation-summary" data-continuation-summary="empty" aria-label="Continuation page reserved summary area">
+            <div class="continuation-empty-panel" aria-hidden="true"></div>
+            <div class="continuation-empty-panel" aria-hidden="true"></div>
+          </section>
+          <div class="continued" data-continuation-signature="true">( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )</div>
         ` : `
+          <div class="summary-grid">
+            <div class="summary-card"><div class="label">จำนวนสุทธิรวม</div><div class="value">${escapeHtml(qtySummaryText)}</div></div>
+            <div class="summary-card"><div class="label">มูลค่ารายการรวม</div><div class="value">${escapeHtml(amountSummaryText)}</div></div>
+          </div>
+
+          <section class="bottom-grid">
+            <div class="panel">
+              <div class="panel-title">หมายเหตุ</div>
+              <div class="panel-body"><div class="note">${escapeHtml(plain(bill.note))}</div></div>
+            </div>
+            <div class="totals">
+              <div class="total-row"><div>ยอดเงินรวม</div><div class="num">${money(bill.subtotal)}</div></div>
+              <div class="total-row"><div>หักส่วนลดท้ายบิล</div><div class="num">${money(bill.discount)}</div></div>
+              <div class="total-row"><div>ยอดหลังหักส่วนลด</div><div class="num">${money(afterDiscount)}</div></div>
+              <div class="total-row"><div>VAT ${escapeHtml(bill.vatType)}</div><div class="num">${money(bill.vatAmount)}</div></div>
+              <div class="total-row final"><div>ยอดรวมทั้งสิ้น</div><div class="num">${money(bill.totalAmount)}</div></div>
+              <div class="total-row advance"><div>ใช้มัดจำ Customer${bill.customerAdvanceDocNo ? ` (${escapeHtml(bill.customerAdvanceDocNo)})` : ''}</div><div class="num">${money(bill.customerAdvanceAmount)}</div></div>
+              <div class="total-row"><div>ยอดลูกหนี้สุทธิ</div><div class="num strong">${money(bill.receivableBalance)}</div></div>
+            </div>
+          </section>
+
           <section class="signatures" data-signatures="final">
             <div class="sig"><div class="sig-line">ผู้จัดทำเอกสาร</div><div>วันที่ ____ / ____ / ______</div></div>
             <div class="sig"><div class="sig-line">ผู้ส่งมอบสินค้า</div><div>วันที่ ____ / ____ / ______</div></div>
@@ -228,7 +237,7 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
       .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-weight: 700; text-align: center; }
-      .company-name { font-size: 16px; font-weight: 900; color: #0f172a; }
+      .company-name { font-size: 16px; font-weight: 900; color: #0f172a; white-space: nowrap; }
       .company-en { font-weight: 700; color: #475569; margin-top: 1px; }
       .company-info { margin-top: 4px; color: #475569; }
       .doc-head { text-align: right; }
@@ -250,6 +259,7 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty td { height: 24px; color: transparent; }
       .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
+      .items tfoot.placeholder-total td { height: 28px; background: #ffffff; color: transparent; }
       .items tfoot .final-amount { color: #0f766e; }
       .item-name { font-weight: 900; }
       .muted { color: #64748b; margin-top: 1px; }
@@ -262,6 +272,7 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       .summary-card .label { color: #64748b; }
       .summary-card .value { font-weight: 900; margin-top: 2px; }
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
+      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .placeholder { color: #94a3b8; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }

@@ -31,22 +31,28 @@ updated: 2026-08-07
 | Priority | เอกสาร | Route หลัก | สถานะ Next | Legacy evidence | หมายเหตุ |
 |---|---|---|---|---|---|
 | P0 | `POB` PO Buy / ใบสั่งซื้อ | `/purchase/po-buy` | Implemented | Legacy PO Buy อยู่ใน flow จองซื้อ/สั่งซื้อก่อนรับของ; active target ใช้เลข `POB...` เป็นเอกสารซื้อหลักก่อน PB | ใช้ corporate A4 portrait ที่อ้างอิง design บิลซื้อ, Company Profile header, พิมพ์จาก list/detail modal, แสดง Supplier พร้อมที่อยู่, รายการสินค้าครบพร้อมหน่วยจริง, ยอดสั่งซื้อ/คงเหลือ, หมายเหตุ, ช่องลงนาม และลายน้ำเฉพาะกรณียกเลิก; ตารางแบ่งหน้าละ 15 รายการและเพิ่มหน้าได้ต่อเนื่อง |
+| P0 | `PO Sell` ใบสั่งขาย | `/sales/po-sell` | Implemented | Active Next มีปุ่มพิมพ์จาก PO Sell detail และใช้ Company Profile ตามสาขา | ใช้ corporate A4 portrait, Customer และรายการขายจาก snapshot, ยอดรวม/หมายเหตุ/ช่องลงนามเฉพาะหน้าสุดท้าย รองรับหลายหน้าแบบไม่จำกัดและลายน้ำกรณียกเลิก |
 | P0 | `PB` บิลรับซื้อ / ใบรับสินค้า | `/purchase/bills` | Implemented | `erp.printDocument('receipt', row.raw.id)` ที่ `old-apps/legacy/index.html:15119`, helper ที่ `old-apps/legacy/index.html:6449` | ใช้ corporate A4 portrait, Company Profile header, พิมพ์จาก list/detail/direct detail, รองรับหลายหน้าแบบไม่จำกัดที่ 2 หน้า โดยแบ่งหน้าละ 15 รายการ |
 | P0 | `SB` บิลขาย / ใบส่งของ | `/sales/bills` | Implemented print, allocation hardening follow-up | `erp.printDocument('delivery', b.id)` ที่ `old-apps/legacy/index.html:20390`, helper เดียวกับ PB ที่ `old-apps/legacy/index.html:6449` | ใช้ flow `WTO -> SB` ตาม [[Sales Bills Page Flow]], A4 portrait/N-page/totals baseline เดียวกับ PB, Company Profile ตามสาขา, แสดง Customer, WTO trace, VAT, หักมัดจำ Customer, และยอดลูกหนี้สุทธิ; follow-up คือแสดง `PO Sell`/`Spot Sale` จาก line-level allocation facts เมื่อ write flow แยก allocation ครบ |
-| P0 | `WTI/WTO` ใบรับของ/ใบส่งของจากงานชั่ง | `/daily/weight-ticket-list` | Implemented print, share/audit follow-up | `printWeighingTicket(ticket)` และปุ่ม `ใบชั่ง` ที่ `old-apps/legacy/index.html:52560` ถึง `old-apps/legacy/index.html:52985` | Active helper รองรับ WTI/WTO แล้ว; PDF ต้องให้หน้าแรกเป็นใบพิมพ์ A4 ที่ตรงกับตัวพิมพ์และจบใน 1 หน้าเมื่อเป็นเอกสารความหนาแน่นปกติ โดยเน้นน้ำหนัก/สิ่งเจือปน/ทะเบียนรถ/ลายเซ็น จากนั้นต่อหน้า 2+ เป็นหน้าอัลบั้มรูปหลักฐานจากรูปรถและรูปสินค้า |
-| P1 | `PMA` ใบอนุมัติจ่ายเงิน / ส่ง Cashier | `/daily/payment-approval`, `/purchase/payments` | Required follow-up | `printApprovalSheet` และปุ่ม `พิมพ์ใบอนุมัติส่ง Cashier` ที่ `old-apps/legacy/index.html:27680` ถึง `old-apps/legacy/index.html:27773` | ต้องพิมพ์จาก approval snapshot หลังเกิด PMA แล้ว ไม่พิมพ์จาก pending source live row |
-| P1 | `PMT` Payment Voucher / ใบสำคัญจ่าย | `/purchase/payments?tab=history` | Partial: daily report implemented, per-voucher print follow-up | Legacy payment-history evidence ไม่ชัดเท่า PB/SB/PMA แต่ active UI มี shell `ดู/พิมพ์` ใน history | ต้องอยู่ในแท็บประวัติเท่านั้น เพราะ PMT เป็นเอกสารหลังจ่ายจริงหรือหลังยกเลิก |
-| P1 | `RV` ใบสำคัญรับเงิน Supplier | `/purchase/receipt-vouchers` | Partial: manual create/edit/print implemented, cancel/status follow-up | legacy `view-receiptVoucher` ที่ `old-apps/legacy/index.html:42799` ถึง `old-apps/legacy/index.html:43240` | ใช้ให้ Supplier/ผู้รับเงินเซ็นรับเงินสดจากบริษัทเท่านั้น active modal เลือก Supplier เพื่อเติมข้อมูลผู้รับเงิน และเลือก PB optional เพื่อเติมรายการ/ยอดอัตโนมัติ ไม่ใช่ payment posting owner และไม่ใช้กับโอนเงิน/เช็ค; active print ใช้ compact A4 template ที่ใกล้ legacy print density พร้อม Company Profile header, receiver/company text blocks, item table, unit-separated quantity summary, amount text, signer blocks; ยังต้อง harden signer/payment method policy และ status/cancel watermark |
-| P2 | `RCP` Receipt Voucher / ใบรับเงิน Customer | `/sales/receipts` | Required follow-up | legacy customer receipt component อยู่ใน flow `รับเงิน Customer` และรองรับหลายบิลต่อ voucher | แยกจาก `RV`; ควรใช้หลักเดียวกับ PMT คือพิมพ์จาก receipt history หลังเกิด receipt แล้ว และผูก bank statement/AR settlement |
+| P0 | `WTI/WTO` ใบรับของ/ใบส่งของจากงานชั่ง | `/daily/weight-ticket-list` | Implemented print, share/audit follow-up | `printWeighingTicket(ticket)` และปุ่ม `ใบชั่ง` ที่ `old-apps/legacy/index.html:52560` ถึง `old-apps/legacy/index.html:52985` | Active helper รองรับ WTI/WTO แล้ว; ส่วนใบพิมพ์หลักสร้างหน้า A4 `1..N` ตามจำนวนรายการ โดยหน้าก่อนสุดท้ายใช้กรอบสรุปว่างและข้อความมีต่อหน้า ส่วนยอด/หมายเหตุ/ลายเซ็นอยู่หน้าสุดท้ายของใบพิมพ์หลัก จากนั้นจึงต่อด้วยหน้าอัลบั้มรูปหลักฐานจากรูปรถและรูปสินค้า |
+| P1 | `PMA` ใบอนุมัติจ่ายเงิน / ส่ง Cashier | `/daily/payment-approval`, `/purchase/payments` | Implemented: selected approval sheet | `printApprovalSheet` และปุ่ม `พิมพ์ใบอนุมัติส่ง Cashier` ที่ `old-apps/legacy/index.html:27680` ถึง `old-apps/legacy/index.html:27773` | พิมพ์จาก approval snapshot หลังเกิด PMA แล้ว ไม่พิมพ์จาก pending source live row; รองรับหลายหน้าแบบไม่จำกัด โดยคง group total ตามผู้รับเงิน/ปลายทาง และแสดงยอดรวม/ลายเซ็นเฉพาะหน้าสุดท้าย |
+| P1 | `EXP` ใบสำคัญจ่ายค่าใช้จ่าย | `/daily/expense` | Implemented | Active Next มีปุ่มพิมพ์จาก EXP detail และใช้ Company Profile ตามสาขา | พิมพ์จาก EXP snapshot แบบ read-only; แสดงรายการค่าใช้จ่าย, VAT, WHT, ยอดสุทธิ, หมายเหตุ และช่องลงนาม รองรับหลายหน้าแบบไม่จำกัด |
+| P1 | `ADV` ใบเงินล่วงหน้า/มัดจำ Supplier | `/purchase/advance-payments` | Implemented | Active Next มีปุ่มพิมพ์จาก ADV detail และใช้ Company Profile ตามสาขา | พิมพ์จาก ADV snapshot แบบ read-only แสดง Supplier, ประเภท ADV, Invoice, รายการอ้างอิง, ยอด/หมายเหตุ/ช่องลงนามเฉพาะหน้าสุดท้าย และรองรับหลายหน้าแบบไม่จำกัด |
+| P1 | `PMT` Payment Voucher / ใบสำคัญจ่าย | `/purchase/payments?tab=history` | Implemented: per-voucher + daily report | Legacy payment-history evidence ไม่ชัดเท่า PB/SB/PMA แต่ active UI มี history snapshot | พิมพ์รายใบจาก detail ในแท็บประวัติเท่านั้น ใช้ Company Profile ตามสาขา แสดง PMA/เอกสารต้นทางและบัญชีจ่าย รองรับหลายหน้าแบบไม่จำกัด และพิมพ์รายการยกเลิกเป็น audit copy พร้อมลายน้ำ; PMA voided ที่ยังไม่มี PMT ไม่มีปุ่มพิมพ์ |
+| P1 | `RV` ใบสำคัญรับเงิน Supplier | `/purchase/receipt-vouchers` | Partial: manual create/edit/print + cancel watermark implemented | legacy `view-receiptVoucher` ที่ `old-apps/legacy/index.html:42799` ถึง `old-apps/legacy/index.html:43240` | ใช้ให้ Supplier/ผู้รับเงินเซ็นรับเงินสดจากบริษัทเท่านั้น active modal เลือก Supplier เพื่อเติมข้อมูลผู้รับเงิน และเลือก PB optional เพื่อเติมรายการ/ยอดอัตโนมัติ ไม่ใช่ payment posting owner และไม่ใช้กับโอนเงิน/เช็ค; active print ใช้ corporate A4 หลายหน้า, Company Profile header, receiver/company text blocks, item table, unit-separated quantity summary, amount text, signer blocks และลายน้ำยกเลิก; follow-up เหลือ signer/payment method policy |
+| P2 | `RCP` Receipt Voucher / ใบรับเงิน Customer | `/sales/receipts` | Implemented: individual + batch + daily report | legacy customer receipt component อยู่ใน flow `รับเงิน Customer` และรองรับหลายบิลต่อ voucher | แยกจาก `RV`; พิมพ์จาก receipt history หลังเกิด receipt แล้ว ใช้ Company Profile ตามสาขา รองรับ SB/CADV, foreign receipt audit, รายการยกเลิกพร้อมลายน้ำ และหลายหน้าแบบไม่จำกัด; batch deduplicate การโหลด Company Profile ต่อสาขา |
 
 ## 2026-08-07 Unlimited Corporate Pagination Contract
 
-- เอกสารตารางแบบ corporate ที่ปรับใน batch นี้ ได้แก่ `POB`, `PB`, `SB`, `PO Sell`, `ADV` และ `RV` ใช้กติกากลางหน้าละ 15 รายการ และสร้างหน้า `1..N` ตามจำนวนข้อมูลจริงโดยไม่จำกัดสูงสุดไว้ที่ 2 หน้า
+- เอกสารธุรกรรมแบบ corporate ที่ปรับใน batch นี้ ได้แก่ `POB`, `PB`, `SB`, `PO Sell`, `ADV`, `PMA`, `EXP`, `RV`, `PMT` และ `RCP` ใช้กติกากลางหน้าละ 15 แถวรายการ และสร้างหน้า `1..N` ตามจำนวนข้อมูลจริงโดยไม่จำกัดสูงสุดไว้ที่ 2 หน้า; สำหรับ PMA แถวรวมตามผู้รับเงิน/ปลายทางนับเป็นหนึ่งแถวตารางเพื่อรักษาความสูง A4 ให้คงที่
 - ตัวอย่าง boundary: 15 รายการ = 1 หน้า, 16 รายการ = 2 หน้า, 31 รายการ = 3 หน้า และ 46 รายการ = 4 หน้า; ทุกหน้าต้องมีแถวตารางรวม 15 ช่องและเลขหน้า `หน้า X / N`
-- หน้า `1..N-1` แสดงยอด/หมายเหตุเป็น `-`, มีข้อความ `Continued on Page X` และไม่มีช่องลงนาม เพื่อไม่ให้ยอดระหว่างทางถูกเข้าใจว่าเป็นยอดเอกสารฉบับสมบูรณ์
+- หน้า `1..N-1` ต้องมี footer ตารางว่างและกรอบสรุปว่าง 2 กรอบโดยไม่มี `-`, label, ยอด หรือหมายเหตุ พร้อมข้อความ `Continued on Page X` แทนช่องลงนาม เพื่อไม่ให้ยอดระหว่างทางถูกเข้าใจว่าเป็นยอดเอกสารฉบับสมบูรณ์
 - หน้า `N` เท่านั้นที่แสดงยอดจริง หมายเหตุ และช่องลงนาม โดยยังคง Company Profile, document snapshot, cancelled watermark, table header และข้อมูลเอกสารบนทุกหน้า
+- คำว่า `หมายเหตุ` ในกติกา final-page-only หมายถึงหมายเหตุธุรกิจของรายการ; หมายเหตุทางกฎหมาย/ข้อความบังคับของแบบฟอร์มยังคงแสดงทุกหน้าตาม `docs/design.md`
 - การพิมพ์ยังเป็น read-only: การแบ่งหน้าไม่สร้างหรือแก้เอกสาร, payment, stock, allocation, cache, API, DB หรือ Storage
-- `WTI/WTO` เป็นข้อยกเว้นด้านความจุ เพราะหน้าแรกเป็นแบบฟอร์มชั่งและหน้า 2+ เป็นอัลบั้มหลักฐาน; helper เดิมรองรับจำนวนหน้าอัตโนมัติอยู่แล้วและไม่ถูกบังคับเป็น 15 รูป/รายการต่อหน้า
+- `WTI/WTO` ใช้ความจุเฉพาะของแบบฟอร์มชั่ง (12 รายการในหน้าหลักแรก และ 17 รายการในหน้าหลักถัดไป): หน้าหลัก `1..N-1` มี footer ตารางว่าง กรอบสรุปว่าง 3 กรอบ และข้อความมีต่อหน้า; หน้าหลัก `N` เท่านั้นมีสรุป/หมายเหตุ/ลายเซ็น จากนั้นจึงต่ออัลบั้มหลักฐาน 6 รูปต่อหน้า
+- รายงานรวม เช่น Payment/Receipt daily report ยังคงเป็น report-style print และใช้การแบ่งหน้าตามตารางรายงาน ไม่บังคับกรอบสรุป/ลายเซ็นแบบ transaction pagination ข้างต้น
+- Receipt Voucher Queue เป็น operational queue preview, Company Profile เป็น configuration sample preview และ dashboard/report ที่พิมพ์หน้าจอเป็น report-style print; ทั้งสามประเภทไม่ใช่ corporate transaction snapshot ใน inventory นี้
 
 ## Payment History Print Status
 
@@ -62,7 +68,7 @@ updated: 2026-08-07
 
 กติกา UI:
 
-- ปุ่ม `ดู/พิมพ์` ของ payment history ควรอยู่ในแท็บ `ประวัติ` ของ `/purchase/payments`
+- ปุ่มพิมพ์ PMT อยู่ใน detail modal ของแถว `PMT` ในแท็บ `ประวัติ` ของ `/purchase/payments`; แถว PMA approval/voided ที่ยังไม่เกิด PMT ไม่มีปุ่มพิมพ์
 - Implemented 2026-06-09: แท็บ `ประวัติ` มี action `พิมพ์รายงานประจำวัน` เพื่อออกเอกสารรวมรายการจ่ายประจำวันสำหรับฝ่ายบัญชี/การเงิน
 - เอกสารพิมพ์ประจำวันต้องใช้ date filter ของ history เป็น source หลัก; แท็บประวัติการจ่ายเงินต้อง default filter วันที่เป็นวันที่ปัจจุบันของ timezone ระบบ/ผู้ใช้ตอนเปิดหน้า/เข้าแท็บ แต่ปุ่มล้าง filter ต้องล้างเป็นทุกวัน
 - Per user clarification on 2026-06-09, daily print ข้าม `PMA` ไปก่อนและรวมเฉพาะ PMT ในช่วงวันที่นั้น ได้แก่ `PMT จ่ายแล้ว` และ `PMT ยกเลิก`
@@ -76,10 +82,10 @@ updated: 2026-08-07
 ## Implementation Order
 
 1. `SB` บิลขาย / ใบส่งของ: print รายใบ implemented แล้ว; follow-up คือ harden line-level `PO Sell`/`Spot Sale` allocation display หลัง sync write flow `WTO -> SB` แยก allocation facts ครบ
-2. `PMT` payment history print: daily report implemented; follow-up คือ per-voucher print รายใบจาก history
-3. `PMA` approval sheet: ทำจาก `payment_approvals` snapshot สำหรับส่ง Cashier/approval record
+2. `PMT` payment history print: per-voucher และ daily report implemented แล้ว
+3. `PMA` approval sheet: implemented จาก `payment_approvals` snapshot สำหรับส่ง Cashier/approval record พร้อม unlimited pagination และ final-page-only totals/signatures
 4. `RV` hardening: ปรับ receipt voucher print ให้ใช้ Company Profile และ snapshot fields ครบ พร้อมคง boundary ว่า RV เฉพาะเงินสดและไม่สร้าง PMT/BST/stock ledger
-5. `RCP` customer receipt print: ทำจาก sales receipt history หลัง receipt สำเร็จ
+5. `RCP` customer receipt print: individual, batch และ daily report จาก sales receipt history implemented แล้ว
 
 ## 2026-07-03 RV Print Table Baseline
 

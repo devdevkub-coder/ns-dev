@@ -282,18 +282,28 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     const isPlaceholderPage = options?.isPlaceholderPage ?? false
     const nextPageNo = options?.nextPageNo ?? 2
 
+    if (isPlaceholderPage) {
+      return `
+        <section class="bottom-grid continuation-summary" data-continuation-summary="empty" aria-label="Continuation page reserved summary area">
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+          <div class="continuation-empty-panel" aria-hidden="true"></div>
+        </section>
+
+        <div class="footer-group">
+          <div class="continuation-signature" data-continuation-signature="true">
+            ( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )
+          </div>
+          <div class="legal-note">
+            ${escapeHtml(legalNote)}
+          </div>
+        </div>
+      `
+    }
+
     return `
       <section class="bottom-grid">
         <div class="notes-panel">
           ${(() => {
-            if (isPlaceholderPage) {
-              return `
-                <div class="note-box">
-                  <div class="note-box-header">จำนวนเงิน (ตัวอักษร)</div>
-                  <div class="note-content" style="color:#94a3b8;">-</div>
-                </div>
-              `
-            }
             if (selectedBankAccount) {
               return `
                 <div class="note-box">
@@ -316,24 +326,24 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           })()}
           <div class="note-box">
             <div class="note-box-header">หมายเหตุ</div>
-            <div class="note-content-small" style="${isPlaceholderPage ? 'color:#94a3b8;' : ''}">${isPlaceholderPage ? '-' : escapeHtml(row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)')}</div>
+            <div class="note-content-small">${escapeHtml(row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)')}</div>
           </div>
         </div>
         
         <div class="summary-box">
           <div class="summary-row">
             <div style="font-weight: bold; color: #475569;">จำนวนรวม</div>
-            <div style="text-align: right; font-weight: 900; color: ${isPlaceholderPage ? '#94a3b8' : '#0f172a'};">${isPlaceholderPage ? '-' : escapeHtml(quantitySummary || '-')}</div>
+            <div style="text-align: right; font-weight: 900; color: #0f172a;">${escapeHtml(quantitySummary || '-')}</div>
           </div>
           <div class="summary-row" style="border-bottom: 0;">
             <div style="font-weight: bold; color: #475569;">ยอดเงินรวม</div>
-            <div style="text-align: right; font-weight: 900; color: ${isPlaceholderPage ? '#94a3b8' : '#0f172a'};">${isPlaceholderPage ? '-' : money(row.totalAmount)}</div>
+            <div style="text-align: right; font-weight: 900; color: #0f172a;">${money(row.totalAmount)}</div>
           </div>
           <div class="summary-row highlight">
             <div>ยอดรับเงิน</div>
-            <div style="text-align: right; font-variant-numeric: tabular-nums;">${isPlaceholderPage ? '-' : money(row.totalAmount)}</div>
+            <div style="text-align: right; font-variant-numeric: tabular-nums;">${money(row.totalAmount)}</div>
           </div>
-          ${(selectedBankAccount && !isPlaceholderPage) ? `
+          ${selectedBankAccount ? `
             <div style="padding: 6px 8px; text-align: right; font-size: 12px; font-weight: bold; color: #065f46; background: #ecfdf5; border-top: 1px solid #cbd5e1;">
               (${escapeHtml(row.amountInWords || '-')})
             </div>
@@ -342,26 +352,20 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       </section>
       
       <div class="footer-group">
-        ${isPlaceholderPage ? `
-          <div style="text-align: center; padding: 22px 0 10px; font-weight: bold; color: #059669; font-size: 13px; letter-spacing: 0.5px;">
-            ( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )
+        <div class="signatures" data-signatures="final">
+          <div class="sig-block">
+            <div class="sig-line"></div>
+            <div class="sig-title">ผู้จ่ายเงิน</div>
+            <div class="sig-name">( ${escapeHtml(row.payerSignerName || row.createdBy || '')} )</div>
+            <div class="sig-date">วันที่ ____ / ____ / ______</div>
           </div>
-        ` : `
-          <div class="signatures" data-signatures="final">
-            <div class="sig-block">
-              <div class="sig-line"></div>
-              <div class="sig-title">ผู้จ่ายเงิน</div>
-              <div class="sig-name">( ${escapeHtml(row.payerSignerName || row.createdBy || '')} )</div>
-              <div class="sig-date">วันที่ ____ / ____ / ______</div>
-            </div>
-            <div class="sig-block">
-              <div class="sig-line"></div>
-              <div class="sig-title">ผู้รับเงิน</div>
-              <div class="sig-name">( ${escapeHtml(row.sellerName)} )</div>
-              <div class="sig-date">วันที่ ____ / ____ / ______</div>
-            </div>
+          <div class="sig-block">
+            <div class="sig-line"></div>
+            <div class="sig-title">ผู้รับเงิน</div>
+            <div class="sig-name">( ${escapeHtml(row.sellerName)} )</div>
+            <div class="sig-date">วันที่ ____ / ____ / ______</div>
           </div>
-        `}
+        </div>
         
         <div class="legal-note">
           ${escapeHtml(legalNote)}
@@ -372,7 +376,6 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
 
   const pagesHtml = pages.map((page) => {
     const placeholder = !page.isFinalPage
-    const display = (value: string) => placeholder ? '-' : value
 
     return `
       <div class="page is-dense${page.pageNo > 1 ? ' page-break-before' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
@@ -394,14 +397,22 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
             ${renderRows(page.items, page.startIndex)}
             ${renderEmptyRows(page.emptyRowCount)}
           </tbody>
-          <tfoot data-page-totals="${placeholder ? 'placeholder' : 'final'}">
+          ${placeholder ? `
+          <tfoot class="placeholder-total" data-page-totals="placeholder">
             <tr>
-              <td colspan="2" class="num">รวมทั้งสิ้น</td>
-              <td class="num">${display(escapeHtml(quantitySummary || '-'))}</td>
-              <td></td>
-              <td class="num final-amount">${display(money(row.totalAmount))}</td>
+              <td colspan="5">&nbsp;</td>
             </tr>
           </tfoot>
+          ` : `
+          <tfoot data-page-totals="final">
+            <tr>
+              <td colspan="2" class="num">รวมทั้งสิ้น</td>
+              <td class="num">${escapeHtml(quantitySummary || '-')}</td>
+              <td></td>
+              <td class="num final-amount">${money(row.totalAmount)}</td>
+            </tr>
+          </tfoot>
+          `}
         </table>
         ${renderBottomGridAndSignatures({ isPlaceholderPage: placeholder, nextPageNo: page.pageNo + 1 })}
       </div>
@@ -424,7 +435,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .company { display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: start; min-width: 0; }
       .logo { width: 60px; height: 60px; object-fit: contain; }
       .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 11px; font-weight: 850; text-align: center; width: 60px; height: 60px; }
-      .company-name { font-size: 14.5px; font-weight: 900; color: #0f172a; line-height: 1.2; }
+      .company-name { font-size: 14.5px; font-weight: 900; color: #0f172a; line-height: 1.2; white-space: nowrap; }
       .company-en { font-size: 11.5px; font-weight: 700; color: #475569; margin-top: 1px; }
       .company-info { margin-top: 3px; color: #475569; font-size: 11.5px; line-height: 1.35; }
       .doc-head { text-align: right; }
@@ -451,6 +462,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty-row td { height: 26px; color: transparent; }
       .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; padding: 5px 6px; }
+      .items tfoot.placeholder-total td { height: 28px; background: #ffffff; color: transparent; }
       .items tfoot .final-amount { color: #059669; font-size: 11.5px; }
       .item-name { font-weight: bold; color: #0f172a; }
       .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -466,6 +478,8 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .summary-row { display: grid; grid-template-columns: 1fr 32mm; gap: 6px; border-bottom: 1px solid #cbd5e1; padding: 4px 6px; font-size: 11.5px; }
       .summary-row:last-child { border-bottom: 0; }
       .summary-row.highlight { background: #065f46; color: white; padding: 6px; font-size: 11.5px; font-weight: 900; }
+      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; color: #059669; font-size: 13px; letter-spacing: 0.5px; }
       
       .footer-group { break-inside: avoid; page-break-inside: avoid; }
       .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 28px; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }

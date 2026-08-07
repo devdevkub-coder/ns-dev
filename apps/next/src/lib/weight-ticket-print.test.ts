@@ -259,7 +259,82 @@ function ticketWithAttachmentCount(count: number): WeightTicketRecord {
   }
 }
 
+function ticketWithPrintRowCount(count: number): WeightTicketRecord {
+  const lines = Array.from({ length: count }, (_, index) => line({
+    grossWeight: '100',
+    grossWeightValue: 100,
+    id: `line-${index + 1}`,
+    lineNo: index + 1,
+    netWeight: 100,
+    productId: `product-${index + 1}`,
+    productName: `Product ${index + 1}`,
+  }))
+
+  return {
+    ...ticket,
+    documentNo: 'WTI190726-MULTI',
+    lines,
+    productSummaries: lines.map((ticketLine, index) => ({
+      billedWeight: 0,
+      categoryName: 'Metal',
+      containerDeductionWeight: 0,
+      costSnapshotStatus: 'none',
+      deductWeight: 0,
+      grossWeight: 100,
+      hasMixedDeductionProfiles: false,
+      id: `summary-${index + 1}`,
+      lineCount: 1,
+      netWeight: 100,
+      pendingOutQty: 0,
+      pendingOutValue: 0,
+      productId: ticketLine.productId,
+      productName: ticketLine.productName,
+      remainingWeight: 100,
+      unitCostSnapshot: null,
+    })),
+    totals: {
+      containerDeductionWeight: 0,
+      deductionWeight: 0,
+      grossWeight: count * 100,
+      netWeight: count * 100,
+    },
+  }
+}
+
 describe('weight ticket print HTML', () => {
+  it('uses the corporate preview contrast and keeps the legal company name on one line', () => {
+    const companyName = 'บริษัท นิวโซลูชั่นส์ (ไทยแลนด์) จำกัด (สำนักงานใหญ่)'
+    const html = buildReceiptPrintHtml(ticket, {
+      ...profile,
+      name: `บริษัท นิวโซลูชั่นส์ (ไทยแลนด์) จำกัด\n(สำนักงานใหญ่)`,
+    })
+
+    expect(html).toContain(`class="company-name">${companyName}</div>`)
+    expect(html).not.toContain('จำกัด\n(สำนักงานใหญ่)')
+    expect(html).toMatch(/body\s*\{[^}]*background:\s*#334155/)
+    expect(html).toMatch(/\.page\s*\{[^}]*box-shadow:/)
+    expect(html).toMatch(/\.company-name\s*\{[^}]*white-space:\s*nowrap/)
+  })
+
+  it('reserves empty summary panels and replaces signatures with a continuation marker on non-final HTML/PDF pages', async () => {
+    const multiPageTicket = ticketWithPrintRowCount(13)
+    const html = buildReceiptPrintHtml(multiPageTicket, profile)
+    const pages = [...html.matchAll(/<main class="page" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
+
+    expect(pages).toHaveLength(2)
+    expect(pages[0]).toContain('data-continuation-panels="empty"')
+    expect(pages[0].match(/class="panel continuation-empty-panel"/g)).toHaveLength(3)
+    expect(pages[0]).toContain('Continued on Page 2')
+    expect(pages[0]).not.toContain('data-signatures="final"')
+    expect(pages[1]).toContain('data-signatures="final"')
+    expect(pages[1]).not.toContain('data-continuation-panels="empty"')
+
+    await ensurePdfFontsRegistered()
+    const pdfDocument = WeightTicketDocument({ profile, ticket: multiPageTicket })
+    expect(nodeText(pdfDocument)).toContain('Continued on Page 2')
+    expect(countPdfPages(Buffer.from(await renderToBuffer(pdfDocument)))).toBe(2)
+  }, 30_000)
+
   it('loads the existing local Thai fonts without external stylesheets', () => {
     const html = buildReceiptPrintHtml(ticket, profile)
 

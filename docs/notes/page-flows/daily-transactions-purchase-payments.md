@@ -92,6 +92,9 @@ PMT จ่าย PMA approved และเขียน bank statement
 - search ต้องอ่าน destination snapshot ชุดเดียวกับที่ render; supplier master ใช้เป็น fallback presentation สำหรับข้อมูลเก่าเท่านั้น
 - แท็บประวัติไม่มี action แก้ไข PMT; row/detail ใช้ดู snapshot และยกเลิกตามสิทธิ์เท่านั้น
 - history card/table ใช้ปุ่ม `ดูรายละเอียด` ที่เข้าถึงด้วยคีย์บอร์ด แทนการบังคับกดทั้ง card/row
+- detail ของแถว `PMT` มีปุ่มพิมพ์ใบสำคัญจ่ายทั้งสถานะจ่ายแล้วและยกเลิก โดยฉบับยกเลิกมีลายน้ำ audit; detail ของ `PMA` ที่ยังไม่เกิด PMT รวมถึง PMA voided ไม่มีปุ่มพิมพ์ Payment Voucher
+- เอกสาร PMT รายใบโหลด Company Profile ตามสาขา แสดง PMA/เอกสารต้นทางและบัญชีจ่าย แบ่งหน้าละ 15 รายการได้ต่อเนื่องโดยไม่จำกัดจำนวนหน้า และแสดงยอด หมายเหตุ และลายเซ็นเฉพาะหน้าสุดท้าย; การพิมพ์เป็น read-only ไม่มี payment/bank/approval side effect
+- `พิมพ์รายงานประจำวัน` เป็น report-style print แยกจาก PMT รายใบ และยังอิง history filter ปัจจุบัน
 
 ## Side Effects
 

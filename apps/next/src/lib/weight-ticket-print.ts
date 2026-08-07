@@ -318,6 +318,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   const partyLabel = isReceipt ? 'ผู้ขาย/ผู้ส่งของ' : 'ลูกค้า/ผู้รับสินค้า'
   const signatureLeft = isReceipt ? 'ผู้ส่งสินค้า' : 'ผู้ส่งของ'
   const signatureMiddle = isReceipt ? 'ผู้รับเข้าคลัง' : 'ผู้รับของ'
+  const companyName = missing(profile.name).replace(/[\r\n]+/g, ' ').trim()
+  const companyNameEn = profile.nameEn?.replace(/[\r\n]+/g, ' ').trim() || ''
   const branchLabel = ticket.branchName?.trim() ? `สาขา ${ticket.branchName.trim()}` : ''
   const companyInfo = `
     ${escapeHtml(missing(profile.address))}<br>
@@ -396,19 +398,20 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     const totalAfterContainer = Math.max(0, ticket.totals.grossWeight - ticket.totals.containerDeductionWeight)
 
     return `
-      <main class="page">
+      <main class="page" data-print-page="${pageIndex + 1}" data-final-page="${isLastPage}">
         <div class="accent"></div>
         <section class="header">
           <div class="company">
             ${profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="logo-placeholder">ไม่มีข้อมูล</div>'}
             <div>
-              <div class="company-name">${escapeHtml(missing(profile.name))}</div>
-              ${profile.nameEn ? `<div class="company-en">${escapeHtml(profile.nameEn)}</div>` : ''}
+              <div class="company-name">${escapeHtml(companyName)}</div>
+              ${companyNameEn ? `<div class="company-en">${escapeHtml(companyNameEn)}</div>` : ''}
               <div class="company-info">${companyInfo}</div>
             </div>
           </div>
           <div class="doc-head">
             <div class="doc-title">${escapeHtml(docTitle)}</div>
+            <div class="page-label">หน้า ${pageIndex + 1} / ${totalPages}</div>
             ${ticket.status === 'draft' ? `<div class="draft-badge">แบบร่าง - ${isReceipt ? 'ยังไม่ยืนยันรับของ' : 'ยังไม่ยืนยันส่งของ'}</div>` : ''}
           </div>
         </section>
@@ -469,7 +472,11 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
                 <td class="r final-weight">${formatPrintableNumber(ticket.totals.netWeight)}</td>
               </tr>
             </tfoot>
-          ` : ''}
+          ` : `
+            <tfoot class="placeholder-total" data-page-totals="placeholder">
+              <tr><td colspan="${isReceipt ? 7 : 5}">&nbsp;</td></tr>
+            </tfoot>
+          `}
         </table>
         </div>
 
@@ -501,13 +508,22 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             </div>
           </section>
 
-          <section class="signatures">
+          <section class="signatures" data-signatures="final">
             <div class="sig"><div class="sig-line">${escapeHtml(signatureLeft)}</div><div>วันที่ ____ / ____ / ______</div></div>
             <div class="sig"><div class="sig-line">พนักงานชั่ง</div><div>${escapeHtml(ticket.enteredBy || '-')}</div></div>
             <div class="sig"><div class="sig-line">${escapeHtml(signatureMiddle)}</div><div>วันที่ ____ / ____ / ______</div></div>
             <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
           </section>
-        ` : '<div class="continued">ต่อหน้าถัดไป</div>'}
+        ` : `
+          <section class="bottom-grid" data-continuation-panels="empty" aria-label="Continuation page reserved summary area">
+            <div class="panel continuation-empty-panel" aria-hidden="true"></div>
+            <div class="panel continuation-empty-panel" aria-hidden="true"></div>
+            <div class="panel continuation-empty-panel" aria-hidden="true"></div>
+          </section>
+          <div class="continued" data-continuation-signature="true">
+            ( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )
+          </div>
+        `}
       </main>
     `
   }).join('')
@@ -550,22 +566,23 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
       html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; line-height: 1.25; background: #f8fafc; }
-      .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
+      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; line-height: 1.25; background: #334155; padding: 16px 0; }
+      .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 6mm; background: white; position: relative; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
+      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 6mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
       .page:last-child { break-after: auto; page-break-after: auto; }
       .accent { height: 3px; background: linear-gradient(90deg, #166534, #65a30d, #cbd5e1); border-radius: 99px; margin-bottom: 8px; flex: 0 0 auto; }
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 10px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; flex: 0 0 auto; }
       .company { display: grid; grid-template-columns: 52px 1fr; gap: 9px; align-items: start; min-width: 0; }
       .logo, .logo-placeholder { width: 52px; height: 52px; object-fit: contain; border-radius: 8px; }
       .logo-placeholder { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 10px; font-weight: 700; text-align: center; }
-      .company-name { font-size: 14px; font-weight: 700; color: #0f172a; }
+      .company-name { font-size: 14px; font-weight: 700; color: #0f172a; white-space: nowrap; }
       .company-en { font-size: 10.5px; font-weight: 700; color: #475569; margin-top: 1px; }
       .company-info { margin-top: 2px; color: #475569; font-size: 10px; }
       .doc-head { text-align: right; }
       .doc-title { font-size: 18px; font-weight: 700; color: #14532d; letter-spacing: 0; }
+      .page-label { margin-top: 3px; color: #14532d; font-weight: 700; }
       .draft-badge { display: inline-block; margin-top: 5px; border: 1px solid #d97706; border-radius: 4px; padding: 3px 7px; color: #92400e; background: #fffbeb; font-size: 10.5px; font-weight: 700; }
       .doc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: left; }
       .kv { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 6px; background: #f8fafc; }
@@ -592,6 +609,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .items .source-row td { background: #f8fafc; }
       .items .purchase-row td { background: #eff6ff; }
       .items .product-total td { background: #ecfdf5; font-weight: 700; }
+      .items tfoot.placeholder-total td { height: 24px; background: #ffffff; color: transparent; }
       .item-name { font-weight: 700; color: #0f172a; }
       .muted { color: #64748b; font-size: 9.5px; margin-top: 1px; }
       .detail-line { margin-top: 1px; overflow-wrap: anywhere; }
@@ -603,6 +621,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .c { text-align: center; }
       .strong { font-weight: 700; }
       .bottom-grid { display: grid; grid-template-columns: 1.15fr 0.8fr 1.05fr; gap: 8px; margin-top: 8px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
+      .continuation-empty-panel { min-height: 92px; background: #ffffff; }
       .note { min-height: 28px; color: #334155; white-space: pre-wrap; }
       .summary-cards { display: grid; gap: 8px; }
       .summary-card { border: 1px solid #dbe3ea; border-radius: 6px; padding: 5px; background: #f8fafc; }
@@ -623,12 +642,12 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: auto; margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 16px; font-weight: 700; color: #1e293b; }
-      .continued { margin-top: auto; padding-top: 8px; text-align: right; color: #64748b; font-weight: 700; }
+      .continued { min-height: 64px; margin-top: auto; display: flex; align-items: center; justify-content: center; padding-top: 8px; text-align: center; color: #14532d; font-weight: 700; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; font-size: 10.5px; line-height: 1.18; }
+        body { background: white; padding: 0; font-size: 10.5px; line-height: 1.18; }
         .toolbar { display: none; }
-        .page { width: auto; min-height: 281mm; margin: 0; padding: 0; box-shadow: none; break-after: page; page-break-after: always; }
+        .page { width: auto; min-height: 281mm; margin: 0; padding: 0; box-shadow: none; border-radius: 0; break-after: page; page-break-after: always; }
         .page:last-child { break-after: auto; page-break-after: auto; }
         .accent { margin-bottom: 7px; }
         .header { gap: 10px; padding-bottom: 7px; }

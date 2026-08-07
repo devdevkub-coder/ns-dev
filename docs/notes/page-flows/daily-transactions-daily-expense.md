@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-08-07
 route: /daily/expense
 ---
 
@@ -35,6 +35,7 @@ EXP เป็น expense source ที่เลือกได้ว่าจะ
 - mode `ส่งอนุมัติ` ส่งเข้า PMA/PMT flow
 - mode `จ่ายเลย` สร้าง EXP + PMT + bank statement ใน transaction เดียว
 - แสดง detail row-click, วันที่จ่าย, status และ source payment history
+- พิมพ์ใบสำคัญจ่ายค่าใช้จ่ายจาก EXP snapshot โดยใช้ Company Profile ตามสาขา รองรับหลายหน้าแบบไม่จำกัด
 
 ## Non-Responsibilities
 
@@ -81,6 +82,14 @@ EXP เป็น expense source ที่เลือกได้ว่าจะ
 - ส่งอนุมัติ: สร้าง EXP source payable แต่ยังไม่เขียน bank statement
 - จ่ายเลย: สร้าง EXP, PMT, payment_account_splits, payment_status_logs, bank_statement
 - history แสดงใน payment history ผ่าน payments.lines source snapshot
+
+## Print Contract
+
+- ใบพิมพ์ EXP แบ่งหน้าละ 15 รายการ; ทุกหน้ามีหัวบริษัท ข้อมูลเอกสาร และ table header เดิม
+- หน้า `1..N-1` แสดง footer ตารางว่าง, กรอบสรุปว่าง 2 กรอบ และข้อความมีต่อหน้าแทนยอด/หมายเหตุ/ลายเซ็น
+- หน้าสุดท้ายเท่านั้นแสดงยอด VAT/WHT/ยอดสุทธิ หมายเหตุ และลายเซ็นผู้จัดทำ/ผู้ตรวจสอบ/ผู้อนุมัติ/ผู้รับเงิน
+- preview ใช้พื้นหลัง `#334155` กับกระดาษ A4 สีขาวมีเงา; print media ตัดพื้นหลัง เงา radius และ page gap ออก
+- การพิมพ์เป็น read-only และไม่สร้างหรือแก้ EXP, PMA, PMT, Bank Statement หรือ payment history
 
 ## Current Code Baseline
 

@@ -342,6 +342,9 @@ UI / UX baseline:
 - ช่องวันที่ว่างแสดง `วว/ดด/ปปปป` ไม่ใช้วันที่จริงเป็น placeholder เพราะจะทำให้ดูเหมือนมีตัวกรองอยู่
 - ตาราง desktop ใช้ shared table shell เพียงชั้นเดียว, แสดงข้อความหลักขนาด `text-sm`, วาง `หมายเหตุ` ก่อน `จัดการ` และให้ `จัดการ` เป็นคอลัมน์ขวาสุด
 - ปุ่ม `ดูรายละเอียด` และ `แก้ไข` ใช้ neutral outline; `ยกเลิก` ใช้ destructive outline แบบเบา ไม่ใช้ปุ่มแดงทึบในแถวตาราง
+- detail แบบ read-only ของ RCP ยังมีปุ่มพิมพ์ทั้งรายการ active และ cancelled เพื่อออก audit copy; ฉบับ cancelled ต้องมีลายน้ำและห้ามเปิด action แก้ไข/ยกเลิกซ้ำ
+- การพิมพ์ RCP รายใบและหลายใบโหลด Company Profile ตามสาขา (batch reuse request ของสาขาเดียวกัน), รองรับทั้ง SB และ CADV รวม foreign receipt audit, แบ่งหน้าละ 15 รายการได้ไม่จำกัด และแสดงยอด หมายเหตุ และลายเซ็นเฉพาะหน้าสุดท้าย
+- การพิมพ์ RCP เป็น read-only ไม่สร้างหรือแก้ customer receipt, allocation, bank statement, AR, cache, DB หรือ Storage
 
 การคลิกแถว:
 

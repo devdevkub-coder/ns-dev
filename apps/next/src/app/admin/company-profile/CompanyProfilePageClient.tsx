@@ -53,6 +53,7 @@ function formatNumber(value: number) {
 
 function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) {
   const isReceipt = kind === 'receipt'
+  const companyName = (profile.name || '-').replace(/\s+/g, ' ').trim()
   const docTitle = isReceipt ? 'บิลซื้อ / PURCHASE BILL' : 'ใบส่งของ / DELIVERY NOTE'
   const docStamp = isReceipt ? 'PURCHASE BILL' : 'DELIVERY NOTE'
   const docNoLabel = isReceipt ? 'เลขที่บิลซื้อ' : 'เลขที่ใบส่ง'
@@ -86,9 +87,11 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(docTitle)} ตัวอย่าง</title>
     <style>
       @page { size: A4; margin: 12mm; }
-      body { font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 13px; color: #111; margin: 0; padding: 0; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 13px; color: #111; margin: 0; background: #334155; padding: 16px 0; }
+      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: #fff; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
       .header { display: flex; justify-content: space-between; align-items: start; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
-      .co-name { font-size: 18px; font-weight: bold; }
+      .co-name { font-size: 18px; font-weight: bold; white-space: nowrap; }
       .co-info { font-size: 12px; color: #444; line-height: 1.5; }
       .doc-title { text-align: right; }
       .doc-title h1 { font-size: 18px; margin: 0 0 4px 0; }
@@ -112,22 +115,26 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
       .footer-note { margin-top: 20px; text-align: center; font-size: 12px; color: #666; }
       .doc-stamp { display: inline-block; padding: 2px 8px; border: 2px solid #444; font-weight: bold; font-size: 12px; }
       .sample-badge { display:inline-block;padding:4px 12px;background:#10b981;color:white;font-weight:bold;border-radius:6px;font-size:13px;margin-top:4px; }
-      @media print { .no-print { display: none; } }
-      .toolbar { background: #f3f4f6; padding: 8px; text-align: center; border-bottom: 1px solid #ccc; }
-      .toolbar button { background: #2563eb; color: white; border: none; padding: 8px 16px; margin: 0 4px; border-radius: 4px; cursor: pointer; font-size: 14px; }
-      .toolbar button:hover { background: #1d4ed8; }
+      .toolbar { background: #0f172a; color: white; padding: 8px; text-align: center; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
+      .toolbar button { background: #15803d; color: white; border: none; padding: 8px 16px; margin: 0 4px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+      .toolbar button:hover { background: #166534; }
+      @media print {
+        body { background: white; padding: 0; }
+        .no-print { display: none; }
+        .page { width: auto; min-height: auto; margin: 0; padding: 0; background: #fff; box-shadow: none; border-radius: 0; }
+      }
     </style>
   </head><body>
     <div class="no-print toolbar">
       <button onclick="window.print()">🖨 พิมพ์ / Print</button>
       <button onclick="window.close()" style="background:#64748b">✕ ปิด</button>
-      <span style="margin-left:10px;color:#555;font-size:12px">ตัวอย่างจากหน้าข้อมูลบริษัท</span>
+      <span style="margin-left:10px;color:#cbd5e1;font-size:12px">ตัวอย่างจากหน้าข้อมูลบริษัท</span>
     </div>
-    <div style="padding: 12px;">
+    <main class="page">
       <div class="header">
         <div>
           ${profile.logoUrl ? `<img src="${escapeHtml(profile.logoUrl)}" style="max-height:60px;margin-bottom:6px"/>` : ''}
-          <div class="co-name">${escapeHtml(profile.name || '-')}</div>
+          <div class="co-name">${escapeHtml(companyName)}</div>
           ${profile.nameEn ? `<div style="font-size:12px;color:#444">${escapeHtml(profile.nameEn)}</div>` : ''}
           <div class="co-info">${companyInfo}</div>
         </div>
@@ -150,7 +157,7 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
         </div>
         ${isReceipt ? '' : `<div class="info-box">
           <div class="label">ผู้ส่ง (บริษัทเรา)</div>
-          <div style="font-weight:bold;font-size:13px">${escapeHtml(profile.name || '-')}</div>
+          <div style="font-weight:bold;font-size:13px">${escapeHtml(companyName)}</div>
           <div style="font-size: 12px;color:#555">${companyInfo}</div>
         </div>`}
       </div>
@@ -185,7 +192,7 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
       </div>
       <div style="margin-top:12px;font-size: 12px;color:#777;border-top:1px dashed #ccc;padding-top:6px">👤 ผู้ทำบิล: <b>preview</b></div>
       <div class="footer-note">${escapeHtml(profile.footerNote || '')}</div>
-    </div>
+    </main>
   </body></html>`
 }
 

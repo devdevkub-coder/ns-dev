@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { CompanyProfilePrintValues } from './company-profile'
 import { buildAdvancePaymentPrintHtml, type AdvancePaymentPrintDocument } from './advance-payment-print'
+import { buildExpensePrintHtml } from './expense-print'
+import { buildPmaSummaryPrintHtml } from './payment-approval-print'
 import { buildPoBuyPrintHtml, type PoBuyPrintDocument } from './po-buy-print'
 import { buildPoSellPrintHtml, type PoSellPrintDocument } from './po-sell-print'
 import { buildSalesBillPrintHtml } from './sales-bill-print'
@@ -45,7 +47,12 @@ function expectStandardPrintContract(html: string, expectedPages: number, expect
     if (index < expectedPages - 1) {
       expect(page).toContain('data-final-page="false"')
       expect(page).toContain('data-page-totals="placeholder"')
-      expect(page).toMatch(/data-page-totals="placeholder"[\s\S]*?>-\s*</)
+      const placeholderFooter = page.match(/<tfoot[^>]*data-page-totals="placeholder"[\s\S]*?<\/tfoot>/)?.[0]
+      expect(placeholderFooter).toContain('&nbsp;')
+      expect(placeholderFooter).not.toMatch(/>\s*-\s*</)
+      expect(page).toContain('data-continuation-summary="empty"')
+      expect(page.match(/class="continuation-empty-panel"/g)).toHaveLength(2)
+      expect(page).toContain('data-continuation-signature="true"')
       expect(page).toContain(`Continued on Page ${index + 2}`)
       expect(page).not.toContain('data-signatures="final"')
     } else {
@@ -60,6 +67,14 @@ function expectStandardPrintContract(html: string, expectedPages: number, expect
   )
   expect(html).toMatch(/body\s*\{[^}]*background:\s*#334155/)
   expect(html).toMatch(/\.page\s*\{[^}]*box-shadow:/)
+  expect(html).toMatch(/@media print\s*\{[\s\S]*?body\s*\{[^}]*background:\s*(?:white|#fff)/)
+  expect(html).toMatch(/@media print\s*\{[\s\S]*?\.page\s*\{[^}]*box-shadow:\s*none/)
+}
+
+function expectSingleLineCompanyHeader(html: string) {
+  expect(html).toContain('<div class="company-name">บริษัท เอ็นเอส สแครป จำกัด (สำนักงานใหญ่)</div>')
+  expect(html).not.toContain('จำกัด\n(สำนักงานใหญ่)')
+  expect(html).toMatch(/\.company-name\s*\{[^}]*white-space:\s*nowrap/)
 }
 
 function makeSalesBill(itemCount: number): SalesBillDetail {
@@ -253,13 +268,95 @@ function makeAdvancePayment(allocationCount: number): AdvancePaymentPrintDocumen
   }
 }
 
+function makeExpense(lineCount: number) {
+  return {
+    accountName: 'เงินสด',
+    amount: lineCount * 100,
+    branchName: 'สำนักงานใหญ่',
+    date: '2026-08-07',
+    description: 'รายละเอียดรวม',
+    docNo: 'EXP-001',
+    lines: Array.from({ length: lineCount }, (_, index) => ({
+      amount: 100,
+      categoryName: `หมวดค่าใช้จ่าย ${index + 1}`,
+      description: `รายการ ${index + 1}`,
+      vatAmount: 7,
+      whtAmount: 3,
+    })),
+    netAmount: lineCount * 104,
+    notes: 'หมายเหตุทดสอบ',
+    payee: 'ผู้รับเงินทดสอบ',
+    status: 'paid',
+    vat: lineCount * 7,
+    wht: lineCount * 3,
+  }
+}
+
+function makePmaRows(rowCount: number) {
+  return Array.from({ length: rowCount }, (_, index) => ({
+    approvalDisplayDocNo: `PMA-${index + 1}`,
+    approvalId: `approval-${index + 1}`,
+    approvalStatus: 'approved' as const,
+    approvedAmount: 100,
+    date: '2026-08-07',
+    destinationLabel: `บัญชีปลายทาง ${index + 1}`,
+    docNo: `PMA-${index + 1}`,
+    id: `approval-${index + 1}`,
+    sourceDocNo: `PB-${index + 1}`,
+    sourceType: 'purchase_bill' as const,
+    supplierName: `ผู้ขาย ${index + 1}`,
+    totalAmount: 100,
+  }))
+}
+
 describe.each([
-  { build: (count: number) => buildSalesBillPrintHtml(makeSalesBill(count), profile), name: 'sales bill' },
-  { build: (count: number) => buildPoBuyPrintHtml(makePoBuy(count), profile), name: 'PO Buy' },
-  { build: (count: number) => buildPoSellPrintHtml(makePoSell(count), profile), name: 'PO Sell' },
-  { build: (count: number) => buildAdvancePaymentPrintHtml(makeAdvancePayment(count), profile), name: 'advance allocation history' },
+  { build: (count: number, selectedProfile = profile) => buildSalesBillPrintHtml(makeSalesBill(count), selectedProfile), name: 'sales bill' },
+  { build: (count: number, selectedProfile = profile) => buildPoBuyPrintHtml(makePoBuy(count), selectedProfile), name: 'PO Buy' },
+  { build: (count: number, selectedProfile = profile) => buildPoSellPrintHtml(makePoSell(count), selectedProfile), name: 'PO Sell' },
+  { build: (count: number, selectedProfile = profile) => buildAdvancePaymentPrintHtml(makeAdvancePayment(count), selectedProfile), name: 'advance allocation history' },
+  { build: (count: number, selectedProfile = profile) => buildExpensePrintHtml(makeExpense(count), selectedProfile), name: 'expense voucher' },
+  { build: (count: number, selectedProfile = profile) => buildPmaSummaryPrintHtml(makePmaRows(count), selectedProfile, 'เจ้าหนี้การค้า'), name: 'payment approval' },
 ])('$name print pagination', ({ build }) => {
   it.each(PRINT_BOUNDARIES)('renders $count items across $pages page(s)', ({ count, pages }) => {
     expectStandardPrintContract(build(count), pages, count)
+  })
+
+  it('keeps the legal company name on one line', () => {
+    expectSingleLineCompanyHeader(build(1, {
+      ...profile,
+      name: 'บริษัท เอ็นเอส สแครป จำกัด\n(สำนักงานใหญ่)',
+    }))
+  })
+})
+
+describe('document-specific print preservation', () => {
+  it('uses bundled Thai fonts for PMA without an external network dependency', () => {
+    const html = buildPmaSummaryPrintHtml(makePmaRows(1), profile, 'เจ้าหนี้การค้า')
+
+    expect(html).not.toMatch(/@import\b/i)
+    expect(html).not.toContain('fonts.googleapis.com')
+    expect(html).toContain("url('/fonts/NotoSansThai-Regular.ttf')")
+    expect(html).toContain("url('/fonts/NotoSansThai-Bold.ttf')")
+  })
+
+  it('counts a PMA group-total row toward the 15 physical table slots per page', () => {
+    const rows = makePmaRows(15).map((row) => ({
+      ...row,
+      destinationLabel: 'บัญชีปลายทางเดียวกัน',
+      supplierName: 'ผู้ขายรายเดียวกัน',
+    }))
+    const pages = standardPages(buildPmaSummaryPrintHtml(rows, profile, 'เจ้าหนี้การค้า'))
+
+    expect(pages).toHaveLength(2)
+    expect(pages[0].match(/data-row-slot/g)).toHaveLength(15)
+    expect(pages[1].match(/data-row-slot/g)).toHaveLength(15)
+    expect(pages.join('').match(/class="group-total"/g)).toHaveLength(1)
+  })
+
+  it('preserves the EXP cancellation watermark', () => {
+    const html = buildExpensePrintHtml({ ...makeExpense(1), status: 'cancelled' }, profile)
+
+    expect(html).toContain('CANCELLED')
+    expect(html).toMatch(/\.watermark\s*\{\s*display:\s*block/)
   })
 })
