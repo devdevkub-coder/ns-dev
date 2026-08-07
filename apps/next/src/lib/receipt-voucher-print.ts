@@ -146,145 +146,22 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
 
   const itemCount = printItems.length
   const isDense = itemCount >= 9 && itemCount <= 15
-  const isLarge = itemCount > 15
-  const hasPageBreak = itemCount > 15
-  const tableRowTarget = isDense ? itemCount : (isLarge ? 0 : 7)
+  const isMultiPage = itemCount > 15
 
-  const itemsHtml = printItems.map((item, index) => {
-    return `
+  function renderRows(rowsToRender: ReceiptVoucherPrintItem[], startIndex: number) {
+    return rowsToRender.map((item, index) => `
       <tr>
-        <td class="center">${index + 1}</td>
+        <td class="center">${startIndex + index + 1}</td>
         <td class="item-name">${escapeHtml(item.description || '-')}</td>
         <td class="num">${money(toNumber(item.qty))} ${escapeHtml(item.unit || 'หน่วย')}</td>
         <td class="num">${money(toNumber(item.price))}</td>
         <td class="num font-black">${money(toNumber(item.amount))}</td>
       </tr>
-    `
-  }).join('')
-  const emptyRowsHtml = Array.from({ length: Math.max(0, tableRowTarget - printItems.length) }).map(() => `
-      <tr class="empty-row">
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-      </tr>
     `).join('')
+  }
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบสำคัญรับเงิน ${escapeHtml(row.docNo)}</title>
-    <style>
-      @page { size: A4 portrait; margin: 8mm; }
-      * { box-sizing: border-box; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #f8fafc; }
-      .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
-      .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #059669; color: white; font: inherit; cursor: pointer; font-weight: bold; }
-      .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 5mm; background: white; position: relative; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-      .print-footer { display: none; }
-      .accent { height: 4px; background: linear-gradient(90deg, #065f46, #84cc16, #cbd5e1); border-radius: 99px; margin-bottom: 8px; }
-      .header { display: grid; grid-template-columns: 1fr .82fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }
-      .company { display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: start; min-width: 0; }
-      .logo { width: 60px; height: 60px; object-fit: contain; }
-      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 11px; font-weight: 850; text-align: center; width: 60px; height: 60px; }
-      .company-name { font-size: 14.5px; font-weight: 900; color: #0f172a; line-height: 1.2; }
-      .company-en { font-size: 11.5px; font-weight: 700; color: #475569; margin-top: 1px; }
-      .company-info { margin-top: 3px; color: #475569; font-size: 11.5px; line-height: 1.35; }
-      .doc-head { text-align: right; }
-      .doc-title { font-size: 21px; font-weight: 900; color: #065f46; letter-spacing: 0; }
-      .doc-subtitle { font-size: 11.5px; font-weight: bold; uppercase; color: #64748b; margin-top: 1px; }
-      .meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 8px; text-align: left; }
-      .meta-card { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; padding: 3px 6px; }
-      .meta-label { font-size: 11px; color: #64748b; }
-      .meta-value { font-weight: 900; color: #0f172a; margin-top: 1px; font-size: 11.5px; }
-      .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-      .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
-      .panel-title { padding: 4px 8px; background: #f1f5f9; color: #334155; font-weight: 900; font-size: 11.5px; }
-      .panel-body { padding: 6px 8px; }
-      .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
-      .field-label { color: #64748b; font-size: 11px; }
-      .field-value { font-weight: bold; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; font-size: 11.5px; }
-      .field-wide { grid-span: 2; grid-column: span 2; }
-      table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 8px; font-size: 11px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
-      .items thead { display: table-header-group; }
-      .items tbody { break-inside: auto; page-break-inside: auto; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 3px 4px; text-align: left; font-weight: 900; }
-      .items td { border: 1px solid #dbe3ea; padding: 3px 4px; vertical-align: top; }
-      .items tr { break-inside: avoid; page-break-inside: avoid; }
-      .items .empty-row td { height: 20px; color: transparent; }
-      .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; padding: 4px 4px; }
-      .items tfoot .final-amount { color: #059669; font-size: 11.5px; }
-      .item-name { font-weight: bold; color: #0f172a; }
-      .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-      .center { text-align: center; }
-      
-      .bottom-grid { display: grid; grid-template-columns: 1fr 70mm; gap: 8px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
-      .notes-panel { display: flex; flex-direction: column; gap: 6px; }
-      .note-box { border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
-      .note-box-header { background: #f1f5f9; padding: 3px 6px; font-weight: 900; color: #475569; font-size: 11px; }
-      .note-content { padding: 6px; font-size: 11.5px; font-weight: bold; color: #0f172a; min-height: 28px; }
-      .note-content-small { padding: 4px 6px; font-size: 11px; color: #475569; min-height: 32px; white-space: pre-wrap; }
-      .summary-box { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
-      .summary-row { display: grid; grid-template-columns: 1fr 32mm; gap: 6px; border-bottom: 1px solid #cbd5e1; padding: 4px 6px; font-size: 11.5px; }
-      .summary-row:last-child { border-bottom: 0; }
-      .summary-row.highlight { background: #065f46; color: white; padding: 6px; font-size: 11.5px; font-weight: 900; }
-      
-      .footer-group { break-inside: avoid; page-break-inside: avoid; }
-      .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 16px; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }
-      .sig-block { text-align: center; color: #475569; }
-      .sig-line { width: 78%; margin: 0 auto; height: 20px; border-bottom: 1px solid #475569; }
-      .sig-title { margin-top: 3px; font-weight: 900; color: #0f172a; }
-      .sig-name { margin-top: 1px; }
-      .sig-date { margin-top: 2px; font-size: 11px; color: #64748b; }
-      
-      .legal-note { margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 4px; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; break-inside: avoid; page-break-inside: avoid; }
-
-      /* Auto Dense Sizing for 9-15 items to fit 1-page 100% */
-      .page.is-dense { padding: 4mm; }
-      .page.is-dense .company-name { font-size: 13.5px; }
-      .page.is-dense .company-info { font-size: 11px; margin-top: 2px; }
-      .page.is-dense .doc-title { font-size: 19px; }
-      .page.is-dense .doc-subtitle { font-size: 11px; }
-      .page.is-dense .meta-grid { margin-top: 5px; gap: 3px; }
-      .page.is-dense .meta-card { padding: 2px 5px; }
-      .page.is-dense .section-grid { margin-top: 6px; gap: 6px; }
-      .page.is-dense .panel-title { padding: 3px 6px; font-size: 11px; }
-      .page.is-dense .panel-body { padding: 4px 6px; }
-      .page.is-dense .two-col { gap: 3px 8px; }
-      .page.is-dense .items { margin-top: 6px; font-size: 10.5px; }
-      .page.is-dense .items th, .page.is-dense .items td { padding: 2px 3px; }
-      .page.is-dense .bottom-grid { margin-top: 6px; gap: 6px; }
-      .page.is-dense .signatures { margin-top: 10px; gap: 20px; }
-      .page.is-dense .sig-line { height: 16px; }
-      .page.is-dense .legal-note { margin-top: 6px; padding-top: 3px; font-size: 10.5px; }
-
-      /* Maximum 15 items per page: break to page 2 cleanly after 15th row */
-      .page.has-page-break .items tbody tr:nth-child(15) {
-        page-break-after: always !important;
-        break-after: page !important;
-        border-bottom: 3px double #059669 !important;
-      }
-      
-      .watermark { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 72px; font-weight: 900; color: rgba(226, 232, 240, 0.7); transform: rotate(-18deg); z-index: 10; }
-      
-      @media print {
-        @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; margin: 0; }
-        .toolbar { display: none !important; }
-        .page { border: 0; box-shadow: none; margin: 0; padding: 0; width: 100%; min-height: 0; }
-      }
-    </style>
-  </head><body>
-    <div class="toolbar">
-      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
-      <button class="secondary" onclick="window.close()">ปิด</button>
-      <span style="font-size: 12px;color:#cbd5e1">A4 portrait corporate print</span>
-    </div>
-    
-    <div class="page${isDense ? ' is-dense' : ''}${hasPageBreak ? ' has-page-break' : ''}">
-      ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
-      <div class="accent"></div>
-      
+  function renderHeader(subTitle = 'Receipt Voucher', pageLabel = '') {
+    return `
       <header class="header">
         <div class="company">
           ${profile.logoUrl ? `
@@ -304,7 +181,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
         </div>
         <div class="doc-head">
           <div class="doc-title">ใบสำคัญรับเงิน</div>
-          <div class="doc-subtitle">Receipt Voucher</div>
+          <div class="doc-subtitle">${escapeHtml(subTitle)} ${pageLabel ? `<span style="color:#059669;margin-left:4px;">(${escapeHtml(pageLabel)})</span>` : ''}</div>
           <div class="meta-grid">
             <div class="meta-card">
               <div class="meta-label">เลขที่เอกสาร</div>
@@ -325,7 +202,11 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           </div>
         </div>
       </header>
-      
+    `
+  }
+
+  function renderSupplierPayerSections() {
+    return `
       <section class="section-grid">
         <div class="panel">
           <div class="panel-title">ผู้รับเงิน / Supplier Receiver</div>
@@ -383,31 +264,11 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           </div>
         </div>
       </section>
-      
-      <table class="items">
-        <thead>
-          <tr>
-            <th style="width: 8mm; text-align: center;">#</th>
-            <th>รายการ</th>
-            <th style="width: 28mm; text-align: right;">จำนวน/หน่วย</th>
-            <th style="width: 25mm; text-align: right;">ราคา/หน่วย</th>
-            <th style="width: 29mm; text-align: right;">จำนวนเงิน</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHtml}
-          ${emptyRowsHtml}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colspan="2" class="num">รวมทั้งสิ้น</td>
-            <td class="num">${escapeHtml(quantitySummary || '-')}</td>
-            <td></td>
-            <td class="num final-amount">${money(row.totalAmount)}</td>
-          </tr>
-        </tfoot>
-      </table>
-      
+    `
+  }
+
+  function renderBottomGridAndSignatures() {
+    return `
       <section class="bottom-grid">
         <div class="notes-panel">
           ${(() => {
@@ -478,7 +339,222 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           ${escapeHtml(legalNote)}
         </div>
       </div>
+    `
+  }
+
+  // Generate pages HTML
+  let pagesHtml = ''
+
+  if (isMultiPage) {
+    const page1Items = printItems.slice(0, 15)
+    const page2Items = printItems.slice(15)
+
+    pagesHtml = `
+      <div class="page is-dense">
+        ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
+        <div class="accent"></div>
+        ${renderHeader('Receipt Voucher', 'หน้า 1/2')}
+        ${renderSupplierPayerSections()}
+        <table class="items">
+          <thead>
+            <tr>
+              <th style="width: 8mm; text-align: center;">#</th>
+              <th>รายการ</th>
+              <th style="width: 28mm; text-align: right;">จำนวน/หน่วย</th>
+              <th style="width: 25mm; text-align: right;">ราคา/หน่วย</th>
+              <th style="width: 29mm; text-align: right;">จำนวนเงิน</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${renderRows(page1Items, 0)}
+          </tbody>
+        </table>
+        <div style="text-align: right; margin-top: 16px; font-weight: bold; color: #059669; font-size: 11px;">
+          ( มีต่อหน้า 2 / Continued on Page 2 ➔ )
+        </div>
+      </div>
+
+      <div class="page is-dense page-break-before">
+        ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
+        <div class="accent"></div>
+        ${renderHeader('Receipt Voucher', 'หน้า 2/2')}
+        <table class="items">
+          <thead>
+            <tr>
+              <th style="width: 8mm; text-align: center;">#</th>
+              <th>รายการ (ต่อ)</th>
+              <th style="width: 28mm; text-align: right;">จำนวน/หน่วย</th>
+              <th style="width: 25mm; text-align: right;">ราคา/หน่วย</th>
+              <th style="width: 29mm; text-align: right;">จำนวนเงิน</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${renderRows(page2Items, 15)}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" class="num">รวมทั้งสิ้น</td>
+              <td class="num">${escapeHtml(quantitySummary || '-')}</td>
+              <td></td>
+              <td class="num final-amount">${money(row.totalAmount)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        ${renderBottomGridAndSignatures()}
+      </div>
+    `
+  } else {
+    const tableRowTarget = isDense ? itemCount : 7
+    const emptyRowsHtml = Array.from({ length: Math.max(0, tableRowTarget - printItems.length) }).map(() => `
+      <tr class="empty-row">
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+      </tr>
+    `).join('')
+
+    pagesHtml = `
+      <div class="page${isDense ? ' is-dense' : ''}">
+        ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
+        <div class="accent"></div>
+        ${renderHeader()}
+        ${renderSupplierPayerSections()}
+        <table class="items">
+          <thead>
+            <tr>
+              <th style="width: 8mm; text-align: center;">#</th>
+              <th>รายการ</th>
+              <th style="width: 28mm; text-align: right;">จำนวน/หน่วย</th>
+              <th style="width: 25mm; text-align: right;">ราคา/หน่วย</th>
+              <th style="width: 29mm; text-align: right;">จำนวนเงิน</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${renderRows(printItems, 0)}
+            ${emptyRowsHtml}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" class="num">รวมทั้งสิ้น</td>
+              <td class="num">${escapeHtml(quantitySummary || '-')}</td>
+              <td></td>
+              <td class="num final-amount">${money(row.totalAmount)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        ${renderBottomGridAndSignatures()}
+      </div>
+    `
+  }
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบสำคัญรับเงิน ${escapeHtml(row.docNo)}</title>
+    <style>
+      @page { size: A4 portrait; margin: 8mm; }
+      * { box-sizing: border-box; }
+      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #cbd5e1; padding: 16px 0; }
+      .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
+      .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #059669; color: white; font: inherit; cursor: pointer; font-weight: bold; }
+      .toolbar button.secondary { background: #475569; }
+      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 5mm; background: white; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 4px; }
+      .page-break-before { page-break-before: always !important; break-before: page !important; }
+      .print-footer { display: none; }
+      .accent { height: 4px; background: linear-gradient(90deg, #065f46, #84cc16, #cbd5e1); border-radius: 99px; margin-bottom: 8px; }
+      .header { display: grid; grid-template-columns: 1fr .82fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }
+      .company { display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: start; min-width: 0; }
+      .logo { width: 60px; height: 60px; object-fit: contain; }
+      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 11px; font-weight: 850; text-align: center; width: 60px; height: 60px; }
+      .company-name { font-size: 14.5px; font-weight: 900; color: #0f172a; line-height: 1.2; }
+      .company-en { font-size: 11.5px; font-weight: 700; color: #475569; margin-top: 1px; }
+      .company-info { margin-top: 3px; color: #475569; font-size: 11.5px; line-height: 1.35; }
+      .doc-head { text-align: right; }
+      .doc-title { font-size: 21px; font-weight: 900; color: #065f46; letter-spacing: 0; }
+      .doc-subtitle { font-size: 11.5px; font-weight: bold; uppercase; color: #64748b; margin-top: 1px; }
+      .meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 8px; text-align: left; }
+      .meta-card { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; padding: 3px 6px; }
+      .meta-label { font-size: 11px; color: #64748b; }
+      .meta-value { font-weight: 900; color: #0f172a; margin-top: 1px; font-size: 11.5px; }
+      .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+      .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+      .panel-title { padding: 4px 8px; background: #f1f5f9; color: #334155; font-weight: 900; font-size: 11.5px; }
+      .panel-body { padding: 6px 8px; }
+      .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
+      .field-label { color: #64748b; font-size: 11px; }
+      .field-value { font-weight: bold; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; font-size: 11.5px; }
+      .field-wide { grid-span: 2; grid-column: span 2; }
+      table { width: 100%; border-collapse: collapse; }
+      .items { margin-top: 8px; font-size: 11px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
+      .items thead { display: table-header-group; }
+      .items tbody { break-inside: auto; page-break-inside: auto; }
+      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 3px 4px; text-align: left; font-weight: 900; }
+      .items td { border: 1px solid #dbe3ea; padding: 3px 4px; vertical-align: top; }
+      .items tr { break-inside: avoid; page-break-inside: avoid; }
+      .items .empty-row td { height: 20px; color: transparent; }
+      .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; padding: 4px 4px; }
+      .items tfoot .final-amount { color: #059669; font-size: 11.5px; }
+      .item-name { font-weight: bold; color: #0f172a; }
+      .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .center { text-align: center; }
+      
+      .bottom-grid { display: grid; grid-template-columns: 1fr 70mm; gap: 8px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
+      .notes-panel { display: flex; flex-direction: column; gap: 6px; }
+      .note-box { border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+      .note-box-header { background: #f1f5f9; padding: 3px 6px; font-weight: 900; color: #475569; font-size: 11px; }
+      .note-content { padding: 6px; font-size: 11.5px; font-weight: bold; color: #0f172a; min-height: 28px; }
+      .note-content-small { padding: 4px 6px; font-size: 11px; color: #475569; min-height: 32px; white-space: pre-wrap; }
+      .summary-box { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+      .summary-row { display: grid; grid-template-columns: 1fr 32mm; gap: 6px; border-bottom: 1px solid #cbd5e1; padding: 4px 6px; font-size: 11.5px; }
+      .summary-row:last-child { border-bottom: 0; }
+      .summary-row.highlight { background: #065f46; color: white; padding: 6px; font-size: 11.5px; font-weight: 900; }
+      
+      .footer-group { break-inside: avoid; page-break-inside: avoid; }
+      .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 16px; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }
+      .sig-block { text-align: center; color: #475569; }
+      .sig-line { width: 78%; margin: 0 auto; height: 20px; border-bottom: 1px solid #475569; }
+      .sig-title { margin-top: 3px; font-weight: 900; color: #0f172a; }
+      .sig-name { margin-top: 1px; }
+      .sig-date { margin-top: 2px; font-size: 11px; color: #64748b; }
+      
+      .legal-note { margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 4px; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; break-inside: avoid; page-break-inside: avoid; }
+
+      /* Auto Dense Sizing */
+      .page.is-dense { padding: 4mm; }
+      .page.is-dense .company-name { font-size: 13.5px; }
+      .page.is-dense .company-info { font-size: 11px; margin-top: 2px; }
+      .page.is-dense .doc-title { font-size: 19px; }
+      .page.is-dense .doc-subtitle { font-size: 11px; }
+      .page.is-dense .meta-grid { margin-top: 5px; gap: 3px; }
+      .page.is-dense .meta-card { padding: 2px 5px; }
+      .page.is-dense .section-grid { margin-top: 6px; gap: 6px; }
+      .page.is-dense .panel-title { padding: 3px 6px; font-size: 11px; }
+      .page.is-dense .panel-body { padding: 4px 6px; }
+      .page.is-dense .two-col { gap: 3px 8px; }
+      .page.is-dense .items { margin-top: 6px; font-size: 10.5px; }
+      .page.is-dense .items th, .page.is-dense .items td { padding: 2px 3px; }
+      .page.is-dense .bottom-grid { margin-top: 6px; gap: 6px; }
+      .page.is-dense .signatures { margin-top: 10px; gap: 20px; }
+      .page.is-dense .sig-line { height: 16px; }
+      .page.is-dense .legal-note { margin-top: 6px; padding-top: 3px; font-size: 10.5px; }
+      
+      .watermark { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 72px; font-weight: 900; color: rgba(226, 232, 240, 0.7); transform: rotate(-18deg); z-index: 10; }
+      
+      @media print {
+        @page { size: A4 portrait; margin: 8mm; }
+        body { background: white; margin: 0; padding: 0; }
+        .toolbar { display: none !important; }
+        .page { border: 0; box-shadow: none; margin: 0; padding: 0; width: 100%; min-height: 0; border-radius: 0; }
+        .page.page-break-before { page-break-before: always !important; break-before: page !important; }
+      }
+    </style>
+  </head><body>
+    <div class="toolbar">
+      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
+      <button class="secondary" onclick="window.close()">ปิด</button>
+      <span style="font-size: 12px;color:#cbd5e1">A4 portrait corporate print</span>
     </div>
+    
+    ${pagesHtml}
   </body></html>`
 }
 
