@@ -3938,15 +3938,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   {isFirstRowOfSummary ? (
                                     <>
                                       <div className="font-medium text-slate-900">{sourceSummary?.productName ?? activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId}</div>
-                                      <div className="mt-1 space-y-0.5 text-xs text-slate-500">
-                                    <div className="whitespace-nowrap font-mono">{selectedReceipt.documentNo}</div>
-                                        {sourceSummary ? <div>รวม {sourceSummary.lineCount} เต๋า</div> : null}
-                                      </div>
-                                      {sourceSummary && summaryVariance ? (
-                                        <div className={`mt-1 text-xs font-semibold ${summaryVariance.className}`}>
-                                          {summaryVariance.text}
-                                        </div>
-                                      ) : null}
                                     </>
                                   ) : <span className="text-slate-300">-</span>}
                                 </td>
