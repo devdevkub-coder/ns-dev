@@ -235,28 +235,28 @@ export function getBranchCodeIntersection(
   context: AppAuthContext,
   requestedBranchCode?: string | null
 ): string[] | null {
+  const allowedCodes = [...new Set((context.appUser?.branchIds ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean))]
+  if (allowedCodes.length) {
+    if (requestedBranchCode && requestedBranchCode.toUpperCase() !== 'ALL') {
+      const requested = requestedBranchCode.trim().toUpperCase()
+      return allowedCodes.includes(requested) ? [requested] : []
+    }
+    return allowedCodes
+  }
   if (context.isAdmin) {
-    if (requestedBranchCode && requestedBranchCode !== 'all') {
-      return [requestedBranchCode]
+    if (requestedBranchCode && requestedBranchCode.toUpperCase() !== 'ALL') {
+      return [requestedBranchCode.trim().toUpperCase()]
     }
     return null
   }
   if (context.roles.some((role) => role.branchScope.trim().toLowerCase() === 'all')) {
-    if (requestedBranchCode && requestedBranchCode !== 'all') return [requestedBranchCode]
+    if (requestedBranchCode && requestedBranchCode.toUpperCase() !== 'ALL') return [requestedBranchCode.trim().toUpperCase()]
     return null
   }
-  const allowedCodes = context.appUser?.branchIds ?? []
-  if (!allowedCodes.length) {
+  if (requestedBranchCode && requestedBranchCode.toUpperCase() !== 'ALL') {
     return []
   }
-  if (requestedBranchCode && requestedBranchCode !== 'all') {
-    if (allowedCodes.includes(requestedBranchCode)) {
-      return [requestedBranchCode]
-    }
-    return []
-  }
-
-  return allowedCodes
+  return []
 }
 
 

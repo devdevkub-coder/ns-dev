@@ -5,8 +5,9 @@ import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 import { adminUserEmailSchema, contactPhoneErrorMessage, isValidContactPhone } from '../admin-user-form-validation'
-import { AdminUserReferenceError, adminUserPermissionOverridesSchema, adminUserReferenceErrorResponse, assertUserPermissionOverrides } from '../admin-users-route-helpers'
+import { AdminUserReferenceError, adminUserPermissionOverridesSchema, adminUserReferenceErrorResponse, adminUserBranchAccessModeSchema, assertUserPermissionOverrides, resolveBranchReferencesForUser } from '../admin-users-route-helpers'
 
 export const runtime = 'nodejs'
 
@@ -16,6 +17,7 @@ const routeParamsSchema = z.object({
 
 const adminUserFormSchema = z.object({
   active: z.boolean().default(true),
+  branchAccessMode: adminUserBranchAccessModeSchema,
   branchIds: z.array(z.string().min(1)).default([]),
   contactLineId: z.string().trim().max(120, 'LINE ID ยาวเกินไป').optional().default(''),
   contactNote: z.string().trim().max(500, 'หมายเหตุ contact ยาวเกินไป').optional().default(''),
@@ -78,10 +80,11 @@ async function assertUserRefs(
   roleIds: string[],
   branchIds: string[],
   departmentId: string,
+  branchAccessMode?: 'all' | 'selected',
 ) {
   const parsedRoleIds = parseRoleIds(roleIds)
   const parsedDepartmentId = parseDepartmentId(departmentId)
-  const [roles, branches, department] = await Promise.all([
+  const [roles, branches, department, activeBranches] = await Promise.all([
     prisma.app_roles.findMany({
       select: { branch_scope: true, id: true },
       where: { id: { in: parsedRoleIds }, active: true },
@@ -91,6 +94,7 @@ async function assertUserRefs(
       select: { id: true },
       where: { id: parsedDepartmentId, active: true },
     }),
+    branchAccessMode === 'all' ? listActiveBranches() : Promise.resolve([]),
   ])
 
   if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
@@ -98,23 +102,20 @@ async function assertUserRefs(
   }
 
   const hasUnrestrictedRole = roles.some((role) => role.branch_scope.trim().toLowerCase() === 'all')
-  if (hasUnrestrictedRole && branchIds.length) {
-    throw new AdminUserReferenceError('Role นี้กำหนดให้เข้าถึงทุกสาขา จึงไม่ต้องเลือกสาขารายการ')
-  }
-  if (!hasUnrestrictedRole && !branchIds.length) {
-    throw new AdminUserReferenceError('Role นี้ต้องเลือกสาขาที่เข้าถึงอย่างน้อย 1 สาขา')
-  }
-
-  if (branchIds.length && branches.length !== new Set(branchIds).size) {
-    throw new AdminUserReferenceError('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
-  }
+  const branchRefs = resolveBranchReferencesForUser({
+    activeBranchRefs: activeBranches,
+    branchAccessMode,
+    branchIds,
+    hasUnrestrictedRole,
+    selectedBranchRefs: branches,
+  })
 
   if (!department) {
     throw new AdminUserReferenceError('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   return {
-    branchRefs: branches,
+    branchRefs,
     departmentId: parsedDepartmentId,
     roleRefIds: parsedRoleIds,
   }
@@ -128,7 +129,7 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
     const { id: rawId } = routeParamsSchema.parse(await params)
     const id = parseAppUserId(rawId)
     const values = adminUserFormSchema.parse(await request.json())
-    const { branchRefs, departmentId, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId)
+    const { branchRefs, departmentId, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId, values.branchAccessMode)
     const permissionOverrides = values.permissionOverrides === undefined
       ? null
       : await assertUserPermissionOverrides(values.permissionOverrides)
@@ -180,10 +181,10 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
 
       await tx.app_user_branch_access.deleteMany({ where: { user_id: id } })
 
-      if (values.branchIds.length) {
+      if (branchRefs.length) {
         await tx.app_user_branch_access.createMany({
-          data: values.branchIds.map((branchId) => ({
-            branch_id: branchRefs.find((branch) => branch.code === branchId.toUpperCase())!.id,
+          data: branchRefs.map((branch) => ({
+            branch_id: branch.id,
             created_by: actor,
             user_id: id,
           })),
@@ -210,7 +211,7 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
       context,
       eventType: 'app_user.updated',
       metadata: {
-        branchCount: values.branchIds.length,
+        branchCount: branchRefs.length,
         departmentId: departmentId.toString(),
         displayName,
         roleCount: values.roleIds.length,

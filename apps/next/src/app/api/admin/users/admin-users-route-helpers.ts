@@ -8,6 +8,10 @@ type BranchReferenceForAccess = {
   id: bigint
 }
 
+export type AdminUserBranchAccessMode = 'all' | 'selected'
+
+export const adminUserBranchAccessModeSchema = z.enum(['all', 'selected']).optional()
+
 export const adminUserPermissionOverridesSchema = z.array(z.object({
   effect: z.enum(['allow', 'deny']),
   permissionId: z.string().trim().regex(/^\d+$/, 'สิทธิ์ไม่ถูกต้อง'),
@@ -39,6 +43,40 @@ export function findBranchReferenceForAccess(branchRefs: BranchReferenceForAcces
   }
 
   return branchRef
+}
+
+export function resolveBranchReferencesForUser(input: {
+  activeBranchRefs: BranchReferenceForAccess[]
+  branchAccessMode?: AdminUserBranchAccessMode
+  branchIds: string[]
+  hasUnrestrictedRole: boolean
+  selectedBranchRefs: BranchReferenceForAccess[]
+}) {
+  const { activeBranchRefs, branchAccessMode, branchIds, hasUnrestrictedRole, selectedBranchRefs } = input
+
+  if (branchAccessMode === 'all') {
+    if (branchIds.length) throw new AdminUserReferenceError('เมื่อเลือกทุกสาขา ไม่ต้องส่งรายการสาขา')
+    return hasUnrestrictedRole ? [] : activeBranchRefs
+  }
+
+  if (branchAccessMode === 'selected' && !branchIds.length) {
+    throw new AdminUserReferenceError('กรุณาเลือกสาขาที่เข้าถึงอย่างน้อย 1 สาขา')
+  }
+
+  if (branchAccessMode === undefined) {
+    if (hasUnrestrictedRole && branchIds.length) {
+      throw new AdminUserReferenceError('Role นี้กำหนดให้เข้าถึงทุกสาขา จึงไม่ต้องเลือกสาขารายการ')
+    }
+    if (!hasUnrestrictedRole && !branchIds.length) {
+      throw new AdminUserReferenceError('Role นี้ต้องเลือกสาขาที่เข้าถึงอย่างน้อย 1 สาขา')
+    }
+  }
+
+  if (branchIds.length && selectedBranchRefs.length !== new Set(branchIds.map((branchId) => branchId.trim().toUpperCase())).size) {
+    throw new AdminUserReferenceError('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+  }
+
+  return selectedBranchRefs
 }
 
 export async function assertUserPermissionOverrides(values: NonNullable<z.infer<typeof adminUserPermissionOverridesSchema>>) {

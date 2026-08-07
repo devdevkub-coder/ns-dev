@@ -1,8 +1,8 @@
 ## Current objective — 2026-08-07
 
-Fix admin user creation branch-scope selection so the branch mode becomes usable immediately after Role selection and remains consistent with the API contract.
+Allow admin users to change branch access mode independently from the selected Role while preserving legacy unrestricted users and existing explicit mappings.
 
-Active batch: shared branch-scope mode derivation, focused Vitest coverage, then lint/type-check/build and mandatory code review before any SIT push.
+Active batch: explicit branch-access mode in user create/update, effective-scope resolver precedence, focused Vitest coverage, then lint/type-check/build and mandatory code review before any SIT push.
 
 # WTI/WTO Storage Visibility Boundary — 2026-08-06
 

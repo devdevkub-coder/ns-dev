@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { sidebarPermissionSections } from '@/lib/navigation'
-import { branchAccessModeForRoleScopes, hasUnrestrictedBranchScope, type AdminUserBranchAccessMode } from './admin-user-branch-access'
+import { branchAccessModeForRoleScopes, type AdminUserBranchAccessMode } from './admin-user-branch-access'
 import { z } from 'zod'
 import { contactPhoneErrorMessage, emailErrorMessage, isValidAdminUserEmail, isValidContactPhone, sanitizeAdminUserEmail } from '@/app/api/admin/users/admin-user-form-validation'
 
@@ -620,8 +620,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const assignableRoles = useMemo(() => (
     (data?.roles ?? []).filter((role) => role.active)
   ), [data?.roles])
-  const selectedRoles = assignableRoles.filter((role) => form.roleIds.includes(role.id))
-  const hasUnrestrictedSelectedRole = hasUnrestrictedBranchScope(selectedRoles.map((role) => role.branchScope))
   const roleFilterOptions = useMemo(() => [
     { id: 'all', label: 'ทุกหน้าที่งาน' },
     ...(data?.roles ?? []).map((role) => ({
@@ -950,11 +948,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
     setEditingUser(user)
     setForm(nextForm)
-    setBranchAccessMode(branchAccessModeForRoleScopes(assignedRoles.map((role) => role.branchScope)) === 'all' ? 'all' : user.branchIds.length ? 'selected' : 'unset')
+    const branchMode: BranchAccessMode = user.branchIds.length
+      ? 'selected'
+      : branchAccessModeForRoleScopes(assignedRoles.map((role) => role.branchScope)) === 'all' ? 'all' : 'unset'
+    setBranchAccessMode(branchMode)
     setProfileImageFile(null)
     setProfileImagePreviewUrl(user.profileImageUrl ?? null)
     setFormError(null)
-    const branchMode = branchAccessModeForRoleScopes(assignedRoles.map((role) => role.branchScope)) === 'all' ? 'all' : user.branchIds.length ? 'selected' : 'unset'
     setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove', branchMode))
     setFormOpen(true)
   }
@@ -1012,15 +1012,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       return
     }
 
-    if (hasUnrestrictedSelectedRole && branchAccessMode !== 'all') {
-      setFormError('Role นี้กำหนดขอบเขตเป็นทุกสาขา กรุณาเลือก “ทุกสาขา”')
-      return
-    }
-    if (!hasUnrestrictedSelectedRole && branchAccessMode !== 'selected') {
-      setFormError('Role นี้ต้องกำหนดสาขาที่เข้าถึง กรุณาเลือก “เฉพาะสาขาที่เลือก”')
-      return
-    }
-
     if (branchAccessMode === 'selected' && form.branchIds.length === 0) {
       setFormError('เลือกสาขาอย่างน้อย 1 สาขา หรือเลือก “ทุกสาขา”')
       return
@@ -1051,8 +1042,9 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         profileImageUrl = uploadedImage.url
         uploadedProfileImageUrl = uploadedImage.url
       }
-      const body: Omit<UserFormState, 'permissionOverrides'> & { branchIds: string[]; profileImageUrl: string; permissionOverrides?: UserFormState['permissionOverrides'] } = {
+      const body: Omit<UserFormState, 'permissionOverrides'> & { branchAccessMode: 'all' | 'selected'; branchIds: string[]; profileImageUrl: string; permissionOverrides?: UserFormState['permissionOverrides'] } = {
         ...form,
+        branchAccessMode,
         branchIds: branchAccessMode === 'all' ? [] : form.branchIds,
         profileImageUrl,
       }
@@ -1735,11 +1727,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </div>
                     <div className="grid gap-2">
                       <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                        <input checked={branchAccessMode === 'all'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" disabled={!hasUnrestrictedSelectedRole} name="branch-access-mode" type="radio" onChange={() => { setBranchAccessMode('all'); setForm((current) => ({ ...current, branchIds: [] })) }} />
+                        <input checked={branchAccessMode === 'all'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" name="branch-access-mode" type="radio" onChange={() => { setBranchAccessMode('all'); setForm((current) => ({ ...current, branchIds: [] })) }} />
                         <span><span className="font-medium">ทุกสาขา</span><span className="block text-xs text-slate-500">ผู้ใช้เห็นข้อมูลได้ทุกสาขา</span></span>
                       </label>
                       <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                        <input checked={branchAccessMode === 'selected'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" disabled={hasUnrestrictedSelectedRole} name="branch-access-mode" type="radio" onChange={() => setBranchAccessMode('selected')} />
+                        <input checked={branchAccessMode === 'selected'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" name="branch-access-mode" type="radio" onChange={() => setBranchAccessMode('selected')} />
                         <span><span className="font-medium">เฉพาะสาขาที่เลือก</span><span className="block text-xs text-slate-500">จำกัดข้อมูลตามรายการสาขาที่เลือก</span></span>
                       </label>
                     </div>

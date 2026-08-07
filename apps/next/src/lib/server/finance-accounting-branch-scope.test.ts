@@ -35,4 +35,15 @@ describe('getFinanceBranchCodeIntersection', () => {
     expect(getFinanceBranchCodeIntersection(context, 'b02')).toEqual(['B02'])
     expect(getFinanceBranchCodeIntersection(context, 'B03')).toEqual([])
   })
+
+  it('lets explicit branch mappings restrict an all-scope role', () => {
+    const context = {
+      appUser: { branchIds: ['b01'] },
+      isAdmin: false,
+      roles: [{ branchScope: 'all' }],
+    }
+
+    expect(getFinanceBranchCodeIntersection(context)).toEqual(['B01'])
+    expect(getFinanceBranchCodeIntersection(context, 'B02')).toEqual([])
+  })
 })

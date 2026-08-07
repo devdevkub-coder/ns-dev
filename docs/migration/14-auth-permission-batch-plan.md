@@ -366,12 +366,12 @@ This batch corrects only the shared application branch-scope resolution. It does
 | Topic | Decision |
 |---|---|
 | Source of truth | `app_roles.branch_scope` and `app_user_branch_access` remain the source of truth for runtime branch scope. |
-| All-branch access | A user is unrestricted only when at least one active assigned role has `branch_scope = 'all'` (or the retained legacy admin/owner compatibility flag is true). |
-| Scoped access | `own` and `custom` both resolve to the normalized, unique branch codes assigned through `app_user_branch_access` until their business meanings are intentionally separated. |
+| All-branch access | A user is unrestricted when an active assigned role has `branch_scope = 'all'` (or the retained legacy admin/owner compatibility flag is true) and the user has no explicit `app_user_branch_access` rows. |
+| Scoped access | Explicit `app_user_branch_access` rows take precedence over Role scope, so an administrator can restrict an all-scope Role to selected branches. `own` and `custom` otherwise resolve to the normalized, unique assigned branch codes. |
 | Missing mapping | A non-all-branch user with no assigned branch resolves to `[]`, never `null`; reads return no branch-bound rows and branch-bound writes are rejected by their existing scope guards. |
 | Requested branch | A requested branch is normalized to uppercase and returned only when it is in the effective scope; otherwise the result is `[]`. |
 | Shared policy | General APIs and finance APIs must call one pure resolver so they cannot disagree on unrestricted, scoped, or empty access. |
-| Compatibility | No data fallback, arbitrary requested-branch grant, or silent unrestricted behavior is permitted. Bad/missing access data must be repaired at its source. |
+| Compatibility | Existing all-scope users without mapping rows remain unrestricted; existing explicit mappings remain effective. The user form sends an explicit mode for new edits, while legacy clients without that field retain the previous validation contract. |
 
 ### Design
 
@@ -380,8 +380,8 @@ Create one pure resolver in the server auth module that accepts the minimal bran
 ### Acceptance Criteria
 
 1. A `custom` or `own` user without branch assignments resolves to `[]` for both unfiltered and explicit branch requests.
-2. A role with `branch_scope = 'all'` resolves to `null` unfiltered and to its normalized explicit requested code when supplied.
-3. Scoped users receive only their assigned normalized branch codes; unassigned requested codes resolve to `[]`.
+2. An all-scope role without explicit mappings resolves to `null` unfiltered and to its normalized explicit requested code when supplied.
+3. Explicit mappings restrict even an all-scope Role; scoped users receive only their assigned normalized branch codes; unassigned requested codes resolve to `[]`.
 4. General and finance wrappers return identical values for equivalent contexts.
 5. Focused Vitest coverage prevents a regression to arbitrary requested-branch access or empty-scope unrestricted access.
 

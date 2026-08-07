@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { AppAuthContext } from '@/lib/server/auth-context'
-import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { ProfitCostQueryValidationError, parseProfitCostFilter, parseProfitCostTableQuery } from '@/lib/server/profit-cost-report-contract'
 import type { ProfitCostReaderFilter } from '@/lib/server/profit-cost-report-reader'
 import { prisma } from '@/lib/server/prisma'
@@ -14,8 +14,8 @@ export async function authorizeProfitCostRequest(request: NextRequest) {
 }
 
 export async function allowedProfitCostBranchIds(context: AppAuthContext) {
-  if (context.isAdmin || context.roles.some((role) => role.branchScope === 'all')) return null
-  const codes = [...new Set(context.appUser?.branchIds.map((code) => code.trim().toUpperCase()).filter(Boolean) ?? [])]
+  const codes = getBranchCodeIntersection(context)
+  if (codes === null) return null
   if (!codes.length) return []
   const branches = await prisma.branches.findMany({ select: { id: true }, where: { code: { in: codes } } })
   return branches.map((branch) => branch.id)
