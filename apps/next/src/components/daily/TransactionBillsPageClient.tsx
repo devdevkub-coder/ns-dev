@@ -3938,15 +3938,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   {isFirstRowOfSummary ? (
                                     <>
                                       <div className="font-medium text-slate-900">{sourceSummary?.productName ?? activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId}</div>
-                                      <div className="mt-1 space-y-0.5 text-xs text-slate-500">
-                                    <div className="whitespace-nowrap font-mono">{selectedReceipt.documentNo}</div>
-                                        {sourceSummary ? <div>รวม {sourceSummary.lineCount} เต๋า</div> : null}
-                                      </div>
-                                      {sourceSummary && summaryVariance ? (
-                                        <div className={`mt-1 text-xs font-semibold ${summaryVariance.className}`}>
-                                          {summaryVariance.text}
-                                        </div>
-                                      ) : null}
                                     </>
                                   ) : <span className="text-slate-300">-</span>}
                                 </td>
@@ -5522,24 +5513,13 @@ function SalesBillDetailModal({
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-md border border-slate-200 p-3">
-                <div className="mb-2 text-sm font-medium text-slate-700">VAT / ยอดรวม</div>
-                <div className="space-y-2 text-sm">
-                  <SummaryLine label="ยอดก่อนส่วนลด" value={formatMoney(detail.subtotal)} />
-                  <SummaryLine label="ส่วนลดท้ายบิล" tone="red" value={`-${formatMoney(detail.discount)}`} />
-                  <SummaryLine label="VAT" value={formatMoney(detail.vatAmount)} />
-                  <SummaryLine label="ยอดสุทธิ" value={formatMoney(detail.totalAmount)} />
-                </div>
-              </div>
-              <div className="rounded-md border border-slate-200 p-3">
-                <div className="mb-2 text-sm font-medium text-slate-700">ใบกำกับภาษี / หมายเหตุ</div>
-                <div className="grid gap-3 text-sm md:grid-cols-2">
-                  <PlainDetail label="ออกใบกำกับภาษี" value={detail.vatInvoiceIssued ? 'ออกแล้ว' : 'ยังไม่ได้ออก'} />
-                  <PlainDetail label="เลขที่ใบกำกับภาษี" value={detail.vatInvoiceNo || '-'} />
-                  <PlainDetail label="วันที่ใบกำกับภาษี" value={detail.vatInvoiceDate ? formatDateDisplay(detail.vatInvoiceDate) : '-'} />
-                  <PlainDetail label="หมายเหตุ" value={detail.note || '-'} />
-                </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-3 border-b border-slate-100/80 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500">ใบกำกับภาษี / หมายเหตุ</div>
+              <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <DetailItem label="ออกใบกำกับภาษี" value={detail.vatInvoiceIssued ? 'ออกแล้ว' : 'ยังไม่ได้ออก'} />
+                <DetailItem label="เลขที่ใบกำกับภาษี" value={detail.vatInvoiceNo || '-'} />
+                <DetailItem label="วันที่ใบกำกับภาษี" value={detail.vatInvoiceDate ? formatDateDisplay(detail.vatInvoiceDate) : '-'} />
+                <DetailItem label="หมายเหตุ" value={detail.note || '-'} />
               </div>
             </div>
 

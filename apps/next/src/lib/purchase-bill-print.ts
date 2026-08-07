@@ -49,7 +49,6 @@ function itemRows(bill: PurchaseBillDetail) {
       <td class="center rank-cell">${item.lineNo}</td>
       <td>
         <div class="item-name">${escapeHtml(item.productName)}</div>
-        <div class="muted">${escapeHtml([item.productCode || null, item.poDocNo ?? 'Spot Buy'].filter(Boolean).join(' · '))}</div>
       </td>
       <td>${escapeHtml(item.note || '-')}</td>
       <td class="num">${money(item.grossWeight)}</td>
@@ -253,7 +252,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
             <div><div class="field-label">เลขที่เอกสาร</div><div class="field-value">${escapeHtml(bill.docNo)}</div></div>
             <div><div class="field-label">วันที่ส่ง / วันที่เอกสาร</div><div class="field-value">${escapeHtml(plain(bill.date))}</div></div>
             <div><div class="field-label">ผู้จัดทำ</div><div class="field-value">${escapeHtml(plain(bill.createdBy))}</div></div>
-            <div><div class="field-label">Sale</div><div class="field-value">${escapeHtml(plain(bill.salesName))}</div></div>
+            <div><div class="field-label">Sale</div><div class="field-value" style="word-break: break-word;">${escapeHtml(bill.salesName ? (bill.salesName.includes('@') ? bill.salesName.split('@')[0] : bill.salesName) : '-')}</div></div>
             <div><div class="field-label">ใบรับของ</div><div class="field-value">${escapeHtml(bill.receiptDocNos.join(', ') || '-')}</div></div>
           </div>
         </div>
@@ -263,13 +262,13 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
         <thead>
           <tr>
             <th class="center rank-cell" style="width:5mm">#</th>
-            <th style="width:36mm">สินค้า</th>
+            <th style="width:38mm">สินค้า</th>
             <th>REMARK</th>
-            <th class="num" style="width:19mm">นน.ก่อนหัก</th>
-            <th class="num" style="width:17mm">นน.หัก</th>
-            <th class="num" style="width:20mm">นน.สุทธิ</th>
+            <th class="num" style="width:20mm">นน.ก่อนหัก</th>
+            <th class="num" style="width:18mm">นน.หัก</th>
+            <th class="num" style="width:26mm">นน.สุทธิ</th>
             <th class="num" style="width:18mm">ราคา</th>
-            <th class="num" style="width:22mm">รวม</th>
+            <th class="num" style="width:24mm">รวม</th>
           </tr>
         </thead>
         <tbody>
@@ -278,21 +277,15 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="3" class="num">รวมทั้งสิ้น</td>
-            <td class="num">${escapeHtml(grossSummaryText)}</td>
-            <td class="num">${escapeHtml(deductSummaryText)}</td>
-            <td class="num">${escapeHtml(totalSummaryText)}</td>
+            <td colspan="3" class="num" style="padding-right: 6px;">รวมทั้งสิ้น</td>
+            <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(grossSummaryText)}</td>
+            <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(deductSummaryText)}</td>
+            <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(totalSummaryText)}</td>
             <td></td>
             <td class="num final-amount">${money(bill.subtotal)}</td>
           </tr>
         </tfoot>
       </table>
-
-      <div class="weight-summary">
-        <div class="weight-card"><div class="label">น้ำหนักก่อนหักรวม</div><div class="value">${escapeHtml(grossSummaryText)}</div></div>
-        <div class="weight-card"><div class="label">น้ำหนักหักรวม</div><div class="value">${escapeHtml(deductSummaryText)}</div></div>
-        <div class="weight-card"><div class="label">น้ำหนักสุทธิรวม</div><div class="value">${escapeHtml(totalSummaryText)}</div></div>
-      </div>
 
       <section class="bottom-grid">
         <div class="panel-group" style="display: flex; flex-direction: column; gap: 10px;">
