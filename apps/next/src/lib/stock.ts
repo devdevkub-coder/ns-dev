@@ -42,6 +42,29 @@ export function isCostPoolEligibleMetalGroup(metalGroup: string | null | undefin
   return normalized.includes('ทองแดง') || normalized.includes('ทองเหลือง') || normalized.includes('copper') || normalized.includes('brass')
 }
 
+export function buildGradeAdjustmentSourceLedgerLines(input: {
+  allocations: ReadonlyArray<{ lotNo: string | null; qty: number; unitCost: number }>
+  sourceLotNo: string | null
+  sourceQty: number
+  sourceUnitCost: number
+  usesCostPool: boolean
+}) {
+  if (!input.usesCostPool) {
+    return [{ lotNo: input.sourceLotNo, qty: input.sourceQty, unitCost: input.sourceUnitCost }]
+  }
+  return input.allocations.map((allocation) => ({ lotNo: allocation.lotNo, qty: allocation.qty, unitCost: allocation.unitCost }))
+}
+
+export function gradeAdjustmentDocumentPrefix(branchCode: string, date: string) {
+  const normalizedBranchCode = branchCode.replace(/\D/g, '').padStart(2, '0').slice(-2)
+  return `GA${normalizedBranchCode}${date.slice(2, 4)}${date.slice(5, 7)}-`
+}
+
+export function nextGradeAdjustmentDocumentNo(prefix: string, lastDocNo: string | null | undefined) {
+  const lastNumber = Number(String(lastDocNo ?? '').slice(prefix.length))
+  return `${prefix}${String(Number.isFinite(lastNumber) ? lastNumber + 1 : 1).padStart(4, '0')}`
+}
+
 export const stockStatusSchema = z.enum(['RM', 'WIP', 'FG'])
 export const stockStateSchema = z.enum(['on_hand', 'pending_in', 'pending_out'])
 export const statusConvertStatusSchema = z.enum(['RM', 'FG'])

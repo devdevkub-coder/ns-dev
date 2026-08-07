@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
-import { isCostPoolEligibleMetalGroup, stockConvertFormSchema } from '@/lib/stock'
+import { buildGradeAdjustmentSourceLedgerLines, gradeAdjustmentDocumentPrefix, isCostPoolEligibleMetalGroup, nextGradeAdjustmentDocumentNo, stockConvertFormSchema, stockStatusSchema } from '@/lib/stock'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -110,16 +110,15 @@ type AllocationDetailRow = {
   warehouse_name: string | null
 }
 
-async function nextDocNo(tx: Prisma.TransactionClient, branchCode: string) {
-  const prefix = `GA${branchCode}-`
+async function nextDocNo(tx: Prisma.TransactionClient, branchCode: string, date: string) {
+  const prefix = gradeAdjustmentDocumentPrefix(branchCode, date)
   await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`grade_adjustments:${prefix}`}))`
   const last = await tx.grade_adjustments.findFirst({
     orderBy: { doc_no: 'desc' },
     select: { doc_no: true },
     where: { doc_no: { startsWith: prefix } },
   })
-  const lastNumber = Number(String(last?.doc_no ?? '').slice(prefix.length))
-  return `${prefix}${String(Number.isFinite(lastNumber) ? lastNumber + 1 : 1).padStart(6, '0')}`
+  return nextGradeAdjustmentDocumentNo(prefix, last?.doc_no)
 }
 
 function statusForPool(originalQty: number, allocatedQty: number, releasedQty: number) {
@@ -588,8 +587,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Custom target unit cost ต้องมากกว่า 0' }, { status: 400 })
     }
 
-    const warehouse = await prisma.warehouses.findFirst({ select: { branch_id: true }, where: { active: true, id: references.warehouseId } })
+    const warehouse = await prisma.warehouses.findFirst({ select: { branch_id: true, type: true }, where: { active: true, id: references.warehouseId } })
     if (!warehouse || warehouse.branch_id !== references.branchId) return NextResponse.json({ error: 'คลังไม่อยู่ในสาขาที่เลือก' }, { status: 400 })
+    const outputCategory = stockStatusSchema.safeParse(warehouse.type)
+    if (!outputCategory.success) return NextResponse.json({ error: 'คลังที่เลือกไม่มีประเภทสต๊อก RM/WIP/FG ที่ถูกต้อง' }, { status: 400 })
 
     const sourceProduct = await prisma.products.findFirst({
       select: { metal_group: true },
@@ -610,7 +611,7 @@ export async function POST(request: Request) {
 
     const actor = currentActor(context)
     const result = await prisma.$transaction(async (tx) => {
-      const refNo = values.docNo ?? await nextDocNo(tx, branchCode)
+      const refNo = values.docNo ?? await nextDocNo(tx, branchCode, values.date)
       const allocations = usesCostPool
         ? await lockPoolEntries({
           branchId: references.branchId as bigint,
@@ -655,11 +656,17 @@ export async function POST(request: Request) {
         )
         returning id
       `
-      const sourceLedgerRows = allocations.map((line) => ({
+      const sourceLedgerRows = buildGradeAdjustmentSourceLedgerLines({
+        allocations: allocations.map((line) => ({ lotNo: line.row.lot_no, qty: line.qty, unitCost: toNumber(line.row.unit_cost) })),
+        sourceLotNo: values.lotNo,
+        sourceQty: values.sourceQty,
+        sourceUnitCost,
+        usesCostPool,
+      }).map((line) => ({
         branch_id: references.branchId,
         created_by: actor,
         date: normalizeDate(values.date),
-        lot_no: line.row.lot_no,
+        lot_no: line.lotNo,
         movement_type: 'GRADE_ADJUST_OUT',
         notes: values.reason ?? values.notes,
         product_id: sourceProductReference.productId,
@@ -668,10 +675,12 @@ export async function POST(request: Request) {
         ref_id: String(adjustment.id),
         ref_no: refNo,
         ref_type: 'GA',
-        unit_cost: toNumber(line.row.unit_cost),
+        unit_cost: line.unitCost,
         value_in: 0,
-        value_out: line.qty * toNumber(line.row.unit_cost),
+        value_out: line.qty * line.unitCost,
         warehouse_id: references.warehouseId,
+        output_category: outputCategory.data,
+        not_available_for_sale: false,
       }))
       await tx.stock_ledger.createMany({
         data: [
@@ -693,6 +702,8 @@ export async function POST(request: Request) {
             value_in: targetValue,
             value_out: 0,
             warehouse_id: references.warehouseId,
+            output_category: outputCategory.data,
+            not_available_for_sale: false,
           },
         ],
       })
@@ -753,6 +764,11 @@ export async function PATCH(request: Request) {
       const adjustment = await tx.grade_adjustments.findFirst({ where: { doc_no: body.refNo } })
       if (!adjustment) throw new Error('ไม่พบเอกสารปรับเกรด')
       if (adjustment.status === 'reversed') throw new Error('เอกสารถูก reverse แล้ว')
+      const adjustmentWarehouseId = adjustment.warehouse_id
+      if (!adjustmentWarehouseId) throw new Error('เอกสารปรับเกรดไม่มีคลังที่อ้างอิง')
+      const warehouse = await tx.warehouses.findFirst({ select: { type: true }, where: { id: adjustmentWarehouseId } })
+      const outputCategory = stockStatusSchema.safeParse(warehouse?.type)
+      if (!outputCategory.success) throw new Error('คลังของเอกสารไม่มีประเภทสต๊อก RM/WIP/FG ที่ถูกต้อง')
       const allocations = await tx.$queryRaw<PostedAllocationRow[]>`
         select id, source_pool_entry_id, target_pool_entry_id, qty, unit_cost
         from public.stock_cost_pool_allocations
@@ -816,6 +832,8 @@ export async function PATCH(request: Request) {
             value_in: reverseQty * toNumber(sourcePool.unit_cost),
             value_out: 0,
             warehouse_id: sourcePool.warehouse_id,
+            output_category: outputCategory.data,
+            not_available_for_sale: false,
           },
         })
       }
@@ -838,6 +856,8 @@ export async function PATCH(request: Request) {
             value_in: reverseQty * toNumber(adjustment.source_unit_cost),
             value_out: 0,
             warehouse_id: adjustment.warehouse_id,
+            output_category: outputCategory.data,
+            not_available_for_sale: false,
           },
         })
       }
@@ -858,6 +878,8 @@ export async function PATCH(request: Request) {
           value_in: 0,
           value_out: targetQty * toNumber(targetPool?.unit_cost ?? adjustment.target_unit_cost),
           warehouse_id: targetPool?.warehouse_id ?? adjustment.warehouse_id,
+          output_category: outputCategory.data,
+          not_available_for_sale: false,
         },
       })
       if (targetPool) {
