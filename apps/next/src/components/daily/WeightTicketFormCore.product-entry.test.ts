@@ -179,6 +179,8 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).not.toContain('motion-reduce:transition-none')
     expect(formSource).toContain("activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'")
     expect(formSource).toContain('mt-1 flex min-w-0 items-center gap-2')
+    expect(formSource).toContain('{hasSelectedProduct ? (')
+    expect(formSource).toContain('{activeLine.productId || getMainParentLines(form.lines).length > 1 ? (')
     expect(formSource).toContain('aria-label="ปิดหน้ากรอกสินค้า"')
     expect(formSource).toContain('const closeMobileProductEditor = useCallback(')
     expect(formSource).toContain('id={`weight-ticket-line-card-${line.id}`}')
@@ -572,6 +574,21 @@ describe('weight-ticket product editor behavior', () => {
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
+      await Promise.resolve()
+    })
+
+    const productInput = container.querySelector<HTMLInputElement>('[id^="weight-product-"]')
+    expect(Array.from(container.querySelectorAll<HTMLLabelElement>('label')).some((label) => label.textContent?.includes('น้ำหนักรวม'))).toBe(false)
+    await act(async () => {
+      productInput?.click()
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => {
+      expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.includes('เหล็ก'))).toBe(true)
+    })
+    await act(async () => {
+      const option = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((button) => button.textContent?.includes('เหล็ก'))
+      option?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
       await Promise.resolve()
     })
 

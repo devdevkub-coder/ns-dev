@@ -3064,16 +3064,13 @@ export function WeightTicketFormCore({
                         <WeightTicketWtoFormSection product={productSectionProps} warehouse={warehouseSectionProps} />
                       )}
 
+                      {hasSelectedProduct ? (
+                        <>
                         {/* รายการเต๋าสินค้า */}
                         <div className="mt-4 border-t border-slate-200/60 pt-4">
                           <div className="mb-2 flex items-center justify-between gap-3">
                             <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">เต๋าสินค้า</div>
                           </div>
-                        {!hasSelectedProduct ? (
-                          <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                            เลือกสินค้าก่อน จึงจะกรอกน้ำหนัก เพิ่มเต๋า และแนบรูปได้
-                          </div>
-                        ) : null}
                         <div className="space-y-4">
                           {(() => {
                             const secondaryLots = form.lines.filter((l) => l.parentId === line.id && !isImpurityPurchaseLine(l) && l.deductionMode === 'none')
@@ -3640,7 +3637,7 @@ export function WeightTicketFormCore({
                       </div>
 
                       <div className="mt-4">
-	                        <FieldBlock label="หมายเหตุรายการ">
+                        <FieldBlock label="หมายเหตุรายการ">
 	                          <textarea
 	                            className={cn(
 	                              "min-h-[88px] w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100",
@@ -3654,13 +3651,17 @@ export function WeightTicketFormCore({
 	                          />
                         </FieldBlock>
                       </div>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 )
                       })()}
                     </div>
-                    <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 xl:hidden">
-                      <div className="grid gap-2">
+                    {activeLine.productId || getMainParentLines(form.lines).length > 1 ? (
+                      <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 xl:hidden">
+                        <div className="grid gap-2">
+                        {activeLine.productId ? (
                         <Button
                           className="h-10 border-emerald-600 bg-emerald-600 text-sm font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                           disabled={isLoadingTicket || isSaving || !activeLine.productId}
@@ -3669,6 +3670,7 @@ export function WeightTicketFormCore({
                         >
                           บันทึกสินค้านี้
                         </Button>
+                        ) : null}
                         {getMainParentLines(form.lines).length > 1 ? (
                           <Button
                             className="h-9 border-rose-200 bg-white text-xs font-semibold text-rose-700 hover:bg-rose-50"
@@ -3688,8 +3690,9 @@ export function WeightTicketFormCore({
                             ลบสินค้า
                           </Button>
                         ) : null}
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
