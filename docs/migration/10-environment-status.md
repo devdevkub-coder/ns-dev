@@ -12,6 +12,11 @@
 - แก้เลข migration จาก `20260806100000` เป็น `20260806130000` เพราะ `20260806100000` ถูกใช้กับ Google Sheets retirement อยู่แล้ว.
 - SIT และ Production มี migration history `20260806130000_add_stock_transfer_action_permissions`, permission `stock.transfer.create/post/cancel` active ครบ และ role grants รวม 21 รายการต่อ environment. ไม่มี business-row backfill.
 
+### Admin User Create Legacy Username Reconciliation — 2026-08-07
+
+- SIT preflight พบ `public.app_users.username` ยังเป็น `NOT NULL` แม้ migration email-only เดิมถูกบันทึกใน history แล้ว ทำให้ `POST /api/admin/users` ที่ไม่ส่ง legacy username ล้มเหลวด้วย HTTP 500.
+- Applied and recorded `20260807110000_drop_legacy_app_user_username` on SIT. The migration drops only the obsolete `username` column; it does not alter users, auth identities, roles, branches, or passwords.
+
 ### WTI/WTO Google Sheets Setting Retirement 2026-08-06
 
 - Runtime Google Sheets sync for WTI/WTO was removed from create, update, status, cancel, and LINE notification flows before this migration; WTI/WTO data remains in the application database, LINE, and audit/timeline records.
