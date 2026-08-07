@@ -316,6 +316,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
       }
       const collaborationCurrentUpdatedAt = existing.updated_at
+      const hasRemoteLineChanges = Boolean(
+        collaborationBaseUpdatedAt
+        && collaborationBaseUpdatedAt !== (collaborationCurrentUpdatedAt?.toISOString() ?? null),
+      )
       const documentDate = toDateOnly(existing.document_date)
       const nextStatus = existing.status
       const branchCode = requireWeightTicketBranchDocumentCode(branch.code)
@@ -342,6 +346,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       })
       const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
       const isDeliveredWtoEdit = existing.status === 'delivered' && values.type === 'WTO'
+      if (isDeliveredWtoEdit && hasRemoteLineChanges && values.collaborationBaseLineVersions !== undefined) {
+        throw new WeightTicketCollaborationConflictError(Array.from(collaborationChangedLineIds))
+      }
       const shouldRebuildWtoPendingOut = isDeliveredWtoEdit && shouldRebuildWtoPendingOutOnEdit({
         branchChanged: existing.branch_id !== branch.id,
         existingLines: existing.weight_ticket_lines,
@@ -365,21 +372,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       let effectiveValues = values
       let effectiveLineRows = lineRows
       let effectiveTotals = totals
-      // The request may have read the ticket before another save committed;
-      // compare against the locked version, not the outer request snapshot.
-      const hasRemoteLineChanges = Boolean(
-        collaborationBaseUpdatedAt
-        && collaborationBaseUpdatedAt !== (collaborationCurrentUpdatedAt?.toISOString() ?? null),
-      )
       // Collaboration-aware saves must keep immutable line IDs even when this
       // request is the first writer after the shared baseline. Falling back to
       // delete-and-recreate here would invalidate another user's in-progress
       // line IDs and make the next save unable to merge safely.
       const hasCollaborationBaseline = values.collaborationBaseLineVersions !== undefined
       const headerFields = ['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const
-      const currentPartyId = String(existing.doc_type === 'WTI' ? existing.supplier_id : existing.customer_id)
+      const currentPartyId = existing.doc_type === 'WTI' ? existing.suppliers?.code ?? '' : existing.customers?.code ?? ''
       const currentHeader = {
-        branchId: String(existing.branch_id),
+        branchId: existing.branches?.code ?? '',
         partyId: currentPartyId,
         remark: existing.remark ?? '',
         vehicleImageNames: existing.vehicle_image_names ?? [],
@@ -399,6 +400,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         // ids when available, while accepting the previous docNo:lineNo ids
         // from an already-open tab during the transition.
         const latestLines = existing.weight_ticket_lines
+        const latestLineIds = new Set(latestLines.map((line) => String(line.id)))
+        const missingChangedLineIds = Object.keys(collaborationBaseLineVersions)
+          .filter((lineId) => collaborationChangedLineIds.has(lineId) && !latestLineIds.has(lineId))
+        if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds)
         const conflictingLineIds = latestLines
           .filter((line) => collaborationChangedLineIds.has(String(line.id)))
           .filter((line) => {
@@ -508,7 +513,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         await Promise.all(lineRows.map(async (data) => {
           const existingLine = existingLineByLineNo.get(data.line_no)
           if (existingLine) {
-            await tx.weight_ticket_lines.update({ data, where: { id: existingLine.id } })
+            await tx.weight_ticket_lines.update({
+              data: { ...data, updated_at: new Date(), updated_by: actor, version: { increment: 1 } },
+              where: { id: existingLine.id },
+            })
           } else {
             await tx.weight_ticket_lines.create({ data })
           }

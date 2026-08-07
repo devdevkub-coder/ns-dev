@@ -23,6 +23,7 @@ import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences, fetchFreshWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
+import { mergeWeightTicketCollaborationBaseline } from '@/lib/weight-ticket-collaboration'
 import {
   calculateWeightTicketLineTotals,
   createWeightTicketLine,
@@ -1004,8 +1005,28 @@ export function WeightTicketFormCore({
       .then((latestTicket) => {
         const latestForm = ticketToFormState(latestTicket)
         const latestById = new Map(latestForm.lines.map((line) => [line.id, line] as const))
+        const baselineTicket = savedTicket ?? loadedTicket
+        const currentForm = formRef.current
+        const hasDirtyHeader = Boolean(baselineTicket && (
+          currentForm.branchId !== baselineTicket.branchId
+          || currentForm.partyId !== baselineTicket.partyId
+          || currentForm.remark !== baselineTicket.remark
+          || currentForm.vehicleNo !== baselineTicket.vehicleNo
+          || currentForm.godownName !== baselineTicket.godownName
+          || JSON.stringify(currentForm.vehicleImageFiles.map((file) => file.rawValue)) !== JSON.stringify(baselineTicket.vehicleImageNames)
+        ))
+        const dirtyLineIds = new Set(changedLineIdsRef.current)
+        currentForm.lines
+          .filter((line) => line.version == null)
+          .forEach((line) => dirtyLineIds.add(line.id))
+        const mergedBaseline = mergeWeightTicketCollaborationBaseline({
+          baselineTicket,
+          dirtyLineIds,
+          latestTicket,
+          preserveHeader: hasDirtyHeader,
+        })
         setLoadedTicket(latestTicket)
-        setSavedTicket(latestTicket)
+        setSavedTicket(mergedBaseline)
         setFormBaseline(formSafetySnapshot(latestForm))
         setForm((current) => {
           const localById = new Map(current.lines.map((line) => [line.id, line] as const))
@@ -1261,7 +1282,7 @@ export function WeightTicketFormCore({
         setLoadedTicket(ticket)
         setForm(nextForm)
         setFormBaseline(formSafetySnapshot(nextForm))
-        setSavedTicket(null)
+        setSavedTicket(ticket)
         setActiveLineId('')
         setMobileProductView('list')
         setTouched({})

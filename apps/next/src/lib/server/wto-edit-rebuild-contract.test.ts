@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { buildWtoEditTimelineNote, shouldRebuildWtoPendingOutOnEdit } from './weight-ticket-write/wto'
+import { mergeWeightTicketCollaborationBaseline } from '../weight-ticket-collaboration'
 
 const createRouteSource = readFileSync(
   resolve(process.cwd(), 'src/app/api/daily/weight-tickets/route.ts'),
@@ -14,7 +15,73 @@ const editRouteSource = readFileSync(
   'utf8',
 )
 
+const formSource = readFileSync(
+  resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
+  'utf8',
+)
+
 describe('WTO delivered edit release/rebuild contract', () => {
+  it('advances untouched remote lines without changing the local dirty-line baseline', () => {
+    const baseline = {
+      branchId: 'branch-1',
+      lines: [
+        { id: 'line-1', lineNo: 1, version: 1 },
+        { id: 'line-2', lineNo: 2, version: 1 },
+      ],
+      partyId: 'party-1',
+      remark: 'old',
+      vehicleImageNames: ['old.jpg'],
+      vehicleNo: 'AA-001',
+      godownName: 'old-godown',
+    }
+    const latest = {
+      ...baseline,
+      lines: [
+        { id: 'line-1', lineNo: 1, version: 1 },
+        { id: 'line-2', lineNo: 2, version: 2 },
+        { id: 'line-3', lineNo: 3, version: 1 },
+      ],
+      remark: 'remote remark',
+    }
+
+    const merged = mergeWeightTicketCollaborationBaseline({
+      baselineTicket: baseline as never,
+      dirtyLineIds: new Set(['line-1']),
+      latestTicket: latest as never,
+      preserveHeader: false,
+    })
+
+    expect(merged.lines).toEqual([
+      { id: 'line-1', lineNo: 1, version: 1 },
+      { id: 'line-2', lineNo: 2, version: 2 },
+      { id: 'line-3', lineNo: 3, version: 1 },
+    ])
+    expect(merged.remark).toBe('remote remark')
+  })
+
+  it('keeps a locally deleted line in the baseline while omitting a remotely deleted untouched line', () => {
+    const baseline = {
+      branchId: 'branch-1',
+      lines: [
+        { id: 'local-delete', lineNo: 1, version: 1 },
+        { id: 'remote-delete', lineNo: 2, version: 1 },
+      ],
+    }
+    const latest = {
+      ...baseline,
+      lines: [{ id: 'local-delete', lineNo: 1, version: 2 }],
+    }
+
+    const merged = mergeWeightTicketCollaborationBaseline({
+      baselineTicket: baseline as never,
+      dirtyLineIds: new Set(['local-delete']),
+      latestTicket: latest as never,
+      preserveHeader: false,
+    })
+
+    expect(merged.lines).toEqual([{ id: 'local-delete', lineNo: 1, version: 1 }])
+  })
+
   it('keeps draft writes free of pending_out until the confirm action', () => {
     expect(createRouteSource).not.toContain('applyWeightTicketCreateSideEffects')
     expect(editRouteSource).toContain('existing.weight_ticket_lines.length === 0')
@@ -70,5 +137,28 @@ describe('WTO delivered edit release/rebuild contract', () => {
 
     expect(note).toContain('แก้ไขเต๋าเดิม')
     expect(note).toContain('น้ำหนักสุทธิ')
+  })
+
+  it('blocks stale collaboration writes before delivered WTO pending_out rebuild', () => {
+    expect(editRouteSource).toContain('if (isDeliveredWtoEdit && hasRemoteLineChanges && values.collaborationBaseLineVersions !== undefined)')
+    expect(editRouteSource.indexOf('throw new WeightTicketCollaborationConflictError(Array.from(collaborationChangedLineIds))'))
+      .toBeLessThan(editRouteSource.indexOf('await releaseActiveWtoPendingOut(tx, {'))
+  })
+
+  it('treats an edited line deleted by another user as a conflict', () => {
+    expect(editRouteSource).toContain('const missingChangedLineIds = Object.keys(collaborationBaseLineVersions)')
+    expect(editRouteSource).toContain('if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds)')
+  })
+
+  it('keeps the original client baseline when realtime merges around dirty form data', () => {
+    expect(formSource).toContain('const dirtyLineIds = new Set(changedLineIdsRef.current)')
+    expect(formSource).toContain('mergeWeightTicketCollaborationBaseline({')
+    expect(formSource).toContain('setSavedTicket(mergedBaseline)')
+    expect(formSource).toContain('setSavedTicket(ticket)')
+  })
+
+  it('compares collaboration headers using the same business codes as the read model', () => {
+    expect(editRouteSource).toContain("const currentPartyId = existing.doc_type === 'WTI' ? existing.suppliers?.code ?? '' : existing.customers?.code ?? ''")
+    expect(editRouteSource).toContain("branchId: existing.branches?.code ?? ''")
   })
 })
