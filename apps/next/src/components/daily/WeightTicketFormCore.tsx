@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences, fetchFreshWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import { mergeWeightTicketCollaborationBaseline } from '@/lib/weight-ticket-collaboration'
+import { getWeightTicketSectionLineIds } from '@/lib/weight-ticket-sections'
 import {
   calculateWeightTicketLineTotals,
   createWeightTicketLine,
@@ -38,6 +39,7 @@ import {
   OTHER_PRODUCT_IMPURITY_ID,
   OTHER_PRODUCT_IMPURITY_LABEL,
   saveWeightTicket,
+  saveWeightTicketSection,
   WEIGHT_TICKET_STATUS,
   WEIGHT_TICKET_TYPE,
   type DeductionMode,
@@ -2363,6 +2365,142 @@ export function WeightTicketFormCore({
     }
   }
 
+  async function saveSection(sectionId: string) {
+    if (isSaving || saveInFlightRef.current) return
+    const baselineTicket = savedTicket ?? loadedTicket
+    if (!baselineTicket || !editingTicketId) {
+      setMergeNotice('บันทึกหัวเอกสารก่อน จึงจะแยกบันทึก section ได้')
+      return
+    }
+    const currentForm = formRef.current
+    const sectionLines = currentForm.lines.filter((line) => getWeightTicketSectionLineIds(currentForm.lines, sectionId).includes(line.id))
+    const sectionLineIdSet = new Set(getWeightTicketSectionLineIds(currentForm.lines, sectionId))
+    const baselineSectionLines = baselineTicket.lines.filter((line) => getWeightTicketSectionLineIds(baselineTicket.lines, sectionId).includes(line.id))
+    if (!sectionLines.length && !baselineSectionLines.length) return
+
+    const sectionError = Object.keys(errors).find((key) => {
+      if (key === 'lines') return true
+      const match = key.match(/^line-(.+?)-/)
+      return Boolean(match && sectionLineIdSet.has(match[1]))
+    })
+    if (sectionError) {
+      setTouched((current) => ({
+        ...current,
+        ...Object.fromEntries([
+          'product', 'warehouse', 'gross', 'container', 'deduction', 'images', 'impurity', 'impurity-product',
+        ].flatMap((field) => sectionLines.map((line) => [`line-${line.id}-${field}`, true] as const))),
+      }))
+      setMergeNotice('กรุณาแก้ข้อมูลใน section นี้ให้ครบก่อนบันทึก')
+      return
+    }
+
+    saveInFlightRef.current = 'save'
+    beginSaveStage(currentForm.type === 'WTO' ? 'stock_check' : 'save')
+    try {
+      await waitForPendingAttachmentUploads()
+      const snapshot = formRef.current
+      const baselineById = new Map(baselineSectionLines.map((line) => [line.id, line] as const))
+      const baselineIds = baselineSectionLines.map((line) => line.id)
+      const deletedIds = new Set(
+        baselineIds.filter((lineId) => !sectionLines.some((line) => line.id === lineId)),
+      )
+      deletedLineIdsRef.current.forEach((lineId) => {
+        if (baselineById.has(lineId)) deletedIds.add(lineId)
+      })
+      const changedIds = new Set(
+        sectionLines.filter((line) => changedLineIdsRef.current.has(line.id)).map((line) => line.id),
+      )
+      deletedIds.forEach((lineId) => changedIds.add(lineId))
+      sectionLines.forEach((line) => {
+        const baseline = baselineById.get(line.id)
+        if (!baseline || collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue)) !== collaborationLineSnapshot(baseline, baseline.imageNames)) {
+          changedIds.add(line.id)
+        }
+      })
+      const ticket = await saveWeightTicketSection({
+        branchId: snapshot.branchId,
+        collaborationBaseDocumentNo: baselineTicket.documentNo,
+        collaborationBaseLineIds: baselineIds,
+        collaborationBaseLineVersions: Object.fromEntries(baselineSectionLines.map((line) => [line.id, line.version ?? 1])),
+        collaborationChangedLineIds: Array.from(changedIds),
+        collaborationDeletedLineIds: Array.from(deletedIds),
+        collaborationBaseHeader: {
+          branchId: baselineTicket.branchId,
+          partyId: baselineTicket.partyId,
+          remark: baselineTicket.remark,
+          vehicleImageNames: baselineTicket.vehicleImageNames,
+          vehicleNo: baselineTicket.vehicleNo,
+          godownName: baselineTicket.godownName,
+        },
+        collaborationChangedHeaderFields: [],
+        collaborationBaseUpdatedAt: baselineTicket.updatedAt,
+        id: baselineTicket.id,
+        lines: sectionLines.map((line) => ({
+          containerDeductionWeight: Number(line.containerDeductionWeight || 0),
+          deductionMode: line.deductionMode,
+          deductionValue: Number(line.deductionValue || 0),
+          grossWeight: Number(line.grossWeight || 0),
+          id: line.id,
+          version: line.version,
+          imageNames: getLineImages(line).map((file) => file.rawValue),
+          impurityId: getLineImpurityId(line),
+          impurityProductId: line.impurityProductId ?? '',
+          impuritySourceLineId: line.impuritySourceLineId,
+          note: line.note,
+          productId: line.productId,
+          warehouseId: line.warehouseId,
+          parentId: line.parentId,
+        })),
+        partyId: snapshot.partyId,
+        remark: snapshot.remark.trim(),
+        sectionLineIds: Array.from(new Set([...sectionLineIdSet, ...deletedIds])),
+        type: snapshot.type,
+        vehicleImageNames: snapshot.vehicleImageFiles.map((file) => file.rawValue),
+        vehicleNo: snapshot.vehicleNo.trim(),
+        godownName: snapshot.godownName.trim(),
+      })
+      const returnedForm = ticketToFormState(ticket)
+      const persistedRootId = baselineSectionLines.find((line) => line.id === sectionId)?.id ?? sectionId
+      const returnedSectionIds = new Set(getWeightTicketSectionLineIds(returnedForm.lines, persistedRootId))
+      const latestForm = formRef.current
+      const latestSectionIds = new Set(getWeightTicketSectionLineIds(latestForm.lines, sectionId))
+      const sectionWasChangedDuringSave = JSON.stringify(Array.from(latestSectionIds).map((id) => {
+        const line = latestForm.lines.find((entry) => entry.id === id)
+        return line ? [id, collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue))] : [id, null]
+      })) !== JSON.stringify(Array.from(sectionLineIdSet).map((id) => {
+        const line = snapshot.lines.find((entry) => entry.id === id)
+        return line ? [id, collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue))] : [id, null]
+      }))
+      setLoadedTicket(ticket)
+      setSavedTicket(ticket)
+      if (!sectionWasChangedDuringSave) {
+        setForm((current) => ({
+          ...current,
+          lines: [
+            ...current.lines.filter((line) => !sectionLineIdSet.has(line.id)),
+            ...returnedForm.lines.filter((line) => returnedSectionIds.has(line.id)),
+          ],
+        }))
+        sectionLineIdSet.forEach((lineId) => changedLineIdsRef.current.delete(lineId))
+        deletedIds.forEach((lineId) => deletedLineIdsRef.current.delete(lineId))
+        setMergeNotice('บันทึก section นี้แล้ว รายการ section อื่นยังคงแก้ไขต่อได้')
+      } else {
+        setMergeNotice('บันทึก section เดิมแล้ว แต่มีการแก้ไขเพิ่มระหว่างบันทึก จึงคงข้อมูลใหม่ไว้ให้ตรวจสอบ')
+      }
+      setRemoteChangedLineIds(new Set())
+      invalidatePurchaseBillOptionsCache()
+      setLoadError('')
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 409) {
+        setMergeNotice('ข้อมูลชนกันใน section นี้ ระบบไม่เขียนทับข้อมูลของผู้ใช้อื่น กรุณาโหลดข้อมูลล่าสุดแล้วตรวจสอบอีกครั้ง')
+      }
+      setLoadError(getErrorMessage(caught, 'บันทึก section ไม่สำเร็จ'))
+    } finally {
+      endSaveStage()
+      saveInFlightRef.current = null
+    }
+  }
+
   return (
     <div className={cn("min-w-0", isEmbeddedModal ? "flex h-full min-h-0 flex-col overflow-hidden bg-slate-50" : "overflow-x-hidden")} data-ns-field-scope="entry">
       {isEmbeddedModal ? (
@@ -3010,17 +3148,29 @@ export function WeightTicketFormCore({
                         </div>
 
                         <div className="mt-3 flex justify-end">
-                          <Button
-                            type="button"
-                            variant="default"
-                            size="sm"
-                            disabled={!hasSelectedProduct}
-                            onClick={() => addSameProductLot(line)}
-                            className="hidden h-9 bg-blue-600 px-3 text-sm font-semibold text-white outline-none hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 xl:inline-flex"
-                          >
-                            <Plus className="size-4" />
-                            เพิ่มเต๋า
-                          </Button>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              disabled={!hasSelectedProduct}
+                              onClick={() => addSameProductLot(line)}
+                              className="hidden h-9 bg-blue-600 px-3 text-sm font-semibold text-white outline-none hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 xl:inline-flex"
+                            >
+                              <Plus className="size-4" />
+                              เพิ่มเต๋า
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isLoadingTicket || isSaving || !hasSelectedProduct || !line.version}
+                              onClick={() => void saveSection(line.id)}
+                              className="h-9 border-emerald-300 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:bg-slate-100 disabled:text-slate-400"
+                            >
+                              บันทึก section นี้
+                            </Button>
+                          </div>
                         </div>
                         {(() => {
                           const lotSummary = calculateRealLotSummary(line, form.lines)

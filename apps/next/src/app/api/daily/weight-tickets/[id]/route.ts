@@ -235,6 +235,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         error: 'บันทึกเฉพาะหัวเอกสารได้ก่อนมีรายการสินค้าเท่านั้น',
       }, { status: 400 })
     }
+    if (values.saveScope === 'section' && existing.status === 'delivered' && values.type === 'WTO') {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'WTO ที่ยืนยันส่งของแล้วต้องบันทึกทั้งเอกสาร เพื่อคำนวณและตรวจ stock พร้อมกัน',
+      }, { status: 400 })
+    }
     const beforeSnapshot = weightTicketAuditSnapshot(mapWeightTicketRow(existing as WeightTicketRow, usage))
 
     const parsedImpurityIds = values.lines.map((line) => parseInternalBigIntId(line.impurityId))
@@ -353,6 +359,48 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
       if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, lockedUsage)) {
         throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
+      }
+      if (values.saveScope === 'section') {
+        const sectionLineIds = new Set(values.sectionLineIds ?? [])
+        const lineById = new Map(existing.weight_ticket_lines.map((line) => [String(line.id), line] as const))
+        const rootIdById = new Map<string, string>()
+        const rootId = (lineId: string, visiting = new Set<string>()): string => {
+          const cached = rootIdById.get(lineId)
+          if (cached) return cached
+          const line = lineById.get(lineId)
+          if (!line?.parent_line_no || visiting.has(lineId)) {
+            rootIdById.set(lineId, lineId)
+            return lineId
+          }
+          const parent = existing.weight_ticket_lines.find((candidate) => candidate.line_no === line.parent_line_no)
+          const nextVisiting = new Set(visiting)
+          nextVisiting.add(lineId)
+          const root = parent ? rootId(String(parent.id), nextVisiting) : lineId
+          rootIdById.set(lineId, root)
+          return root
+        }
+        const existingSectionRoots = new Set(
+          [...sectionLineIds]
+            .map((lineId) => lineById.has(lineId) ? rootId(lineId) : null)
+            .filter((lineId): lineId is string => lineId !== null),
+        )
+        if (existingSectionRoots.size > 1) {
+          throw new WeightTicketWriteValidationError('บันทึกได้ครั้งละ section เดียว และห้ามส่งรายการข้ามสินค้า', {})
+        }
+        if (existingSectionRoots.size === 1) {
+          const sectionRoot = [...existingSectionRoots][0]
+          const expectedSectionIds = existing.weight_ticket_lines
+            .filter((line) => rootId(String(line.id)) === sectionRoot)
+            .map((line) => String(line.id))
+          const submittedSectionIds = new Set([
+            ...values.lines.map((line) => line.id),
+            ...(values.collaborationDeletedLineIds ?? []),
+          ])
+          const missingSectionIds = expectedSectionIds.filter((lineId) => !submittedSectionIds.has(lineId))
+          if (missingSectionIds.length) {
+            throw new WeightTicketWriteValidationError('ข้อมูล section ไม่ครบ กรุณาโหลดข้อมูลล่าสุดแล้วบันทึกใหม่', {})
+          }
+        }
       }
       const collaborationCurrentUpdatedAt = existing.updated_at
       const hasRemoteLineChanges = Boolean(

@@ -344,11 +344,12 @@ export const weightTicketFormSchema = z.object({
   }).optional(),
   collaborationChangedHeaderFields: z.array(z.enum(['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'])).optional(),
   collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
+  sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   id: z.string().trim().max(80).optional(),
   lines: z.array(weightTicketLinePayloadSchema),
   partyId: z.string().trim().min(1, 'เลือกคู่ค้า'),
   remark: z.preprocess(blankToEmpty, z.string().max(500, 'หมายเหตุยาวเกินไป').default('')),
-  saveScope: z.enum(['header', 'document']).optional(),
+  saveScope: z.enum(['header', 'section', 'document']).optional(),
   type: typeEnum,
   vehicleImageNames: z.array(attachmentValueSchema).default([]),
   vehicleNo: z
@@ -366,7 +367,23 @@ export const weightTicketFormSchema = z.object({
       path: ['lines'],
     })
   }
-  if (value.type === 'WTO' && value.lines.length === 0 && value.saveScope !== 'header') {
+  if (value.saveScope === 'section') {
+    if (!value.sectionLineIds?.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ไม่พบขอบเขต section ที่ต้องการบันทึก', path: ['sectionLineIds'] })
+    }
+    const sectionIds = new Set(value.sectionLineIds ?? [])
+    value.lines.forEach((line, index) => {
+      if (!sectionIds.has(line.id)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'รายการอยู่นอก section ที่กำลังบันทึก', path: ['lines', index, 'id'] })
+      }
+    })
+    ;(value.collaborationDeletedLineIds ?? []).forEach((lineId, index) => {
+      if (!sectionIds.has(lineId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'รายการที่ลบอยู่นอก section ที่กำลังบันทึก', path: ['collaborationDeletedLineIds', index] })
+      }
+    })
+  }
+  if (value.type === 'WTO' && value.lines.length === 0 && value.saveScope !== 'header' && value.saveScope !== 'section') {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ',
@@ -1184,6 +1201,10 @@ export async function saveWeightTicket(values: WeightTicketFormValues) {
     body: JSON.stringify(payloadFromForm(parsed)),
   })
   return readJsonResponse(response, weightTicketRecordSchema, parsed.id ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้')
+}
+
+export async function saveWeightTicketSection(values: WeightTicketFormValues) {
+  return saveWeightTicket({ ...values, saveScope: 'section' })
 }
 
 export async function cancelWeightTicket(id: string, note: string) {
