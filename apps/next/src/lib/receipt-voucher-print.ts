@@ -260,8 +260,9 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
 
       /* Maximum 15 items per page: break to page 2 cleanly after 15th row */
       .page.has-page-break .items tbody tr:nth-child(15) {
-        page-break-after: always;
-        break-after: page;
+        page-break-after: always !important;
+        break-after: page !important;
+        border-bottom: 3px double #059669 !important;
       }
       
       .watermark { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 72px; font-weight: 900; color: rgba(226, 232, 240, 0.7); transform: rotate(-18deg); z-index: 10; }
