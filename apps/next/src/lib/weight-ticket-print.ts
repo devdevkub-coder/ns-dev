@@ -10,6 +10,7 @@ const companyProfilePayloadSchema = z.object({
 
 const FIRST_PAGE_ITEM_ROWS = 12
 const CONTINUATION_PAGE_ITEM_ROWS = 17
+export const WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE = 6
 
 /** exported เพื่อให้ react-pdf template ใช้ค่าเดียวกันกับ HTML template */
 export { FIRST_PAGE_ITEM_ROWS, CONTINUATION_PAGE_ITEM_ROWS }
@@ -311,7 +312,7 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
 
 export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: CompanyProfilePrintValues) {
   // Six cards fit on an A4 attachment page as a 2-column x 3-row grid.
-  const attachmentImagesPerPage = 6
+  const attachmentImagesPerPage = WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE
   const isReceipt = ticket.type === 'WTI'
   const docTitle = isReceipt ? 'ใบชั่งน้ำหนัก / ใบรับสินค้า' : 'ใบชั่งน้ำหนัก / ใบส่งของ'
   const partyLabel = isReceipt ? 'ผู้ขาย/ผู้ส่งของ' : 'ลูกค้า/ผู้รับสินค้า'
