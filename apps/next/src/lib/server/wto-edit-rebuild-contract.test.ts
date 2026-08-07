@@ -174,12 +174,16 @@ describe('WTO delivered edit release/rebuild contract', () => {
     expect(formSource).toContain('version: line.version')
     expect(formSource).toContain('const deletedLineIdsRef = useRef<Set<string>>(new Set())')
     expect(formSource).toContain('if (deletedLineIdsRef.current.has(latestLine.id)) return null')
-    expect(formSource).toContain('if (lineIdsReconciled) setSavedTicket(ticket)')
+    expect(formSource).toContain('setSavedTicket(ticket)')
+    expect(formSource).toContain('line.version != null || baselineLines.has(line.id)')
+    expect(formSource).toContain('markLinesDeleted(removedPurchaseLineIds)')
     const appendLineImagesStart = formSource.indexOf('async function appendLineImages(')
     const appendVehicleImagesStart = formSource.indexOf('async function appendVehicleImages(', appendLineImagesStart)
     expect(formSource.slice(appendLineImagesStart, appendVehicleImagesStart)).not.toContain("dirtyHeaderFieldsRef.current.add('vehicleImageNames')")
     expect(formSource).toContain('function removeImpurityLine')
     expect(editRouteSource).not.toContain('const remoteChangedHeaderFields =')
+    expect(editRouteSource).toContain('const effectiveBranch = requestOwnsBranch ? branch : existing.branches')
+    expect(editRouteSource).toContain('branchId: effectiveBranch.id')
   })
 
   it('compares collaboration headers using the same business codes as the read model', () => {

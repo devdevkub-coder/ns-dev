@@ -243,6 +243,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       line.impurityProductId?.trim().toUpperCase() ?? '',
     ]).filter(Boolean))]
     const impurityIds = [...new Set(parsedImpurityIds.filter((value): value is bigint => value != null))]
+    const hasCollaborationBaseline = values.collaborationBaseLineVersions !== undefined
+    const changedHeaderFields = new Set(values.collaborationChangedHeaderFields ?? [])
+    const requestOwnsBranch = !hasCollaborationBaseline || changedHeaderFields.has('branchId')
+    const requestOwnsParty = !hasCollaborationBaseline || changedHeaderFields.has('partyId')
     const [scopedBranches, branch, supplier, customer, products, impurities] = await Promise.all([
       scopedBranchIds === null ? Promise.resolve([]) : findActiveBranchReferencesByCodes(scopedBranchIds),
       prisma.branches.findFirst({
@@ -264,11 +268,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         : Promise.resolve([]),
     ])
 
-    if (!branch || (scopedBranchIds !== null && !scopedBranches.some((item) => item.id === branch.id))) {
+    const validationBranch = requestOwnsBranch ? branch : existing.branches
+    const validationSupplier = values.type === 'WTI' && requestOwnsParty ? supplier : existing.suppliers
+    const validationCustomer = values.type === 'WTO' && requestOwnsParty ? customer : existing.customers
+    if (!validationBranch || (scopedBranchIds !== null && !scopedBranches.some((item) => item.id === validationBranch.id))) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
     }
     try {
-      await assertWeightTicketPartyForType({ branchId: branch.id, customer, supplier, type: values.type })
+      await assertWeightTicketPartyForType({ branchId: validationBranch.id, customer: validationCustomer, supplier: validationSupplier, type: values.type })
     } catch (caught) {
       if (caught instanceof WeightTicketWriteValidationError) {
         return NextResponse.json({
@@ -352,18 +359,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         collaborationBaseUpdatedAt
         && collaborationBaseUpdatedAt !== (collaborationCurrentUpdatedAt?.toISOString() ?? null),
       )
-      const documentDate = toDateOnly(existing.document_date)
-      const nextStatus = existing.status
-      const branchCode = requireWeightTicketBranchDocumentCode(branch.code)
-      const mustRenumber = existing.branch_id !== branch.id
-      const docNo = mustRenumber
-        ? await (async () => {
-          await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('weight_tickets.doc_no'))`
-          return nextWeightTicketDocNo(tx, values.type, branchCode, documentDate)
-        })()
-        : existing.doc_no
-      const partySnapshot = weightTicketPartySnapshot({ customer, supplier, type: values.type })
-
       await tx.weight_ticket_product_summary_lines.deleteMany({
         where: {
           weight_ticket_product_summaries: {
@@ -371,18 +366,68 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           },
         },
       })
-      let warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
+      let createdLines
+      let effectiveValues = values
+      let effectiveTotals = totals
+      // Collaboration-aware saves must keep immutable line IDs even when this
+      // request is the first writer after the shared baseline. Falling back to
+      // delete-and-recreate here would invalidate another user's in-progress
+      // line IDs and make the next save unable to merge safely.
+      const headerFields = ['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const
+      const currentPartyId = existing.doc_type === 'WTI' ? existing.suppliers?.code ?? '' : existing.customers?.code ?? ''
+      const currentHeader = {
+        branchId: existing.branches?.code ?? '',
+        partyId: currentPartyId,
+        remark: existing.remark ?? '',
+        vehicleImageNames: existing.vehicle_image_names ?? [],
+        vehicleNo: existing.vehicle_no ?? '',
+        godownName: existing.godown_name ?? '',
+      }
+      const conflictingHeaderFields = hasRemoteLineChanges && values.collaborationBaseHeader
+        ? headerFields.filter((field) => values.collaborationChangedHeaderFields?.includes(field) && JSON.stringify(currentHeader[field]) !== JSON.stringify(values.collaborationBaseHeader?.[field]))
+        : []
+      if (conflictingHeaderFields.length) throw new WeightTicketCollaborationConflictError([], conflictingHeaderFields)
+      if (hasCollaborationBaseline) {
+        effectiveValues = {
+          ...effectiveValues,
+          branchId: changedHeaderFields.has('branchId') ? effectiveValues.branchId : currentHeader.branchId,
+          partyId: changedHeaderFields.has('partyId') ? effectiveValues.partyId : currentHeader.partyId,
+          remark: changedHeaderFields.has('remark') ? effectiveValues.remark : currentHeader.remark,
+          vehicleImageNames: changedHeaderFields.has('vehicleImageNames') ? effectiveValues.vehicleImageNames : currentHeader.vehicleImageNames,
+          vehicleNo: changedHeaderFields.has('vehicleNo') ? effectiveValues.vehicleNo : currentHeader.vehicleNo,
+          godownName: changedHeaderFields.has('godownName') ? effectiveValues.godownName : currentHeader.godownName,
+        }
+      }
+      const effectiveBranch = requestOwnsBranch ? branch : existing.branches
+      if (!effectiveBranch) {
+        throw new WeightTicketWriteValidationError('ไม่พบสาขาของใบรับ-ส่งของ', { branchId: ['เลือกสาขา'] })
+      }
+      const effectiveSupplier = values.type === 'WTI' && requestOwnsParty ? supplier : existing.suppliers
+      const effectiveCustomer = values.type === 'WTO' && requestOwnsParty ? customer : existing.customers
+      const partySnapshot = weightTicketPartySnapshot({ customer: effectiveCustomer, supplier: effectiveSupplier, type: values.type })
+      const documentDate = toDateOnly(existing.document_date)
+      const nextStatus = existing.status
+      const branchCode = requireWeightTicketBranchDocumentCode(effectiveBranch.code)
+      const mustRenumber = existing.branch_id !== effectiveBranch.id
+      const docNo = mustRenumber
+        ? await (async () => {
+          await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('weight_tickets.doc_no'))`
+          return nextWeightTicketDocNo(tx, values.type, branchCode, documentDate)
+        })()
+        : existing.doc_no
+      let warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: effectiveBranch.id, lines: effectiveValues.lines, type: values.type })
       const warehouseNameById = new Map([...warehouseByCode.values()].map((warehouse) => [warehouse.id, warehouse.name] as const))
       existing.weight_ticket_lines.forEach((line) => {
         if (line.warehouses) warehouseNameById.set(line.warehouses.id, line.warehouses.name)
       })
-      const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
+      const lineRows = buildWeightTicketLineRows(existing.id, effectiveValues, productByCode, impurityById, warehouseByCode)
+      let effectiveLineRows = lineRows
       const isDeliveredWtoEdit = existing.status === 'delivered' && values.type === 'WTO'
       if (isDeliveredWtoEdit && hasRemoteLineChanges && values.collaborationBaseLineVersions !== undefined) {
         throw new WeightTicketCollaborationConflictError(Array.from(collaborationChangedLineIds))
       }
       const shouldRebuildWtoPendingOut = isDeliveredWtoEdit && shouldRebuildWtoPendingOutOnEdit({
-        branchChanged: existing.branch_id !== branch.id,
+        branchChanged: existing.branch_id !== effectiveBranch.id,
         existingLines: existing.weight_ticket_lines,
         newLines: lineRows,
       })
@@ -400,41 +445,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         })
       }
       await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
-      let createdLines
-      let effectiveValues = values
-      let effectiveLineRows = lineRows
-      let effectiveTotals = totals
-      // Collaboration-aware saves must keep immutable line IDs even when this
-      // request is the first writer after the shared baseline. Falling back to
-      // delete-and-recreate here would invalidate another user's in-progress
-      // line IDs and make the next save unable to merge safely.
-      const hasCollaborationBaseline = values.collaborationBaseLineVersions !== undefined
-      const headerFields = ['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const
-      const currentPartyId = existing.doc_type === 'WTI' ? existing.suppliers?.code ?? '' : existing.customers?.code ?? ''
-      const currentHeader = {
-        branchId: existing.branches?.code ?? '',
-        partyId: currentPartyId,
-        remark: existing.remark ?? '',
-        vehicleImageNames: existing.vehicle_image_names ?? [],
-        vehicleNo: existing.vehicle_no ?? '',
-        godownName: existing.godown_name ?? '',
-      }
-      const conflictingHeaderFields = hasRemoteLineChanges && values.collaborationBaseHeader
-        ? headerFields.filter((field) => values.collaborationChangedHeaderFields?.includes(field) && JSON.stringify(currentHeader[field]) !== JSON.stringify(values.collaborationBaseHeader?.[field]))
-        : []
-      if (conflictingHeaderFields.length) throw new WeightTicketCollaborationConflictError([], conflictingHeaderFields)
-      const changedHeaderFields = new Set(values.collaborationChangedHeaderFields ?? [])
-      if (hasCollaborationBaseline) {
-        effectiveValues = {
-          ...effectiveValues,
-          branchId: changedHeaderFields.has('branchId') ? effectiveValues.branchId : currentHeader.branchId,
-          partyId: changedHeaderFields.has('partyId') ? effectiveValues.partyId : currentHeader.partyId,
-          remark: changedHeaderFields.has('remark') ? effectiveValues.remark : currentHeader.remark,
-          vehicleImageNames: changedHeaderFields.has('vehicleImageNames') ? effectiveValues.vehicleImageNames : currentHeader.vehicleImageNames,
-          vehicleNo: changedHeaderFields.has('vehicleNo') ? effectiveValues.vehicleNo : currentHeader.vehicleNo,
-          godownName: changedHeaderFields.has('godownName') ? effectiveValues.godownName : currentHeader.godownName,
-        }
-      }
       if (
         !isDeliveredWtoEdit &&
         !shouldRebuildWtoPendingOut &&
@@ -515,7 +525,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           })
           persistedImpurities.forEach((impurity) => impurityById.set(impurity.id, impurity))
         }
-        warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: effectiveValues.lines, type: effectiveValues.type })
+        warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: effectiveBranch.id, lines: effectiveValues.lines, type: effectiveValues.type })
         warehouseByCode.forEach((warehouse) => warehouseNameById.set(warehouse.id, warehouse.name))
         effectiveLineRows = buildWeightTicketLineRows(existing.id, effectiveValues, productByCode, impurityById, warehouseByCode)
         effectiveTotals = calculateTicketTotals(effectiveValues.lines.map((line) => ({
@@ -579,14 +589,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       }
       if (effectiveValues.type === 'WTO' && effectiveValues.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, {
-          branchId: branch.id,
+          branchId: effectiveBranch.id,
           excludeWeightTicketId: existing.status === 'delivered' ? existing.id : undefined,
           lineRows: effectiveLineRows,
           type: effectiveValues.type,
         })
       }
       const editChanges = buildWeightTicketEditChanges({
-        branchName: branch.name,
+        branchName: effectiveBranch.name,
         customerName: customer?.name ?? '',
         docNo,
         existing: existing as WeightTicketRow,
@@ -599,7 +609,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       const imageCount = effectiveValues.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
       await tx.weight_tickets.update({
         data: {
-          branch_id: branch.id,
+          branch_id: effectiveBranch.id,
           cancel_note: null,
           cancelled_at: null,
           cancelled_by: null,
@@ -627,7 +637,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       const createdPendingOutHoldIds = shouldRebuildWtoPendingOut
         ? await applyWeightTicketEditSideEffects(tx, {
           actor,
-          branchId: branch.id,
+          branchId: effectiveBranch.id,
           createdLines,
           documentNo: docNo,
           preservedCostSnapshots: [],

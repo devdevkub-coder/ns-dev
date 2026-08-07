@@ -1524,8 +1524,9 @@ export function WeightTicketFormCore({
   }
 
   function markLinesDeleted(lineIds: Iterable<string>) {
-    for (const lineId of lineIds) deletedLineIdsRef.current.add(lineId)
-    markLinesDirty(lineIds)
+    const ids = Array.from(lineIds)
+    for (const lineId of ids) deletedLineIdsRef.current.add(lineId)
+    markLinesDirty(ids)
   }
 
   function changeBranch(value: string | null) {
@@ -1653,17 +1654,22 @@ export function WeightTicketFormCore({
     try {
       await waitForPendingAttachmentUploads()
       const latestForm = formRef.current
+      const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
+      const baselineTicket = savedTicket ?? loadedTicket
       const latestLinesById = new Map(latestForm.lines.map((line) => [line.id, line]))
       const snapshotToSave: FormState = {
         ...snapshot,
-        lines: snapshot.lines.map((line) => ({
+        // A background save establishes the document identity and persists
+        // only lines that already have a stable server identity. The live
+        // form may contain a new temporary line that is still being edited;
+        // the explicit save will persist it later without ID reconciliation
+        // deleting the server line created by this background save.
+        lines: snapshot.lines.filter((line) => line.version != null || baselineLines.has(line.id)).map((line) => ({
           ...line,
           imageFiles: latestLinesById.get(line.id)?.imageFiles ?? line.imageFiles,
         })),
         vehicleImageFiles: latestForm.vehicleImageFiles,
       }
-      const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
-      const baselineTicket = savedTicket ?? loadedTicket
       const baselineLineIds = Array.from(baselineLines.keys())
       const deletedLineIds = new Set(deletedLineIdsRef.current)
       baselineLineIds.filter((lineId) => !snapshotToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
@@ -1720,11 +1726,10 @@ export function WeightTicketFormCore({
       invalidatePurchaseBillOptionsCache()
       const nextForm = ticketToFormState(ticket)
       setLoadedTicket(ticket)
-      const liveLineIds = new Set(formRef.current.lines.map((line) => line.id))
-      const persistedLineIds = new Set(ticket.lines.map((line) => line.id))
-      const lineIdsReconciled = liveLineIds.size === persistedLineIds.size
-        && Array.from(liveLineIds).every((lineId) => persistedLineIds.has(lineId))
-      if (lineIdsReconciled) setSavedTicket(ticket)
+      // Keep the returned ticket as the collaboration baseline even when
+      // the live form contains a temporary line excluded from this save.
+      // This preserves the draft document ID for the next explicit save.
+      setSavedTicket(ticket)
       // This is a background save started by "เพิ่มสินค้า". Keep the live
       // form untouched because the user may already be editing the newly
       // opened line while this response is in flight.
@@ -2112,6 +2117,10 @@ export function WeightTicketFormCore({
       lines: (() => {
         const currentSourceLine = current.lines.find((line) => line.id === sourceLine.id)
         if (!currentSourceLine || !targetProductId) return current.lines
+        const removedPurchaseLineIds = current.lines
+          .filter((line) => line.impuritySourceLineId === currentSourceLine.id)
+          .map((line) => line.id)
+        markLinesDeleted(removedPurchaseLineIds)
         const baseLines = current.lines.filter((line) => line.impuritySourceLineId !== currentSourceLine.id)
         const lineTotals = calculateAdjustedLineTotals(
           currentSourceLine,
