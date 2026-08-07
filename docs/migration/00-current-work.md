@@ -1,4 +1,14 @@
-## Current objective — 2026-08-07
+## Current objective — WTI/WTO Production baseline — 2026-08-07
+
+Restore the WTI/WTO runtime to the locally cached `production-origin/main` commit `0e15be424a208f4dbdf43d0422b4723653af6efa`, then apply collaboration changes incrementally instead of carrying the whole experimental SIT redesign forward.
+
+Active batch: the WTI/WTO API, form, section helpers, server write handlers, focused section tests, and flow note match that Production ref. The previous uncommitted collaboration work is preserved in `stash@{0}` (`wip-wti-wto-realtime-before-production-baseline-20260807`) for selective reference only. `ProfitCostAnalysisPageClient.tsx` is unrelated local work and must remain untouched. No database migration is part of this rollback.
+
+Validation: focused WTI/WTO tests `55/55`, targeted lint, generated route types, TypeScript, full production build, and `git diff --check` pass. Independent review result is `COMMENT/WATCH`: the files match the cached Production ref, but this baseline must not be described as final multi-user concurrency safety because it removes SIT's WTO stock-bucket advisory lock and does not yet provide the full target line-level conflict contract. Live Vercel Production SHA is still unverified because the available Vercel connector and Git credential do not currently authorize the Production project/repository.
+
+Immediate next task: add only the agreed minimal flow changes such as removing the per-product/per-lot save controls and defining server-persisted add boundaries without reapplying the full stash. Restore sorted WTO stock-bucket locking before shipping concurrent WTO edit/confirm work, then implement and validate line-level conflict handling incrementally with two authenticated sessions.
+
+## Authentication objective — 2026-08-07
 
 Reduce `/api/auth/me` latency by removing duplicate proxy RPC work and repeated AppShell requests while keeping verified session checks and private no-store responses.
 

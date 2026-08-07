@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getWeightTicketLotLineIds, getWeightTicketSectionLineIds } from './weight-ticket-sections'
+import { getWeightTicketSectionLineIds } from './weight-ticket-sections'
 
 describe('getWeightTicketSectionLineIds', () => {
   it('groups a product parent with lots and nested impurity lines', () => {
@@ -24,16 +24,5 @@ describe('getWeightTicketSectionLineIds', () => {
 
     expect(getWeightTicketSectionLineIds(lines, 'product-a')).toEqual(['product-a'])
     expect(getWeightTicketSectionLineIds(lines, 'orphan')).toEqual(['orphan'])
-  })
-
-  it('keeps a lot save scoped to the lot and its impurity children', () => {
-    const lines = [
-      { id: 'product-a', parentId: undefined },
-      { id: 'lot-a-1', parentId: 'product-a' },
-      { id: 'impurity-a-1', parentId: 'lot-a-1' },
-      { id: 'lot-a-2', parentId: 'product-a' },
-    ]
-
-    expect(getWeightTicketLotLineIds(lines, 'lot-a-1')).toEqual(['lot-a-1', 'impurity-a-1'])
   })
 })

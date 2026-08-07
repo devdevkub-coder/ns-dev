@@ -344,7 +344,6 @@ export const weightTicketFormSchema = z.object({
   }).optional(),
   collaborationChangedHeaderFields: z.array(z.enum(['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'])).optional(),
   collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
-  sectionKind: z.enum(['product', 'lot']).optional(),
   sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   id: z.string().trim().max(80).optional(),
   lines: z.array(weightTicketLinePayloadSchema),
@@ -369,9 +368,6 @@ export const weightTicketFormSchema = z.object({
     })
   }
   if (value.saveScope === 'section') {
-    if (!value.sectionKind) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ไม่พบประเภท section ที่ต้องการบันทึก', path: ['sectionKind'] })
-    }
     if (!value.sectionLineIds?.length) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ไม่พบขอบเขต section ที่ต้องการบันทึก', path: ['sectionLineIds'] })
     }
@@ -498,31 +494,6 @@ export const weightTicketFormSchema = z.object({
       }
     }
   })
-})
-
-export const weightTicketHeaderSchema = z.object({
-  branchId: z.string().trim().min(1, 'เลือกสาขา'),
-  collaborationBaseHeader: z.object({
-    branchId: z.string().trim().min(1).max(80),
-    partyId: z.string().trim().min(1).max(80),
-    remark: z.string().max(500),
-    vehicleImageNames: z.array(attachmentValueSchema),
-    vehicleNo: z.string().max(24),
-    godownName: z.string().max(100),
-  }).optional(),
-  collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
-  collaborationChangedHeaderFields: z.array(z.enum(['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'])).default([]),
-  godownName: z.preprocess(blankToEmpty, z.string().max(100).default('')),
-  partyId: z.string().trim().min(1, 'เลือกคู่ค้า'),
-  remark: z.preprocess(blankToEmpty, z.string().max(500, 'หมายเหตุยาวเกินไป').default('')),
-  type: typeEnum,
-  vehicleImageNames: z.array(attachmentValueSchema).default([]),
-  vehicleNo: z
-    .string()
-    .trim()
-    .min(2, 'กรอกทะเบียนรถ')
-    .max(24, 'ทะเบียนรถยาวเกินไป')
-    .regex(/^[\p{L}\p{M}\p{N}\s.-]+$/u, 'ทะเบียนรถมีรูปแบบไม่ถูกต้อง'),
 })
 
 const weightTicketRecordLineSchema = z.object({
@@ -1234,16 +1205,6 @@ export async function saveWeightTicket(values: WeightTicketFormValues) {
 
 export async function saveWeightTicketSection(values: WeightTicketFormValues) {
   return saveWeightTicket({ ...values, saveScope: 'section' })
-}
-
-export async function saveWeightTicketHeader(id: string, values: z.input<typeof weightTicketHeaderSchema>) {
-  const parsed = weightTicketHeaderSchema.parse(values)
-  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}/header`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(parsed),
-  })
-  return readJsonResponse(response, z.object({ updatedAt: z.string().datetime() }), 'บันทึกหัวเอกสารไม่ได้')
 }
 
 export async function cancelWeightTicket(id: string, note: string) {
