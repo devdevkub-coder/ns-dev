@@ -26,6 +26,7 @@ export function SearchCombobox({
   optionsPanelClassName,
   openOnFocus = true,
   placeholder,
+  readOnly = false,
   value,
   onChange,
 }: {
@@ -41,6 +42,7 @@ export function SearchCombobox({
   optionsPanelClassName?: string
   openOnFocus?: boolean
   placeholder?: string
+  readOnly?: boolean
   value: string
   onChange: (optionId: string) => void
 }) {
@@ -237,6 +239,7 @@ export function SearchCombobox({
         disabled={disabled}
         id={inputId}
         placeholder={placeholder}
+        readOnly={readOnly}
         role="combobox"
         required={hasInlineRequired}
         type="search"
@@ -245,6 +248,7 @@ export function SearchCombobox({
           if (disabled) return
           setOpen(true)
           if (!isSelectedValueQuery) return
+          if (readOnly) return
           if (!shouldAutoSelectText()) return
           requestAnimationFrame(() => inputRef.current?.select())
         }}
@@ -263,6 +267,7 @@ export function SearchCombobox({
           if (disabled) return
           if (openOnFocus) setOpen(true)
           if (!isSelectedValueQuery) return
+          if (readOnly) return
           if (!shouldAutoSelectText()) return
           requestAnimationFrame(() => inputRef.current?.select())
         }}

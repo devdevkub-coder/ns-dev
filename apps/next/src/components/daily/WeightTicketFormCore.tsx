@@ -3032,7 +3032,6 @@ export function WeightTicketFormCore({
                                       <div className={cn(!isOtherProductImpurity && mobileImpuritySelectorColumns)}>
                                         <FieldBlock label="สิ่งเจือปน*" labelClassName="md:hidden">
                                         <SearchCombobox
-                                          key={`${child.id}:${selectedImpurityId}:${selectedImpurityLabel}`}
                                           disabled={!hasSelectedProduct}
                                           error={showError(`line-${child.id}-impurity`)}
                                           inputId={`weight-impurity-${child.id}`}
@@ -3040,6 +3039,7 @@ export function WeightTicketFormCore({
                                           label="สิ่งเจือปน*"
                                           options={impurityOptionsForChild}
                                           placeholder={impurityOptions.length > 0 ? 'เลือกสิ่งเจือปน' : 'ยังไม่มีสิ่งเจือปนที่ใช้งาน'}
+                                          readOnly
                                           value={selectedImpurityId}
                                           onChange={(value) => {
                                             const impurity = impurityOptionsForChild.find((option) => option.id === value)

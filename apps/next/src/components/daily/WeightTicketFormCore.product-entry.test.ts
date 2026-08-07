@@ -263,6 +263,11 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain("!isOtherProductImpurity && 'self-end md:self-auto'")
   })
 
+  it('keeps impurity selection as a keyboard-free dropdown', () => {
+    expect(formSource).toMatch(/inputId=\{`weight-impurity-\$\{child\.id\}`\}[\s\S]*?readOnly\s+value=\{selectedImpurityId\}/)
+    expect(formSource).not.toMatch(/<SearchCombobox\s+key=\{`\$\{child\.id\}:\$\{selectedImpurityId\}:\$\{selectedImpurityLabel\}`\}/)
+  })
+
   it('keeps the mobile document header in two input rows', () => {
     expect(formSource).toContain('"grid min-w-0 grid-cols-2 gap-3 sm:gap-4"')
   })
