@@ -35,6 +35,7 @@ export type WeightTicketLine = {
   parentLineNo?: number | null
   productId: string
   warehouseId: string
+  version?: number
   parentId?: string
 }
 
@@ -257,6 +258,7 @@ const weightTicketLinePayloadSchema = z.object({
   note: z.preprocess(blankToEmpty, z.string().max(160, 'หมายเหตุรายการยาวเกินไป').default('')),
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
   warehouseId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
+  version: z.number().int().positive().optional(),
   parentId: z.string().trim().optional(),
 }).superRefine((value, ctx) => {
   const containerDeductionWeight = Math.min(value.containerDeductionWeight, value.grossWeight)
@@ -329,6 +331,18 @@ export const weightTicketFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
   collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
   collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
+  collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()).optional(),
+  collaborationChangedLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
+  collaborationDeletedLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
+  collaborationBaseHeader: z.object({
+    branchId: z.string().trim().min(1).max(80),
+    partyId: z.string().trim().min(1).max(80),
+    remark: z.string().max(500),
+    vehicleImageNames: z.array(attachmentValueSchema),
+    vehicleNo: z.string().max(24),
+    godownName: z.string().max(100),
+  }).optional(),
+  collaborationChangedHeaderFields: z.array(z.enum(['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'])).optional(),
   collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
   id: z.string().trim().max(80).optional(),
   lines: z.array(weightTicketLinePayloadSchema),
@@ -490,6 +504,7 @@ const weightTicketRecordLineSchema = z.object({
   warehouseId: z.string(),
   warehouseName: z.string(),
   warehouseType: z.string(),
+  version: z.number().int().positive().default(1),
 })
 
 const weightTicketTimelineSchema = z.object({

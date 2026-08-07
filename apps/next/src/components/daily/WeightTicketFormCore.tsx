@@ -71,6 +71,22 @@ type FormState = {
   godownName: string
 }
 
+function collaborationLineSnapshot(line: Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight' | 'id' | 'impurityId' | 'impurityProductId' | 'note' | 'productId' | 'warehouseId'>, imageNames: string[]) {
+  return JSON.stringify({
+    containerDeductionWeight: line.containerDeductionWeight,
+    deductionMode: line.deductionMode,
+    deductionValue: line.deductionValue,
+    grossWeight: line.grossWeight,
+    id: line.id,
+    imageNames,
+    impurityId: line.impurityId,
+    impurityProductId: line.impurityProductId ?? '',
+    note: line.note,
+    productId: line.productId,
+    warehouseId: line.warehouseId,
+  })
+}
+
 type WeightTicketOptionsPayload = {
   branches?: Array<{ code?: string | null; id: string; name: string }>
 }
@@ -692,6 +708,7 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
       warehouseId: line.warehouseId,
       warehouseName: line.warehouseName,
       warehouseType: line.warehouseType,
+      version: line.version,
       parentId: relationParentId,
     }
   })
@@ -889,6 +906,7 @@ export function WeightTicketFormCore({
   const [loadError, setLoadError] = useState('')
   const [attachmentError, setAttachmentError] = useState('')
   const [mergeNotice, setMergeNotice] = useState('')
+  const [remoteChangedLineIds, setRemoteChangedLineIds] = useState<Set<string>>(new Set())
   const [previewImage, setPreviewImage] = useState<AttachmentPreview | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [activeLineId, setActiveLineId] = useState('')
@@ -897,6 +915,8 @@ export function WeightTicketFormCore({
   const mobileProductEditorCloseTimeoutRef = useRef<number | null>(null)
   const mobileProductEditorOpenAnimationFrameRef = useRef<number | null>(null)
   const saveInFlightRef = useRef<'auto_save' | 'save' | null>(null)
+  const changedLineIdsRef = useRef<Set<string>>(new Set())
+  const remoteSyncInFlightRef = useRef(false)
   const pendingAttachmentUploadsRef = useRef<Set<Promise<unknown>>>(new Set())
   const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
@@ -974,7 +994,37 @@ export function WeightTicketFormCore({
     if (!editingTicketId || event.documentNo !== editingTicketId) return
     if (saveInFlightRef.current) return
     if (event.updatedAt && event.updatedAt === (savedTicket ?? loadedTicket)?.updatedAt) return
-    setMergeNotice('มีผู้ใช้อื่นบันทึกเอกสารนี้แล้ว ระบบจะไม่ทับข้อมูลที่กำลังกรอกอยู่ กรุณาตรวจสอบและบันทึกอีกครั้ง')
+    const changedLines = event.lineIds?.length ? ` (${event.lineIds.length} เต๋า)` : ''
+    setRemoteChangedLineIds(new Set(event.lineIds ?? []))
+    setMergeNotice(`มีผู้ใช้อื่นบันทึก${changedLines} ระบบคงข้อมูลที่กำลังกรอกไว้ กรุณาตรวจสอบก่อนบันทึก`)
+
+    if (remoteSyncInFlightRef.current) return
+    remoteSyncInFlightRef.current = true
+    void getWeightTicket(editingTicketId, { includeImagePreviews: false })
+      .then((latestTicket) => {
+        const latestForm = ticketToFormState(latestTicket)
+        const latestById = new Map(latestForm.lines.map((line) => [line.id, line] as const))
+        setLoadedTicket(latestTicket)
+        setSavedTicket(latestTicket)
+        setFormBaseline(formSafetySnapshot(latestForm))
+        setForm((current) => {
+          const localById = new Map(current.lines.map((line) => [line.id, line] as const))
+          const mergedLines = latestForm.lines.map((latestLine) => {
+            const localLine = localById.get(latestLine.id)
+            return localLine && (changedLineIdsRef.current.has(latestLine.id) || localLine.version == null)
+              ? localLine
+              : latestLine
+          })
+          const localOnlyDraftLines = current.lines.filter((line) => !latestById.has(line.id) && (changedLineIdsRef.current.has(line.id) || line.version == null))
+          return { ...current, lines: [...mergedLines, ...localOnlyDraftLines] }
+        })
+      })
+      .catch(() => {
+        // Realtime remains an accelerator; the next explicit save/load is authoritative.
+      })
+      .finally(() => {
+        remoteSyncInFlightRef.current = false
+      })
   }, Boolean(editingTicketId), realtimeBranchIds)
 
   const partyOptions = useMemo(() => {
@@ -1459,6 +1509,7 @@ export function WeightTicketFormCore({
   }
 
   function updateLine(lineId: string, updater: (line: FormWeightTicketLine) => FormWeightTicketLine) {
+    changedLineIdsRef.current.add(lineId)
     setForm((current) => {
       const updatedLines = current.lines.map((line) => line.id === lineId ? updater(line) : line)
       const target = updatedLines.find((line) => line.id === lineId)
@@ -1500,6 +1551,8 @@ export function WeightTicketFormCore({
   }
 
   function shouldIgnoreRapidAdd(actionKey: string) {
+    // This function only runs from user interaction handlers, not during render.
+    // eslint-disable-next-line react-hooks/purity
     const occurredAt = Date.now()
     const previous = lastAddInteractionRef.current
     if (
@@ -1551,10 +1604,34 @@ export function WeightTicketFormCore({
         })),
         vehicleImageFiles: latestForm.vehicleImageFiles,
       }
+      const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
+      const baselineTicket = savedTicket ?? loadedTicket
+      const baselineLineIds = Array.from(baselineLines.keys())
+      const deletedLineIds = baselineLineIds.filter((lineId) => !snapshotToSave.lines.some((line) => line.id === lineId))
+      const changedLineIds = new Set(changedLineIdsRef.current)
+      deletedLineIds.forEach((lineId) => changedLineIds.add(lineId))
+      snapshotToSave.lines.forEach((line) => {
+        const baseline = baselineLines.get(line.id)
+        const currentFingerprint = collaborationLineSnapshot(line, getLineEvidenceImagesForState(snapshotToSave, line).map((file) => file.rawValue))
+        const baselineFingerprint = baseline ? collaborationLineSnapshot(baseline, baseline.imageNames) : null
+        if (!baseline || currentFingerprint !== baselineFingerprint) changedLineIds.add(line.id)
+      })
       const ticket = await saveWeightTicket({
         branchId: snapshotToSave.branchId,
         collaborationBaseDocumentNo: (savedTicket ?? loadedTicket)?.documentNo,
-        collaborationBaseLineIds: snapshotToSave.lines.map((line) => line.id),
+        collaborationBaseLineIds: baselineLineIds,
+        collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
+        collaborationChangedLineIds: Array.from(changedLineIds),
+        collaborationDeletedLineIds: deletedLineIds,
+        collaborationBaseHeader: baselineTicket ? {
+          branchId: baselineTicket.branchId,
+          partyId: baselineTicket.partyId,
+          remark: baselineTicket.remark,
+          vehicleImageNames: baselineTicket.vehicleImageNames,
+          vehicleNo: baselineTicket.vehicleNo,
+          godownName: baselineTicket.godownName,
+        } : undefined,
+        collaborationChangedHeaderFields: baselineTicket ? (['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const).filter((field) => JSON.stringify(field === 'vehicleImageNames' ? snapshotToSave.vehicleImageFiles.map((file) => file.rawValue) : snapshotToSave[field]) !== JSON.stringify(baselineTicket[field])) : [],
         collaborationBaseUpdatedAt: (savedTicket ?? loadedTicket)?.updatedAt ?? null,
         id: savedTicket?.id ?? editingTicketId,
         lines: snapshotToSave.lines.map((line) => ({
@@ -1563,6 +1640,7 @@ export function WeightTicketFormCore({
           deductionValue: Number(line.deductionValue || 0),
           grossWeight: Number(line.grossWeight || 0),
           id: line.id,
+          version: line.version,
           imageNames: getLineEvidenceImagesForState(snapshotToSave, line).map((file) => file.rawValue),
           impurityId: getLineImpurityId(line),
           impurityProductId: line.impurityProductId ?? '',
@@ -1600,6 +1678,7 @@ export function WeightTicketFormCore({
   }
 
   function changeLineProduct(lineId: string, productId: string) {
+    changedLineIdsRef.current.add(lineId)
     setMergeNotice('')
     setForm((current) => {
       const targetLine = current.lines.find((line) => line.id === lineId)
@@ -1792,13 +1871,15 @@ export function WeightTicketFormCore({
             .filter((line) => line.parentId === lineId && line.impuritySourceLineId)
             .map((line) => line.impuritySourceLineId),
         ].filter((id): id is string => Boolean(id))
+        const nextLines = current.lines
+          .filter((line) => line.id !== lineId && line.parentId !== lineId && !childIds.includes(line.impuritySourceLineId ?? ''))
+          .map((line) => purchaseSourceIds.includes(line.id)
+            ? { ...line, impurityPurchaseAction: 'none' as const }
+            : line)
+        current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).forEach((line) => changedLineIdsRef.current.add(line.id))
         return {
           ...current,
-          lines: current.lines
-            .filter((line) => line.id !== lineId && line.parentId !== lineId && !childIds.includes(line.impuritySourceLineId ?? ''))
-            .map((line) => purchaseSourceIds.includes(line.id)
-              ? { ...line, impurityPurchaseAction: 'none' as const }
-              : line),
+          lines: nextLines,
         }
       }
 
@@ -1813,6 +1894,7 @@ export function WeightTicketFormCore({
         .map((line) => purchaseSourceIds.includes(line.id)
           ? { ...line, impurityPurchaseAction: 'none' as const }
           : line)
+      current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).forEach((line) => changedLineIdsRef.current.add(line.id))
       return {
         ...current,
         lines: nextLines,
@@ -1875,6 +1957,7 @@ export function WeightTicketFormCore({
   }
 
   function removeLot(lotId: string) {
+    changedLineIdsRef.current.add(lotId)
     setForm((current) => ({
       ...current,
       lines: current.lines.filter((line) => line.id !== lotId),
@@ -2114,10 +2197,34 @@ export function WeightTicketFormCore({
       await waitForPendingAttachmentUploads()
       const formToSave = formRef.current
       const saveSnapshot = formSafetySnapshot(formToSave)
+      const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
+      const baselineTicket = savedTicket ?? loadedTicket
+      const baselineLineIds = Array.from(baselineLines.keys())
+      const deletedLineIds = baselineLineIds.filter((lineId) => !formToSave.lines.some((line) => line.id === lineId))
+      const changedLineIds = new Set(changedLineIdsRef.current)
+      deletedLineIds.forEach((lineId) => changedLineIds.add(lineId))
+      formToSave.lines.forEach((line) => {
+        const baseline = baselineLines.get(line.id)
+        const currentFingerprint = collaborationLineSnapshot(line, getLineEvidenceImages(line).map((file) => file.rawValue))
+        const baselineFingerprint = baseline ? collaborationLineSnapshot(baseline, baseline.imageNames) : null
+        if (!baseline || currentFingerprint !== baselineFingerprint) changedLineIds.add(line.id)
+      })
       const ticket = await saveWeightTicket({
         branchId: formToSave.branchId,
         collaborationBaseDocumentNo: (savedTicket ?? loadedTicket)?.documentNo,
-        collaborationBaseLineIds: formToSave.lines.map((line) => line.id),
+        collaborationBaseLineIds: baselineLineIds,
+        collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
+        collaborationChangedLineIds: Array.from(changedLineIds),
+        collaborationDeletedLineIds: deletedLineIds,
+        collaborationBaseHeader: baselineTicket ? {
+          branchId: baselineTicket.branchId,
+          partyId: baselineTicket.partyId,
+          remark: baselineTicket.remark,
+          vehicleImageNames: baselineTicket.vehicleImageNames,
+          vehicleNo: baselineTicket.vehicleNo,
+          godownName: baselineTicket.godownName,
+        } : undefined,
+        collaborationChangedHeaderFields: baselineTicket ? (['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const).filter((field) => JSON.stringify(field === 'vehicleImageNames' ? formToSave.vehicleImageFiles.map((file) => file.rawValue) : formToSave[field]) !== JSON.stringify(baselineTicket[field])) : [],
         collaborationBaseUpdatedAt: (savedTicket ?? loadedTicket)?.updatedAt ?? null,
         id: savedTicket?.id ?? editingTicketId,
         lines: formToSave.lines.map((line) => ({
@@ -2126,6 +2233,7 @@ export function WeightTicketFormCore({
           deductionValue: Number(line.deductionValue || 0),
           grossWeight: Number(line.grossWeight || 0),
           id: line.id,
+          version: line.version,
           imageNames: getLineEvidenceImages(line).map((file) => file.rawValue),
           impurityId: getLineImpurityId(line),
           impurityProductId: line.impurityProductId ?? '',
@@ -2147,6 +2255,8 @@ export function WeightTicketFormCore({
       const nextForm = ticketToFormState(ticket)
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
+      changedLineIdsRef.current.clear()
+      setRemoteChangedLineIds(new Set())
       if (formSafetySnapshot(formRef.current) === saveSnapshot) {
         setForm(nextForm)
         setFormBaseline(formSafetySnapshot(nextForm))
@@ -2160,6 +2270,9 @@ export function WeightTicketFormCore({
         router.push(`/daily/weight-ticket-list?type=${ticket.type}`)
       }
     } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 409) {
+        setMergeNotice('ข้อมูลชนกันในเต๋าที่กำลังแก้ ระบบไม่เขียนทับข้อมูลของผู้ใช้อื่น กรุณาโหลดข้อมูลล่าสุดแล้วตรวจสอบก่อนบันทึกอีกครั้ง')
+      }
       if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
         setTouched((current) => ({ ...current, ...nextTouched }))
       }
@@ -2306,7 +2419,7 @@ export function WeightTicketFormCore({
         </div>
       ) : null}
       {mergeNotice ? (
-        <div className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
+        <div role="status" aria-live="polite" className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
           {mergeNotice}
         </div>
       ) : null}
@@ -2468,6 +2581,7 @@ export function WeightTicketFormCore({
                         || errors[`line-${id}-warehouse`]
                         || errors[`line-${id}-deduction`],
                       )
+                      const hasRemoteUpdate = allRelatedIds.some((id) => remoteChangedLineIds.has(id))
                       const active = activeLine?.id === line.id
 
                       return (
@@ -2497,6 +2611,7 @@ export function WeightTicketFormCore({
                                 </div>
                                 <div className="flex shrink-0 items-center gap-2">
                                   {hasError ? <span className="rounded-md bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">ไม่ครบ</span> : null}
+                                  {hasRemoteUpdate ? <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">มีข้อมูลใหม่</span> : null}
                                   <span className="text-xs font-semibold text-blue-700">แก้ไข</span>
                                 </div>
                               </div>
@@ -2722,6 +2837,7 @@ export function WeightTicketFormCore({
                                       <ChevronDown className={cn("size-4 shrink-0 text-slate-500 transition-transform", isCollapsed ? "-rotate-90" : "rotate-0")} />
                                       <div className="min-w-0">
                                         <span className="block truncate text-sm font-bold text-slate-800" id={`weight-ticket-lot-title-${lot.id}`}>รายละเอียดเต๋าที่ {lotIndex + 1}</span>
+                                        {remoteChangedLineIds.has(lot.id) ? <span className="mt-0.5 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">มีข้อมูลใหม่จากผู้ใช้อื่น</span> : null}
                                         {showLotSummary ? (
                                           <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500">
                                             <span>รวม {formatWeight(lotGrossWeight)} กก.</span>

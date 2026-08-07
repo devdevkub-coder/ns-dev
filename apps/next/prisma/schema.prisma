@@ -3372,6 +3372,9 @@ model weight_ticket_lines {
   image_count                         Int                                  @default(0)
   image_names                         String[]                             @default([])
   created_at                          DateTime                             @default(now()) @db.Timestamptz(6)
+  updated_at                          DateTime                             @default(now()) @db.Timestamptz(6)
+  updated_by                          String?
+  version                             Int                                  @default(1)
   id                                  BigInt                               @id @default(autoincrement())
   impurity_id                         BigInt?
   product_id                          BigInt
@@ -3389,6 +3392,7 @@ model weight_ticket_lines {
 
   @@unique([weight_ticket_id, line_no], map: "uq_weight_ticket_lines_ticket_line")
   @@index([weight_ticket_id, impurity_source_line_no], map: "idx_weight_ticket_lines_impurity_source_line")
+  @@index([weight_ticket_id, id, version], map: "idx_weight_ticket_lines_ticket_version")
   @@index([weight_ticket_id, parent_line_no], map: "idx_weight_ticket_lines_parent_line")
   @@index([impurity_id], map: "idx_weight_ticket_lines_impurity")
   @@index([product_id], map: "idx_weight_ticket_lines_product")

@@ -44,6 +44,16 @@ import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/lin
 
 export const runtime = 'nodejs'
 
+class WeightTicketCollaborationConflictError extends Error {
+  readonly status = 409
+  readonly code = 'CONFLICT'
+
+  constructor(readonly lineIds: string[], readonly headerFields: string[] = []) {
+    super(headerFields.length ? 'มีผู้ใช้อื่นแก้ไขข้อมูลส่วนหัวแล้ว กรุณาโหลดข้อมูลล่าสุดก่อนบันทึก' : 'มีผู้ใช้อื่นแก้ไขเต๋าเดียวกันแล้ว กรุณาโหลดข้อมูลล่าสุดก่อนบันทึก')
+    this.name = 'WeightTicketCollaborationConflictError'
+  }
+}
+
 const ticketInclude = {
   branches: true,
   customers: true,
@@ -104,6 +114,7 @@ function persistedLineToFormLine(
     deductionValue: Number(line.deduction_value),
     grossWeight: Number(line.gross_weight),
     id: String(line.id),
+    version: line.version ?? 1,
     imageNames: line.image_names ?? [],
     impurityId: line.impurity_id == null
       ? isOtherProductImpurityLabel(line.impurity_name) ? OTHER_PRODUCT_IMPURITY_ID : ''
@@ -290,6 +301,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const collaborationBaseUpdatedAt = values.collaborationBaseUpdatedAt ?? null
     const collaborationBaseLineIds = new Set(values.collaborationBaseLineIds ?? [])
+    const collaborationBaseLineVersions = values.collaborationBaseLineVersions ?? {}
+    const collaborationChangedLineIds = new Set(values.collaborationChangedLineIds ?? values.lines.map((line) => line.id))
+    const collaborationDeletedLineIds = new Set(values.collaborationDeletedLineIds ?? [])
     const ticketId = existing.id
     const updated = await prisma.$transaction(async (tx) => {
       // Every ticket mutation uses the same lock and then re-reads lifecycle
@@ -357,11 +371,42 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         collaborationBaseUpdatedAt
         && collaborationBaseUpdatedAt !== (collaborationCurrentUpdatedAt?.toISOString() ?? null),
       )
-      if (hasRemoteLineChanges && !isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
+      // Collaboration-aware saves must keep immutable line IDs even when this
+      // request is the first writer after the shared baseline. Falling back to
+      // delete-and-recreate here would invalidate another user's in-progress
+      // line IDs and make the next save unable to merge safely.
+      const hasCollaborationBaseline = values.collaborationBaseLineVersions !== undefined
+      const headerFields = ['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const
+      const currentPartyId = String(existing.doc_type === 'WTI' ? existing.supplier_id : existing.customer_id)
+      const currentHeader = {
+        branchId: String(existing.branch_id),
+        partyId: currentPartyId,
+        remark: existing.remark ?? '',
+        vehicleImageNames: existing.vehicle_image_names ?? [],
+        vehicleNo: existing.vehicle_no ?? '',
+        godownName: existing.godown_name ?? '',
+      }
+      const conflictingHeaderFields = hasRemoteLineChanges && values.collaborationBaseHeader
+        ? headerFields.filter((field) => values.collaborationChangedHeaderFields?.includes(field) && JSON.stringify(currentHeader[field]) !== JSON.stringify(values.collaborationBaseHeader?.[field]))
+        : []
+      if (conflictingHeaderFields.length) throw new WeightTicketCollaborationConflictError([], conflictingHeaderFields)
+      if (
+        !isDeliveredWtoEdit &&
+        !shouldRebuildWtoPendingOut &&
+        (hasRemoteLineChanges || hasCollaborationBaseline)
+      ) {
         // Multiple users may be editing the same draft. Use immutable DB line
         // ids when available, while accepting the previous docNo:lineNo ids
         // from an already-open tab during the transition.
         const latestLines = existing.weight_ticket_lines
+        const conflictingLineIds = latestLines
+          .filter((line) => collaborationChangedLineIds.has(String(line.id)))
+          .filter((line) => {
+            const baseVersion = collaborationBaseLineVersions[String(line.id)]
+            return baseVersion == null || line.version !== baseVersion
+          })
+          .map((line) => String(line.id))
+        if (conflictingLineIds.length) throw new WeightTicketCollaborationConflictError(conflictingLineIds)
         const latestLineByClientId = new Map<string, (typeof latestLines)[number]>()
         latestLines.forEach((line) => {
           latestLineByClientId.set(String(line.id), line)
@@ -374,6 +419,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           const incomingLine = values.lines.find((valueLine) => latestLineByClientId.get(valueLine.id)?.id === line.id)
           return [line.line_no, incomingLine?.id ?? String(line.id)] as const
         }))
+        const latestLineById = new Map(latestLines.map((line) => [String(line.id), line] as const))
+        const mergeLine = (valueLine: (typeof values.lines)[number]) => {
+          if (collaborationChangedLineIds.has(valueLine.id)) return valueLine
+          const latestLine = latestLineById.get(valueLine.id)
+          return latestLine ? persistedLineToFormLine(latestLine, lineIdByLineNo) : null
+        }
         const incomingExistingIds = new Set(
           values.lines
             .map((line) => latestLineByClientId.get(line.id)?.id)
@@ -388,7 +439,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         effectiveValues = {
           ...values,
           lines: [
-            ...values.lines,
+            ...values.lines.map(mergeLine).filter((line): line is (typeof values.lines)[number] => line != null),
             ...remoteOnlyLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo)),
           ],
         }
@@ -430,14 +481,22 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           productId: line.productId,
         })))
         const removedLineIds = latestLines
-          .filter((line) => wasInBase(line) && !incomingExistingIds.has(line.id))
+          .filter((line) => collaborationDeletedLineIds.size > 0
+            ? collaborationDeletedLineIds.has(String(line.id))
+            : wasInBase(line) && !incomingExistingIds.has(line.id))
           .map((line) => line.id)
         if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
         await Promise.all(effectiveLineRows.map(async (data, index) => {
           const valueLine = effectiveValues.lines[index]
           const currentLine = latestLineByClientId.get(valueLine.id)
           if (currentLine) {
-            await tx.weight_ticket_lines.update({ data, where: { id: currentLine.id } })
+            const isChanged = collaborationChangedLineIds.has(String(currentLine.id))
+            await tx.weight_ticket_lines.update({
+              data: isChanged
+                ? { ...data, updated_at: new Date(), updated_by: actor, version: { increment: 1 } }
+                : data,
+              where: { id: currentLine.id },
+            })
           } else {
             await tx.weight_ticket_lines.create({ data })
           }
@@ -607,7 +666,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
+    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: mapped.lines.map((line) => line.id) })
     return NextResponse.json({
       ...mapped,
     })
@@ -615,6 +674,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
+    }
+    if (caught instanceof WeightTicketCollaborationConflictError) {
+      return NextResponse.json({ code: caught.code, error: caught.message, headerFields: caught.headerFields, lineIds: caught.lineIds }, { status: caught.status })
     }
     return apiErrorResponse(caught, 'แก้ไขใบรับ-ส่งของไม่ได้', 400)
   }

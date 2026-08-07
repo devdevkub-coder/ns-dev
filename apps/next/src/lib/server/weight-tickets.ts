@@ -985,6 +985,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     // Persisted line identity must survive document renumbering and branch
     // changes. The DB line id is immutable; line_no remains presentation/order.
     id: String(line.id),
+    version: line.version ?? 1,
     imageCount: line.image_count ?? 0,
     imageNames: line.image_names ?? [],
     impurityId: line.impurity_id == null
