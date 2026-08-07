@@ -674,7 +674,7 @@ const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumn
   { key: 'paymentDocs', defaultWidth: 150, minWidth: 120 },
   { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'outstanding', defaultWidth: 110, minWidth: 90 },
-  { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
+  { key: 'updatedBy', defaultWidth: 180, minWidth: 140 },
   { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
@@ -3707,7 +3707,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     )}
                   </td>
                 ) : null}
-                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-xs font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
+                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700" title={row.updatedBy || row.createdBy || ''}>
+                  <div className="mx-auto max-w-[155px] truncate font-semibold text-slate-900">{formatUserDisplayName(row.updatedBy || row.createdBy)}</div>
+                  <div className="text-xs font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div>
+                </td>
                 {mode === 'purchase' ? (
                   <td className="whitespace-nowrap p-2 text-center">
                     <TableActionButton menu={(
@@ -5789,7 +5792,21 @@ function formatDateTime(value?: string) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok' })
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear() + 543
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${day}/${month}/${year} ${hours}:${minutes}`
+}
+
+function formatUserDisplayName(value?: string | null) {
+  if (!value || value === '-') return '-'
+  if (value.includes('@')) {
+    const prefix = value.split('@')[0]
+    return prefix || value
+  }
+  return value
 }
 
 function SortHeader({ activeKey, align, className, direction, label, onSort, resizeProps, sortKey }: { activeKey: SortKey; align: 'center' | 'left' | 'right'; className?: string; direction: SortDirection; label: string; onSort: (key: SortKey) => void; resizeProps?: ButtonHTMLAttributes<HTMLButtonElement>; sortKey: SortKey }) {
