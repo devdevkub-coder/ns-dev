@@ -33,6 +33,31 @@ type MenuSearchResult = {
 
 const PAGE_TITLE_EVENT = 'ns-scrap-erp-page-title'
 
+function isRetryableAuthResponse(response: Response) {
+  return response.status === 429 || response.status >= 500
+}
+
+function waitForAuthRetry(attempt: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 350 * (attempt + 1))
+  })
+}
+
+async function fetchAuthContextWithRetry() {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'include' })
+      if (response.ok || response.status === 401 || !isRetryableAuthResponse(response) || attempt === 2) return response
+      await waitForAuthRetry(attempt)
+    } catch (caught) {
+      if (attempt === 2) throw caught
+      await waitForAuthRetry(attempt)
+    }
+  }
+
+  throw new Error('ไม่สามารถตรวจสอบบัญชีผู้ใช้งานได้')
+}
+
 function normalizeAuthRoles(value: unknown): AuthContextSummary['roles'] {
   if (!Array.isArray(value)) return []
   return value
@@ -157,7 +182,7 @@ export function AppShell({ children }: AppShellProps) {
 
     async function loadAuthContext() {
       try {
-        const response = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'include' })
+        const response = await fetchAuthContextWithRetry()
         const payload = await response.json().catch(() => null)
 
         if (mounted && response.ok) {

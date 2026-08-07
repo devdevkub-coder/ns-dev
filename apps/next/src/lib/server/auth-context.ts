@@ -190,8 +190,22 @@ export async function getSupabaseServerClient() {
 export async function getCurrentAuthContext(): Promise<AppAuthContext> {
   const supabase = await getSupabaseServerClient()
   const {
-    data: { user },
+    data: { user: verifiedUser },
+    error: authError,
   } = await supabase.auth.getUser()
+
+  // Keep an unexpired browser session usable during a transient Auth API
+  // failure. This is a resilience fallback, not a bypass for missing or
+  // expired sessions.
+  let user = verifiedUser
+  if (authError && !user) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    const sessionIsUsable = Boolean(session?.user)
+      && (session?.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000))
+    if (sessionIsUsable) user = session?.user ?? null
+  }
 
   if (!user) {
     throw new AuthContextError('กรุณาเข้าสู่ระบบ', 401)

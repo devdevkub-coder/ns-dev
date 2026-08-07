@@ -45,6 +45,10 @@
 
 - Next login page exists at `/login`.
 - Login currently uses Supabase Auth email/password through `@supabase/ssr`.
+
+### Session resilience checkpoint 2026-08-07
+
+Protected requests still verify Supabase Auth and enforce session expiry. When Auth temporarily fails but the request carries an unexpired session, the proxy and server auth context now use that session as a bounded resilience fallback instead of immediately blocking the page. `/api/auth/me` retries transient `429/5xx` responses, and browser login completion no longer signs out a session solely because of a transient server or network failure. Missing or expired sessions remain denied; this separates operational slowness from real authentication failure without making unauthenticated requests public.
 - Next `proxy.ts` protects pages/API with `supabase.auth.getUser()`.
 - Current route/API gate is admin-only:
   - reads `public.user_profiles.role`

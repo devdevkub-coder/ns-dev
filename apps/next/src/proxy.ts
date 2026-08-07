@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import type { Session } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { permissionCodesForPath } from '@/lib/navigation'
 import { applyAuthResponseHeaders } from '@/lib/proxy-auth-headers'
@@ -23,6 +24,11 @@ function jsonError(message: string, status: number) {
 function authErrorResponse(source: NextResponse, target: NextResponse) {
   applyAuthResponseHeaders(source.headers, target.headers)
   return target
+}
+
+function hasUsableSession(session: Session | null) {
+  if (!session?.user) return false
+  return session.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000)
 }
 
 function isPasswordChangeAllowedPath(pathname: string) {
@@ -64,11 +70,22 @@ export async function proxy(request: NextRequest) {
   })
 
   const {
-    data: { user },
+    data: { user: verifiedUser },
     error: authError,
   } = await supabase.auth.getUser()
 
-  if (authError) {
+  // Supabase Auth can temporarily fail while the browser still has a valid,
+  // non-expired session cookie. Keep the request usable in that case; the
+  // session expiry is still enforced and a missing/expired session is denied.
+  let user = verifiedUser
+  if (authError && !user) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (hasUsableSession(session)) user = session?.user ?? null
+  }
+
+  if (authError && !user) {
     return authErrorResponse(response, pathname.startsWith('/api/')
       ? jsonError('ตรวจสอบ session ไม่สำเร็จ', 401)
       : loginRedirect(request))

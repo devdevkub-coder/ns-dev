@@ -53,15 +53,26 @@ describe('browser login completion contract', () => {
     expect(signOut).toHaveBeenCalledTimes(1)
   })
 
-  it('signs out and shows a network-safe message for transport failure', async () => {
+  it('keeps the local session on a transient server failure', async () => {
+    const signOut = vi.fn().mockResolvedValue(undefined)
+
+    await expect(completeBrowserLoginSession({
+      expectedAuthUserId: 'auth-user-id',
+      fetchImpl: vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'timeout' }), { status: 503 })),
+      signOut,
+    })).resolves.toEqual({ ok: false, message: 'ระบบกำลังตอบสนองช้า กรุณากดเข้าสู่ระบบอีกครั้ง' })
+    expect(signOut).not.toHaveBeenCalled()
+  })
+
+  it('keeps the local session on a transport failure', async () => {
     const signOut = vi.fn().mockResolvedValue(undefined)
 
     await expect(completeBrowserLoginSession({
       expectedAuthUserId: 'auth-user-id',
       fetchImpl: vi.fn().mockRejectedValue(new Error('network down')),
       signOut,
-    })).resolves.toEqual({ ok: false, message: 'เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' })
-    expect(signOut).toHaveBeenCalledTimes(1)
+    })).resolves.toEqual({ ok: false, message: 'ระบบกำลังตอบสนองช้า กรุณากดเข้าสู่ระบบอีกครั้ง' })
+    expect(signOut).not.toHaveBeenCalled()
   })
 
   it('rejects a successful response bound to a different auth user', async () => {
