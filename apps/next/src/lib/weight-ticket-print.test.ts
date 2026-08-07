@@ -223,6 +223,11 @@ function countPdfPages(buffer: Buffer) {
   return buffer.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length ?? 0
 }
 
+const TEST_PNG_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+)
+
 function emptyDraftTicket(type: 'WTI' | 'WTO'): WeightTicketRecord {
   return {
     ...ticket,
@@ -355,15 +360,28 @@ describe('weight ticket print HTML', () => {
     expect(sevenImageHtml).toContain('หน้า 3 / 3')
   })
 
-  it('keeps PDF attachment pagination aligned with the six-image A4 contract', () => {
-    const sixImagePdf = WeightTicketDocument({ profile, ticket: ticketWithAttachmentCount(6) })
-    expect(Children.count((sixImagePdf.props as { children?: ReactNode }).children)).toBe(2)
+  it('keeps rendered PDF attachment pagination aligned with the six-image A4 contract', async () => {
+    const originalFetch = globalThis.fetch
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url.includes('storage.example')) {
+        return new Response(TEST_PNG_BYTES, { headers: { 'content-type': 'image/png' } })
+      }
+      return originalFetch(input, init)
+    }))
 
-    const sevenImagePdf = WeightTicketDocument({ profile, ticket: ticketWithAttachmentCount(7) })
-    expect(Children.count((sevenImagePdf.props as { children?: ReactNode }).children)).toBe(3)
-    expect(nodeText(sevenImagePdf)).toContain('#6')
-    expect(nodeText(sevenImagePdf)).toContain('#7')
-  })
+    try {
+      await ensurePdfFontsRegistered()
+
+      const sixImagePdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithAttachmentCount(6) }))
+      expect(countPdfPages(Buffer.from(sixImagePdf))).toBe(2)
+
+      const sevenImagePdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithAttachmentCount(7) }))
+      expect(countPdfPages(Buffer.from(sevenImagePdf))).toBe(3)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }, 120_000)
 
   it('uses the complete ticket totals in Weight Info when impurity is purchased as another product', () => {
     const html = buildReceiptPrintHtml(ticket, profile)
