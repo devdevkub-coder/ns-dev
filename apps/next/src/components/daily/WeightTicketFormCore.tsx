@@ -2974,6 +2974,7 @@ export function WeightTicketFormCore({
                 const isPurchaseOnlyLine = isImpurityPurchaseLine(line)
                 const realLotSummary = calculateRealLotSummary(line, form.lines)
                 const canAddImpurityLine = hasSelectedProduct && realLotSummary.lotCount > 0
+                const impurityChildLines = form.lines.filter((entry) => entry.parentId === line.id && entry.deductionMode !== 'none')
                 const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(line, form.lines)
                 const boughtImpurityTotal = boughtImpurityLinesForLine.reduce((sum, entry) => sum + calculateAdjustedLineTotals(entry.sourceLine, lineCalculation).deductionWeight, 0)
                 const purchaseOnlyNote = isPurchaseOnlyLine && boughtImpurityLinesForLine.length > 0
@@ -3067,11 +3068,22 @@ export function WeightTicketFormCore({
                         <WeightTicketWtoFormSection product={productSectionProps} warehouse={warehouseSectionProps} />
                       )}
 
-                      {/* รายการเต๋าสินค้า */}
-                      <div className="mt-4 border-t border-slate-200/60 pt-4">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">เต๋าสินค้า</div>
-                        </div>
+                        {/* รายการเต๋าสินค้า */}
+                        <div className="mt-4 border-t border-slate-200/60 pt-4">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">เต๋าสินค้า</div>
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              disabled={!hasSelectedProduct || isPurchaseOnlyLine}
+                              onClick={() => addSameProductLot(line)}
+                              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white outline-none hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400"
+                            >
+                              <Plus className="size-4" />
+                              เพิ่มเต๋า
+                            </Button>
+                          </div>
                         {!hasSelectedProduct ? (
                           <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
                             เลือกสินค้าก่อน จึงจะกรอกน้ำหนัก เพิ่มเต๋า และแนบรูปได้
@@ -3207,22 +3219,11 @@ export function WeightTicketFormCore({
                           <div className="flex flex-wrap justify-end gap-2">
                             <Button
                               type="button"
-                              variant="default"
-                              size="sm"
-                              disabled={!hasSelectedProduct}
-                              onClick={() => addSameProductLot(line)}
-                              className="hidden h-9 bg-blue-600 px-3 text-sm font-semibold text-white outline-none hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 xl:inline-flex"
-                            >
-                              <Plus className="size-4" />
-                              เพิ่มเต๋า
-                            </Button>
-                            <Button
-                              type="button"
                               variant="outline"
                               size="sm"
-                              disabled={isLoadingTicket || isSaving || !hasSelectedProduct || !line.version}
+                              disabled={isLoadingTicket || isSaving || !hasSelectedProduct}
                               onClick={() => void saveSection(line.id)}
-                              className="h-9 border-emerald-300 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:bg-slate-100 disabled:text-slate-400"
+                              className="hidden h-9 border-emerald-300 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:bg-slate-100 disabled:text-slate-400 xl:inline-flex"
                             >
                               บันทึก section นี้
                             </Button>
@@ -3304,16 +3305,18 @@ export function WeightTicketFormCore({
                       <div className="mt-4 border-t border-slate-200/60 pt-4">
                         <div className="flex items-center justify-between gap-4 mb-2">
                           <div className="text-sm font-bold text-slate-700 uppercase tracking-wider">สิ่งเจือปน</div>
-                          <Button
-                            type="button"
-                            variant="default"
-                            disabled={!canAddImpurityLine}
-                            onClick={() => addImpurityLine(line)}
-                            className="hidden items-center justify-center gap-1.5 h-9 rounded-md text-sm font-semibold px-3 outline-none text-white bg-red-600 hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400 xl:flex"
-                          >
-                            <Plus className="h-4 w-4" />
-                            เพิ่มรายการหักสิ่งเจือปน
-                          </Button>
+                          {impurityChildLines.length > 0 ? (
+                            <Button
+                              type="button"
+                              variant="default"
+                              disabled={!canAddImpurityLine}
+                              onClick={() => addImpurityLine(line)}
+                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-sm font-semibold text-white outline-none hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400"
+                            >
+                              <Plus className="h-4 w-4" />
+                              เพิ่มสิ่งเจือปน
+                            </Button>
+                          ) : null}
                         </div>
                         {!canAddImpurityLine ? (
                           <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
@@ -3322,11 +3325,21 @@ export function WeightTicketFormCore({
                         ) : null}
 
                         {(() => {
-                          const childLines = form.lines.filter((l) => l.parentId === line.id && l.deductionMode !== 'none')
+                          const childLines = impurityChildLines
                           if (childLines.length === 0) {
                             return (
-                              <div className="text-center py-4 text-sm font-medium text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 mt-2">
-                                ไม่มีการหักสิ่งเจือปนสำหรับรายการนี้
+                              <div className="mt-2 flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-sm font-medium text-slate-400">
+                                <span>ไม่มีการหักสิ่งเจือปนสำหรับรายการนี้</span>
+                                <Button
+                                  type="button"
+                                  variant="default"
+                                  disabled={!canAddImpurityLine}
+                                  onClick={() => addImpurityLine(line)}
+                                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-sm font-semibold text-white outline-none hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                >
+                                  <Plus className="size-4" />
+                                  เพิ่มสิ่งเจือปน
+                                </Button>
                               </div>
                             )
                           }
@@ -3645,34 +3658,23 @@ export function WeightTicketFormCore({
                       })()}
                     </div>
                     <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 xl:hidden">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid gap-2">
                         <Button
-                          className="h-10 bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400"
-                          disabled={!activeLine.productId || isImpurityPurchaseLine(activeLine)}
+                          className="h-10 border-emerald-600 bg-emerald-600 text-sm font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                          disabled={isLoadingTicket || isSaving || !activeLine.productId}
                           type="button"
-                          onClick={() => addSameProductLot(activeLine)}
+                          onClick={() => void saveSection(activeLine.id)}
                         >
-                          <Plus className="mr-1.5 size-4" />
-                          เพิ่มเต๋า
-                        </Button>
-                        <Button
-                          className="h-10 border-red-600 bg-red-600 text-sm font-semibold text-white hover:border-red-700 hover:bg-red-700 hover:text-white disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                          disabled={!activeLine.productId || calculateRealLotSummary(activeLine, form.lines).lotCount === 0}
-                          type="button"
-                          variant="outline"
-                          onClick={() => addImpurityLine(activeLine)}
-                        >
-                          <Plus className="mr-1.5 size-4" />
-                          เพิ่มสิ่งเจือปน
+                          บันทึก section นี้
                         </Button>
                         {getMainParentLines(form.lines).length > 1 ? (
                           <Button
-                            className="col-span-2 h-9 border-rose-200 bg-white text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                            className="h-9 border-rose-200 bg-white text-xs font-semibold text-rose-700 hover:bg-rose-50"
                             size="sm"
                             type="button"
                             variant="outline"
                             onClick={() => {
-                              const nextLineId = getMainParentLines(form.lines).find((line) => line.id !== activeLine.id)?.id
+                              const nextLineId = getMainParentLines(form.lines).find((entry) => entry.id !== activeLine.id)?.id
                               if (!nextLineId) return
                               closeMobileProductEditor(nextLineId, () => {
                                 setActiveLineId(nextLineId)

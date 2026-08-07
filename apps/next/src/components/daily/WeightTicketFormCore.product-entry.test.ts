@@ -197,7 +197,11 @@ describe('weight-ticket mobile product workspace contract', () => {
 
   it('uses the requested action colors and gives each lot a distinct detail section', () => {
     expect(formSource).toContain('border-emerald-600 bg-emerald-600')
-    expect(formSource).toContain('border-red-600 bg-red-600')
+    expect(formSource).toContain('bg-red-600')
+    expect(formSource).toContain('บันทึก section นี้')
+    expect(formSource).not.toContain('!hasSelectedProduct || !line.version')
+    expect(formSource).toContain('!hasSelectedProduct || isPurchaseOnlyLine')
+    expect(formSource).toContain('impurityChildLines.length > 0')
     expect(formSource).toContain('data-testid={`weight-ticket-lot-${lot.id}`}')
     expect(formSource).toContain('รายละเอียดเต๋าที่ {lotIndex + 1}')
     expect(formSource).toContain('border-slate-300 bg-white p-3 shadow-sm')
