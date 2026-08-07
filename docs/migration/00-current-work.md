@@ -33,6 +33,12 @@ Latest connection UX checkpoint 2026-08-06: แท็บ `การเชื่�
 - UI desktop/mobile ใช้คำว่า `รายการ`, แสดงหน่วย `กก.`/`บาท`, ใช้ตาราง/รายละเอียดที่สอดคล้องกับ design baseline, แสดงสถานะ reversed ด้วยพื้นหลัง/ขอบแทนการลด opacity และไม่แสดงค่า `mixed` ดิบ
 - ปรับชื่อผู้ใช้ให้เป็น `สมุดรายวันจัดสรรต้นทุน` ใน sidebar, workflow, related link, filter และข้อความ API ที่เกี่ยวข้อง
 
+Latest Plane Issue #195 checkpoint (2026-08-07):
+- ปรับปรุงตารางหลักในหน้าสมุดรายวันจัดสรรต้นทุน: เปลี่ยน `วันที่บันทึก` ➔ `วันที่ตามเอกสาร`, เพิ่มคอลัมน์ `ผู้ซื้อ` (`customerName`) และ `ผู้บันทึกข้อมูล` (`allocatedBy`), ตัดคอลัมน์ `กลุ่มต้นทุน` ออกจากตารางหลัก.
+- ปรับปรุงตารางย่อย (Row Expansion) และ Modal รายละเอียด (`LedgerMatchedCostDetails`): แสดงผล `ชื่อผู้ขาย` (`supplierName`) ของล๊อตต้นทุนนั้นๆ สั้นกระชับ สอดคล้องกับมาตรฐาน UI.
+- อัปเดต Excel export ให้ครอบคลุมคอลัมน์ `Customer` และ `Supplier`.
+- Verified 0 type-check errors, 16/16 Vitest tests passed. Pushed commit `ec1d1818` to `sit-origin/main` and updated Plane Issue #195 to `wait for test` with full Thai completion summary comment.
+
 Expected write areas: API ledger/reverse, Allocation Ledger client, shared naming/navigation, targeted tests และ flow note ของหน้า
 
 Required validation: focused Vitest, full lint, type-check, production build และ `git diff --check`; browser UAT ยังไม่ทำเพราะผู้ใช้ยังไม่ได้สั่งทดสอบและ session ใน Codex Browser อยู่หน้า login

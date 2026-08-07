@@ -22,6 +22,7 @@ const LEDGER_SORT_KEYS = new Set<LedgerSortKey>([
   'allocatedRevenue',
   'costPerKg',
   'costPoolNo',
+  'customerName',
   'date',
   'gpPct',
   'grossProfit',
@@ -31,6 +32,7 @@ const LEDGER_SORT_KEYS = new Set<LedgerSortKey>([
   'saleDocNo',
   'saleQty',
   'status',
+  'supplierName',
   'targetType',
   'totalCost',
 ])
@@ -73,12 +75,14 @@ function getLedgerGroupSortValue(group: LedgerMatchGroup, key: LedgerSortKey): s
     case 'allocatedAt': return first.allocatedAt
     case 'allocatedBy': return first.allocatedBy
     case 'costPoolNo': return first.costPoolNo
+    case 'customerName': return first.customerName
     case 'date': return first.date
     case 'matchId': return group.matchId
     case 'productCategory': return first.productCategory
     case 'productName': return first.productName
     case 'saleDocNo': return first.saleDocNo
     case 'status': return first.status
+    case 'supplierName': return first.supplierName
     case 'targetType': return first.targetType
   }
 }
@@ -137,10 +141,12 @@ async function buildWorkbook(rows: LedgerExportRow[]) {
     MatchId: row.matchId,
     Type: row.targetType,
     SaleDoc: row.saleDocNo,
+    Customer: row.customerName,
     Product: row.productName,
     Category: row.productCategory,
     SaleQty: row.saleQty,
     AllocatedQty: row.allocatedQty,
+    Supplier: row.supplierName,
     CostPool: row.costPoolNo,
     CostPerKg: row.costPerKg,
     TotalCost: row.totalCost,
