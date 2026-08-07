@@ -1869,15 +1869,12 @@ export function WeightTicketFormCore({
     const sourceLineIndex = form.lines.findIndex((line) => line.id === sourceLine.id)
     const firstHeaderError = ['branchId', 'partyId', 'vehicleNo', 'godownName'].find((key) => errors[key])
     const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
-    const hasBlockingLineError = form.lines.length > 0
-      && Boolean(firstLineError)
-      && !form.lines.some((line) => !line.productId)
     // Auto-save must not block the local lot editor. Only the explicit final
     // save may prevent a new lot from being added because it replaces the form
     // with the persisted response when it completes.
     const isFinalSaveInFlight = saveInFlightRef.current === 'save'
-    if (firstHeaderError || hasBlockingLineError || isFinalSaveInFlight || isLoadingTicket) {
-      if (firstHeaderError || hasBlockingLineError) void saveDraftBeforeAdding()
+    if (firstHeaderError || isFinalSaveInFlight || isLoadingTicket) {
+      if (firstHeaderError) void saveDraftBeforeAdding()
       return
     }
     if (shouldIgnoreRapidAdd(`lot:${sourceLine.id}`)) return
@@ -1901,29 +1898,25 @@ export function WeightTicketFormCore({
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setPendingFocusField(`line-${nextLine.id}-gross`)
 
-    const draftSave = saveDraftBeforeAdding(draftSnapshot)
-    void draftSave.then((savedForm) => {
-      if (!savedForm) return
-      const persistedSourceLine = resolvePersistedWeightTicketLotSource(sourceLine, savedForm.lines, sourceLineIndex)
-      if (!persistedSourceLine || persistedSourceLine.id === sourceLine.id) return
-      const lineIdMap = { [sourceLine.id]: persistedSourceLine.id }
+    if (!firstLineError) {
+      const draftSave = saveDraftBeforeAdding(draftSnapshot)
+      void draftSave.then((savedForm) => {
+        if (!savedForm) return
+        const persistedSourceLine = resolvePersistedWeightTicketLotSource(sourceLine, savedForm.lines, sourceLineIndex)
+        if (!persistedSourceLine || persistedSourceLine.id === sourceLine.id) return
+        const lineIdMap = { [sourceLine.id]: persistedSourceLine.id }
 
-      setForm((current) => ({
-        ...current,
-        lines: remapWeightTicketLineIds(current.lines, lineIdMap),
-      }))
-      setCollapsedLotIds((current) => {
-        return remapWeightTicketLineState(current, lineIdMap)
+        setForm((current) => ({
+          ...current,
+          lines: remapWeightTicketLineIds(current.lines, lineIdMap),
+        }))
+        setCollapsedLotIds((current) => remapWeightTicketLineState(current, lineIdMap))
+        setCollapsedImpurityIds((current) => remapWeightTicketLineState(current, lineIdMap))
+        setTouched((current) => remapWeightTicketLineState(current, lineIdMap))
+        setPendingFocusField((current) => current ? remapWeightTicketLineKey(current, lineIdMap) : current)
+        setActiveLineId((current) => current === sourceLine.id ? persistedSourceLine.id : current)
       })
-      setCollapsedImpurityIds((current) => {
-        return remapWeightTicketLineState(current, lineIdMap)
-      })
-      setTouched((current) => {
-        return remapWeightTicketLineState(current, lineIdMap)
-      })
-      setPendingFocusField((current) => current ? remapWeightTicketLineKey(current, lineIdMap) : current)
-      setActiveLineId((current) => current === sourceLine.id ? persistedSourceLine.id : current)
-    })
+    }
   }
 
   function changeLineWarehouse(lineId: string, warehouseId: string, warehouse: WtoStockWarehouseOption | null | undefined) {
@@ -2550,7 +2543,7 @@ export function WeightTicketFormCore({
         }))
         sectionLineIdSet.forEach((lineId) => changedLineIdsRef.current.delete(lineId))
         deletedIds.forEach((lineId) => deletedLineIdsRef.current.delete(lineId))
-        setMergeNotice('บันทึก section นี้แล้ว รายการ section อื่นยังคงแก้ไขต่อได้')
+        setMergeNotice('บันทึกสินค้านี้แล้ว รายการสินค้าอื่นยังคงแก้ไขต่อได้')
       } else {
         setMergeNotice('บันทึก section เดิมแล้ว แต่มีการแก้ไขเพิ่มระหว่างบันทึก จึงคงข้อมูลใหม่ไว้ให้ตรวจสอบ')
       }
@@ -2947,7 +2940,13 @@ export function WeightTicketFormCore({
                             <Pencil className="size-4 shrink-0 text-blue-600" />
                             <h3>{activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
                           </div>
-                          <p className="mt-1 text-xs font-medium text-slate-500">รายการ {getMainParentLines(form.lines).findIndex((entry) => entry.id === activeLine.id) + 1}</p>
+                          <div className="mt-1 flex min-w-0 items-center gap-2">
+                            <p className="shrink-0 text-xs font-medium text-slate-500">รายการ {getMainParentLines(form.lines).findIndex((entry) => entry.id === activeLine.id) + 1}</p>
+                            <span aria-hidden="true" className="shrink-0 text-xs text-slate-300">·</span>
+                            <div className="min-w-0 truncate text-sm font-semibold text-slate-700">
+                              {products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
+                            </div>
+                          </div>
                         </div>
                         <Button
                           aria-label="ปิดหน้ากรอกสินค้า"
@@ -2959,9 +2958,6 @@ export function WeightTicketFormCore({
                         >
                           <X className="size-5" />
                         </Button>
-                      </div>
-                      <div className="mt-3 min-w-0 truncate text-sm font-semibold text-slate-700">
-                        {products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
                       </div>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-3 py-3 xl:contents">
@@ -3072,17 +3068,6 @@ export function WeightTicketFormCore({
                         <div className="mt-4 border-t border-slate-200/60 pt-4">
                           <div className="mb-2 flex items-center justify-between gap-3">
                             <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">เต๋าสินค้า</div>
-                            <Button
-                              type="button"
-                              variant="default"
-                              size="sm"
-                              disabled={!hasSelectedProduct || isPurchaseOnlyLine}
-                              onClick={() => addSameProductLot(line)}
-                              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white outline-none hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400"
-                            >
-                              <Plus className="size-4" />
-                              เพิ่มเต๋า
-                            </Button>
                           </div>
                         {!hasSelectedProduct ? (
                           <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
@@ -3215,6 +3200,23 @@ export function WeightTicketFormCore({
                           })()}
                         </div>
 
+                        {!isPurchaseOnlyLine ? (
+                          <div className="mt-3 flex justify-end">
+                            <Button
+                              data-testid={`weight-ticket-add-lot-${line.id}`}
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              disabled={!hasSelectedProduct || isLoadingTicket}
+                              onClick={() => addSameProductLot(line)}
+                              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white outline-none hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 sm:w-auto"
+                            >
+                              <Plus className="size-4" />
+                              เพิ่มเต๋า
+                            </Button>
+                          </div>
+                        ) : null}
+
                         <div className="mt-3 flex justify-end">
                           <div className="flex flex-wrap justify-end gap-2">
                             <Button
@@ -3225,7 +3227,7 @@ export function WeightTicketFormCore({
                               onClick={() => void saveSection(line.id)}
                               className="hidden h-9 border-emerald-300 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:bg-slate-100 disabled:text-slate-400 xl:inline-flex"
                             >
-                              บันทึก section นี้
+                              บันทึกสินค้านี้
                             </Button>
                           </div>
                         </div>
@@ -3665,7 +3667,7 @@ export function WeightTicketFormCore({
                           type="button"
                           onClick={() => void saveSection(activeLine.id)}
                         >
-                          บันทึก section นี้
+                          บันทึกสินค้านี้
                         </Button>
                         {getMainParentLines(form.lines).length > 1 ? (
                           <Button
