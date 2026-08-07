@@ -59,6 +59,7 @@ type LedgerRow = {
   costPerKg: number
   costPoolLotNo: string | null
   costPoolNo: string
+  customerName?: string
   date: string
   dealId: string
   gpPct: number
@@ -72,6 +73,7 @@ type LedgerRow = {
   saleQty: number
   sourceNo: string
   status: string
+  supplierName?: string
   targetLineNo: number | null
   targetRefId: string | null
   targetSourceType: 'po-sell' | 'production' | 'spot-sell'
@@ -83,7 +85,7 @@ type LedgerMatchGroup = LedgerRow & {
   rows: LedgerRow[]
 }
 
-type LedgerColumnKey = 'action' | 'allocatedAt' | 'allocatedBy' | 'allocatedQty' | 'costPerKg' | 'costPoolNo' | 'gpPct' | 'grossProfit' | 'matchId' | 'productCategory' | 'productName' | 'saleDocNo' | 'saleQty' | 'allocatedRevenue' | 'status' | 'targetType' | 'totalCost'
+type LedgerColumnKey = 'action' | 'allocatedAt' | 'allocatedBy' | 'allocatedQty' | 'costPerKg' | 'costPoolNo' | 'customerName' | 'gpPct' | 'grossProfit' | 'matchId' | 'productCategory' | 'productName' | 'saleDocNo' | 'saleQty' | 'allocatedRevenue' | 'status' | 'supplierName' | 'targetType' | 'totalCost'
 
 type TabPayload = {
   rows: WaitingRow[]
@@ -757,15 +759,16 @@ function AllocationLedgerView() {
 
   const ledgerColumns = useMemo<Array<ResizableColumnDefinition<LedgerColumnKey> & { align?: 'center' | 'left' | 'right'; className?: string; label: string }>>(() => [
     { key: 'matchId', label: 'เลขที่การจับคู่', defaultWidth: 145, minWidth: 135, align: 'center' },
-    { key: 'allocatedAt', label: 'วันที่บันทึก', defaultWidth: 105, minWidth: 95, align: 'center' },
+    { key: 'allocatedAt', label: 'วันที่ตามเอกสาร', defaultWidth: 105, minWidth: 95, align: 'center' },
     { key: 'saleDocNo', label: 'เอกสารขาย', defaultWidth: 125, minWidth: 110, align: 'center' },
+    { key: 'customerName', label: 'ผู้ซื้อ', defaultWidth: 140, minWidth: 120, align: 'left', className: 'ns-table-textual-column' },
     { key: 'productName', label: 'สินค้า', defaultWidth: 180, minWidth: 150, align: 'left', className: 'ns-table-textual-column' },
     { key: 'allocatedQty', label: 'น้ำหนักจัดสรร (กก.)', defaultWidth: 130, minWidth: 115, align: 'right' },
-    { key: 'costPoolNo', label: 'กลุ่มต้นทุน', defaultWidth: 125, minWidth: 110, align: 'center' },
     { key: 'costPerKg', label: 'ต้นทุน/กก. (บาท)', defaultWidth: 120, minWidth: 110, align: 'right' },
     { key: 'totalCost', label: 'ต้นทุนรวม (บาท)', defaultWidth: 120, minWidth: 110, align: 'right' },
     { key: 'allocatedRevenue', label: 'รายได้ (บาท)', defaultWidth: 115, minWidth: 105, align: 'right' },
     { key: 'grossProfit', label: 'กำไรขั้นต้น (บาท)', defaultWidth: 140, minWidth: 125, align: 'right' },
+    { key: 'allocatedBy', label: 'ผู้บันทึกข้อมูล', defaultWidth: 130, minWidth: 110, align: 'left', className: 'ns-table-textual-column' },
     { key: 'status', label: 'สถานะ', defaultWidth: 100, minWidth: 90, align: 'center' },
     { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
@@ -796,6 +799,8 @@ function AllocationLedgerView() {
     const categories = unique((row) => row.productCategory)
     const costPools = unique((row) => row.costPoolNo)
     const allocators = unique((row) => row.allocatedBy)
+    const customers = unique((row) => row.customerName || '-')
+    const suppliers = unique((row) => row.supplierName || row.sourceNo || row.costPoolNo)
     const statuses = unique((row) => row.status)
     return {
       ...first,
@@ -812,6 +817,8 @@ function AllocationLedgerView() {
       productCategory: categories.length === 1 ? categories[0] : 'หลายหมวด',
       costPoolNo: costPools.length === 1 ? costPools[0] : `${costPools.length} กลุ่มต้นทุน`,
       allocatedBy: allocators.length === 1 ? allocators[0] : `${allocators.length} ผู้จัดสรร`,
+      customerName: customers.length === 1 ? customers[0] : `${customers.length} ผู้ซื้อ`,
+      supplierName: suppliers.length === 1 ? suppliers[0] : `${suppliers.length} ผู้ขาย`,
       saleQty: matchRows.reduce((sum, row) => sum + row.saleQty, 0),
       status: statuses.length === 1 ? statuses[0] : 'mixed',
       rows: matchRows,
@@ -1126,6 +1133,9 @@ function AllocationLedgerView() {
                     <span className="block truncate font-mono text-xs text-slate-700" title={row.saleDocNo}>{row.saleDocNo}</span>
                     <span className="mt-1 flex justify-center"><TargetPill type={row.targetType} /></span>
                   </TableCell>
+                  <TableCell className="ns-table-textual-column p-3 text-left text-xs text-slate-800">
+                    <span className="block truncate font-medium" title={row.customerName}>{row.customerName || '-'}</span>
+                  </TableCell>
                   <TableCell className="ns-table-textual-column p-3 text-left text-sm text-slate-800">
                     <span className="block truncate" title={row.productName}>{row.productName}</span>
                     <span className="mt-0.5 block truncate text-xs text-slate-500">{row.productCategory}</span>
@@ -1136,7 +1146,6 @@ function AllocationLedgerView() {
                     </button>
                     <span className="mt-0.5 block text-[11px] font-normal text-slate-500">จาก {formatMoney(row.saleQty)} กก.</span>
                   </TableCell>
-                  <TableCell className="p-3 text-center font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
                   <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
                   <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-red-700">{formatMoney(row.totalCost)}</TableCell>
                   <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
@@ -1144,9 +1153,11 @@ function AllocationLedgerView() {
                     {formatMoney(row.grossProfit)}
                     <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{row.gpPct.toFixed(2)}%</span>
                   </TableCell>
+                  <TableCell className="ns-table-textual-column p-3 text-left text-xs text-slate-700">
+                    <span className="block truncate" title={row.allocatedBy}>{row.allocatedBy}</span>
+                  </TableCell>
                   <TableCell className="p-3 text-center">
                     <span className="flex justify-center"><LedgerStatusText status={row.status} /></span>
-                    <span className="mt-0.5 block truncate text-xs text-slate-500" title={row.allocatedBy}>{row.allocatedBy}</span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap p-3 text-center" onClick={(event) => event.stopPropagation()}>
                     <div className="flex justify-center">
@@ -1171,13 +1182,13 @@ function AllocationLedgerView() {
                         </div>
                         <div className="overflow-x-auto">
                           <table className="ns-table min-w-[980px] w-full text-xs">
-                            <thead className="border-b border-slate-200 bg-slate-100 text-slate-500"><tr><th className="whitespace-nowrap p-2 text-center">เอกสารขาย</th><th className="whitespace-nowrap p-2 text-left">สินค้า</th><th className="whitespace-nowrap p-2 text-center">กลุ่มต้นทุน</th><th className="whitespace-nowrap p-2 text-right">น้ำหนักจัดสรร (กก.)</th><th className="whitespace-nowrap p-2 text-right">ต้นทุนรวม (บาท)</th><th className="whitespace-nowrap p-2 text-center">สถานะ</th><th className="whitespace-nowrap p-2 text-center">จัดการ</th></tr></thead>
+                            <thead className="border-b border-slate-200 bg-slate-100 text-slate-500"><tr><th className="whitespace-nowrap p-2 text-center">เอกสารขาย</th><th className="whitespace-nowrap p-2 text-left">สินค้า</th><th className="whitespace-nowrap p-2 text-left">ชื่อผู้ขาย</th><th className="whitespace-nowrap p-2 text-right">น้ำหนักจัดสรร (กก.)</th><th className="whitespace-nowrap p-2 text-right">ต้นทุนรวม (บาท)</th><th className="whitespace-nowrap p-2 text-center">สถานะ</th><th className="whitespace-nowrap p-2 text-center">จัดการ</th></tr></thead>
                             <tbody className="divide-y divide-slate-100">
                               {row.rows.map((detail) => (
                                 <tr key={detail.id}>
                                    <td className="whitespace-nowrap p-3 text-center font-mono text-slate-700">{detail.saleDocNo}<div className="mt-1 flex justify-center"><TargetPill type={detail.targetType} /></div></td>
                                    <td className="p-3 text-left text-slate-700">{detail.productName}<div className="text-xs text-slate-500">{detail.productCategory}</div></td>
-                                   <td className="whitespace-nowrap p-3 text-center font-mono text-slate-700">{detail.costPoolNo}<div className="text-xs text-slate-500">{formatMoney(detail.costPerKg)} บาท/กก.</div></td>
+                                   <td className="p-3 text-left font-sans text-slate-800"><span className="block truncate font-medium" title={detail.supplierName || detail.sourceNo}>{detail.supplierName || detail.sourceNo || '-'}</span><div className="text-xs font-mono text-slate-500">{detail.costPoolNo} · {formatMoney(detail.costPerKg)} บาท/กก.</div></td>
                                    <td className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-blue-700">{formatMoney(detail.allocatedQty)} กก.</td>
                                    <td className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-red-700">{formatMoney(detail.totalCost)} บาท</td>
                                    <td className="whitespace-nowrap p-3 text-center"><LedgerStatusText status={detail.status} /></td>
@@ -1771,8 +1782,9 @@ function LedgerMatchedCostDetails({ rows }: { rows: LedgerRow[] }) {
             </div>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-100 pt-3 text-xs md:grid-cols-4">
               <div>
-                <div className="text-slate-500">กลุ่มต้นทุน</div>
-                <div className="mt-0.5 truncate font-mono font-medium text-slate-800" title={row.costPoolNo}>{row.costPoolNo}</div>
+                <div className="text-slate-500">ชื่อผู้ขาย</div>
+                <div className="mt-0.5 truncate font-sans font-medium text-slate-800" title={row.supplierName || row.sourceNo}>{row.supplierName || row.sourceNo || '-'}</div>
+                <div className="font-mono text-[11px] text-slate-500">{row.costPoolNo}</div>
               </div>
               <div className="text-right md:text-left">
                 <div className="text-slate-500">จำนวนที่จับคู่</div>
