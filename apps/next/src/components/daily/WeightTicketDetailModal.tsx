@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import Image from 'next/image'
-import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, Share2, SquarePen, XCircle, CheckCircle2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, Share2, SquarePen, XCircle, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -129,13 +129,14 @@ export function WeightTicketDetailModal({
   const [cancelError, setCancelError] = useState('')
   const [isCanceling, setIsCanceling] = useState(false)
   const { begin: beginSaveStage, end: endSaveStage, isSaving: isConfirming, stage: saveStage } = useWeightTicketSaveProgress()
-  const [previewImage, setPreviewImage] = useState<{ fileName: string; url: string } | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [lineGallery, setLineGallery] = useState<{
     activeIndex: number
     images: Array<{ contextTitle?: string; fileName: string; url: string }>
     title: string
   } | null>(null)
+  const [galleryZoom, setGalleryZoom] = useState(1)
+  const activeThumbnailRef = useRef<HTMLButtonElement | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [shareNote, setShareNote] = useState('')
   const [shareError, setShareError] = useState('')
@@ -353,6 +354,23 @@ export function WeightTicketDetailModal({
 
   const activeGalleryImage = lineGallery?.images[lineGallery.activeIndex] ?? null
 
+  useEffect(() => {
+    setGalleryZoom(1)
+    const thumbnail = activeThumbnailRef.current
+    if (thumbnail && typeof thumbnail.scrollIntoView === 'function') {
+      thumbnail.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    }
+  }, [lineGallery?.activeIndex])
+
+  function openImageGallery(payload: {
+    activeIndex: number
+    images: Array<{ contextTitle?: string; fileName: string; url: string }>
+    title: string
+  }) {
+    setGalleryZoom(1)
+    setLineGallery(payload)
+  }
+
   return (
     <>
     <Dialog open onOpenChange={(open) => {
@@ -531,7 +549,7 @@ export function WeightTicketDetailModal({
                   </div>
                   <div>
                     <div className="mb-2 text-sm font-semibold text-slate-500">รูปภาพรถส่งของ</div>
-                    <ImageGrid images={vehicleImages} onOpen={(image) => setPreviewImage(image)} />
+                    <ImageGrid images={vehicleImages} onOpen={openImageGallery} />
                   </div>
                 </div>
               </Card>
@@ -543,7 +561,7 @@ export function WeightTicketDetailModal({
                   </div>
                   <WeightTicketProductBreakdownTable
                     ticket={ticket}
-                    onOpenLineGallery={setLineGallery}
+                    onOpenLineGallery={openImageGallery}
                   />
                 </Card>
               </div>
@@ -554,7 +572,7 @@ export function WeightTicketDetailModal({
                 downloadImageNames={ticket.imageNames}
                 imageNames={lineImageNames}
                 isLoadingPreview={isLoadingImagePreview}
-                onOpen={(gallery) => setLineGallery(gallery)}
+                onOpen={openImageGallery}
                 previewError={imagePreviewError}
               />
 
@@ -781,34 +799,6 @@ export function WeightTicketDetailModal({
 
         </div>
 
-        {previewImage && (
-          <Dialog open onOpenChange={(open) => {
-            if (!open) setPreviewImage(null)
-          }}>
-            <DialogContent hideClose className="max-w-4xl rounded-md !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
-              <DialogHeader className="rounded-t-md">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <DialogTitle>รูปภาพแนบ</DialogTitle>
-                    <DialogDescription className="truncate">{previewImage.fileName}</DialogDescription>
-                  </div>
-                  <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 px-4 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => setPreviewImage(null)}>ปิด</Button>
-                </div>
-              </DialogHeader>
-              <div className="overflow-hidden bg-slate-950 p-4">
-                <Image
-                  alt={previewImage.fileName}
-                  className="max-h-[70vh] w-full object-contain"
-                  height={1200}
-                  src={previewImage.url}
-                  unoptimized
-                  width={1600}
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-
         {lineGallery && activeGalleryImage && (
           <Dialog open onOpenChange={(open) => {
             if (!open) setLineGallery(null)
@@ -825,16 +815,49 @@ export function WeightTicketDetailModal({
                   <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 px-4 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => setLineGallery(null)}>ปิด</Button>
                 </div>
               </DialogHeader>
-              <div className="space-y-4 p-4 bg-slate-950">
-                <div className="relative flex h-[min(65vh,48rem)] w-full items-center justify-center overflow-hidden rounded-md bg-slate-950">
+              <div className="space-y-4 bg-slate-950 p-4">
+                <div
+                  className="relative flex h-[min(65vh,48rem)] w-full items-center justify-center overflow-hidden rounded-md bg-slate-950"
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowLeft' && lineGallery.images.length > 1) {
+                      setLineGallery((current) => current ? ({ ...current, activeIndex: current.activeIndex === 0 ? current.images.length - 1 : current.activeIndex - 1 }) : current)
+                    }
+                    if (event.key === 'ArrowRight' && lineGallery.images.length > 1) {
+                      setLineGallery((current) => current ? ({ ...current, activeIndex: current.activeIndex === current.images.length - 1 ? 0 : current.activeIndex + 1 }) : current)
+                    }
+                  }}
+                  tabIndex={0}
+                >
                   <Image
                     alt={activeGalleryImage.fileName}
-                    className="object-contain"
+                    className="object-contain transition-transform duration-200"
                     fill
                     src={activeGalleryImage.url}
+                    style={{ transform: `scale(${galleryZoom})` }}
                     unoptimized
                     sizes="(max-width: 768px) 100vw, 80vw"
                   />
+                  <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/60 p-1">
+                    <button
+                      aria-label="ย่อรูปภาพ"
+                      className="inline-flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={galleryZoom <= 1}
+                      type="button"
+                      onClick={() => setGalleryZoom((current) => Math.max(1, Number((current - 0.25).toFixed(2))))}
+                    >
+                      <ZoomOut className="size-4" />
+                    </button>
+                    <span className="min-w-12 text-center text-xs font-medium text-white">{Math.round(galleryZoom * 100)}%</span>
+                    <button
+                      aria-label="ขยายรูปภาพ"
+                      className="inline-flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={galleryZoom >= 3}
+                      type="button"
+                      onClick={() => setGalleryZoom((current) => Math.min(3, Number((current + 0.25).toFixed(2))))}
+                    >
+                      <ZoomIn className="size-4" />
+                    </button>
+                  </div>
                   {lineGallery.images.length > 1 ? (
                     <>
                       <button
@@ -871,6 +894,7 @@ export function WeightTicketDetailModal({
                           index === lineGallery.activeIndex ? 'border-blue-500 ring-1 ring-blue-200' : 'border-slate-200 hover:border-slate-300',
                         )}
                         key={`${image.fileName}-${index}`}
+                        ref={index === lineGallery.activeIndex ? activeThumbnailRef : null}
                         type="button"
                         onClick={() => setLineGallery((current) => current ? ({ ...current, activeIndex: index }) : current)}
                       >
@@ -987,7 +1011,7 @@ function ImageGrid({
   onOpen,
 }: {
   images: StoredImageAsset[]
-  onOpen: (image: { fileName: string; url: string }) => void
+  onOpen: (payload: { activeIndex: number; images: Array<{ fileName: string; url: string }>; title: string }) => void
 }) {
   if (images.length === 0) {
     return <div className="text-sm text-slate-400">ยังไม่มีรูปภาพ</div>
@@ -995,6 +1019,7 @@ function ImageGrid({
 
   const previewable = images.filter(isPreviewableStoredImageAsset)
   const unavailableCount = images.length - previewable.length
+  const galleryImages = previewable.map(({ fileName, url }) => ({ fileName, url }))
 
   return (
     <div className="space-y-3">
@@ -1005,7 +1030,7 @@ function ImageGrid({
               className="overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
               key={`${image.rawValue}-${index}`}
               type="button"
-              onClick={() => onOpen({ fileName: image.fileName, url: image.url })}
+              onClick={() => onOpen({ activeIndex: index, images: galleryImages, title: 'รูปภาพรถส่งของ' })}
             >
               <div className="relative aspect-[4/3] bg-slate-200">
                 <Image alt={image.fileName} className="object-cover" fill sizes="(max-width: 768px) 50vw, 20vw" src={image.url} unoptimized />
