@@ -21,3 +21,11 @@ export function availableStockForTransferCancel(input: {
 }) {
   return input.ledgerIn - input.ledgerOut - input.heldQty
 }
+
+/**
+ * Quantity that can be transferred from posted stock.
+ * Pending-in quantities such as unbilled WTI are intentionally excluded.
+ */
+export function availableStockForTransfer(input: { qty: number; onHoldQty: number }) {
+  return Math.max(0, input.qty - input.onHoldQty)
+}

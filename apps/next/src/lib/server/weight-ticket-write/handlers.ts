@@ -15,6 +15,17 @@ type PartyReference = {
 type WarehouseMap = Awaited<ReturnType<typeof resolveWtoWarehousesForLines>>
 type CreatedWeightTicketLine = Parameters<typeof createActiveWtoPendingOut>[1]['lines'][number]
 
+export async function lockWeightTicketStockBuckets(tx: TxClient, input: {
+  branchId: bigint
+  lineRows: Array<{ product_id: bigint; warehouse_id: bigint | null }>
+}) {
+  const keys = [...new Set(input.lineRows
+    .filter((line) => line.warehouse_id != null)
+    .map((line) => `stock.${input.branchId.toString()}.${line.warehouse_id!.toString()}.${line.product_id.toString()}`))]
+    .sort()
+  for (const key of keys) await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${key}))`
+}
+
 export function weightTicketPartySnapshot(input: {
   customer: PartyReference
   supplier: PartyReference

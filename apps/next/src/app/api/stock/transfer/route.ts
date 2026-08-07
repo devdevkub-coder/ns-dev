@@ -9,7 +9,7 @@ import { currentActor, documentBranchCode, normalizeDate, toBangkokDateOnly, toD
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveWarehouses, listProductReferences } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot } from '@/lib/server/stock'
-import { availableStockForTransferCancel, normalizeNotAvailableForSale, normalizeStockTransferCancelReason } from '@/lib/stock-transfer-cancel'
+import { availableStockForTransfer, availableStockForTransferCancel, normalizeNotAvailableForSale, normalizeStockTransferCancelReason } from '@/lib/stock-transfer-cancel'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 
 export const runtime = 'nodejs'
@@ -224,9 +224,10 @@ async function allocateSourceBuckets(input: {
     warehouseId: input.warehouseId,
   })
   const buckets = snapshot.rows
-    .filter((row) => !row.notAvailable && row.readyQty > 0)
+    .map((row) => ({ ...row, transferableQty: availableStockForTransfer({ onHoldQty: row.onHoldQty, qty: row.qty }) }))
+    .filter((row) => !row.notAvailable && row.transferableQty > 0)
     .sort((left, right) => left.lastDate.localeCompare(right.lastDate) || left.lotNo.localeCompare(right.lotNo) || left.status.localeCompare(right.status))
-  const availableQty = buckets.reduce((sum, row) => sum + row.readyQty, 0)
+  const availableQty = buckets.reduce((sum, row) => sum + row.transferableQty, 0)
   if (input.requestedQty > availableQty + 0.000001) return { availableQty, rows: [] }
 
   let remaining = input.requestedQty
@@ -236,7 +237,7 @@ async function allocateSourceBuckets(input: {
     if (!(bucket.avgCost > 0)) {
       throw new Error(`หา WAC ต้นทางของสินค้า ${input.productCode} ไม่ได้`)
     }
-    const qty = Math.min(remaining, bucket.readyQty)
+    const qty = Math.min(remaining, bucket.transferableQty)
     rows.push({
       lineValue: qty * bucket.avgCost,
       lotNo: bucket.lotNo || null,
@@ -634,7 +635,8 @@ async function buildSourceStockPreview(url: URL) {
   }>()
 
   for (const row of snapshot.rows) {
-    if (row.notAvailable || row.readyQty <= 0) continue
+    const transferableQty = availableStockForTransfer({ onHoldQty: row.onHoldQty, qty: row.qty })
+    if (row.notAvailable || transferableQty <= 0) continue
     const current = byProduct.get(row.productId) ?? {
       productCode: row.productCode,
       productId: row.productId,
@@ -644,8 +646,8 @@ async function buildSourceStockPreview(url: URL) {
       sourceValue: 0,
     }
     current.qty += row.qty
-    current.readyQty += row.readyQty
-    current.sourceValue += row.readyQty * row.avgCost
+    current.readyQty += transferableQty
+    current.sourceValue += transferableQty * row.avgCost
     byProduct.set(row.productId, current)
   }
 

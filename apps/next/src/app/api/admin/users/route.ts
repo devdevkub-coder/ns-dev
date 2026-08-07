@@ -7,12 +7,13 @@ import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches } from '@/lib/server/reference-master-cache'
 import { adminUserEmailSchema, contactPhoneErrorMessage, isValidContactPhone } from './admin-user-form-validation'
-import { AdminUserReferenceError, adminUserReferenceErrorResponse, findBranchReferenceForAccess } from './admin-users-route-helpers'
+import { AdminUserReferenceError, adminUserPermissionOverridesSchema, adminUserReferenceErrorResponse, adminUserBranchAccessModeSchema, assertUserPermissionOverrides, resolveBranchReferencesForUser } from './admin-users-route-helpers'
 
 export const runtime = 'nodejs'
 
 const adminUserFormSchema = z.object({
   active: z.boolean().default(true),
+  branchAccessMode: adminUserBranchAccessModeSchema,
   branchIds: z.array(z.string().min(1)).default([]),
   contactLineId: z.string().trim().max(120, 'LINE ID ยาวเกินไป').optional().default(''),
   contactNote: z.string().trim().max(500, 'หมายเหตุ contact ยาวเกินไป').optional().default(''),
@@ -25,6 +26,7 @@ const adminUserFormSchema = z.object({
   namePrefix: z.enum(['', 'นาย', 'นาง', 'นางสาว', 'คุณ'], { message: 'คำนำหน้าชื่อไม่ถูกต้อง' }).optional().default(''),
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
     .refine((value) => !value || /^https?:\/\//i.test(value), 'URL รูป profile ต้องขึ้นต้นด้วย http:// หรือ https://'),
+  permissionOverrides: adminUserPermissionOverridesSchema,
   roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).min(1, 'เลือกหน้าที่งานอย่างน้อย 1 รายการ'),
 })
 
@@ -70,7 +72,7 @@ function displayNameFromProfile(values: { email: string; firstName: string; last
 function parseRoleIds(roleIds: string[]) {
   const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
 
-  if (parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
+  if (!parsed.length || parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
     throw new AdminUserReferenceError('Role ที่เลือกไม่ถูกต้อง')
   }
 
@@ -89,12 +91,13 @@ async function assertUserRefs(
   roleIds: string[],
   branchIds: string[],
   departmentId: string,
+  branchAccessMode?: 'all' | 'selected',
 ) {
   const parsedRoleIds = parseRoleIds(roleIds)
   const parsedDepartmentId = parseDepartmentId(departmentId)
-  const [roles, branches, department] = await Promise.all([
+  const [roles, branches, department, activeBranches] = await Promise.all([
     prisma.app_roles.findMany({
-      select: { id: true },
+      select: { branch_scope: true, id: true },
       where: { id: { in: parsedRoleIds }, active: true },
     }),
     findActiveBranchReferencesByCodes(branchIds),
@@ -102,22 +105,28 @@ async function assertUserRefs(
       select: { id: true },
       where: { id: parsedDepartmentId, active: true },
     }),
+    branchAccessMode === 'all' ? listActiveBranches() : Promise.resolve([]),
   ])
 
   if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
     throw new AdminUserReferenceError('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
-  if (branchIds.length && branches.length !== new Set(branchIds).size) {
-    throw new AdminUserReferenceError('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
-  }
+  const hasUnrestrictedRole = roles.some((role) => role.branch_scope.trim().toLowerCase() === 'all')
+  const branchRefs = resolveBranchReferencesForUser({
+    activeBranchRefs: activeBranches,
+    branchAccessMode,
+    branchIds,
+    hasUnrestrictedRole,
+    selectedBranchRefs: branches,
+  })
 
   if (!department) {
     throw new AdminUserReferenceError('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   return {
-    branchRefs: branches,
+    branchRefs,
     departmentId: parsedDepartmentId,
     roleRefIds: parsedRoleIds,
   }
@@ -270,7 +279,13 @@ export async function POST(request: Request) {
     requirePermission(context, 'system.users.create')
 
     const values = adminUserFormSchema.parse(await request.json())
-    const { branchRefs, departmentId, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId)
+    const { branchRefs, departmentId, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId, values.branchAccessMode)
+    const permissionOverrides = values.permissionOverrides === undefined
+      ? null
+      : await assertUserPermissionOverrides(values.permissionOverrides)
+    if (permissionOverrides !== null) {
+      requirePermission(context, 'system.permissions.update')
+    }
     const displayName = displayNameFromProfile(values)
     const existing = await prisma.app_users.findFirst({
       where: {
@@ -312,11 +327,23 @@ export async function POST(request: Request) {
         })),
       })
 
-      if (values.branchIds.length) {
+      if (branchRefs.length) {
         await tx.app_user_branch_access.createMany({
-          data: values.branchIds.map((branchId) => ({
-            branch_id: findBranchReferenceForAccess(branchRefs, branchId).id,
+          data: branchRefs.map((branch) => ({
+            branch_id: branch.id,
             created_by: actor,
+            user_id: created.id,
+          })),
+        })
+      }
+
+      if (permissionOverrides?.length) {
+        await tx.app_user_permission_overrides.createMany({
+          data: permissionOverrides.map((override) => ({
+            created_by: actor,
+            effect: override.effect,
+            permission_id: override.permissionId,
+            updated_by: actor,
             user_id: created.id,
           })),
         })
@@ -331,11 +358,11 @@ export async function POST(request: Request) {
       metadata: {
         accountStatus: user.account_status,
         active: false,
-        branchCount: values.branchIds.length,
+        branchCount: branchRefs.length,
         departmentId: departmentId.toString(),
         displayName,
         roleCount: values.roleIds.length,
-        permissionOverrideCount: 0,
+        permissionOverrideCount: permissionOverrides?.length ?? null,
         email: user.email,
       },
       request,

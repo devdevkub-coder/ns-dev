@@ -18,6 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { sidebarPermissionSections } from '@/lib/navigation'
+import { branchAccessModeForRoleScopes, type AdminUserBranchAccessMode } from './admin-user-branch-access'
 import { z } from 'zod'
 import { contactPhoneErrorMessage, emailErrorMessage, isValidAdminUserEmail, isValidContactPhone, sanitizeAdminUserEmail } from '@/app/api/admin/users/admin-user-form-validation'
 
@@ -219,7 +220,7 @@ type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'department'
 type RoleColumnKey = 'action' | 'active' | 'branchScope' | 'description' | 'name' | 'permissionCount' | 'type' | 'users'
 type SortDirection = 'asc' | 'desc'
 type UserStatusFilter = 'all' | 'active' | 'disabled' | 'pending'
-type BranchAccessMode = 'all' | 'selected'
+type BranchAccessMode = AdminUserBranchAccessMode
 
 const permissionActionLabels: Record<string, string> = {
   create: 'สร้าง',
@@ -393,6 +394,16 @@ function fullName(user: Pick<AdminUser, 'namePrefix' | 'firstName' | 'lastName' 
   return structuredName || user.displayName || '-'
 }
 
+function userHasUnrestrictedBranchAccess(user: AdminUser) {
+  return user.roles.some((role) => role.branchScope.trim().toLowerCase() === 'all')
+}
+
+function userBranchLabel(user: AdminUser) {
+  if (userHasUnrestrictedBranchAccess(user)) return 'ทุกสาขา'
+  if (user.branchIds.length) return user.branches.map((branch) => branch.name).join(', ')
+  return 'ยังไม่กำหนดสาขา'
+}
+
 function userInitials(user: Pick<AdminUser, 'displayName' | 'email' | 'firstName'>) {
   const label = user.firstName || user.displayName || user.email || '-'
   return label.trim().slice(0, 2).toUpperCase()
@@ -409,7 +420,7 @@ function getUserSortValue(user: AdminUser, key: UserColumnKey) {
   if (key === 'email') return user.email ?? ''
   if (key === 'department') return user.department?.name ?? ''
   if (key === 'roles') return user.roles.map((role) => role.name).join(' ')
-  if (key === 'branches') return user.branches.length ? user.branches.map((branch) => branch.name).join(' ') : 'ทุกสาขา'
+  if (key === 'branches') return userBranchLabel(user)
   if (key === 'active') return user.active ? 1 : 0
   if (key === 'lastLoginAt') return user.lastLoginAt ? Date.parse(user.lastLoginAt) || 0 : 0
   return ''
@@ -453,7 +464,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
   const [detailUser, setDetailUser] = useState<AdminUser | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyUserForm)
-  const [branchAccessMode, setBranchAccessMode] = useState<BranchAccessMode>('all')
+  const [branchAccessMode, setBranchAccessMode] = useState<BranchAccessMode>('unset')
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
@@ -536,7 +547,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         user.branches.map((branch) => branch.name).join(' '),
       ].some((value) => String(value ?? '').toLowerCase().includes(query))
       && (roleFilter === 'all' || user.roles.some((role) => role.id === roleFilter))
-      && (branchFilter === 'all' || user.branchIds.length === 0 || user.branchIds.includes(branchFilter))
+      && (branchFilter === 'all' || userHasUnrestrictedBranchAccess(user) || user.branchIds.includes(branchFilter))
       && (departmentFilter === 'all' || user.departmentId === departmentFilter)
       && (statusFilter === 'all' || user.accountStatus === statusFilter)
     ))
@@ -918,6 +929,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   }
 
   function openEditUser(user: AdminUser) {
+    const assignedRoles = user.roles
     const nextForm: UserFormState = {
       active: user.active,
       branchIds: user.branchIds,
@@ -932,15 +944,18 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       namePrefix: user.namePrefix ?? '',
       permissionOverrides: user.permissionOverrides,
       profileImageUrl: user.profileImageUrl ?? '',
-      roleIds: user.roles.map((role) => role.id),
+      roleIds: assignedRoles.map((role) => role.id),
     }
     setEditingUser(user)
     setForm(nextForm)
-    setBranchAccessMode(user.branchIds.length ? 'selected' : 'all')
+    const branchMode: BranchAccessMode = user.branchIds.length
+      ? 'selected'
+      : branchAccessModeForRoleScopes(assignedRoles.map((role) => role.branchScope)) === 'all' ? 'all' : 'unset'
+    setBranchAccessMode(branchMode)
     setProfileImageFile(null)
     setProfileImagePreviewUrl(user.profileImageUrl ?? null)
     setFormError(null)
-    setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove', user.branchIds.length ? 'selected' : 'all'))
+    setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove', branchMode))
     setFormOpen(true)
   }
 
@@ -987,6 +1002,16 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       return
     }
 
+    if (form.roleIds.length < 1) {
+      setFormError('เลือกหน้าที่งาน / Role อย่างน้อย 1 รายการ')
+      return
+    }
+
+    if (branchAccessMode === 'unset') {
+      setFormError('เลือกขอบเขตข้อมูลตามสาขา')
+      return
+    }
+
     if (branchAccessMode === 'selected' && form.branchIds.length === 0) {
       setFormError('เลือกสาขาอย่างน้อย 1 สาขา หรือเลือก “ทุกสาขา”')
       return
@@ -1017,10 +1042,24 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         profileImageUrl = uploadedImage.url
         uploadedProfileImageUrl = uploadedImage.url
       }
+      const body: Omit<UserFormState, 'permissionOverrides'> & { branchAccessMode: 'all' | 'selected'; branchIds: string[]; profileImageUrl: string; permissionOverrides?: UserFormState['permissionOverrides'] } = {
+        ...form,
+        branchAccessMode,
+        branchIds: branchAccessMode === 'all' ? [] : form.branchIds,
+        profileImageUrl,
+      }
+      const sortPermissionOverrides = (items: UserFormState['permissionOverrides']) => [...items].sort(
+        (left, right) => left.permissionId.localeCompare(right.permissionId) || left.effect.localeCompare(right.effect),
+      )
+      const originalPermissionOverrides = sortPermissionOverrides(editingUser?.permissionOverrides ?? [])
+      const currentPermissionOverrides = sortPermissionOverrides(form.permissionOverrides)
+      if (JSON.stringify(originalPermissionOverrides) === JSON.stringify(currentPermissionOverrides)) {
+        delete body.permissionOverrides
+      }
       const response = await fetch(editingUser ? `/api/admin/users/${encodeURIComponent(editingUser.id)}` : '/api/admin/users', {
         method: editingUser ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, branchIds: branchAccessMode === 'all' ? [] : form.branchIds, profileImageUrl }),
+        body: JSON.stringify(body),
       })
       const savedUser = await readJsonResponse(response, saveUserResultSchema, 'บันทึกผู้ใช้ไม่ได้')
 
@@ -1559,7 +1598,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 <div><div className="text-xs text-slate-500 dark:text-slate-400">อีเมล</div><div className="mt-1 break-all font-medium text-slate-800 dark:text-slate-100">{detailUser.email || '-'}</div></div>
                 <div><div className="text-xs text-slate-500 dark:text-slate-400">เบอร์ติดต่อ</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.contactPhone || '-'}</div></div>
                 <div><div className="text-xs text-slate-500 dark:text-slate-400">LINE ID</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.contactLineId || '-'}</div></div>
-                <div><div className="text-xs text-slate-500 dark:text-slate-400">สาขาที่เข้าถึง</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.branches.length ? detailUser.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</div></div>
+                <div><div className="text-xs text-slate-500 dark:text-slate-400">สาขาที่เข้าถึง</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{userBranchLabel(detailUser)}</div></div>
                 <div className="sm:col-span-2"><div className="text-xs text-slate-500 dark:text-slate-400">หมายเหตุการติดต่อ</div><div className="mt-1 whitespace-pre-wrap font-medium text-slate-800 dark:text-slate-100">{detailUser.contactNote || '-'}</div></div>
               </div>
               <div className="flex justify-end">
@@ -1682,6 +1721,44 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </label>
                   </div>
                   <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
+                    <div className="mb-3 border-b border-slate-100 pb-2">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">ขอบเขตข้อมูลตามสาขา <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
+                      <p className="mt-1 text-xs text-slate-500">เลือกให้ตรงกับนโยบายสาขาของ Role ที่เลือก</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                        <input checked={branchAccessMode === 'all'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" name="branch-access-mode" type="radio" onChange={() => { setBranchAccessMode('all'); setForm((current) => ({ ...current, branchIds: [] })) }} />
+                        <span><span className="font-medium">ทุกสาขา</span><span className="block text-xs text-slate-500">ผู้ใช้เห็นข้อมูลได้ทุกสาขา</span></span>
+                      </label>
+                      <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                        <input checked={branchAccessMode === 'selected'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" name="branch-access-mode" type="radio" onChange={() => setBranchAccessMode('selected')} />
+                        <span><span className="font-medium">เฉพาะสาขาที่เลือก</span><span className="block text-xs text-slate-500">จำกัดข้อมูลตามรายการสาขาที่เลือก</span></span>
+                      </label>
+                    </div>
+                    {branchAccessMode === 'selected' ? (
+                      <div className="mt-3 border-t border-slate-100 pt-3">
+                        <div className="mb-2 text-xs font-semibold text-slate-600">เลือกสาขาอย่างน้อย 1 สาขา</div>
+                        <div className="grid gap-2">
+                          {data?.branches.map((branch) => (
+                            <label key={branch.id} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                              <input checked={form.branchIds.includes(branch.id)} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={() => toggleFormArray('branchIds', branch.id)} />
+                              <span>{branch.name}</span><span className="font-mono text-xs text-slate-400">{branch.code}</span>
+                            </label>
+                          ))}
+                          {data?.branches.length === 0 ? <span className="text-sm text-slate-500">ยังไม่มีสาขาที่เปิดใช้งาน</span> : null}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          เลือกแล้ว {form.branchIds.length} สาขา
+                          {data && data.branches.length > 0 && form.branchIds.length === data.branches.length ? ' — ครบทุกสาขาที่เปิดใช้งานตอนนี้ (บันทึกเป็นรายการสาขาที่เลือก)' : ''}
+                        </div>
+                      </div>
+                    ) : branchAccessMode === 'all' ? (
+                      <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">ระบบจะบันทึกเป็นสิทธิ์ทุกสาขาให้อัตโนมัติ</div>
+                    ) : (
+                      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">กรุณาเลือก “ทุกสาขา” หรือ “เฉพาะสาขาที่เลือก”</div>
+                    )}
+                  </div>
+                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลติดต่อ</div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <label className="text-sm font-medium text-slate-700">
@@ -1706,30 +1783,37 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="mb-1 text-sm font-medium text-slate-700">หน้าที่งาน / Role <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
-                    <div className="mb-2 text-xs text-slate-500">ดึงจาก Role ที่ใช้งานอยู่ในหน้า Roles &amp; Permissions และใช้สิทธิ์ของ Role นี้เป็นสิทธิ์ตั้งต้น</div>
-                    <div className="space-y-2">
+                    <div className="mb-1 text-sm font-medium text-slate-700">หน้าที่งาน / Role *</div>
+                    <div className="mb-2 text-xs text-slate-500">เลือกได้มากกว่า 1 Role จากรายการที่เปิดใช้งานอยู่ สิทธิ์จะรวมจากทุก Role ที่เลือก</div>
+                    <div className="grid gap-2">
                       {assignableRoles.map((role) => (
-                        <label key={role.id} className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                        <label key={role.id} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                           <input
                             checked={form.roleIds.includes(role.id)}
                             className="mt-0.5 rounded border-slate-300"
                             type="checkbox"
-                            onChange={() => setForm((current) => ({
-                              ...current,
-                              roleIds: current.roleIds.includes(role.id)
-                                ? current.roleIds.filter((id) => id !== role.id)
-                                : [...current.roleIds, role.id],
-                            }))}
+                            onChange={() => {
+                              const roleIds = form.roleIds.includes(role.id)
+                                ? form.roleIds.filter((id) => id !== role.id)
+                                : [...form.roleIds, role.id]
+                              const selectedRoleScopes = assignableRoles
+                                .filter((candidate) => roleIds.includes(candidate.id))
+                                .map((candidate) => candidate.branchScope)
+                              const nextBranchAccessMode = branchAccessModeForRoleScopes(selectedRoleScopes)
+                              setBranchAccessMode(nextBranchAccessMode)
+                              setForm((current) => ({
+                                ...current,
+                                branchIds: [],
+                                roleIds,
+                              }))
+                            }}
                           />
-                          <span className="min-w-0">
-                            <span className="block font-medium text-slate-800">{role.name}</span>
-                            <span className="block font-mono text-xs text-slate-400">{role.code}</span>
-                          </span>
+                          <span className="min-w-0"><span className="block font-medium text-slate-800">{role.name}</span><span className="block font-mono text-xs text-slate-400">{role.code}</span></span>
                         </label>
                       ))}
                       {assignableRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มี Role ที่ใช้งานได้</p> : null}
                     </div>
+                    {formError && form.roleIds.length < 1 ? <p className="mt-2 text-xs text-red-600">เลือกหน้าที่งาน / Role อย่างน้อย 1 รายการ</p> : null}
                   </div>
 
                   <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
@@ -1767,62 +1851,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </div>
                       ))}
                     </div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="mb-3 border-b border-slate-100 pb-2">
-                      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">ขอบเขตข้อมูลตามสาขา</div>
-                      <p className="mt-1 text-xs text-slate-500">กำหนดว่าผู้ใช้นี้จะเห็นข้อมูลของสาขาใด</p>
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                        <input
-                          checked={branchAccessMode === 'all'}
-                          className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500"
-                          name="branch-access-mode"
-                          type="radio"
-                          onChange={() => {
-                            setBranchAccessMode('all')
-                            setForm((current) => ({ ...current, branchIds: [] }))
-                          }}
-                        />
-                        <span>
-                          <span className="font-medium">ทุกสาขา</span>
-                          <span className="block text-xs text-slate-500">ผู้ใช้เห็นข้อมูลได้ทุกสาขา ไม่ต้องเลือก checkbox ด้านล่าง</span>
-                        </span>
-                      </label>
-                      <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                        <input
-                          checked={branchAccessMode === 'selected'}
-                          className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500"
-                          name="branch-access-mode"
-                          type="radio"
-                          onChange={() => setBranchAccessMode('selected')}
-                        />
-                        <span>
-                          <span className="font-medium">เฉพาะสาขาที่เลือก</span>
-                          <span className="block text-xs text-slate-500">จำกัดข้อมูลตามรายการสาขาที่เลือกด้านล่าง</span>
-                        </span>
-                      </label>
-                    </div>
-                    {branchAccessMode === 'selected' ? (
-                      <div className="mt-3 border-t border-slate-100 pt-3">
-                        <div className="mb-2 text-xs font-semibold text-slate-600">เลือกสาขาอย่างน้อย 1 สาขา</div>
-                        <div className="grid gap-2">
-                          {data?.branches.map((branch) => (
-                            <label key={branch.id} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-                              <input checked={form.branchIds.includes(branch.id)} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={() => toggleFormArray('branchIds', branch.id)} />
-                              <span>{branch.name}</span>
-                              <span className="font-mono text-xs text-slate-400">{branch.code}</span>
-                            </label>
-                          ))}
-                          {data?.branches.length === 0 ? <span className="text-sm text-slate-500">ยังไม่มีสาขาที่เปิดใช้งาน</span> : null}
-                        </div>
-                        <div className="mt-2 text-xs text-slate-500">เลือกแล้ว {form.branchIds.length} สาขา</div>
-                      </div>
-                    ) : (
-                      <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">ระบบจะบันทึกเป็นสิทธิ์ทุกสาขาให้อัตโนมัติ</div>
-                    )}
                   </div>
 
                   {formError ? <p className="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p> : null}
@@ -1996,7 +2024,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <td className="p-3 text-center text-slate-600">{user.email || '-'}</td>
                       <td className="p-3 text-left text-slate-700">{user.department?.name || '-'}</td>
                       <td className="p-3 text-left text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
-                      <td className="p-3 text-left text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
+                      <td className="p-3 text-left text-slate-700">{userBranchLabel(user)}</td>
                       <td className="p-3 text-center">
                         <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => requestUserStatusUpdate(user, checked)} />
                       </td>
@@ -2061,7 +2089,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </div>
                     <div>
                       <span className="text-slate-400 block text-xs uppercase font-semibold">สาขา</span>
-                      <span className="text-slate-700 font-semibold">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</span>
+                      <span className="text-slate-700 font-semibold">{userBranchLabel(user)}</span>
                     </div>
                     <div className="col-span-2 border-t border-slate-50 pt-2">
                       <div>

@@ -9,6 +9,10 @@ function loginContractErrorMessage(status: number | null) {
   return 'ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ กรุณาลองใหม่'
 }
 
+function isTransientLoginFailure(status: number | null) {
+  return status == null || status === 429 || status >= 500
+}
+
 async function signOutLocal(signOut: () => Promise<unknown>) {
   await signOut().catch(() => undefined)
 }
@@ -29,7 +33,10 @@ export async function completeBrowserLoginSession(input: {
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload || typeof payload !== 'object' || !('lastLoginAt' in payload) || typeof payload.lastLoginAt !== 'string') {
-      await signOutLocal(input.signOut)
+      if (!isTransientLoginFailure(response.status)) await signOutLocal(input.signOut)
+      if (isTransientLoginFailure(response.status)) {
+        return { ok: false, message: 'ระบบกำลังตอบสนองช้า กรุณากดเข้าสู่ระบบอีกครั้ง' }
+      }
       return { ok: false, message: loginContractErrorMessage(response.status) }
     }
 
@@ -40,8 +47,7 @@ export async function completeBrowserLoginSession(input: {
 
     return { ok: true, lastLoginAt: payload.lastLoginAt }
   } catch {
-    await signOutLocal(input.signOut)
-    return { ok: false, message: 'เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' }
+    return { ok: false, message: 'ระบบกำลังตอบสนองช้า กรุณากดเข้าสู่ระบบอีกครั้ง' }
   }
 }
 

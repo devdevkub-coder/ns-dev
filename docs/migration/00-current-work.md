@@ -1,3 +1,9 @@
+## Current objective — 2026-08-07
+
+Reduce `/api/auth/me` latency by removing duplicate proxy RPC work and repeated AppShell requests while keeping verified session checks and private no-store responses.
+
+Active batch: bypass proxy RPC only for `/api/auth/me`, load auth context once per AppShell session, remove unverified `getSession()` fallback, then focused auth tests and lint/type-check review before any SIT push.
+
 # WTI/WTO Storage Visibility Boundary — 2026-08-06
 
 Objective: แยก source evidence ของ WTI/WTO ออกจาก outbound artifact ให้ชัดเจน: รูปหลักฐานเก็บใน `WEIGHT_TICKET_IMAGE_BUCKET` แบบ private และ PDF/ภาพอัลบั้มที่สร้างเพื่อส่งต่อเก็บใน `WEIGHT_TICKET_PDF_BUCKET` แบบ public.

@@ -84,6 +84,8 @@ describe('WTI/WTO detail gallery contract', () => {
       expect(source, file).toContain('activeGalleryImage.contextTitle ?? lineGallery.title')
       expect(source, file).toContain('aria-label="รูปก่อนหน้า"')
       expect(source, file).toContain('aria-label="รูปถัดไป"')
+      expect(source, file).toContain('onPointerMove={(event) =>')
+      expect(source, file).toContain('translate(${galleryPan.x}px, ${galleryPan.y}px) scale(${galleryZoom})')
       expect(source, file).toContain('activeIndex: current.activeIndex === 0 ? current.images.length - 1 : current.activeIndex - 1')
       expect(source, file).toContain('activeIndex: current.activeIndex === current.images.length - 1 ? 0 : current.activeIndex + 1')
     })

@@ -5,8 +5,9 @@ import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 import { adminUserEmailSchema, contactPhoneErrorMessage, isValidContactPhone } from '../admin-user-form-validation'
-import { adminUserReferenceErrorResponse } from '../admin-users-route-helpers'
+import { AdminUserReferenceError, adminUserPermissionOverridesSchema, adminUserReferenceErrorResponse, adminUserBranchAccessModeSchema, assertUserPermissionOverrides, resolveBranchReferencesForUser } from '../admin-users-route-helpers'
 
 export const runtime = 'nodejs'
 
@@ -16,6 +17,7 @@ const routeParamsSchema = z.object({
 
 const adminUserFormSchema = z.object({
   active: z.boolean().default(true),
+  branchAccessMode: adminUserBranchAccessModeSchema,
   branchIds: z.array(z.string().min(1)).default([]),
   contactLineId: z.string().trim().max(120, 'LINE ID ยาวเกินไป').optional().default(''),
   contactNote: z.string().trim().max(500, 'หมายเหตุ contact ยาวเกินไป').optional().default(''),
@@ -28,6 +30,7 @@ const adminUserFormSchema = z.object({
   namePrefix: z.enum(['', 'นาย', 'นาง', 'นางสาว', 'คุณ'], { message: 'คำนำหน้าชื่อไม่ถูกต้อง' }).optional().default(''),
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
     .refine((value) => !value || /^https?:\/\//i.test(value), 'URL รูป profile ต้องขึ้นต้นด้วย http:// หรือ https://'),
+  permissionOverrides: adminUserPermissionOverridesSchema,
   roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).min(1, 'เลือกหน้าที่งานอย่างน้อย 1 รายการ'),
 })
 
@@ -38,7 +41,7 @@ type AdminUserRouteProps = {
 function parseAppUserId(value: string) {
   const parsed = parseInternalBigIntId(value)
   if (parsed == null) {
-    throw new Error('รหัสผู้ใช้ไม่ถูกต้อง')
+    throw new AdminUserReferenceError('รหัสผู้ใช้ไม่ถูกต้อง')
   }
   return parsed
 }
@@ -58,8 +61,8 @@ function displayNameFromProfile(values: { email: string; firstName: string; last
 function parseRoleIds(roleIds: string[]) {
   const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
 
-  if (parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
-    throw new Error('Role ที่เลือกไม่ถูกต้อง')
+  if (!parsed.length || parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
+    throw new AdminUserReferenceError('Role ที่เลือกไม่ถูกต้อง')
   }
 
   return parsed as bigint[]
@@ -68,7 +71,7 @@ function parseRoleIds(roleIds: string[]) {
 function parseDepartmentId(value: string) {
   const parsed = parseInternalBigIntId(value)
   if (parsed == null) {
-    throw new Error('ฝ่ายไม่ถูกต้อง')
+    throw new AdminUserReferenceError('ฝ่ายไม่ถูกต้อง')
   }
   return parsed
 }
@@ -77,12 +80,13 @@ async function assertUserRefs(
   roleIds: string[],
   branchIds: string[],
   departmentId: string,
+  branchAccessMode?: 'all' | 'selected',
 ) {
   const parsedRoleIds = parseRoleIds(roleIds)
   const parsedDepartmentId = parseDepartmentId(departmentId)
-  const [roles, branches, department] = await Promise.all([
+  const [roles, branches, department, activeBranches] = await Promise.all([
     prisma.app_roles.findMany({
-      select: { id: true },
+      select: { branch_scope: true, id: true },
       where: { id: { in: parsedRoleIds }, active: true },
     }),
     findActiveBranchReferencesByCodes(branchIds),
@@ -90,22 +94,28 @@ async function assertUserRefs(
       select: { id: true },
       where: { id: parsedDepartmentId, active: true },
     }),
+    branchAccessMode === 'all' ? listActiveBranches() : Promise.resolve([]),
   ])
 
   if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
-    throw new Error('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new AdminUserReferenceError('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
-  if (branchIds.length && branches.length !== new Set(branchIds).size) {
-    throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
-  }
+  const hasUnrestrictedRole = roles.some((role) => role.branch_scope.trim().toLowerCase() === 'all')
+  const branchRefs = resolveBranchReferencesForUser({
+    activeBranchRefs: activeBranches,
+    branchAccessMode,
+    branchIds,
+    hasUnrestrictedRole,
+    selectedBranchRefs: branches,
+  })
 
   if (!department) {
-    throw new Error('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new AdminUserReferenceError('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   return {
-    branchRefs: branches,
+    branchRefs,
     departmentId: parsedDepartmentId,
     roleRefIds: parsedRoleIds,
   }
@@ -119,7 +129,13 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
     const { id: rawId } = routeParamsSchema.parse(await params)
     const id = parseAppUserId(rawId)
     const values = adminUserFormSchema.parse(await request.json())
-    const { branchRefs, departmentId, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId)
+    const { branchRefs, departmentId, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId, values.branchAccessMode)
+    const permissionOverrides = values.permissionOverrides === undefined
+      ? null
+      : await assertUserPermissionOverrides(values.permissionOverrides)
+    if (permissionOverrides !== null) {
+      requirePermission(context, 'system.permissions.update')
+    }
     const displayName = displayNameFromProfile(values)
 
     const existing = await prisma.app_users.findFirst({
@@ -165,11 +181,26 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
 
       await tx.app_user_branch_access.deleteMany({ where: { user_id: id } })
 
-      if (values.branchIds.length) {
+      if (branchRefs.length) {
         await tx.app_user_branch_access.createMany({
-          data: values.branchIds.map((branchId) => ({
-            branch_id: branchRefs.find((branch) => branch.code === branchId.toUpperCase())!.id,
+          data: branchRefs.map((branch) => ({
+            branch_id: branch.id,
             created_by: actor,
+            user_id: id,
+          })),
+        })
+      }
+
+      if (permissionOverrides !== null) {
+        await tx.app_user_permission_overrides.deleteMany({ where: { user_id: id } })
+      }
+      if (permissionOverrides?.length) {
+        await tx.app_user_permission_overrides.createMany({
+          data: permissionOverrides.map((override) => ({
+            created_by: actor,
+            effect: override.effect,
+            permission_id: override.permissionId,
+            updated_by: actor,
             user_id: id,
           })),
         })
@@ -180,11 +211,11 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
       context,
       eventType: 'app_user.updated',
       metadata: {
-        branchCount: values.branchIds.length,
+        branchCount: branchRefs.length,
         departmentId: departmentId.toString(),
         displayName,
         roleCount: values.roleIds.length,
-        permissionOverrideCount: 0,
+        permissionOverrideCount: permissionOverrides?.length ?? null,
         email: values.email,
       },
       request,

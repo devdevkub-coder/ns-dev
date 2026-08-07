@@ -5,6 +5,7 @@ export type WeightTicketChangeEvent = {
   changeType: WeightTicketChangeType
   documentNo: string
   updatedAt: string | null
+  lineIds?: string[]
 }
 
 export function isWeightTicketChangeEvent(value: unknown): value is WeightTicketChangeEvent {
@@ -22,6 +23,7 @@ export function isWeightTicketChangeEvent(value: unknown): value is WeightTicket
       || event.changeType === 'cancelled')
     && (event.updatedAt === null
       || (typeof event.updatedAt === 'string' && event.updatedAt.length <= 64 && !Number.isNaN(Date.parse(event.updatedAt))))
+    && (event.lineIds === undefined || (Array.isArray(event.lineIds) && event.lineIds.every((lineId) => typeof lineId === 'string' && lineId.length > 0 && lineId.length <= 80)))
 }
 
 export function weightTicketRealtimeChannel(branchId: string) {

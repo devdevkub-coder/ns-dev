@@ -667,7 +667,7 @@ export function StockTransferPageClient() {
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div>
                     <h4 className="font-bold text-slate-700">3. รายการสินค้า ({form.items.length})</h4>
-                    <p className="mt-1 text-xs text-slate-500">{sourceStockLoading ? 'กำลังโหลด stock ต้นทาง' : 'คงเหลือและมูลค่า/kg อ่านจาก stock ต้นทาง'}</p>
+                    <p className="mt-1 text-xs text-slate-500">{sourceStockLoading ? 'กำลังโหลด stock ต้นทาง' : 'คงเหลือจริงหลังหักรายการรอออก · ไม่รวม WTI รอเข้า'}</p>
                   </div>
                   <Button disabled={!canChooseProducts} size="sm" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { productId: '', qty: 0 }] }))}>+ เพิ่มรายการ</Button>
                 </div>
@@ -678,7 +678,7 @@ export function StockTransferPageClient() {
                     <thead className="border-b border-slate-100 bg-slate-100 text-slate-600">
                       <tr>
                         <th className="p-2 text-left">สินค้า</th>
-                        <th className="p-2 text-right">คงเหลือต้นทาง</th>
+                        <th className="p-2 text-right">คงเหลือจริงต้นทาง</th>
                         <th className="p-2 text-right">มูลค่า/kg</th>
                         <th className="p-2 text-right">น้ำหนัก</th>
                         <th className="p-2 text-right">มูลค่ารวม</th>
@@ -773,7 +773,7 @@ export function StockTransferPageClient() {
 
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <span className="block text-xs font-semibold text-slate-500 mb-1">คงเหลือต้นทาง</span>
+                              <span className="block text-xs font-semibold text-slate-500 mb-1">คงเหลือจริงต้นทาง</span>
                               <span className="text-xs font-medium text-slate-700 tabular-nums block bg-white border border-slate-200 rounded px-2.5 py-1.5 h-8 truncate">
                                 {source ? `${formatMoney(source.readyQty)} กก.` : '-'}
                               </span>
@@ -852,7 +852,7 @@ export function StockTransferPageClient() {
                         <thead className="bg-indigo-50 text-indigo-700">
                           <tr>
                             <th className="p-2 text-left">สินค้า</th>
-                            <th className="p-2 text-right">จำนวนคงเหลือ (กก.)</th>
+                            <th className="p-2 text-right">จำนวนคงเหลือจริง (กก.)</th>
                             <th className="p-2 text-right">ราคาเฉลี่ย/กก.</th>
                             <th className="p-2 text-right">รวมมูลค่า</th>
                           </tr>

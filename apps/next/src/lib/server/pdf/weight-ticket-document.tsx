@@ -9,6 +9,7 @@ import {
   formatPrintableNumber,
   FIRST_PAGE_ITEM_ROWS,
   CONTINUATION_PAGE_ITEM_ROWS,
+  WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE,
   type PrintWeightRow,
 } from '@/lib/weight-ticket-print'
 import { PDF_FONT_FAMILY } from './fonts'
@@ -576,7 +577,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
   const albumChunks: Array<StoredImageAsset[]> = []
   // Six 4:3 cards fit on an A4 portrait page as a 2-column x 3-row grid
   // while keeping the source image fully visible with object-fit contain.
-  const albumChunkSize = 6
+  const albumChunkSize = WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE
   for (let i = 0; i < decodedImages.length; i += albumChunkSize) {
     albumChunks.push(decodedImages.slice(i, i + albumChunkSize))
   }

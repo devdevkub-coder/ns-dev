@@ -25,13 +25,6 @@ function authErrorResponse(source: NextResponse, target: NextResponse) {
   return target
 }
 
-function isPasswordChangeAllowedPath(pathname: string) {
-  return pathname === '/admin/change-password'
-    || pathname === '/api/auth/login-complete'
-    || pathname === '/api/auth/me'
-    || pathname === '/api/auth/password-changed'
-}
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -64,7 +57,7 @@ export async function proxy(request: NextRequest) {
   })
 
   const {
-    data: { user },
+    data: { user: verifiedUser },
     error: authError,
   } = await supabase.auth.getUser()
 
@@ -74,9 +67,13 @@ export async function proxy(request: NextRequest) {
       : loginRedirect(request))
   }
 
-  if (!user) {
+  if (!verifiedUser) {
     return authErrorResponse(response, pathname.startsWith('/api/') ? jsonError('กรุณาเข้าสู่ระบบ', 401) : loginRedirect(request))
   }
+
+  // /api/auth/me performs the app-user lookup itself. Avoid the extra RPC
+  // here so this health/auth context request has only one authorization path.
+  if (pathname === '/api/auth/me') return response
 
   const { data: appUserAccessRows, error: appUserError } = await supabase.rpc('current_app_user_access_context')
 
@@ -94,18 +91,7 @@ export async function proxy(request: NextRequest) {
 
   const currentAppUser = appUserAccessRows[0] as {
     app_user_id: number
-    must_change_password: boolean
   } | undefined
-
-  if (currentAppUser?.must_change_password === true && !isPasswordChangeAllowedPath(pathname)) {
-    if (pathname.startsWith('/api/')) {
-      return authErrorResponse(response, jsonError('ต้องเปลี่ยน password ก่อนใช้งาน', 403))
-    }
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/admin/change-password'
-    redirectUrl.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
-    return authErrorResponse(response, NextResponse.redirect(redirectUrl))
-  }
 
   const requiredPermissions = permissionCodesForPath(pathname)
 

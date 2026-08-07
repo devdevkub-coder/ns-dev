@@ -7,7 +7,12 @@ import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTick
 import type { CompanyProfilePrintValues } from './company-profile'
 import { ensurePdfFontsRegistered } from './server/pdf/fonts'
 import { WeightTicketDocument } from './server/pdf/weight-ticket-document'
-import { buildPrintWeightRows, buildReceiptPrintHtml, buildWeightTicketAttachmentImages } from './weight-ticket-print'
+import {
+  buildPrintWeightRows,
+  buildReceiptPrintHtml,
+  buildWeightTicketAttachmentImages,
+  WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE,
+} from './weight-ticket-print'
 import { encodeStoredImageReference, type WeightTicketRecord } from './weight-tickets'
 
 vi.mock('server-only', () => ({}))
@@ -218,6 +223,11 @@ function countPdfPages(buffer: Buffer) {
   return buffer.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length ?? 0
 }
 
+const TEST_PNG_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+)
+
 function emptyDraftTicket(type: 'WTI' | 'WTO'): WeightTicketRecord {
   return {
     ...ticket,
@@ -232,6 +242,20 @@ function emptyDraftTicket(type: 'WTI' | 'WTO'): WeightTicketRecord {
       netWeight: 0,
     },
     type,
+  }
+}
+
+function ticketWithAttachmentCount(count: number): WeightTicketRecord {
+  return {
+    ...ticket,
+    imageNames: Array.from({ length: count }, (_, index) => (
+      encodeStoredImageReference(
+        `attachment-${index + 1}.jpg`,
+        `https://storage.example/attachment-${index + 1}.jpg?token=short`,
+        `tickets/attachment-${index + 1}.jpg`,
+        'weight-ticket-images',
+      )
+    )),
   }
 }
 
@@ -319,6 +343,45 @@ describe('weight ticket print HTML', () => {
     expect(html).not.toContain('>รับเข้า<')
     expect(html).not.toContain('>ขาออก<')
   })
+
+  it('keeps six attachments on one A4 album page and spills the seventh to the next page', () => {
+    expect(WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE).toBe(6)
+
+    const sixImageHtml = buildReceiptPrintHtml(ticketWithAttachmentCount(6), profile)
+    expect(sixImageHtml.match(/class="page attachment-page"/g)).toHaveLength(1)
+    expect(sixImageHtml).toContain('#6')
+    expect(sixImageHtml).not.toContain('#7')
+
+    const sevenImageHtml = buildReceiptPrintHtml(ticketWithAttachmentCount(7), profile)
+    expect(sevenImageHtml.match(/class="page attachment-page"/g)).toHaveLength(2)
+    expect(sevenImageHtml).toContain('#6')
+    expect(sevenImageHtml).toContain('#7')
+    expect(sevenImageHtml).toContain('หน้า 2 / 3')
+    expect(sevenImageHtml).toContain('หน้า 3 / 3')
+  })
+
+  it('keeps rendered PDF attachment pagination aligned with the six-image A4 contract', async () => {
+    const originalFetch = globalThis.fetch
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url.includes('storage.example')) {
+        return new Response(TEST_PNG_BYTES, { headers: { 'content-type': 'image/png' } })
+      }
+      return originalFetch(input, init)
+    }))
+
+    try {
+      await ensurePdfFontsRegistered()
+
+      const sixImagePdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithAttachmentCount(6) }))
+      expect(countPdfPages(Buffer.from(sixImagePdf))).toBe(2)
+
+      const sevenImagePdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithAttachmentCount(7) }))
+      expect(countPdfPages(Buffer.from(sevenImagePdf))).toBe(3)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }, 120_000)
 
   it('uses the complete ticket totals in Weight Info when impurity is purchased as another product', () => {
     const html = buildReceiptPrintHtml(ticket, profile)
