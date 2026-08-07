@@ -543,6 +543,10 @@ describe('weight-ticket product editor behavior', () => {
       await Promise.resolve()
     })
 
+    expect(Array.from(container.querySelectorAll('button')).filter((button) => (
+      button.textContent?.trim() === 'เพิ่มสินค้า' && button.id !== 'weight-ticket-add-product'
+    ))).toHaveLength(0)
+
     const productInput = container.querySelector<HTMLInputElement>('[id^="weight-product-"]')
     expect(productInput).not.toBeNull()
     expect(productInput?.getAttribute('aria-expanded')).toBe('false')
@@ -703,14 +707,9 @@ describe('weight-ticket product editor behavior', () => {
       await Promise.resolve()
     })
 
-    const addAnotherProductButton = Array.from(container.querySelectorAll('button')).filter((button) => (
-      button.textContent?.trim() === 'เพิ่มสินค้า' && button.id !== 'weight-ticket-add-product'
-    )).at(-1)
-    expect(addAnotherProductButton).toBeDefined()
-
     now += 400
     await act(async () => {
-      addAnotherProductButton?.click()
+      addProductButton?.click()
       await Promise.resolve()
     })
 

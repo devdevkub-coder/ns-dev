@@ -2893,19 +2893,8 @@ export function WeightTicketFormCore({
                           <X className="size-5" />
                         </Button>
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0 truncate text-sm font-semibold text-slate-700">
-                          {products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
-                        </div>
-                        <Button
-                          className="h-8 shrink-0 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 hover:text-white"
-                          size="xs"
-                          type="button"
-                          onClick={addLine}
-                        >
-                          <Plus className="mr-1 size-3" />
-                          เพิ่มสินค้า
-                        </Button>
+                      <div className="mt-3 min-w-0 truncate text-sm font-semibold text-slate-700">
+                        {products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
                       </div>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-3 py-3 xl:contents">
