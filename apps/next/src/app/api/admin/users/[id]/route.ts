@@ -39,7 +39,7 @@ type AdminUserRouteProps = {
 function parseAppUserId(value: string) {
   const parsed = parseInternalBigIntId(value)
   if (parsed == null) {
-    throw new Error('รหัสผู้ใช้ไม่ถูกต้อง')
+    throw new AdminUserReferenceError('รหัสผู้ใช้ไม่ถูกต้อง')
   }
   return parsed
 }
@@ -60,7 +60,7 @@ function parseRoleIds(roleIds: string[]) {
   const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
 
   if (parsed.length !== 1 || parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
-    throw new Error('Role ที่เลือกไม่ถูกต้อง')
+    throw new AdminUserReferenceError('Role ที่เลือกไม่ถูกต้อง')
   }
 
   return parsed as bigint[]
@@ -69,7 +69,7 @@ function parseRoleIds(roleIds: string[]) {
 function parseDepartmentId(value: string) {
   const parsed = parseInternalBigIntId(value)
   if (parsed == null) {
-    throw new Error('ฝ่ายไม่ถูกต้อง')
+    throw new AdminUserReferenceError('ฝ่ายไม่ถูกต้อง')
   }
   return parsed
 }
@@ -94,7 +94,7 @@ async function assertUserRefs(
   ])
 
   if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
-    throw new Error('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new AdminUserReferenceError('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   const roleBranchScope = roles[0]?.branch_scope.trim().toLowerCase()
@@ -106,11 +106,11 @@ async function assertUserRefs(
   }
 
   if (branchIds.length && branches.length !== new Set(branchIds).size) {
-    throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new AdminUserReferenceError('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   if (!department) {
-    throw new Error('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new AdminUserReferenceError('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   return {

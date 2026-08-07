@@ -393,6 +393,16 @@ function fullName(user: Pick<AdminUser, 'namePrefix' | 'firstName' | 'lastName' 
   return structuredName || user.displayName || '-'
 }
 
+function userHasUnrestrictedBranchAccess(user: AdminUser) {
+  return user.roles.some((role) => role.branchScope.trim().toLowerCase() === 'all')
+}
+
+function userBranchLabel(user: AdminUser) {
+  if (userHasUnrestrictedBranchAccess(user)) return 'ทุกสาขา'
+  if (user.branchIds.length) return user.branches.map((branch) => branch.name).join(', ')
+  return 'ยังไม่กำหนดสาขา'
+}
+
 function userInitials(user: Pick<AdminUser, 'displayName' | 'email' | 'firstName'>) {
   const label = user.firstName || user.displayName || user.email || '-'
   return label.trim().slice(0, 2).toUpperCase()
@@ -409,7 +419,7 @@ function getUserSortValue(user: AdminUser, key: UserColumnKey) {
   if (key === 'email') return user.email ?? ''
   if (key === 'department') return user.department?.name ?? ''
   if (key === 'roles') return user.roles.map((role) => role.name).join(' ')
-  if (key === 'branches') return user.branches.length ? user.branches.map((branch) => branch.name).join(' ') : 'ทุกสาขา'
+  if (key === 'branches') return userBranchLabel(user)
   if (key === 'active') return user.active ? 1 : 0
   if (key === 'lastLoginAt') return user.lastLoginAt ? Date.parse(user.lastLoginAt) || 0 : 0
   return ''
@@ -536,7 +546,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         user.branches.map((branch) => branch.name).join(' '),
       ].some((value) => String(value ?? '').toLowerCase().includes(query))
       && (roleFilter === 'all' || user.roles.some((role) => role.id === roleFilter))
-      && (branchFilter === 'all' || user.branchIds.length === 0 || user.branchIds.includes(branchFilter))
+      && (branchFilter === 'all' || userHasUnrestrictedBranchAccess(user) || user.branchIds.includes(branchFilter))
       && (departmentFilter === 'all' || user.departmentId === departmentFilter)
       && (statusFilter === 'all' || user.accountStatus === statusFilter)
     ))
@@ -948,7 +958,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     setProfileImageFile(null)
     setProfileImagePreviewUrl(user.profileImageUrl ?? null)
     setFormError(null)
-    setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove', user.branchIds.length ? 'selected' : 'all'))
+    const branchMode = assignedRole?.branchScope === 'all' ? 'all' : user.branchIds.length ? 'selected' : 'unset'
+    setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove', branchMode))
     setFormOpen(true)
   }
 
@@ -1599,7 +1610,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 <div><div className="text-xs text-slate-500 dark:text-slate-400">อีเมล</div><div className="mt-1 break-all font-medium text-slate-800 dark:text-slate-100">{detailUser.email || '-'}</div></div>
                 <div><div className="text-xs text-slate-500 dark:text-slate-400">เบอร์ติดต่อ</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.contactPhone || '-'}</div></div>
                 <div><div className="text-xs text-slate-500 dark:text-slate-400">LINE ID</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.contactLineId || '-'}</div></div>
-                <div><div className="text-xs text-slate-500 dark:text-slate-400">สาขาที่เข้าถึง</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.branches.length ? detailUser.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</div></div>
+                <div><div className="text-xs text-slate-500 dark:text-slate-400">สาขาที่เข้าถึง</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{userBranchLabel(detailUser)}</div></div>
                 <div className="sm:col-span-2"><div className="text-xs text-slate-500 dark:text-slate-400">หมายเหตุการติดต่อ</div><div className="mt-1 whitespace-pre-wrap font-medium text-slate-800 dark:text-slate-100">{detailUser.contactNote || '-'}</div></div>
               </div>
               <div className="flex justify-end">
@@ -2005,7 +2016,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <td className="p-3 text-center text-slate-600">{user.email || '-'}</td>
                       <td className="p-3 text-left text-slate-700">{user.department?.name || '-'}</td>
                       <td className="p-3 text-left text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
-                      <td className="p-3 text-left text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
+                      <td className="p-3 text-left text-slate-700">{userBranchLabel(user)}</td>
                       <td className="p-3 text-center">
                         <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => requestUserStatusUpdate(user, checked)} />
                       </td>
@@ -2070,7 +2081,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </div>
                     <div>
                       <span className="text-slate-400 block text-xs uppercase font-semibold">สาขา</span>
-                      <span className="text-slate-700 font-semibold">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</span>
+                      <span className="text-slate-700 font-semibold">{userBranchLabel(user)}</span>
                     </div>
                     <div className="col-span-2 border-t border-slate-50 pt-2">
                       <div>
