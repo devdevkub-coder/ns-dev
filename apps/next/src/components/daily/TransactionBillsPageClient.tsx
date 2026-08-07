@@ -5212,24 +5212,13 @@ function PurchaseBillDetailModal({
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-md border border-slate-200 p-3">
-                <div className="mb-2 text-sm font-medium text-slate-700">VAT / ยอดรวม</div>
-                <div className="space-y-2 text-sm">
-                  <SummaryLine label="ยอดก่อนส่วนลด" value={formatMoney(detail.subtotal)} />
-                  <SummaryLine label="ส่วนลดท้ายบิล" tone="red" value={`-${formatMoney(detail.discount)}`} />
-                  <SummaryLine label="VAT" value={formatMoney(detail.vatAmount)} />
-                  <SummaryLine label="ยอดสุทธิ" value={formatMoney(detail.totalAmount)} />
-                </div>
-              </div>
-              <div className="rounded-md border border-slate-200 p-3">
-                <div className="mb-2 text-sm font-medium text-slate-700">ใบกำกับภาษี / หมายเหตุ</div>
-                <div className="grid gap-3 text-sm md:grid-cols-2">
-                  <PlainDetail label="ได้รับใบกำกับภาษี" value={detail.vatInvoiceReceived ? 'ได้รับแล้ว' : 'ยังไม่ได้รับ'} />
-                  <PlainDetail label="เลขที่ใบกำกับภาษี" value={detail.vatInvoiceNo} />
-                  <PlainDetail label="วันที่ใบกำกับภาษี" value={detail.vatInvoiceDate} />
-                  <PlainDetail label="หมายเหตุ" value={detail.note || '-'} />
-                </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-3 border-b border-slate-100/80 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500">ใบกำกับภาษี / หมายเหตุ</div>
+              <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <DetailItem label="ได้รับใบกำกับภาษี" value={detail.vatInvoiceReceived ? 'ได้รับแล้ว' : 'ยังไม่ได้รับ'} />
+                <DetailItem label="เลขที่ใบกำกับภาษี" value={detail.vatInvoiceNo || '-'} />
+                <DetailItem label="วันที่ใบกำกับภาษี" value={detail.vatInvoiceDate ? formatDateDisplay(detail.vatInvoiceDate) : '-'} />
+                <DetailItem label="หมายเหตุ" value={detail.note || '-'} />
               </div>
             </div>
 
@@ -5877,7 +5866,7 @@ function DetailItem({ className = '', label, value }: { className?: string; labe
   return (
     <div className={`flex flex-col py-1 ${className}`}>
       <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
-      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
+      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800 break-words">{value}</div>
     </div>
   )
 }
