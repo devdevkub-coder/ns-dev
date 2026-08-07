@@ -516,9 +516,10 @@ export function buildWeightTicketLineRows(
   productByCode: Map<string, { code: string; id: bigint; name: string }>,
   impurityById: Map<bigint, { id: bigint; name: string }>,
   warehouseByCode: Map<string, { id: bigint }> = new Map(),
+  persistedLineNoById?: Map<string, number>,
 ) {
   const totalsById = calculateWeightTicketLineTotals(values.lines).lineTotalsById
-  const lineNoById = new Map(values.lines.map((line, index) => [line.id, index + 1] as const))
+  const lineNoById = persistedLineNoById ?? new Map(values.lines.map((line, index) => [line.id, index + 1] as const))
 
   return values.lines.map((line, index) => {
     const lineTotals = totalsById.get(line.id)!
@@ -546,7 +547,7 @@ export function buildWeightTicketLineRows(
       impurity_id: impurityId ?? null,
       impurity_name: isOtherProductImpurity ? OTHER_PRODUCT_IMPURITY_LABEL : impurity?.name ?? null,
       impurity_source_line_no: line.impuritySourceLineId ? lineNoById.get(line.impuritySourceLineId) ?? null : null,
-      line_no: index + 1,
+      line_no: lineNoById.get(line.id) ?? index + 1,
       net_weight: roundWeight(lineTotals.netWeight),
       note: appendImpurityProductMeta(line.note, {
         id: isOtherProductImpurity ? (line.impurityProductId ?? '') : '',

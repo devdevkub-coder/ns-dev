@@ -26,3 +26,15 @@ export function getWeightTicketSectionLineIds(lines: WeightTicketSectionLine[], 
   const root = rootId(sectionId)
   return lines.filter((line) => rootId(line.id) === root).map((line) => line.id)
 }
+
+/** Returns one lot and only the impurity/purchase lines below that lot. */
+export function getWeightTicketLotLineIds(lines: WeightTicketSectionLine[], lotId: string) {
+  const ids = new Set<string>()
+  const visit = (lineId: string) => {
+    if (ids.has(lineId)) return
+    ids.add(lineId)
+    lines.filter((line) => line.parentId === lineId).forEach((line) => visit(line.id))
+  }
+  visit(lotId)
+  return lines.filter((line) => ids.has(line.id)).map((line) => line.id)
+}

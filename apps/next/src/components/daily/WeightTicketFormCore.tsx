@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences, fetchFreshWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import { mergeWeightTicketCollaborationBaseline } from '@/lib/weight-ticket-collaboration'
-import { getWeightTicketSectionLineIds } from '@/lib/weight-ticket-sections'
+import { getWeightTicketLotLineIds, getWeightTicketSectionLineIds } from '@/lib/weight-ticket-sections'
 import {
   calculateWeightTicketLineTotals,
   createWeightTicketLine,
@@ -39,6 +39,7 @@ import {
   OTHER_PRODUCT_IMPURITY_ID,
   OTHER_PRODUCT_IMPURITY_LABEL,
   saveWeightTicket,
+  saveWeightTicketHeader,
   saveWeightTicketSection,
   WEIGHT_TICKET_STATUS,
   WEIGHT_TICKET_TYPE,
@@ -928,6 +929,7 @@ export function WeightTicketFormCore({
   const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
   const [collapsedImpurityIds, setCollapsedImpurityIds] = useState<Record<string, boolean>>({})
+  const [selectedImpuritySourceLineId, setSelectedImpuritySourceLineId] = useState('')
   const [pendingFocusField, setPendingFocusField] = useState<string | null>(null)
   const [draftStartedAt] = useState(() => new Date().toISOString())
   const [timerNow, setTimerNow] = useState(() => Date.now())
@@ -2365,7 +2367,7 @@ export function WeightTicketFormCore({
     }
   }
 
-  async function saveSection(sectionId: string) {
+  async function saveSection(sectionId: string, sectionKind: 'product' | 'lot' = 'product') {
     if (isSaving || saveInFlightRef.current) return
     const baselineTicket = savedTicket ?? loadedTicket
     if (!baselineTicket || !editingTicketId) {
@@ -2373,9 +2375,12 @@ export function WeightTicketFormCore({
       return
     }
     const currentForm = formRef.current
-    const sectionLines = currentForm.lines.filter((line) => getWeightTicketSectionLineIds(currentForm.lines, sectionId).includes(line.id))
-    const sectionLineIdSet = new Set(getWeightTicketSectionLineIds(currentForm.lines, sectionId))
-    const baselineSectionLines = baselineTicket.lines.filter((line) => getWeightTicketSectionLineIds(baselineTicket.lines, sectionId).includes(line.id))
+    const getScopeIds = (lines: Array<{ id: string; parentId?: string }>) => sectionKind === 'lot'
+      ? getWeightTicketLotLineIds(lines, sectionId)
+      : getWeightTicketSectionLineIds(lines, sectionId).filter((lineId) => lineId === sectionId)
+    const sectionLines = currentForm.lines.filter((line) => getScopeIds(currentForm.lines).includes(line.id))
+    const sectionLineIdSet = new Set(getScopeIds(currentForm.lines))
+    const baselineSectionLines = baselineTicket.lines.filter((line) => getScopeIds(baselineTicket.lines).includes(line.id))
     if (!sectionLines.length && !baselineSectionLines.length) return
 
     const sectionError = Object.keys(errors).find((key) => {
@@ -2453,6 +2458,7 @@ export function WeightTicketFormCore({
         })),
         partyId: snapshot.partyId,
         remark: snapshot.remark.trim(),
+        sectionKind,
         sectionLineIds: Array.from(new Set([...sectionLineIdSet, ...deletedIds])),
         type: snapshot.type,
         vehicleImageNames: snapshot.vehicleImageFiles.map((file) => file.rawValue),
@@ -2461,9 +2467,11 @@ export function WeightTicketFormCore({
       })
       const returnedForm = ticketToFormState(ticket)
       const persistedRootId = baselineSectionLines.find((line) => line.id === sectionId)?.id ?? sectionId
-      const returnedSectionIds = new Set(getWeightTicketSectionLineIds(returnedForm.lines, persistedRootId))
+      const returnedSectionIds = new Set(sectionKind === 'lot'
+        ? getWeightTicketLotLineIds(returnedForm.lines, persistedRootId)
+        : getWeightTicketSectionLineIds(returnedForm.lines, persistedRootId).filter((lineId) => lineId === persistedRootId))
       const latestForm = formRef.current
-      const latestSectionIds = new Set(getWeightTicketSectionLineIds(latestForm.lines, sectionId))
+      const latestSectionIds = new Set(getScopeIds(latestForm.lines))
       const sectionWasChangedDuringSave = JSON.stringify(Array.from(latestSectionIds).map((id) => {
         const line = latestForm.lines.find((entry) => entry.id === id)
         return line ? [id, collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue))] : [id, null]
@@ -2495,6 +2503,74 @@ export function WeightTicketFormCore({
         setMergeNotice('ข้อมูลชนกันใน section นี้ ระบบไม่เขียนทับข้อมูลของผู้ใช้อื่น กรุณาโหลดข้อมูลล่าสุดแล้วตรวจสอบอีกครั้ง')
       }
       setLoadError(getErrorMessage(caught, 'บันทึก section ไม่สำเร็จ'))
+    } finally {
+      endSaveStage()
+      saveInFlightRef.current = null
+    }
+  }
+
+  async function saveHeader() {
+    if (isSaving || saveInFlightRef.current) return
+    const baselineTicket = savedTicket ?? loadedTicket
+    if (!baselineTicket || !editingTicketId) {
+      setMergeNotice('บันทึกหัวเอกสารได้เมื่อมีเลขที่เอกสารแล้ว')
+      return
+    }
+    const snapshot = formRef.current
+    const headerErrors = ['branchId', 'partyId', 'vehicleNo', 'godownName'].filter((key) => errors[key])
+    if (headerErrors.length) {
+      setTouched((current) => ({ ...current, ...Object.fromEntries(headerErrors.map((key) => [key, true])) }))
+      setMergeNotice('กรุณาแก้ข้อมูลหัวเอกสารให้ครบก่อนบันทึก')
+      return
+    }
+    const changedHeaderFields = (['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const)
+      .filter((field) => JSON.stringify(field === 'vehicleImageNames' ? snapshot.vehicleImageFiles.map((file) => file.rawValue) : snapshot[field]) !== JSON.stringify(baselineTicket[field]))
+    if (!changedHeaderFields.length) {
+      setMergeNotice('หัวเอกสารไม่มีการเปลี่ยนแปลง')
+      return
+    }
+    saveInFlightRef.current = 'save'
+    beginSaveStage('save')
+    try {
+      await waitForPendingAttachmentUploads()
+      await saveWeightTicketHeader(editingTicketId, {
+        branchId: snapshot.branchId,
+        collaborationBaseHeader: {
+          branchId: baselineTicket.branchId,
+          partyId: baselineTicket.partyId,
+          remark: baselineTicket.remark,
+          vehicleImageNames: baselineTicket.vehicleImageNames,
+          vehicleNo: baselineTicket.vehicleNo,
+          godownName: baselineTicket.godownName,
+        },
+        collaborationBaseUpdatedAt: baselineTicket.updatedAt,
+        collaborationChangedHeaderFields: changedHeaderFields,
+        godownName: snapshot.godownName.trim(),
+        partyId: snapshot.partyId,
+        remark: snapshot.remark.trim(),
+        type: snapshot.type,
+        vehicleImageNames: snapshot.vehicleImageFiles.map((file) => file.rawValue),
+        vehicleNo: snapshot.vehicleNo.trim(),
+      })
+      const latestTicket = await getWeightTicket(editingTicketId, { includeImagePreviews: false })
+      const latestForm = ticketToFormState(latestTicket)
+      const mergedBaseline = mergeWeightTicketCollaborationBaseline({
+        baselineTicket,
+        dirtyHeaderFields: new Set(),
+        dirtyLineIds: changedLineIdsRef.current,
+        latestTicket,
+      })
+      setLoadedTicket(latestTicket)
+      setSavedTicket(mergedBaseline)
+      setFormBaseline(formSafetySnapshot(latestForm))
+      dirtyHeaderFieldsRef.current.clear()
+      setMergeNotice('บันทึกหัวเอกสารแล้ว รายการสินค้าและเต๋ายังอยู่ในสถานะเดิม')
+      setLoadError('')
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 409) {
+        setMergeNotice('ข้อมูลหัวเอกสารถูกแก้ไขโดยผู้ใช้อื่น กรุณาโหลดข้อมูลล่าสุดก่อนบันทึก')
+      }
+      setLoadError(getErrorMessage(caught, 'บันทึกหัวเอกสารไม่ได้'))
     } finally {
       endSaveStage()
       saveInFlightRef.current = null
@@ -2669,7 +2745,19 @@ export function WeightTicketFormCore({
         <div>
           <div className="space-y-5">
             <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
-            <SectionHeader title="ข้อมูลหัวเอกสาร" />
+            <div className="flex items-center justify-between gap-3">
+              <SectionHeader title="ข้อมูลหัวเอกสาร" />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isLoadingTicket || isSaving || !editingTicketId}
+                onClick={() => void saveHeader()}
+                className="h-9 border-emerald-300 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                บันทึกหัวเอกสาร
+              </Button>
+            </div>
             <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
               <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4">
               <BranchSelectCombobox
@@ -2916,8 +3004,6 @@ export function WeightTicketFormCore({
                 const lineTotals = calculateAdjustedLineTotals(line, lineCalculation)
                 const hasSelectedProduct = Boolean(line.productId)
                 const isPurchaseOnlyLine = isImpurityPurchaseLine(line)
-                const realLotSummary = calculateRealLotSummary(line, form.lines)
-                const canAddImpurityLine = hasSelectedProduct && realLotSummary.lotCount > 0
                 const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(line, form.lines)
                 const boughtImpurityTotal = boughtImpurityLinesForLine.reduce((sum, entry) => sum + calculateAdjustedLineTotals(entry.sourceLine, lineCalculation).deductionWeight, 0)
                 const purchaseOnlyNote = isPurchaseOnlyLine && boughtImpurityLinesForLine.length > 0
@@ -3077,6 +3163,16 @@ export function WeightTicketFormCore({
                                       >
                                         {isCollapsed ? 'ขยาย' : 'ยุบ'}
                                       </Button>
+                                      <Button
+                                        size="xs"
+                                        type="button"
+                                        variant="outline"
+                                        disabled={isLoadingTicket || isSaving || !hasSelectedProduct || !lot.version}
+                                        className="h-9 border-emerald-300 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:bg-slate-100 disabled:text-slate-400"
+                                        onClick={() => void saveSection(lot.id, 'lot')}
+                                      >
+                                        บันทึกเต๋านี้
+                                      </Button>
                                       {!isParent && (
                                       <Button
                                         size="xs"
@@ -3168,7 +3264,7 @@ export function WeightTicketFormCore({
                               onClick={() => void saveSection(line.id)}
                               className="h-9 border-emerald-300 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:bg-slate-100 disabled:text-slate-400"
                             >
-                              บันทึก section นี้
+                              บันทึกข้อมูลสินค้า
                             </Button>
                           </div>
                         </div>
@@ -3246,27 +3342,40 @@ export function WeightTicketFormCore({
 
                       {/* ส่วนที่ 2: สิ่งเจือปน (เฉพาะสำหรับสินค้านี้) */}
                       <div className="mt-4 border-t border-slate-200/60 pt-4">
-                        <div className="flex items-center justify-between gap-4 mb-2">
+                        {(() => {
+                          const lotLines = [line, ...form.lines.filter((lot) => lot.parentId === line.id && !isImpurityPurchaseLine(lot) && lot.deductionMode === 'none')]
+                          const impuritySourceLine = lotLines.find((lot) => lot.id === selectedImpuritySourceLineId) ?? lotLines[0]
+                          const childLines = form.lines.filter((child) => child.deductionMode !== 'none' && lotLines.some((lot) => lot.id === child.parentId))
+                          const canAddImpurityForSelectedLot = Boolean(impuritySourceLine && calculateRealLotSummary(impuritySourceLine, form.lines).lotCount > 0)
+                          return (
+                            <>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                           <div className="text-sm font-bold text-slate-700 uppercase tracking-wider">สิ่งเจือปน</div>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <SimpleDropdown
+                              options={lotLines.map((lot, index) => ({ label: `เต๋าที่ ${index + 1}`, value: lot.id }))}
+                              value={impuritySourceLine?.id ?? ''}
+                              onChange={setSelectedImpuritySourceLineId}
+                            />
                           <Button
                             type="button"
                             variant="default"
-                            disabled={!canAddImpurityLine}
-                            onClick={() => addImpurityLine(line)}
+                            disabled={!canAddImpurityForSelectedLot}
+                            onClick={() => { if (impuritySourceLine) addImpurityLine(impuritySourceLine) }}
                             className="hidden items-center justify-center gap-1.5 h-9 rounded-md text-sm font-semibold px-3 outline-none text-white bg-red-600 hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400 xl:flex"
                           >
                             <Plus className="h-4 w-4" />
-                            เพิ่มรายการหักสิ่งเจือปน
+                            เพิ่มสิ่งเจือปนในเต๋านี้
                           </Button>
+                          </div>
                         </div>
-                        {!canAddImpurityLine ? (
+                        {!canAddImpurityForSelectedLot ? (
                           <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-                            ต้องมีเต๋าสินค้าก่อน จึงจะเพิ่มรายการหักสิ่งเจือปนได้
+                            ต้องเลือกเต๋าที่มีน้ำหนักก่อน จึงจะเพิ่มรายการหักสิ่งเจือปนได้
                           </div>
                         ) : null}
 
                         {(() => {
-                          const childLines = form.lines.filter((l) => l.parentId === line.id && l.deductionMode !== 'none')
                           if (childLines.length === 0) {
                             return (
                               <div className="text-center py-4 text-sm font-medium text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 mt-2">
@@ -3559,6 +3668,9 @@ export function WeightTicketFormCore({
                             </div>
                           )
                         })()}
+                            </>
+                          )
+                        })()}
                       </div>
 
                       <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 lg:grid-cols-4">
@@ -3599,16 +3711,23 @@ export function WeightTicketFormCore({
                           <Plus className="mr-1.5 size-4" />
                           เพิ่มเต๋า
                         </Button>
-                        <Button
-                          className="h-10 border-red-600 bg-red-600 text-sm font-semibold text-white hover:border-red-700 hover:bg-red-700 hover:text-white disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                          disabled={!activeLine.productId || calculateRealLotSummary(activeLine, form.lines).lotCount === 0}
-                          type="button"
-                          variant="outline"
-                          onClick={() => addImpurityLine(activeLine)}
-                        >
-                          <Plus className="mr-1.5 size-4" />
-                          เพิ่มสิ่งเจือปน
-                        </Button>
+                        {(() => {
+                          const activeProductLineIds = new Set(getWeightTicketSectionLineIds(form.lines, activeLine.id))
+                          const selectedSourceLine = form.lines.find((entry) => entry.id === selectedImpuritySourceLineId && activeProductLineIds.has(entry.id))
+                          const targetLot = selectedSourceLine ?? activeLine
+                          return (
+                            <Button
+                              className="h-10 border-red-600 bg-red-600 text-sm font-semibold text-white hover:border-red-700 hover:bg-red-700 hover:text-white disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!activeLine.productId || isImpurityPurchaseLine(activeLine) || calculateRealLotSummary(targetLot, form.lines).lotCount === 0}
+                              type="button"
+                              variant="outline"
+                              onClick={() => addImpurityLine(targetLot)}
+                            >
+                              <Plus className="mr-1.5 size-4" />
+                              เพิ่มสิ่งเจือปน
+                            </Button>
+                          )
+                        })()}
                         {getMainParentLines(form.lines).length > 1 ? (
                           <Button
                             className="col-span-2 h-9 border-rose-200 bg-white text-xs font-semibold text-rose-700 hover:bg-rose-50"

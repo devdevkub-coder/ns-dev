@@ -13,7 +13,7 @@ import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-ref
 import { appendWtoPendingOutEventsFromHolds, getWeightTicketPendingOutEvents } from '@/lib/server/weight-ticket-pending-out-events'
 import { buildWeightTicketEditChanges } from '@/lib/server/weight-ticket-write/edit-audit'
 import { assertWeightTicketImpurityRules, assertWeightTicketPartyForType, WeightTicketWriteValidationError } from '@/lib/server/weight-ticket-write/type-guards'
-import { applyWeightTicketCreateSideEffects, applyWeightTicketEditSideEffects, resolveWeightTicketWarehousesForWrite, validateWeightTicketStockForWrite, weightTicketPartySnapshot } from '@/lib/server/weight-ticket-write/handlers'
+import { applyWeightTicketCreateSideEffects, applyWeightTicketEditSideEffects, lockWeightTicketStockBuckets, resolveWeightTicketWarehousesForWrite, validateWeightTicketStockForWrite, weightTicketPartySnapshot } from '@/lib/server/weight-ticket-write/handlers'
 import { buildWtoEditTimelineNote, shouldRebuildWtoPendingOutOnEdit } from '@/lib/server/weight-ticket-write/wto'
 import {
   releaseActiveWtoPendingOut,
@@ -389,9 +389,30 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         }
         if (existingSectionRoots.size === 1) {
           const sectionRoot = [...existingSectionRoots][0]
-          const expectedSectionIds = existing.weight_ticket_lines
-            .filter((line) => rootId(String(line.id)) === sectionRoot)
-            .map((line) => String(line.id))
+          const existingSectionLines = existing.weight_ticket_lines.filter((line) => rootId(String(line.id)) === sectionRoot)
+          const anchors = existingSectionLines.filter((line) => sectionLineIds.has(String(line.id)) && !existingSectionLines.some((candidate) => candidate.id !== line.id && sectionLineIds.has(String(candidate.id)) && candidate.line_no === line.parent_line_no))
+          const expectedSectionIds = values.sectionKind === 'product'
+            ? existingSectionLines.filter((line) => String(line.id) === sectionRoot).map((line) => String(line.id))
+            : (() => {
+              if (anchors.length !== 1) return []
+              const anchor = anchors[0]
+              const descendants = new Set([String(anchor.id)])
+              let changed = true
+              while (changed) {
+                changed = false
+                existingSectionLines.forEach((line) => {
+                  const parent = existingSectionLines.find((candidate) => candidate.line_no === line.parent_line_no)
+                  if (parent && descendants.has(String(parent.id)) && !descendants.has(String(line.id))) {
+                    descendants.add(String(line.id))
+                    changed = true
+                  }
+                })
+              }
+              return Array.from(descendants)
+            })()
+          if (!expectedSectionIds.length) {
+            throw new WeightTicketWriteValidationError('ไม่พบขอบเขต section ที่ถูกต้อง กรุณาโหลดข้อมูลล่าสุด', {})
+          }
           const submittedSectionIds = new Set([
             ...values.lines.map((line) => line.id),
             ...(values.collaborationDeletedLineIds ?? []),
@@ -452,6 +473,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       }
       const effectiveSupplier = values.type === 'WTI' && requestOwnsParty ? supplier : existing.suppliers
       const effectiveCustomer = values.type === 'WTO' && requestOwnsParty ? customer : existing.customers
+      await assertWeightTicketPartyForType({
+        branchId: effectiveBranch.id,
+        customer: effectiveCustomer,
+        supplier: effectiveSupplier,
+        type: effectiveValues.type,
+      })
       const partySnapshot = weightTicketPartySnapshot({ customer: effectiveCustomer, supplier: effectiveSupplier, type: values.type })
       const documentDate = toDateOnly(existing.document_date)
       const nextStatus = existing.status
@@ -526,12 +553,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           const incomingLine = values.lines.find((valueLine) => latestLineByClientId.get(valueLine.id)?.id === line.id)
           return [line.line_no, incomingLine?.id ?? String(line.id)] as const
         }))
-        const latestLineById = new Map(latestLines.map((line) => [String(line.id), line] as const))
-        const mergeLine = (valueLine: (typeof values.lines)[number]) => {
-          if (collaborationChangedLineIds.has(valueLine.id)) return valueLine
-          const latestLine = latestLineById.get(valueLine.id)
-          return latestLine ? persistedLineToFormLine(latestLine, lineIdByLineNo) : null
-        }
         const incomingExistingIds = new Set(
           values.lines
             .map((line) => latestLineByClientId.get(line.id)?.id)
@@ -542,12 +563,26 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           `${existing.doc_no}:${line.line_no}`,
           values.collaborationBaseDocumentNo ? `${values.collaborationBaseDocumentNo}:${line.line_no}` : '',
         ].some((key) => key && collaborationBaseLineIds.has(key))
-        const remoteOnlyLines = latestLines.filter((line) => !incomingExistingIds.has(line.id) && !wasInBase(line))
+        const removedLineIds = latestLines
+          .filter((line) => collaborationDeletedLineIds.size > 0
+            ? collaborationDeletedLineIds.has(String(line.id))
+            : wasInBase(line) && !incomingExistingIds.has(line.id))
+          .map((line) => line.id)
+        const removedLineIdSet = new Set(removedLineIds.map((lineId) => String(lineId)))
+        const incomingLineByExistingId = new Map(
+          values.lines
+            .map((line) => [latestLineByClientId.get(line.id)?.id, line] as const)
+            .filter((entry): entry is [bigint, (typeof values.lines)[number]] => entry[0] != null),
+        )
+        const mergedExistingLines = latestLines
+          .filter((line) => !removedLineIdSet.has(String(line.id)))
+          .map((line) => incomingLineByExistingId.get(line.id) ?? persistedLineToFormLine(line, lineIdByLineNo))
+        const newIncomingLines = values.lines.filter((line) => !latestLineByClientId.has(line.id))
         effectiveValues = {
           ...effectiveValues,
           lines: [
-            ...values.lines.map(mergeLine).filter((line): line is (typeof values.lines)[number] => line != null),
-            ...remoteOnlyLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo)),
+            ...mergedExistingLines,
+            ...newIncomingLines,
           ],
         }
         const effectiveProductCodes = [...new Set(effectiveValues.lines.flatMap((line) => [
@@ -575,7 +610,13 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         }
         warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: effectiveBranch.id, lines: effectiveValues.lines, type: effectiveValues.type })
         warehouseByCode.forEach((warehouse) => warehouseNameById.set(warehouse.id, warehouse.name))
-        effectiveLineRows = buildWeightTicketLineRows(existing.id, effectiveValues, productByCode, impurityById, warehouseByCode)
+        const nextLineNoById = new Map<string, number>()
+        latestLines
+          .filter((line) => !removedLineIdSet.has(String(line.id)))
+          .forEach((line) => nextLineNoById.set(String(incomingLineByExistingId.get(line.id)?.id ?? line.id), line.line_no))
+        const nextLineNo = latestLines.reduce((max, line) => Math.max(max, line.line_no), 0)
+        newIncomingLines.forEach((line, index) => nextLineNoById.set(line.id, nextLineNo + index + 1))
+        effectiveLineRows = buildWeightTicketLineRows(existing.id, effectiveValues, productByCode, impurityById, warehouseByCode, nextLineNoById)
         effectiveTotals = calculateTicketTotals(effectiveValues.lines.map((line) => ({
           containerDeductionWeight: line.containerDeductionWeight,
           deductionMode: line.deductionMode,
@@ -587,11 +628,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           parentId: line.parentId,
           productId: line.productId,
         })))
-        const removedLineIds = latestLines
-          .filter((line) => collaborationDeletedLineIds.size > 0
-            ? collaborationDeletedLineIds.has(String(line.id))
-            : wasInBase(line) && !incomingExistingIds.has(line.id))
-          .map((line) => line.id)
         if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
         await Promise.all(effectiveLineRows.map(async (data, index) => {
           const valueLine = effectiveValues.lines[index]
@@ -636,6 +672,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
       }
       if (effectiveValues.type === 'WTO' && effectiveValues.saveScope !== 'header') {
+        await lockWeightTicketStockBuckets(tx, { branchId: effectiveBranch.id, lineRows: effectiveLineRows })
         await validateWeightTicketStockForWrite(tx, {
           branchId: effectiveBranch.id,
           excludeWeightTicketId: existing.status === 'delivered' ? existing.id : undefined,
@@ -842,6 +879,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         const nextStatus = existing.doc_type === 'WTO' ? 'delivered' : 'received'
         let confirmedHoldIds: bigint[] = []
         if (existing.doc_type === 'WTO') {
+          await lockWeightTicketStockBuckets(tx, { branchId: existing.branch_id, lineRows: existing.weight_ticket_lines })
           await validateWeightTicketStockForWrite(tx, {
             branchId: existing.branch_id,
             lineRows: existing.weight_ticket_lines,

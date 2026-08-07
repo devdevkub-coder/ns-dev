@@ -14,7 +14,7 @@ import { assertWeightTicketImpurityRules, assertWeightTicketPartyForType, Weight
 import {
   WtoPendingOutError,
 } from '@/lib/server/stock-holds'
-import { resolveWeightTicketWarehousesForWrite, validateWeightTicketStockForWrite, weightTicketPartySnapshot } from '@/lib/server/weight-ticket-write/handlers'
+import { lockWeightTicketStockBuckets, resolveWeightTicketWarehousesForWrite, validateWeightTicketStockForWrite, weightTicketPartySnapshot } from '@/lib/server/weight-ticket-write/handlers'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import {
   bangkokDateInput,
@@ -287,6 +287,7 @@ export async function POST(request: Request) {
       const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
       const lineRows = buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById, warehouseByCode)
       if (values.type === 'WTO' && values.saveScope !== 'header') {
+        await lockWeightTicketStockBuckets(tx, { branchId: branch.id, lineRows })
         await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
       }
       const createdLines = lineRows.length
