@@ -310,7 +310,8 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
 }
 
 export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: CompanyProfilePrintValues) {
-  const attachmentImagesPerPage = 4
+  // Six cards fit on an A4 attachment page as a 2-column x 3-row grid.
+  const attachmentImagesPerPage = 6
   const isReceipt = ticket.type === 'WTI'
   const docTitle = isReceipt ? 'ใบชั่งน้ำหนัก / ใบรับสินค้า' : 'ใบชั่งน้ำหนัก / ใบส่งของ'
   const partyLabel = isReceipt ? 'ผู้ขาย/ผู้ส่งของ' : 'ลูกค้า/ผู้รับสินค้า'

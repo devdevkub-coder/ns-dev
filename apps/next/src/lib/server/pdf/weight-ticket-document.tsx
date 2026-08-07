@@ -574,9 +574,9 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
   const decodedImages = buildWeightTicketAttachmentImages(ticket)
 
   const albumChunks: Array<StoredImageAsset[]> = []
-  // Four 4:3 cards fit reliably on an A4 portrait page with the header and
-  // metadata bar while keeping the source image fully visible.
-  const albumChunkSize = 4
+  // Six 4:3 cards fit on an A4 portrait page as a 2-column x 3-row grid
+  // while keeping the source image fully visible with object-fit contain.
+  const albumChunkSize = 6
   for (let i = 0; i < decodedImages.length; i += albumChunkSize) {
     albumChunks.push(decodedImages.slice(i, i + albumChunkSize))
   }
