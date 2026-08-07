@@ -267,7 +267,9 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     `
   }
 
-  function renderBottomGridAndSignatures() {
+  function renderBottomGridAndSignatures(options?: { isPage1?: boolean }) {
+    const isPage1 = options?.isPage1 ?? false
+
     return `
       <section class="bottom-grid">
         <div class="notes-panel">
@@ -320,20 +322,26 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       </section>
       
       <div class="footer-group">
-        <div class="signatures">
-          <div class="sig-block">
-            <div class="sig-line"></div>
-            <div class="sig-title">ผู้จ่ายเงิน</div>
-            <div class="sig-name">( ${escapeHtml(row.payerSignerName || row.createdBy || '')} )</div>
-            <div class="sig-date">วันที่ ____ / ____ / ______</div>
+        ${isPage1 ? `
+          <div style="text-align: center; padding: 22px 0 10px; font-weight: bold; color: #059669; font-size: 13px; letter-spacing: 0.5px;">
+            ( มีต่อหน้า 2 / Continued on Page 2 ➔ )
           </div>
-          <div class="sig-block">
-            <div class="sig-line"></div>
-            <div class="sig-title">ผู้รับเงิน</div>
-            <div class="sig-name">( ${escapeHtml(row.sellerName)} )</div>
-            <div class="sig-date">วันที่ ____ / ____ / ______</div>
+        ` : `
+          <div class="signatures">
+            <div class="sig-block">
+              <div class="sig-line"></div>
+              <div class="sig-title">ผู้จ่ายเงิน</div>
+              <div class="sig-name">( ${escapeHtml(row.payerSignerName || row.createdBy || '')} )</div>
+              <div class="sig-date">วันที่ ____ / ____ / ______</div>
+            </div>
+            <div class="sig-block">
+              <div class="sig-line"></div>
+              <div class="sig-title">ผู้รับเงิน</div>
+              <div class="sig-name">( ${escapeHtml(row.sellerName)} )</div>
+              <div class="sig-date">วันที่ ____ / ____ / ______</div>
+            </div>
           </div>
-        </div>
+        `}
         
         <div class="legal-note">
           ${escapeHtml(legalNote)}
@@ -349,7 +357,8 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     const page1Items = printItems.slice(0, 15)
     const page2Items = printItems.slice(15)
 
-    const page1EmptyCount = Math.max(0, 18 - page1Items.length)
+    const page1FilledCount = page1Items.length
+    const page1EmptyCount = Math.max(0, 15 - page1FilledCount)
     const page1EmptyRowsHtml = Array.from({ length: page1EmptyCount }).map(() => `
       <tr class="empty-row">
         <td>&nbsp;</td>
@@ -390,9 +399,9 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           </thead>
           <tbody>
             ${renderRows(page1Items, 0)}
-            ${page1EmptyRowsHtml}
           </tbody>
         </table>
+        ${renderBottomGridAndSignatures({ isPage1: true })}
       </div>
 
       <div class="page is-dense page-break-before">
