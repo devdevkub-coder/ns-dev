@@ -419,12 +419,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         vehicleNo: existing.vehicle_no ?? '',
         godownName: existing.godown_name ?? '',
       }
-      const remoteChangedHeaderFields = hasRemoteLineChanges && values.collaborationBaseHeader
-        ? headerFields.filter((field) => JSON.stringify(currentHeader[field]) !== JSON.stringify(values.collaborationBaseHeader?.[field]))
-        : []
-      if (remoteChangedHeaderFields.length) {
-        throw new WeightTicketCollaborationConflictError([], remoteChangedHeaderFields)
-      }
       const conflictingHeaderFields = hasRemoteLineChanges && values.collaborationBaseHeader
         ? headerFields.filter((field) => values.collaborationChangedHeaderFields?.includes(field) && JSON.stringify(currentHeader[field]) !== JSON.stringify(values.collaborationBaseHeader?.[field]))
         : []
@@ -492,7 +486,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         ].some((key) => key && collaborationBaseLineIds.has(key))
         const remoteOnlyLines = latestLines.filter((line) => !incomingExistingIds.has(line.id) && !wasInBase(line))
         effectiveValues = {
-          ...values,
+          ...effectiveValues,
           lines: [
             ...values.lines.map(mergeLine).filter((line): line is (typeof values.lines)[number] => line != null),
             ...remoteOnlyLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo)),

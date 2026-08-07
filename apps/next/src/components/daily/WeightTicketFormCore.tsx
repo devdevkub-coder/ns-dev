@@ -919,6 +919,7 @@ export function WeightTicketFormCore({
   const mobileProductEditorOpenAnimationFrameRef = useRef<number | null>(null)
   const saveInFlightRef = useRef<'auto_save' | 'save' | null>(null)
   const changedLineIdsRef = useRef<Set<string>>(new Set())
+  const deletedLineIdsRef = useRef<Set<string>>(new Set())
   const dirtyHeaderFieldsRef = useRef<Set<CollaborationHeaderField>>(new Set())
   const remoteSyncInFlightRef = useRef(false)
   const pendingAttachmentUploadsRef = useRef<Set<Promise<unknown>>>(new Set())
@@ -1035,12 +1036,13 @@ export function WeightTicketFormCore({
         setForm((current) => {
           const localById = new Map(current.lines.map((line) => [line.id, line] as const))
           const mergedLines = latestForm.lines.map((latestLine) => {
+            if (deletedLineIdsRef.current.has(latestLine.id)) return null
             const localLine = localById.get(latestLine.id)
             return localLine && (changedLineIdsRef.current.has(latestLine.id) || localLine.version == null)
               ? localLine
               : latestLine
-          })
-          const localOnlyDraftLines = current.lines.filter((line) => !latestById.has(line.id) && (changedLineIdsRef.current.has(line.id) || line.version == null))
+          }).filter((line): line is FormWeightTicketLine => line !== null)
+          const localOnlyDraftLines = current.lines.filter((line) => !latestById.has(line.id) && !deletedLineIdsRef.current.has(line.id) && (changedLineIdsRef.current.has(line.id) || line.version == null))
           return {
             ...current,
             branchId: dirtyHeaderFields.has('branchId') ? current.branchId : latestForm.branchId,
@@ -1299,6 +1301,7 @@ export function WeightTicketFormCore({
         setFormBaseline(formSafetySnapshot(nextForm))
         setSavedTicket(ticket)
         changedLineIdsRef.current.clear()
+        deletedLineIdsRef.current.clear()
         dirtyHeaderFieldsRef.current.clear()
         setActiveLineId('')
         setMobileProductView('list')
@@ -1521,6 +1524,7 @@ export function WeightTicketFormCore({
   }
 
   function markLinesDeleted(lineIds: Iterable<string>) {
+    for (const lineId of lineIds) deletedLineIdsRef.current.add(lineId)
     markLinesDirty(lineIds)
   }
 
@@ -1661,7 +1665,8 @@ export function WeightTicketFormCore({
       const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
       const baselineTicket = savedTicket ?? loadedTicket
       const baselineLineIds = Array.from(baselineLines.keys())
-      const deletedLineIds = baselineLineIds.filter((lineId) => !snapshotToSave.lines.some((line) => line.id === lineId))
+      const deletedLineIds = new Set(deletedLineIdsRef.current)
+      baselineLineIds.filter((lineId) => !snapshotToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
       const changedLineIds = new Set(changedLineIdsRef.current)
       deletedLineIds.forEach((lineId) => changedLineIds.add(lineId))
       snapshotToSave.lines.forEach((line) => {
@@ -1676,7 +1681,7 @@ export function WeightTicketFormCore({
         collaborationBaseLineIds: baselineLineIds,
         collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
         collaborationChangedLineIds: Array.from(changedLineIds),
-        collaborationDeletedLineIds: deletedLineIds,
+        collaborationDeletedLineIds: Array.from(deletedLineIds),
         collaborationBaseHeader: baselineTicket ? {
           branchId: baselineTicket.branchId,
           partyId: baselineTicket.partyId,
@@ -1715,7 +1720,11 @@ export function WeightTicketFormCore({
       invalidatePurchaseBillOptionsCache()
       const nextForm = ticketToFormState(ticket)
       setLoadedTicket(ticket)
-      setSavedTicket(ticket)
+      const liveLineIds = new Set(formRef.current.lines.map((line) => line.id))
+      const persistedLineIds = new Set(ticket.lines.map((line) => line.id))
+      const lineIdsReconciled = liveLineIds.size === persistedLineIds.size
+        && Array.from(liveLineIds).every((lineId) => persistedLineIds.has(lineId))
+      if (lineIdsReconciled) setSavedTicket(ticket)
       // This is a background save started by "เพิ่มสินค้า". Keep the live
       // form untouched because the user may already be editing the newly
       // opened line while this response is in flight.
@@ -2148,7 +2157,6 @@ export function WeightTicketFormCore({
     const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
     const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปสินค้าไม่สำเร็จ')] : [])
     if (nextFiles.length > 0) {
-      dirtyHeaderFieldsRef.current.add('vehicleImageNames')
       const currentForm = formRef.current
       formRef.current = {
         ...currentForm,
@@ -2260,7 +2268,8 @@ export function WeightTicketFormCore({
       const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
       const baselineTicket = savedTicket ?? loadedTicket
       const baselineLineIds = Array.from(baselineLines.keys())
-      const deletedLineIds = baselineLineIds.filter((lineId) => !formToSave.lines.some((line) => line.id === lineId))
+      const deletedLineIds = new Set(deletedLineIdsRef.current)
+      baselineLineIds.filter((lineId) => !formToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
       const changedLineIds = new Set(changedLineIdsRef.current)
       deletedLineIds.forEach((lineId) => changedLineIds.add(lineId))
       formToSave.lines.forEach((line) => {
@@ -2275,7 +2284,7 @@ export function WeightTicketFormCore({
         collaborationBaseLineIds: baselineLineIds,
         collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
         collaborationChangedLineIds: Array.from(changedLineIds),
-        collaborationDeletedLineIds: deletedLineIds,
+        collaborationDeletedLineIds: Array.from(deletedLineIds),
         collaborationBaseHeader: baselineTicket ? {
           branchId: baselineTicket.branchId,
           partyId: baselineTicket.partyId,
@@ -2316,6 +2325,7 @@ export function WeightTicketFormCore({
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
       changedLineIdsRef.current.clear()
+      deletedLineIdsRef.current.clear()
       dirtyHeaderFieldsRef.current.clear()
       setRemoteChangedLineIds(new Set())
       if (formSafetySnapshot(formRef.current) === saveSnapshot) {

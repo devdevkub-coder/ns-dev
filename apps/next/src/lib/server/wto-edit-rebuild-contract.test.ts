@@ -163,6 +163,7 @@ describe('WTO delivered edit release/rebuild contract', () => {
   it('treats an edited line deleted by another user as a conflict', () => {
     expect(editRouteSource).toContain('const missingChangedLineIds = Object.keys(collaborationBaseLineVersions)')
     expect(editRouteSource).toContain('if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds)')
+    expect(editRouteSource).toContain('effectiveValues = {\n          ...effectiveValues,\n          lines: [')
   })
 
   it('keeps the original client baseline when realtime merges around dirty form data', () => {
@@ -171,8 +172,14 @@ describe('WTO delivered edit release/rebuild contract', () => {
     expect(formSource).toContain('setSavedTicket(mergedBaseline)')
     expect(formSource).toContain('setSavedTicket(ticket)')
     expect(formSource).toContain('version: line.version')
-    expect(formSource).toContain("dirtyHeaderFieldsRef.current.add('vehicleImageNames')")
+    expect(formSource).toContain('const deletedLineIdsRef = useRef<Set<string>>(new Set())')
+    expect(formSource).toContain('if (deletedLineIdsRef.current.has(latestLine.id)) return null')
+    expect(formSource).toContain('if (lineIdsReconciled) setSavedTicket(ticket)')
+    const appendLineImagesStart = formSource.indexOf('async function appendLineImages(')
+    const appendVehicleImagesStart = formSource.indexOf('async function appendVehicleImages(', appendLineImagesStart)
+    expect(formSource.slice(appendLineImagesStart, appendVehicleImagesStart)).not.toContain("dirtyHeaderFieldsRef.current.add('vehicleImageNames')")
     expect(formSource).toContain('function removeImpurityLine')
+    expect(editRouteSource).not.toContain('const remoteChangedHeaderFields =')
   })
 
   it('compares collaboration headers using the same business codes as the read model', () => {
