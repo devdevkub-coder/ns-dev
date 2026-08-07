@@ -225,8 +225,8 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
         <div class="company">
           ${logoHtml}
           <div>
-            <div class="company-name">${escapeHtml(missing(profile.name))}</div>
-            ${profile.nameEn ? `<div class="company-en">${escapeHtml(profile.nameEn)}</div>` : ''}
+            <div class="company-name">${escapeHtml(missing(profile.name).replace(/[\r\n]+/g, ' ').trim())}</div>
+            ${profile.nameEn ? `<div class="company-en">${escapeHtml(profile.nameEn.replace(/[\r\n]+/g, ' ').trim())}</div>` : ''}
             <div class="company-info">${companyInfo(profile, bill)}</div>
           </div>
         </div>

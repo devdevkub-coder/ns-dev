@@ -132,7 +132,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     : [{ amount: row.totalAmount, description: row.purchaseBillDocNo || row.docNo, id: 'summary', price: row.totalQty ? row.totalAmount / row.totalQty : row.totalAmount, qty: row.totalQty, unit: 'กก.' }]
 
   const quantitySummary = summarizeQuantityByUnit(printItems)
-  const companyName = profile.name || 'ไม่มีข้อมูล'
+  const companyName = (profile.name || 'ไม่มีข้อมูล').replace(/[\r\n]+/g, ' ').trim()
   const companyAddress = profile.address || 'ไม่มีข้อมูล'
   const companyPhone = profile.phone || 'ไม่มีข้อมูล'
   const companyTaxId = profile.taxId || 'ไม่มีข้อมูล'
