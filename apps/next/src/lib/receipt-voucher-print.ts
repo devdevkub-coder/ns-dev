@@ -510,14 +510,14 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .field-value { font-weight: bold; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; font-size: 11.5px; }
       .field-wide { grid-span: 2; grid-column: span 2; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 8px; font-size: 11px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
+      .items { margin-top: 8px; font-size: 11.5px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
       .items thead { display: table-header-group; }
       .items tbody { break-inside: auto; page-break-inside: auto; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 3px 4px; text-align: left; font-weight: 900; }
-      .items td { border: 1px solid #dbe3ea; padding: 3px 4px; vertical-align: top; }
+      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 5px 6px; text-align: left; font-weight: 900; }
+      .items td { border: 1px solid #dbe3ea; padding: 5px 6px; vertical-align: middle; }
       .items tr { break-inside: avoid; page-break-inside: avoid; }
-      .items .empty-row td { height: 20px; color: transparent; }
-      .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; padding: 4px 4px; }
+      .items .empty-row td { height: 26px; color: transparent; }
+      .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; padding: 5px 6px; }
       .items tfoot .final-amount { color: #059669; font-size: 11.5px; }
       .item-name { font-weight: bold; color: #0f172a; }
       .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -545,19 +545,19 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .legal-note { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 6px; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; break-inside: avoid; page-break-inside: avoid; }
 
       /* Auto Dense Sizing */
-      .page.is-dense { padding: 4mm; }
-      .page.is-dense .company-name { font-size: 13.5px; }
+      .page.is-dense { padding: 4.5mm; }
+      .page.is-dense .company-name { font-size: 14px; }
       .page.is-dense .company-info { font-size: 11px; margin-top: 2px; }
-      .page.is-dense .doc-title { font-size: 19px; }
+      .page.is-dense .doc-title { font-size: 20px; }
       .page.is-dense .doc-subtitle { font-size: 11px; }
-      .page.is-dense .meta-grid { margin-top: 5px; gap: 3px; }
-      .page.is-dense .meta-card { padding: 2px 5px; }
+      .page.is-dense .meta-grid { margin-top: 6px; gap: 4px; }
+      .page.is-dense .meta-card { padding: 3px 6px; }
       .page.is-dense .section-grid { margin-top: 6px; gap: 6px; }
-      .page.is-dense .panel-title { padding: 3px 6px; font-size: 11px; }
-      .page.is-dense .panel-body { padding: 4px 6px; }
-      .page.is-dense .two-col { gap: 3px 8px; }
-      .page.is-dense .items { margin-top: 6px; font-size: 10.5px; }
-      .page.is-dense .items th, .page.is-dense .items td { padding: 2px 3px; }
+      .page.is-dense .panel-title { padding: 4px 6px; font-size: 11px; }
+      .page.is-dense .panel-body { padding: 5px 6px; }
+      .page.is-dense .two-col { gap: 4px 8px; }
+      .page.is-dense .items { margin-top: 8px; font-size: 11px; }
+      .page.is-dense .items th, .page.is-dense .items td { padding: 4px 5px; }
       .page.is-dense .bottom-grid { margin-top: 6px; gap: 6px; }
       .page.is-dense .signatures { margin-top: 20px; gap: 28px; }
       .page.is-dense .sig-line { height: 32px; }
