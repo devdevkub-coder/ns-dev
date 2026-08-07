@@ -1586,7 +1586,7 @@ function columnsFor(mode: Mode): OperationColumn[] {
   ]
   if (mode === 'convert') return [
     { key: 'sourceType', label: 'วิธีจัดสรร', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
-    { key: 'refNo', label: 'เลขที่ / อ้างอิง', cellClassName: 'whitespace-nowrap text-center font-mono', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'refNo', label: 'เลขที่เอกสาร', cellClassName: 'whitespace-nowrap text-center font-mono', headerClassName: 'text-center whitespace-nowrap', sortable: true },
     { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'whitespace-nowrap text-center', headerClassName: 'text-center whitespace-nowrap', sortable: true },
     { key: 'branchWarehouse', label: 'สาขา / คลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
     { key: 'sourceProduct', label: 'สินค้าออก', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
