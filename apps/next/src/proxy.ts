@@ -1,5 +1,4 @@
 import { createServerClient } from '@supabase/ssr'
-import type { Session } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { permissionCodesForPath } from '@/lib/navigation'
 import { applyAuthResponseHeaders } from '@/lib/proxy-auth-headers'
@@ -24,11 +23,6 @@ function jsonError(message: string, status: number) {
 function authErrorResponse(source: NextResponse, target: NextResponse) {
   applyAuthResponseHeaders(source.headers, target.headers)
   return target
-}
-
-function hasUsableSession(session: Session | null) {
-  if (!session?.user) return false
-  return session.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000)
 }
 
 export async function proxy(request: NextRequest) {
@@ -67,26 +61,19 @@ export async function proxy(request: NextRequest) {
     error: authError,
   } = await supabase.auth.getUser()
 
-  // Supabase Auth can temporarily fail while the browser still has a valid,
-  // non-expired session cookie. Keep the request usable in that case; the
-  // session expiry is still enforced and a missing/expired session is denied.
-  let user = verifiedUser
-  if (authError && !user) {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (hasUsableSession(session)) user = session?.user ?? null
-  }
-
-  if (authError && !user) {
+  if (authError) {
     return authErrorResponse(response, pathname.startsWith('/api/')
       ? jsonError('ตรวจสอบ session ไม่สำเร็จ', 401)
       : loginRedirect(request))
   }
 
-  if (!user) {
+  if (!verifiedUser) {
     return authErrorResponse(response, pathname.startsWith('/api/') ? jsonError('กรุณาเข้าสู่ระบบ', 401) : loginRedirect(request))
   }
+
+  // /api/auth/me performs the app-user lookup itself. Avoid the extra RPC
+  // here so this health/auth context request has only one authorization path.
+  if (pathname === '/api/auth/me') return response
 
   const { data: appUserAccessRows, error: appUserError } = await supabase.rpc('current_app_user_access_context')
 

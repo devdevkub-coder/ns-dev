@@ -1,8 +1,8 @@
 ## Current objective — 2026-08-07
 
-Allow admin users to change branch access mode independently from the selected Role while preserving legacy unrestricted users and existing explicit mappings.
+Reduce `/api/auth/me` latency by removing duplicate proxy RPC work and repeated AppShell requests while keeping verified session checks and private no-store responses.
 
-Active batch: explicit branch-access mode in user create/update, effective-scope resolver precedence, focused Vitest coverage, then lint/type-check/build and mandatory code review before any SIT push.
+Active batch: bypass proxy RPC only for `/api/auth/me`, load auth context once per AppShell session, remove unverified `getSession()` fallback, then focused auth tests and lint/type-check review before any SIT push.
 
 # WTI/WTO Storage Visibility Boundary — 2026-08-06
 

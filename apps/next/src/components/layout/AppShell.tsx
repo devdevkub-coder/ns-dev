@@ -192,7 +192,7 @@ export function AppShell({ children }: AppShellProps) {
             roles: normalizeAuthRoles(payload?.roles),
           })
         } else if (mounted && response.status === 401) {
-          const redirect = `${pathname}${window.location.search}`
+          const redirect = `${window.location.pathname}${window.location.search}`
           router.replace(`/login?redirect=${encodeURIComponent(redirect)}`)
         } else if (mounted) {
           setAuthContext(null)
@@ -217,7 +217,7 @@ export function AppShell({ children }: AppShellProps) {
     return () => {
       mounted = false
     }
-  }, [isAuthPage, pathname, router])
+  }, [isAuthPage, router])
 
   function handleSidebarBlur(event: FocusEvent<HTMLElement>) {
     if (event.currentTarget.contains(event.relatedTarget)) return
