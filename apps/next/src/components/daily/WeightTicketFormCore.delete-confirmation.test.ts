@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   requestWeightTicketSelectionChange,
+  removeWeightTicketLot,
   shouldConfirmWeightTicketBranchChange,
   shouldConfirmWeightTicketImpurityChange,
   shouldConfirmWeightTicketImpurityRemoval,
@@ -193,5 +194,26 @@ describe('WeightTicketFormCore local deletion confirmation', () => {
       freshImpurity,
       linkedPurchaseLine,
     ], freshImpurity.id, 'default-impurity')).toBe(true)
+  })
+
+  it('promotes the second lot when the first lot is removed and keeps linked relations', () => {
+    const firstLot = line({ id: 'lot-1', productId: 'product-1' })
+    const secondLot = line({ id: 'lot-2', parentId: firstLot.id, productId: 'product-1', grossWeight: '25' })
+    const impurity = line({ id: 'impurity-1', parentId: firstLot.id, impurityId: 'impurity-1', deductionMode: 'kg', productId: 'product-1' })
+    const purchase = line({ id: 'purchase-1', parentId: firstLot.id, impuritySourceLineId: impurity.id, productId: 'product-2', grossWeight: '2' })
+
+    const nextLines = removeWeightTicketLot([firstLot, secondLot, impurity, purchase], firstLot.id)
+
+    expect(nextLines).toEqual([
+      { ...secondLot, parentId: undefined },
+      { ...impurity, parentId: secondLot.id },
+      { ...purchase, parentId: secondLot.id },
+    ])
+  })
+
+  it('does not remove the first lot when it is the only lot', () => {
+    const firstLot = line({ id: 'lot-1', productId: 'product-1' })
+
+    expect(removeWeightTicketLot([firstLot], firstLot.id)).toEqual([firstLot])
   })
 })

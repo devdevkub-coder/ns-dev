@@ -506,6 +506,47 @@ function getMainParentLines(lines: FormWeightTicketLine[]) {
   return lines.filter((line) => !line.parentId)
 }
 
+/**
+ * Removes one lot while preserving the product section's root-line contract.
+ * The first lot is stored as the product root, so when it is removed the next
+ * real lot is promoted and all impurity/purchase relations are moved with it.
+ */
+export function removeWeightTicketLot<T extends Pick<FormWeightTicketLine, 'deductionMode' | 'id' | 'impuritySourceLineId' | 'parentId'>>(lines: T[], lotId: string) {
+  const target = lines.find((line) => line.id === lotId)
+  if (!target) return lines
+
+  if (!target.parentId) {
+    const replacement = lines.find((line) => (
+      line.parentId === target.id
+      && line.deductionMode === 'none'
+      && !line.impuritySourceLineId
+    ))
+    if (!replacement) return lines
+
+    return lines
+      .filter((line) => line.id !== target.id)
+      .map((line) => ({
+        ...line,
+        parentId: line.id === replacement.id
+          ? undefined
+          : line.parentId === target.id
+            ? replacement.id
+            : line.parentId,
+        impuritySourceLineId: line.impuritySourceLineId === target.id
+          ? replacement.id
+          : line.impuritySourceLineId,
+      }))
+  }
+
+  const childIds = new Set(lines.filter((line) => line.parentId === lotId).map((line) => line.id))
+  const removedLines = new Set([
+    lotId,
+    ...childIds,
+    ...lines.filter((line) => childIds.has(line.impuritySourceLineId ?? '')).map((line) => line.id),
+  ])
+  return lines.filter((line) => !removedLines.has(line.id))
+}
+
 function getBoughtImpurityEntriesForLine(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
   const targetEntries = allLines
     .filter((entry) => entry.impuritySourceLineId && (entry.id === line.id || entry.parentId === line.id))
@@ -2029,11 +2070,37 @@ export function WeightTicketFormCore({
   }
 
   function removeLot(lotId: string) {
-    markLinesDeleted([lotId])
-    setForm((current) => ({
-      ...current,
-      lines: current.lines.filter((line) => line.id !== lotId),
-    }))
+    setForm((current) => {
+      const nextLines = removeWeightTicketLot(current.lines, lotId)
+      const removedIds = current.lines
+        .filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id))
+        .map((line) => line.id)
+      if (removedIds.length) markLinesDeleted(removedIds)
+      const changedRelationIds = nextLines
+        .filter((line) => {
+          const previous = current.lines.find((entry) => entry.id === line.id)
+          return Boolean(previous && (
+            previous.parentId !== line.parentId
+            || previous.impuritySourceLineId !== line.impuritySourceLineId
+          ))
+        })
+        .map((line) => line.id)
+      if (changedRelationIds.length) markLinesDirty(changedRelationIds)
+
+      const removedLine = current.lines.find((line) => line.id === lotId)
+      if (removedLine && !removedLine.parentId) {
+        const promotedLine = nextLines.find((line) => (
+          !line.parentId
+          && line.productId === removedLine.productId
+          && !isImpurityPurchaseLine(line)
+        ))
+        if (promotedLine) setActiveLineId(promotedLine.id)
+      }
+
+      return nextLines.length === current.lines.length && nextLines.every((line, index) => line === current.lines[index])
+        ? current
+        : { ...current, lines: nextLines }
+    })
   }
 
   function requestLotRemoval(lot: FormWeightTicketLine) {
@@ -3066,7 +3133,7 @@ export function WeightTicketFormCore({
                                       >
                                         {isCollapsed ? 'ขยาย' : 'ยุบ'}
                                       </Button>
-                                      {!isParent && (
+                                      {(!isParent || lots.length > 1) && (
                                       <Button
                                         size="xs"
                                         type="button"
