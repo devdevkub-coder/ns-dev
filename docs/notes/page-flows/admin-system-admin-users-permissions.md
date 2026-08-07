@@ -47,7 +47,7 @@ split admin user management from role/permission viewing:
 - ไม่ bypass Supabase Auth invite/reset flow
 - ไม่สร้าง business transaction
 - ไม่แก้ role matrix โดยไม่มี API/schema support
-- ไม่ใช้ Department แทน Role; Department คือสังกัด/ฝ่ายของพนักงาน ส่วน Role คือชุดสิทธิ์การใช้งาน และผู้ใช้หนึ่งคนเลือกได้ exactly 1 Role
+- ไม่ใช้ Department แทน Role; Department คือสังกัด/ฝ่ายของพนักงาน ส่วน Role คือชุดสิทธิ์การใช้งาน และผู้ใช้หนึ่งคนเลือกได้อย่างน้อย 1 Role
 
 ## Lifecycle / Support Flow
 
@@ -74,8 +74,8 @@ Profile/contact fields are stored on `app_users` as application profile data:
 ### Current API
 
 - `GET /api/admin/users - users/roles/departments/branches`
-- `POST /api/admin/users - create app user with exactly one role, branch scope, and optional per-user permission overrides`
-- `PATCH /api/admin/users/[id] - update app user with exactly one role and branch scope; optionally replace per-user permission overrides when explicitly provided`
+- `POST /api/admin/users - create app user with one or more roles, branch scope, and optional per-user permission overrides`
+- `PATCH /api/admin/users/[id] - update app user with one or more roles and branch scope; optionally replace per-user permission overrides when explicitly provided`
 - `PATCH /api/admin/users/[id]/status - active/inactive user`
 - `POST /api/admin/users/[id]/invite - invite or reset password`
 
@@ -93,7 +93,7 @@ Profile/contact fields are stored on `app_users` as application profile data:
 - email is the only login identifier and is validated in client and server schema; name prefix is a fixed dropdown (`นาย`, `นาง`, `นางสาว`, `คุณ`); `display_name` is derived by the API from prefix, first name, and last name (falling back to email for legacy users without structured names)
 - profile/contact fields are optional; `profileImageUrl` must be an http/https URL when provided
 - departmentId is required and must resolve to an active row in `departments`; the user form has no “ไม่ระบุฝ่าย” option
-- roleIds ต้องมี exactly 1 รายการทั้ง create และ update; ข้อมูล legacy ที่มีหลาย Role จะไม่ถูกตัดเหลือรายการแรกอัตโนมัติ และผู้ดูแลต้องเลือก Role ใหม่อย่างชัดเจนก่อนบันทึก
+- roleIds ต้องมีอย่างน้อย 1 รายการ; ผู้ใช้เดิมที่มีหลาย Role สามารถคงไว้หรือเพิ่ม/ลด Role ได้อย่างชัดเจน
 - branchIds resolve จาก active branch code
 - ห้ามปิดบัญชีตัวเอง
 - invite requires email and a `pending` account; password setup/reset requires an `active` account; `disabled` accounts cannot receive credential links
@@ -103,7 +103,7 @@ Profile/contact fields are stored on `app_users` as application profile data:
 
 - writes app_users/app_user_roles/app_user_branch_access
 - department assignment writes only `app_users.department_id`; it does not grant permissions
-- a work-function template writes `app_roles` and `app_role_permissions`; a user inherits one selected template and can override any catalog permission as `allow` or `deny`
+- a work-function template writes `app_roles` and `app_role_permissions`; a user can inherit multiple templates and override any catalog permission as `allow` or `deny`
 - may call Supabase Auth invite/reset
 - records auth audit events
 - ไม่มี business transaction side effect
@@ -146,7 +146,7 @@ The profile fields `ชื่อจริง` and `นามสกุล` are re
 
 The user modal's Profile section now uses the profile-page visual pattern: a calm profile surface, large circular avatar, camera/upload action, and compact account fields grouped beneath it. This is a visual adaptation only; the ERP keeps the existing modal save flow, department/role controls, required validation, and explicit contact fields. Profile images are uploaded through `POST /api/admin/users/profile-image` to the `user-profile-images` Storage bucket, limited to JPEG/PNG/WebP up to 10 MB. The API stores the resulting URL in the existing `profile_image_url` contract, removes an old managed asset only after the user update succeeds, and cleans up a newly uploaded asset if the user save fails. Manual/external URLs remain readable but are not deleted by the cleanup endpoint.
 
-As of 2026-07-11, the Roles tab is the `หน้าที่งานและสิทธิ์` management surface. A work function is a reusable template with a user-defined name, description, branch-scope policy, and a selected set of catalog permissions. The current `/admin/users` write contract allows exactly one active template per new or edited user; legacy rows with multiple Role assignments remain visible for review and require an explicit replacement selection before update. Until legacy data is remediated, authentication remains compatible with the existing multi-role read model, so those rows continue to contribute their persisted grants. The selected Role is the baseline for new writes, and each catalog permission may be inherited, explicitly allowed, or explicitly denied for that user. Why it stays this way: the user form has one unambiguous job function while the transition does not silently remove access from existing users.
+As of 2026-07-11, the Roles tab is the `หน้าที่งานและสิทธิ์` management surface. A work function is a reusable template with a user-defined name, description, branch-scope policy, and a selected set of catalog permissions. A user may inherit multiple active templates and set each catalog permission to inherit, explicitly allow, or explicitly deny. Effective permission is the union of active Role permissions plus direct allows, minus direct denies. Why it stays this way: one person can work across operational teams without silently removing an existing Role grant.
 
 As of 2026-07-11, role permission selection is organized from the active Side menu rather than raw permission modules. The left column is an expandable Side menu category tree; selecting a page shows only that page's catalog actions in the adjacent column. A category is not itself a permission grant: the shell shows it only when the user can access at least one page in that category. Catalog entries that are not linked to a visible Side menu page remain visible in a separate system-permission area so existing access cannot disappear silently. The Side menu is still a code registry at this checkpoint; a future menu-management and drag/drop batch must persist the same registry in the database before changing navigation order or category placement at runtime.
 
@@ -162,7 +162,7 @@ Employee directory synchronization on 2026-07-11: migration `20260711110000_sync
 
 Role normalization follow-up on 2026-07-11: migration `20260711113000_normalize_employee_roles.sql` resets the approved directory users to `เจ้าหน้าที่` or `ผู้ดูแลระบบ`, so the `หน้าที่งาน` column on `/admin/users` matches the approved employee list. It deletes their legacy role assignments and direct permission overrides. `เจ้าหน้าที่` starts with no permission grant; `ผู้ดูแลระบบ` receives every active catalog permission through persisted `app_role_permissions`. What is what: the approved employee list is the only source for these users' Role. Why it stays this way: the organization explicitly reset the staff-role model, so old grants must not continue to affect access. The next permission batch configures pages/actions for each `ฝ่าย + Role` profile.
 
-Employee role/permission integration follow-up on 2026-08-03: the `/admin/users` modal lists every active `app_roles` row from the same payload used by `/admin/roles-permissions`, rather than filtering on `is_employee_role`. A new or edited user must select exactly one active reusable Role; if legacy data has more than one, the form leaves the selection empty and requires an explicit choice instead of silently truncating assignments. The Role permissions are inherited as the baseline and the same modal exposes per-permission `ตามหน้าที่งาน`, `อนุญาตเพิ่ม`, and `ปิดสิทธิ์` overrides. The create/update APIs validate that the selected Role exists and is active. Direct overrides are persisted only when explicitly changed and require `system.permissions.update`; omitting the field preserves existing overrides on update. `is_employee_role` remains metadata for legacy employee-directory classification, not a hidden gate that prevents a Role configured in Roles & Permissions from being assigned to a user. What is what: Role assignment selects one reusable authorization template, while direct overrides are user-specific exceptions. Why it has to be like this: the Users page must be able to use the Roles and permission catalog that administrators configure on the Roles & Permissions page without making a hidden choice for legacy multi-role data.
+Employee role/permission integration follow-up on 2026-08-03: the `/admin/users` modal lists every active `app_roles` row from the same payload used by `/admin/roles-permissions`, rather than filtering on `is_employee_role`. A new or edited user must select at least one active reusable Role and may retain or add multiple Roles; the form does not silently truncate existing assignments. Role permissions are inherited as a union baseline and the same modal exposes per-permission `ตามหน้าที่งาน`, `อนุญาตเพิ่ม`, and `ปิดสิทธิ์` overrides. The create/update APIs validate that every selected Role exists and is active. Direct overrides are persisted only when explicitly changed and require `system.permissions.update`; omitting the field preserves existing overrides on update. `is_employee_role` remains metadata for legacy employee-directory classification, not a hidden gate that prevents a Role configured in Roles & Permissions from being assigned to a user.
 
 The approved organization has four departments. Migration `20260711123000_sync_latest_employee_directory.sql` defines the current master as:
 
@@ -177,21 +177,21 @@ The approved organization has four departments. Migration `20260711123000_sync_l
 
 `ผู้ดูแลระบบ` is a Role, not a department. The owner belongs to `DEP-001 บริหาร` and receives system-wide access only when assigned the `ผู้ดูแลระบบ` role. Migration `20260711103000_retire_admin_department.sql` removed the former admin department, and migration `20260711123000_sync_latest_employee_directory.sql` subsequently merged `DEP-005 คัดแยก` into production. Department codes are not renumbered.
 
-This matrix controls category visibility only. Each category still expands into its registered pages and page actions, so the selected Role can be granted a subset of its allowed pages/actions when needed. The `ผู้ดูแลระบบ` role can be assigned in any department and receives all registered pages/actions through persisted grants, not through a department named ผู้ดูแลระบบ or a code bypass.
+This matrix controls category visibility only. Each category still expands into its registered pages and page actions, so each assigned Role can be granted a subset of its allowed pages/actions when needed. The `ผู้ดูแลระบบ` role can be assigned in any department and receives all registered pages/actions through persisted grants, not through a department named ผู้ดูแลระบบ or a code bypass.
 
-Role is not a department name. The approved standard roles are `เจ้าหน้าที่`, `หัวหน้างาน`, `ผู้บริหาร`, and `ผู้ดูแลระบบ`. A user has one primary department and exactly one selected Role in the current user-management write contract. Historical department-role assignments may still exist in legacy data and remain part of the compatibility read model until an approved remediation; the admin form does not silently preserve or collapse them, and any update requires an explicit Role selection.
+Role is not a department name. The approved standard roles are `เจ้าหน้าที่`, `หัวหน้างาน`, `ผู้บริหาร`, and `ผู้ดูแลระบบ`. A user has one primary department and one or more selected Roles. Multiple Role assignments remain supported because one person can work across operational teams and each Role can contribute a distinct Side menu category/page grant.
 
 Target assignment model:
 
 ```text
 user
   -> primary department (employee/profile information)
-  -> exactly one Role assignment
-       -> page/action permissions for that Role
+  -> one or more Role assignments
+       -> page/action permissions for each Role
   -> optional direct allow/deny override for an exceptional individual case
 ```
 
-For newly created or explicitly remediated users, the effective permission set is the selected active Role's grants, plus direct allows, minus direct denies. Existing legacy multi-role users remain governed by the compatibility read model until remediated; their effective permissions are the union of persisted active Role grants plus direct allows, minus direct denies. A category with no accessible pages stays hidden. Legacy rows must be reviewed and deliberately reduced to one Role before the user can be considered fully aligned with the current contract.
+The effective permission set is the union of active Role grants, plus direct allows, minus direct denies. A category with no accessible pages stays hidden.
 
 ## User Invitation And Activation
 
@@ -212,7 +212,7 @@ create employee -> pending -> invitation sent -> admin activates employee
           -> employee logs in -> forced change-password page -> credentials ready
 ```
 
-After authentication and any required password change complete, `/` resolves `app_roles.default_landing_path` from the user's active Role set before normal menu order. For a current single-role user this is the selected Role; legacy multi-role rows remain compatibility behavior until remediation and use the existing deterministic Role ordering. The preference never grants access: runtime accepts it only when the path exists in the active navigation registry and the user's effective permissions authorize that page; otherwise it falls back to the first accessible navigation item.
+After authentication and any required password change complete, `/` resolves `app_roles.default_landing_path` from the user's active Role set before normal menu order. If more than one assigned Role defines a landing path, Role code order makes the choice deterministic. The preference never grants access: runtime accepts it only when the path exists in the active navigation registry and the user's effective permissions authorize that page; otherwise it falls back to the first accessible navigation item.
 
 Role `accountant` uses `/daily/expense-dashboard` as its default landing page, while `production_department` continues to use `/production/dashboard`. Migration `20260724120000_set_accountant_expense_dashboard_landing.sql` verifies that the active accountant Role already holds `reports.expense_dashboard.view` before writing the preference and fails closed if the Role, permission, or grant is missing. It was applied transactionally to production on 2026-07-24 and recorded in migration history. Why it stays this way: a landing preference must never become an implicit permission grant or redirect a user to a page they cannot open.
 

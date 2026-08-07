@@ -619,13 +619,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const assignableRoles = useMemo(() => (
     (data?.roles ?? []).filter((role) => role.active)
   ), [data?.roles])
-  const selectedRole = assignableRoles.find((role) => role.id === form.roleIds[0])
-  const assignableRoleOptions = useMemo(() => assignableRoles.map((role) => ({
-    description: role.code,
-    id: role.id,
-    label: role.name,
-    searchText: [role.code, role.name, role.description].filter(Boolean).join(' '),
-  })), [assignableRoles])
+  const selectedRoles = assignableRoles.filter((role) => form.roleIds.includes(role.id))
+  const hasUnrestrictedSelectedRole = selectedRoles.some((role) => role.branchScope.trim().toLowerCase() === 'all')
   const roleFilterOptions = useMemo(() => [
     { id: 'all', label: 'ทุกหน้าที่งาน' },
     ...(data?.roles ?? []).map((role) => ({
@@ -935,7 +930,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   }
 
   function openEditUser(user: AdminUser) {
-    const assignedRole = user.roles.length === 1 ? user.roles[0] : null
+    const assignedRoles = user.roles
     const nextForm: UserFormState = {
       active: user.active,
       branchIds: user.branchIds,
@@ -950,15 +945,15 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       namePrefix: user.namePrefix ?? '',
       permissionOverrides: user.permissionOverrides,
       profileImageUrl: user.profileImageUrl ?? '',
-      roleIds: user.roles.length === 1 ? [user.roles[0].id] : [],
+      roleIds: assignedRoles.map((role) => role.id),
     }
     setEditingUser(user)
     setForm(nextForm)
-    setBranchAccessMode(assignedRole?.branchScope === 'all' ? 'all' : user.branchIds.length ? 'selected' : 'unset')
+    setBranchAccessMode(assignedRoles.some((role) => role.branchScope.trim().toLowerCase() === 'all') ? 'all' : user.branchIds.length ? 'selected' : 'unset')
     setProfileImageFile(null)
     setProfileImagePreviewUrl(user.profileImageUrl ?? null)
     setFormError(null)
-    const branchMode = assignedRole?.branchScope === 'all' ? 'all' : user.branchIds.length ? 'selected' : 'unset'
+    const branchMode = assignedRoles.some((role) => role.branchScope.trim().toLowerCase() === 'all') ? 'all' : user.branchIds.length ? 'selected' : 'unset'
     setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove', branchMode))
     setFormOpen(true)
   }
@@ -1006,8 +1001,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       return
     }
 
-    if (form.roleIds.length !== 1) {
-      setFormError('เลือกหน้าที่งาน / Role 1 รายการ')
+    if (form.roleIds.length < 1) {
+      setFormError('เลือกหน้าที่งาน / Role อย่างน้อย 1 รายการ')
       return
     }
 
@@ -1016,11 +1011,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       return
     }
 
-    if (selectedRole?.branchScope === 'all' && branchAccessMode !== 'all') {
+    if (hasUnrestrictedSelectedRole && branchAccessMode !== 'all') {
       setFormError('Role นี้กำหนดขอบเขตเป็นทุกสาขา กรุณาเลือก “ทุกสาขา”')
       return
     }
-    if (selectedRole?.branchScope !== 'all' && branchAccessMode !== 'selected') {
+    if (!hasUnrestrictedSelectedRole && branchAccessMode !== 'selected') {
       setFormError('Role นี้ต้องกำหนดสาขาที่เข้าถึง กรุณาเลือก “เฉพาะสาขาที่เลือก”')
       return
     }
@@ -1739,11 +1734,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </div>
                     <div className="grid gap-2">
                       <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                        <input checked={branchAccessMode === 'all'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" disabled={selectedRole?.branchScope !== 'all'} name="branch-access-mode" type="radio" onChange={() => { setBranchAccessMode('all'); setForm((current) => ({ ...current, branchIds: [] })) }} />
+                        <input checked={branchAccessMode === 'all'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" disabled={!hasUnrestrictedSelectedRole} name="branch-access-mode" type="radio" onChange={() => { setBranchAccessMode('all'); setForm((current) => ({ ...current, branchIds: [] })) }} />
                         <span><span className="font-medium">ทุกสาขา</span><span className="block text-xs text-slate-500">ผู้ใช้เห็นข้อมูลได้ทุกสาขา</span></span>
                       </label>
                       <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                        <input checked={branchAccessMode === 'selected'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" disabled={selectedRole?.branchScope === 'all'} name="branch-access-mode" type="radio" onChange={() => setBranchAccessMode('selected')} />
+                        <input checked={branchAccessMode === 'selected'} className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500" disabled={hasUnrestrictedSelectedRole} name="branch-access-mode" type="radio" onChange={() => setBranchAccessMode('selected')} />
                         <span><span className="font-medium">เฉพาะสาขาที่เลือก</span><span className="block text-xs text-slate-500">จำกัดข้อมูลตามรายการสาขาที่เลือก</span></span>
                       </label>
                     </div>
@@ -1792,20 +1787,29 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <SearchCombobox
-                      error={formError && form.roleIds.length !== 1 ? 'เลือกหน้าที่งาน / Role 1 รายการ' : undefined}
-                      inputId="admin-user-form-role"
-                      label="หน้าที่งาน / Role *"
-                      options={assignableRoleOptions}
-                      placeholder="เลือกหน้าที่งาน / Role"
-                      value={form.roleIds[0] ?? ''}
-                      onChange={(roleId) => {
-                        setBranchAccessMode('unset')
-                        setForm((current) => ({ ...current, branchIds: [], roleIds: roleId ? [roleId] : [] }))
-                      }}
-                    />
-                    {editingUser && editingUser.roles.length > 1 ? <div className="mt-2 text-xs text-amber-700">ผู้ใช้นี้มี Role เดิมมากกว่า 1 รายการ กรุณาเลือก Role ใหม่ 1 รายการก่อนบันทึก เพื่อไม่ให้ระบบตัดสินใจแทนโดยอัตโนมัติ</div> : null}
-                    <div className="mt-2 text-xs text-slate-500">เลือกได้ 1 Role จากรายการที่เปิดใช้งานอยู่ และสิทธิ์ตั้งต้นจะมาจาก Role นี้</div>
+                    <div className="mb-1 text-sm font-medium text-slate-700">หน้าที่งาน / Role *</div>
+                    <div className="mb-2 text-xs text-slate-500">เลือกได้มากกว่า 1 Role จากรายการที่เปิดใช้งานอยู่ สิทธิ์จะรวมจากทุก Role ที่เลือก</div>
+                    <div className="grid gap-2">
+                      {assignableRoles.map((role) => (
+                        <label key={role.id} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                          <input
+                            checked={form.roleIds.includes(role.id)}
+                            className="mt-0.5 rounded border-slate-300"
+                            type="checkbox"
+                            onChange={() => {
+                              const roleIds = form.roleIds.includes(role.id)
+                                ? form.roleIds.filter((id) => id !== role.id)
+                                : [...form.roleIds, role.id]
+                              setBranchAccessMode('unset')
+                              setForm((current) => ({ ...current, branchIds: [], roleIds }))
+                            }}
+                          />
+                          <span className="min-w-0"><span className="block font-medium text-slate-800">{role.name}</span><span className="block font-mono text-xs text-slate-400">{role.code}</span></span>
+                        </label>
+                      ))}
+                      {assignableRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มี Role ที่ใช้งานได้</p> : null}
+                    </div>
+                    {formError && form.roleIds.length < 1 ? <p className="mt-2 text-xs text-red-600">เลือกหน้าที่งาน / Role อย่างน้อย 1 รายการ</p> : null}
                   </div>
 
                   <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">

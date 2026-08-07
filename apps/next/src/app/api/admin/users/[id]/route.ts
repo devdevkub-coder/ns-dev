@@ -29,7 +29,7 @@ const adminUserFormSchema = z.object({
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
     .refine((value) => !value || /^https?:\/\//i.test(value), 'URL รูป profile ต้องขึ้นต้นด้วย http:// หรือ https://'),
   permissionOverrides: adminUserPermissionOverridesSchema,
-  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).length(1, 'เลือกหน้าที่งาน 1 รายการ'),
+  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).min(1, 'เลือกหน้าที่งานอย่างน้อย 1 รายการ'),
 })
 
 type AdminUserRouteProps = {
@@ -59,7 +59,7 @@ function displayNameFromProfile(values: { email: string; firstName: string; last
 function parseRoleIds(roleIds: string[]) {
   const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
 
-  if (parsed.length !== 1 || parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
+  if (!parsed.length || parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
     throw new AdminUserReferenceError('Role ที่เลือกไม่ถูกต้อง')
   }
 
@@ -97,11 +97,11 @@ async function assertUserRefs(
     throw new AdminUserReferenceError('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
-  const roleBranchScope = roles[0]?.branch_scope.trim().toLowerCase()
-  if (roleBranchScope === 'all' && branchIds.length) {
+  const hasUnrestrictedRole = roles.some((role) => role.branch_scope.trim().toLowerCase() === 'all')
+  if (hasUnrestrictedRole && branchIds.length) {
     throw new AdminUserReferenceError('Role นี้กำหนดให้เข้าถึงทุกสาขา จึงไม่ต้องเลือกสาขารายการ')
   }
-  if (roleBranchScope !== 'all' && !branchIds.length) {
+  if (!hasUnrestrictedRole && !branchIds.length) {
     throw new AdminUserReferenceError('Role นี้ต้องเลือกสาขาที่เข้าถึงอย่างน้อย 1 สาขา')
   }
 
