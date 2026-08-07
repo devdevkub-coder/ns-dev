@@ -1,3 +1,9 @@
+## Current objective — 2026-08-07
+
+Fix admin user creation branch-scope selection so the branch mode becomes usable immediately after Role selection and remains consistent with the API contract.
+
+Active batch: shared branch-scope mode derivation, focused Vitest coverage, then lint/type-check/build and mandatory code review before any SIT push.
+
 # WTI/WTO Storage Visibility Boundary — 2026-08-06
 
 Objective: แยก source evidence ของ WTI/WTO ออกจาก outbound artifact ให้ชัดเจน: รูปหลักฐานเก็บใน `WEIGHT_TICKET_IMAGE_BUCKET` แบบ private และ PDF/ภาพอัลบั้มที่สร้างเพื่อส่งต่อเก็บใน `WEIGHT_TICKET_PDF_BUCKET` แบบ public.

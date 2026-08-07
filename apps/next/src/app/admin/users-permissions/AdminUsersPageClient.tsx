@@ -18,6 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { sidebarPermissionSections } from '@/lib/navigation'
+import { branchAccessModeForRoleScopes, hasUnrestrictedBranchScope } from './admin-user-branch-access'
 import { z } from 'zod'
 import { contactPhoneErrorMessage, emailErrorMessage, isValidAdminUserEmail, isValidContactPhone, sanitizeAdminUserEmail } from '@/app/api/admin/users/admin-user-form-validation'
 
@@ -620,7 +621,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     (data?.roles ?? []).filter((role) => role.active)
   ), [data?.roles])
   const selectedRoles = assignableRoles.filter((role) => form.roleIds.includes(role.id))
-  const hasUnrestrictedSelectedRole = selectedRoles.some((role) => role.branchScope.trim().toLowerCase() === 'all')
+  const hasUnrestrictedSelectedRole = hasUnrestrictedBranchScope(selectedRoles.map((role) => role.branchScope))
   const roleFilterOptions = useMemo(() => [
     { id: 'all', label: 'ทุกหน้าที่งาน' },
     ...(data?.roles ?? []).map((role) => ({
@@ -921,11 +922,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     const nextForm = emptyUserForm
     setEditingUser(null)
     setForm(nextForm)
-    setBranchAccessMode('unset')
+    setBranchAccessMode('all')
     setProfileImageFile(null)
     setProfileImagePreviewUrl(null)
     setFormError(null)
-    setUserFormBaseline(userFormSnapshot(nextForm, 'remove', 'unset'))
+    setUserFormBaseline(userFormSnapshot(nextForm, 'remove', 'all'))
     setFormOpen(true)
   }
 
@@ -949,11 +950,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
     setEditingUser(user)
     setForm(nextForm)
-    setBranchAccessMode(assignedRoles.some((role) => role.branchScope.trim().toLowerCase() === 'all') ? 'all' : user.branchIds.length ? 'selected' : 'unset')
+    setBranchAccessMode(branchAccessModeForRoleScopes(assignedRoles.map((role) => role.branchScope)) === 'all' ? 'all' : user.branchIds.length ? 'selected' : 'unset')
     setProfileImageFile(null)
     setProfileImagePreviewUrl(user.profileImageUrl ?? null)
     setFormError(null)
-    const branchMode = assignedRoles.some((role) => role.branchScope.trim().toLowerCase() === 'all') ? 'all' : user.branchIds.length ? 'selected' : 'unset'
+    const branchMode = branchAccessModeForRoleScopes(assignedRoles.map((role) => role.branchScope)) === 'all' ? 'all' : user.branchIds.length ? 'selected' : 'unset'
     setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove', branchMode))
     setFormOpen(true)
   }
@@ -1754,7 +1755,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                           ))}
                           {data?.branches.length === 0 ? <span className="text-sm text-slate-500">ยังไม่มีสาขาที่เปิดใช้งาน</span> : null}
                         </div>
-                        <div className="mt-2 text-xs text-slate-500">เลือกแล้ว {form.branchIds.length} สาขา</div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          เลือกแล้ว {form.branchIds.length} สาขา
+                          {data && data.branches.length > 0 && form.branchIds.length === data.branches.length ? ' — ครบทุกสาขาที่เปิดใช้งาน (เทียบเท่าทุกสาขา)' : ''}
+                        </div>
                       </div>
                     ) : branchAccessMode === 'all' ? (
                       <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">ระบบจะบันทึกเป็นสิทธิ์ทุกสาขาให้อัตโนมัติ</div>
@@ -1800,8 +1804,16 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                               const roleIds = form.roleIds.includes(role.id)
                                 ? form.roleIds.filter((id) => id !== role.id)
                                 : [...form.roleIds, role.id]
-                              setBranchAccessMode('unset')
-                              setForm((current) => ({ ...current, branchIds: [], roleIds }))
+                              const selectedRoleScopes = assignableRoles
+                                .filter((candidate) => roleIds.includes(candidate.id))
+                                .map((candidate) => candidate.branchScope)
+                              const nextBranchAccessMode = branchAccessModeForRoleScopes(selectedRoleScopes)
+                              setBranchAccessMode(nextBranchAccessMode)
+                              setForm((current) => ({
+                                ...current,
+                                branchIds: [],
+                                roleIds,
+                              }))
                             }}
                           />
                           <span className="min-w-0"><span className="block font-medium text-slate-800">{role.name}</span><span className="block font-mono text-xs text-slate-400">{role.code}</span></span>
