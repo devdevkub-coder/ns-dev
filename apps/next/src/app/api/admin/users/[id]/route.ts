@@ -6,7 +6,7 @@ import { authContextErrorResponse, getCurrentAuthContext, requirePermission } fr
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 import { adminUserEmailSchema, contactPhoneErrorMessage, isValidContactPhone } from '../admin-user-form-validation'
-import { adminUserPermissionOverridesSchema, adminUserReferenceErrorResponse, assertUserPermissionOverrides } from '../admin-users-route-helpers'
+import { AdminUserReferenceError, adminUserPermissionOverridesSchema, adminUserReferenceErrorResponse, assertUserPermissionOverrides } from '../admin-users-route-helpers'
 
 export const runtime = 'nodejs'
 
@@ -83,7 +83,7 @@ async function assertUserRefs(
   const parsedDepartmentId = parseDepartmentId(departmentId)
   const [roles, branches, department] = await Promise.all([
     prisma.app_roles.findMany({
-      select: { id: true },
+      select: { branch_scope: true, id: true },
       where: { id: { in: parsedRoleIds }, active: true },
     }),
     findActiveBranchReferencesByCodes(branchIds),
@@ -95,6 +95,14 @@ async function assertUserRefs(
 
   if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
     throw new Error('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+  }
+
+  const roleBranchScope = roles[0]?.branch_scope.trim().toLowerCase()
+  if (roleBranchScope === 'all' && branchIds.length) {
+    throw new AdminUserReferenceError('Role นี้กำหนดให้เข้าถึงทุกสาขา จึงไม่ต้องเลือกสาขารายการ')
+  }
+  if (roleBranchScope !== 'all' && !branchIds.length) {
+    throw new AdminUserReferenceError('Role นี้ต้องเลือกสาขาที่เข้าถึงอย่างน้อย 1 สาขา')
   }
 
   if (branchIds.length && branches.length !== new Set(branchIds).size) {
