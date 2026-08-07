@@ -115,6 +115,7 @@ export function AppShell({ children }: AppShellProps) {
   const [menuSearchFocused, setMenuSearchFocused] = useState(false)
   const [titleOverride, setTitleOverride] = useState<string | null>(null)
   const lastActivityPathRef = useRef<string | null>(null)
+  const menuSearchBlurTimerRef = useRef<number | null>(null)
   const title = pageTitleForPath(pathname, titleOverride)
   const breadcrumbs = breadcrumbsForPath(pathname)
   const renderedBreadcrumbs = breadcrumbLabelOverride && breadcrumbs.length > 0
@@ -219,6 +220,12 @@ export function AppShell({ children }: AppShellProps) {
     }
   }, [isAuthPage, router])
 
+  useEffect(() => () => {
+    if (menuSearchBlurTimerRef.current !== null) {
+      window.clearTimeout(menuSearchBlurTimerRef.current)
+    }
+  }, [])
+
   function handleSidebarBlur(event: FocusEvent<HTMLElement>) {
     if (event.currentTarget.contains(event.relatedTarget)) return
     if (sidebarUserMenuOpen) return
@@ -232,10 +239,33 @@ export function AppShell({ children }: AppShellProps) {
 
   function handleMenuSearchBlur(event: FocusEvent<HTMLDivElement>) {
     if (event.currentTarget.contains(event.relatedTarget)) return
-    setMenuSearchFocused(false)
+
+    if (menuSearchBlurTimerRef.current !== null) {
+      window.clearTimeout(menuSearchBlurTimerRef.current)
+    }
+
+    const searchContainer = event.currentTarget
+    menuSearchBlurTimerRef.current = window.setTimeout(() => {
+      if (!searchContainer.contains(document.activeElement)) {
+        setMenuSearchFocused(false)
+      }
+      menuSearchBlurTimerRef.current = null
+    }, 150)
+  }
+
+  function handleMenuSearchFocus() {
+    if (menuSearchBlurTimerRef.current !== null) {
+      window.clearTimeout(menuSearchBlurTimerRef.current)
+      menuSearchBlurTimerRef.current = null
+    }
+    setMenuSearchFocused(true)
   }
 
   function clearMenuSearch() {
+    if (menuSearchBlurTimerRef.current !== null) {
+      window.clearTimeout(menuSearchBlurTimerRef.current)
+      menuSearchBlurTimerRef.current = null
+    }
     setMenuSearch('')
     setMenuSearchFocused(false)
   }
@@ -284,7 +314,7 @@ export function AppShell({ children }: AppShellProps) {
                 setMenuSearch(event.target.value)
                 setMenuSearchFocused(true)
               }}
-              onFocus={() => setMenuSearchFocused(true)}
+              onFocus={handleMenuSearchFocus}
             />
           </label>
           {menuSearchFocused && menuSearch.trim() ? (
@@ -361,7 +391,7 @@ export function AppShell({ children }: AppShellProps) {
                     setMenuSearch(event.target.value)
                     setMenuSearchFocused(true)
                   }}
-                  onFocus={() => setMenuSearchFocused(true)}
+                  onFocus={handleMenuSearchFocus}
                 />
               </label>
               {menuSearchFocused && menuSearch.trim() ? (

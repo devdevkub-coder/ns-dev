@@ -37,6 +37,7 @@ updated: 2026-07-30
 - ฟอร์มต้องสร้าง snapshot ของ state ที่บันทึกได้เมื่อเปิด/โหลด/บันทึกสำเร็จ แล้วคำนวณ dirty จาก snapshot ปัจจุบันเทียบ baseline.
 - ใช้ `useUnsavedChangesGuard(isDirty)` ใน write form เท่านั้น และส่งทุกทางออกของฟอร์มผ่าน `requestDiscard`.
 - `GuardedLink` ครอบ navigation หลักของ AppShell (sidebar, mobile navigation, เมนูค้นหา และ breadcrumb). เมื่อมี dirty form จะถามก่อนเปลี่ยนหน้า.
+- เมนูค้นหาบนมือถือหน่วงการปิดผลลัพธ์เล็กน้อยหลัง input เสีย focus เพื่อให้ tap รายการที่ทำให้ keyboard ปิดยังส่ง navigation ได้ครบ; เมื่อเลือกสำเร็จ `GuardedLink` ยังคงใช้กติกา dirty-form confirmation เดิม.
 - ขณะที่มี dirty form, provider ผูก `beforeunload` เพื่อให้ browser แสดงคำเตือนสำหรับ refresh, ปิด tab และออกจากเว็บ.
 - ถ้า mutation ใน confirmation ล้มเหลว callback ต้อง reject/throw หลังแสดง error เฉพาะ flow เพื่อให้ dialog ยังเปิดอยู่และป้องกันการกดย้ำ.
 - dialog ที่ให้กรอกเหตุผลเพื่อยกเลิก, void, reverse, short-close หรือ deactivate ถือเป็น mini form: เมื่อผู้ใช้พิมพ์แล้ว ปุ่มปิด/backdrop/Escape ต้องผ่าน `requestDiscard`; validation เหตุผลต้องเกิดก่อน final confirmation และ API ต้องเกิดหลัง final confirmation เท่านั้น.
