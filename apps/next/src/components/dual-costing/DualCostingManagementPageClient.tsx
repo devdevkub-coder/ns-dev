@@ -758,17 +758,17 @@ function AllocationLedgerView() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   const ledgerColumns = useMemo<Array<ResizableColumnDefinition<LedgerColumnKey> & { align?: 'center' | 'left' | 'right'; className?: string; label: string }>>(() => [
-    { key: 'matchId', label: 'เลขที่การจับคู่', defaultWidth: 145, minWidth: 135, align: 'center' },
-    { key: 'allocatedAt', label: 'วันที่ตามเอกสาร', defaultWidth: 105, minWidth: 95, align: 'center' },
-    { key: 'saleDocNo', label: 'เอกสารขาย', defaultWidth: 125, minWidth: 110, align: 'center' },
+    { key: 'matchId', label: 'เลขที่การจับคู่', defaultWidth: 140, minWidth: 130, align: 'center' },
+    { key: 'allocatedAt', label: 'วันที่ตามเอกสาร', defaultWidth: 100, minWidth: 90, align: 'center' },
+    { key: 'saleDocNo', label: 'เอกสารขาย', defaultWidth: 120, minWidth: 105, align: 'center' },
     { key: 'customerName', label: 'ผู้ซื้อ', defaultWidth: 140, minWidth: 120, align: 'left', className: 'ns-table-textual-column' },
-    { key: 'productName', label: 'สินค้า', defaultWidth: 180, minWidth: 150, align: 'left', className: 'ns-table-textual-column' },
-    { key: 'allocatedQty', label: 'น้ำหนักจัดสรร (กก.)', defaultWidth: 130, minWidth: 115, align: 'right' },
-    { key: 'costPerKg', label: 'ต้นทุน/กก. (บาท)', defaultWidth: 120, minWidth: 110, align: 'right' },
+    { key: 'productName', label: 'สินค้า', defaultWidth: 170, minWidth: 140, align: 'left', className: 'ns-table-textual-column' },
+    { key: 'allocatedQty', label: 'น้ำหนักจัดสรร (กก.)', defaultWidth: 125, minWidth: 110, align: 'right' },
+    { key: 'costPerKg', label: 'ต้นทุน/กก. (บาท)', defaultWidth: 115, minWidth: 105, align: 'right' },
     { key: 'totalCost', label: 'ต้นทุนรวม (บาท)', defaultWidth: 120, minWidth: 110, align: 'right' },
-    { key: 'allocatedRevenue', label: 'รายได้ (บาท)', defaultWidth: 115, minWidth: 105, align: 'right' },
-    { key: 'grossProfit', label: 'กำไรขั้นต้น (บาท)', defaultWidth: 140, minWidth: 125, align: 'right' },
-    { key: 'status', label: 'สถานะ', defaultWidth: 115, minWidth: 100, align: 'center' },
+    { key: 'allocatedRevenue', label: 'รายได้ (บาท)', defaultWidth: 120, minWidth: 105, align: 'right' },
+    { key: 'grossProfit', label: 'กำไรขั้นต้น (บาท)', defaultWidth: 135, minWidth: 120, align: 'right' },
+    { key: 'status', label: 'สถานะ', defaultWidth: 120, minWidth: 105, align: 'center' },
     { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
   const ledgerResize = useResizableColumns('dual-costing.allocation-ledger.v1', ledgerColumns)
@@ -1120,44 +1120,44 @@ function AllocationLedgerView() {
                   className={`cursor-pointer hover:bg-indigo-50/50 ${row.status === 'reversed' ? 'bg-slate-50/80' : ''}`}
                   onClick={() => setSelectedDetailMatchId(row.matchId)}
                 >
-                  <TableCell className="p-3 text-center font-mono text-xs text-slate-700">
+                  <TableCell className="align-middle p-3 text-center font-mono text-xs text-slate-700">
                     <button className="inline-flex items-center gap-2 font-semibold hover:text-indigo-700" type="button" aria-expanded={isExpanded} onClick={(event) => { event.stopPropagation(); setExpandedMatchIds((current) => { const next = new Set(current); if (next.has(row.matchId)) next.delete(row.matchId); else next.add(row.matchId); return next }) }}>
                       <ChevronDown className={`size-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
                       <span className="block truncate" title={row.matchId}>{row.matchId}</span>
                     </button>
                     <span className="mt-1 block text-[11px] font-sans text-slate-500">{row.rows.length} รายการ</span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap p-3 text-center text-xs text-slate-600">{row.allocatedAt ? formatDateDisplay(row.allocatedAt) : '-'}</TableCell>
-                  <TableCell className="whitespace-nowrap p-3 text-center">
+                  <TableCell className="align-middle whitespace-nowrap p-3 text-center text-xs text-slate-600">{row.allocatedAt ? formatDateDisplay(row.allocatedAt) : '-'}</TableCell>
+                  <TableCell className="align-middle whitespace-nowrap p-3 text-center">
                     <span className="block truncate font-mono text-xs text-slate-700" title={row.saleDocNo}>{row.saleDocNo}</span>
                     <span className="mt-1 flex justify-center"><TargetPill type={row.targetType} /></span>
                   </TableCell>
-                  <TableCell className="ns-table-textual-column p-3 text-left text-xs text-slate-800">
+                  <TableCell className="align-middle ns-table-textual-column p-3 text-left text-xs text-slate-800">
                     <span className="block truncate font-medium" title={row.customerName}>{row.customerName || '-'}</span>
                   </TableCell>
-                  <TableCell className="ns-table-textual-column p-3 text-left text-sm text-slate-800">
+                  <TableCell className="align-middle ns-table-textual-column p-3 text-left text-sm text-slate-800">
                     <span className="block truncate" title={row.productName}>{row.productName}</span>
                     <span className="mt-0.5 block truncate text-xs text-slate-500">{row.productCategory}</span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap p-3 text-right font-mono font-medium tabular-nums">
+                  <TableCell className="align-middle whitespace-nowrap p-3 text-right font-mono font-medium tabular-nums">
                     <button className="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900" type="button" onClick={(event) => { event.stopPropagation(); setSelectedDetailMatchId(row.matchId) }}>
                       {formatMoney(row.allocatedQty)}
                     </button>
                     <span className="mt-0.5 block text-[11px] font-normal text-slate-500">จาก {formatMoney(row.saleQty)} กก.</span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
-                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-red-700">{formatMoney(row.totalCost)}</TableCell>
-                  <TableCell className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
-                  <TableCell className={`whitespace-nowrap p-3 text-right font-mono font-bold tabular-nums ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <TableCell className="align-middle whitespace-nowrap p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
+                  <TableCell className="align-middle whitespace-nowrap p-3 text-right font-mono tabular-nums text-red-700">{formatMoney(row.totalCost)}</TableCell>
+                  <TableCell className="align-middle whitespace-nowrap p-3 text-right font-mono tabular-nums text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
+                  <TableCell className={`align-middle whitespace-nowrap p-3 text-right font-mono font-bold tabular-nums ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                     {formatMoney(row.grossProfit)}
                     <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{row.gpPct.toFixed(2)}%</span>
                   </TableCell>
-                  <TableCell className="p-3 text-center">
+                  <TableCell className="align-middle p-3 text-center">
                     <span className="flex justify-center"><LedgerStatusText status={row.status} /></span>
                     <span className="mt-0.5 block truncate text-xs text-slate-600" title={row.allocatedBy}>{row.allocatedBy}</span>
                     <span className="mt-0.5 block text-[11px] font-sans text-slate-500">{formatDateTimeDisplay(row.allocatedAt)}</span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap p-3 text-center" onClick={(event) => event.stopPropagation()}>
+                  <TableCell className="align-middle whitespace-nowrap p-3 text-center" onClick={(event) => event.stopPropagation()}>
                     <div className="flex justify-center">
                       <LedgerActionMenu
                         busy={actionTargetId === row.matchId}
