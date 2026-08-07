@@ -1,14 +1,12 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { paginateStandardPrintItems } from '@/lib/print-pagination'
 
 const companyProfilePayloadSchema = z.object({
   ...companyProfileResponseSchema.shape,
   selectedBranchName: z.string().nullable().default(null),
 })
-
-const FIRST_PAGE_ITEM_ROWS = 17
-const CONTINUATION_PAGE_ITEM_ROWS = 28
 
 export type PoBuyPrintItem = {
   productId: string
@@ -117,17 +115,11 @@ function itemAmount(item: PoBuyPrintItem) {
   return item.qty * item.unitPrice
 }
 
-type PoBuyPrintPage = {
-  capacity: number
-  items: PoBuyPrintItem[]
-  startIndex: number
-}
-
 function itemRows(items: PoBuyPrintItem[], startIndex: number) {
   return items.map((item, index) => {
     const unit = item.unit?.trim() || ''
     return `
-      <tr class="item-row">
+      <tr class="item-row" data-row-slot="${startIndex + index + 1}">
         <td class="center rank-cell">${startIndex + index + 1}</td>
         <td>
           <div class="item-name">${escapeHtml(item.productName || '-')}</div>
@@ -143,25 +135,9 @@ function itemRows(items: PoBuyPrintItem[], startIndex: number) {
 }
 
 function emptyRows(count: number) {
-  return Array.from({ length: Math.max(0, count) }, () => (
-    '<tr class="empty"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'
+  return Array.from({ length: Math.max(0, count) }, (_, index) => (
+    `<tr class="empty" data-row-slot="empty-${index + 1}"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>`
   )).join('')
-}
-
-function itemPages(items: PoBuyPrintItem[]) {
-  const pages: PoBuyPrintPage[] = []
-  let cursor = 0
-  const firstPageItems = items.slice(0, FIRST_PAGE_ITEM_ROWS)
-  pages.push({ capacity: FIRST_PAGE_ITEM_ROWS, items: firstPageItems, startIndex: 0 })
-  cursor = firstPageItems.length
-
-  while (cursor < items.length) {
-    const pageItems = items.slice(cursor, cursor + CONTINUATION_PAGE_ITEM_ROWS)
-    pages.push({ capacity: CONTINUATION_PAGE_ITEM_ROWS, items: pageItems, startIndex: cursor })
-    cursor += pageItems.length
-  }
-
-  return pages
 }
 
 function qtySummaryByUnit(items: PoBuyPrintItem[], key: 'qty' | 'remainingQty') {
@@ -183,7 +159,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
   const cancelled = po.status.trim().toLowerCase().includes('cancel')
   const totalQtyText = qtySummaryByUnit(po.items, 'qty')
   const remainingQtyText = qtySummaryByUnit(po.items, 'remainingQty')
-  const pages = itemPages(po.items)
+  const pages = paginateStandardPrintItems(po.items)
   const pageCount = pages.length
   const companyHeader = (pageNo: number) => `
       <div class="watermark">${escapeHtml(statusLabel(po.status))}</div>
@@ -201,7 +177,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
           <div class="doc-title">${escapeHtml(title)}</div>
           <div class="doc-grid">
             <div class="kv"><div class="label">เลขที่เอกสาร</div><div class="value">${escapeHtml(po.docNo)}</div></div>
-            <div class="kv"><div class="label">หน้า</div><div class="value">${pageNo} / ${pageCount}</div></div>
+            <div class="kv"><div class="label">หน้า / Page</div><div class="value">หน้า ${pageNo} / ${pageCount}</div></div>
           </div>
         </div>
       </section>
@@ -227,36 +203,41 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
         </div>
       </section>
   `
-  const finalSummary = `
+  const pageSummary = (isFinalPage: boolean, nextPageNo: number) => {
+    const display = (value: string) => isFinalPage ? value : '-'
+    return `
       <div class="summary-cards">
-        <div class="summary-card"><div class="label">จำนวนสั่งซื้อรวม</div><div class="value">${escapeHtml(totalQtyText)}</div></div>
-        <div class="summary-card"><div class="label">จำนวนรายการ</div><div class="value">${escapeHtml(String(po.items.length))} รายการ</div></div>
+        <div class="summary-card"><div class="label">จำนวนสั่งซื้อรวม</div><div class="value">${display(escapeHtml(totalQtyText))}</div></div>
+        <div class="summary-card"><div class="label">จำนวนรายการ</div><div class="value">${display(`${escapeHtml(String(po.items.length))} รายการ`)}</div></div>
       </div>
 
       <section class="bottom-grid">
         <div class="panel">
           <div class="panel-title">หมายเหตุ</div>
           <div class="panel-body">
-            <div class="note">${escapeHtml(plain(po.notes))}</div>
-            ${po.shortClosedNote ? `<div class="note" style="margin-top:8px;color:#9f1239"><strong>เหตุผลปิดรับไม่ครบ:</strong><br>${escapeHtml(po.shortClosedNote)}</div>` : ''}
+            <div class="note${isFinalPage ? '' : ' placeholder'}">${display(escapeHtml(plain(po.notes)))}</div>
+            ${isFinalPage && po.shortClosedNote ? `<div class="note" style="margin-top:8px;color:#9f1239"><strong>เหตุผลปิดรับไม่ครบ:</strong><br>${escapeHtml(po.shortClosedNote)}</div>` : ''}
           </div>
         </div>
         <div class="totals">
-          <div class="total-row"><div>ยอดรวมสินค้าก่อนภาษี / Subtotal</div><div class="num">${money(subtotal)}</div></div>
-          <div class="total-row"><div>ภาษีมูลค่าเพิ่ม / VAT (${vatRate}%)</div><div class="num">${money(vatAmount)}</div></div>
-          <div class="total-row remaining"><div>มูลค่าคงเหลือ / Remaining</div><div class="num">${money(po.remainingAmount)}</div></div>
-          <div class="total-row"><div>มูลค่าที่รับแล้ว / Received</div><div class="num">${money(Math.max(0, po.totalAmount - po.remainingAmount))}</div></div>
-          <div class="total-row final"><div>ยอดรวมทั้งสิ้น / Grand Total</div><div class="num">${money(po.totalAmount)}</div></div>
+          <div class="total-row"><div>ยอดรวมสินค้าก่อนภาษี / Subtotal</div><div class="num">${display(money(subtotal))}</div></div>
+          <div class="total-row"><div>ภาษีมูลค่าเพิ่ม / VAT (${vatRate}%)</div><div class="num">${display(money(vatAmount))}</div></div>
+          <div class="total-row remaining"><div>มูลค่าคงเหลือ / Remaining</div><div class="num">${display(money(po.remainingAmount))}</div></div>
+          <div class="total-row"><div>มูลค่าที่รับแล้ว / Received</div><div class="num">${display(money(Math.max(0, po.totalAmount - po.remainingAmount)))}</div></div>
+          <div class="total-row final"><div>ยอดรวมทั้งสิ้น / Grand Total</div><div class="num">${display(money(po.totalAmount))}</div></div>
         </div>
       </section>
 
-      <section class="signatures">
-        <div class="sig"><div class="sig-line">ผู้สั่งซื้อ</div><div>วันที่ ____ / ____ / ______</div></div>
-        <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
-        <div class="sig"><div class="sig-line">ผู้ขาย / Supplier</div><div>วันที่ ____ / ____ / ______</div></div>
-      </section>
+      ${isFinalPage ? `
+        <section class="signatures" data-signatures="final">
+          <div class="sig"><div class="sig-line">ผู้สั่งซื้อ</div><div>วันที่ ____ / ____ / ______</div></div>
+          <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
+          <div class="sig"><div class="sig-line">ผู้ขาย / Supplier</div><div>วันที่ ____ / ____ / ______</div></div>
+        </section>
+      ` : `<div class="continued">( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )</div>`}
       <div class="footer">${escapeHtml(profile.footerNote || '')}</div>
-  `
+    `
+  }
   const tableHeader = `
         <thead>
           <tr>
@@ -269,33 +250,29 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
           </tr>
         </thead>
   `
-  const pagesHtml = pages.map((page, index) => {
-    const isFinalPage = index === pages.length - 1
-    const pageNo = index + 1
+  const pagesHtml = pages.map((page) => {
     return `
-    <main class="page${isFinalPage ? ' final-page' : ''}">
+    <main class="page${page.isFinalPage ? ' final-page' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
       <div class="page-content">
-      ${companyHeader(pageNo)}
-      ${index === 0 ? documentInfo : '<div class="continuation-label">รายการสินค้าต่อจากหน้าก่อน</div>'}
+      ${companyHeader(page.pageNo)}
+      ${documentInfo}
       <table class="items">
         ${tableHeader}
         <tbody>
           ${itemRows(page.items, page.startIndex)}
-          ${emptyRows(page.capacity - page.items.length)}
+          ${emptyRows(page.emptyRowCount)}
         </tbody>
-        ${isFinalPage ? `
-        <tfoot>
+        <tfoot data-page-totals="${page.isFinalPage ? 'final' : 'placeholder'}">
           <tr>
             <td colspan="2" class="num">รวมทั้งสิ้น</td>
-            <td class="num">${escapeHtml(totalQtyText)}</td>
+            <td class="num">${page.isFinalPage ? escapeHtml(totalQtyText) : '-'}</td>
             <td></td>
-            <td class="num final-amount">${money(po.totalAmount)}</td>
-            <td class="num">${escapeHtml(remainingQtyText)}</td>
+            <td class="num final-amount">${page.isFinalPage ? money(po.totalAmount) : '-'}</td>
+            <td class="num">${page.isFinalPage ? escapeHtml(remainingQtyText) : '-'}</td>
           </tr>
         </tfoot>
-        ` : ''}
       </table>
-      ${isFinalPage ? `<div class="final-block">${finalSummary}</div>` : ''}
+      <div class="final-block">${pageSummary(page.isFinalPage, page.pageNo + 1)}</div>
       </div>
     </main>
     `
@@ -305,7 +282,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
     <style>
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #f8fafc; }
+      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #334155; padding: 16px 0; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
@@ -356,6 +333,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .summary-card .value { font-size: 12px; font-weight: 900; color: #0f172a; margin-top: 2px; }
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
+      .placeholder { color: #94a3b8; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 32mm; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }
@@ -364,11 +342,12 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 20px; break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 28px; font-weight: 800; color: #1e293b; }
+      .continued { padding: 18px 0 6px; text-align: center; color: #166534; font-weight: 800; }
       .footer { margin-top: 8px; text-align: center; color: #64748b; font-size: 12px; }
       .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; font-size: 12px; line-height: 1.2; }
+        body { background: white; padding: 0; font-size: 12px; line-height: 1.2; }
         .toolbar { display: none; }
         .page { width: auto; min-height: 281mm; margin: 0; padding: 0; box-shadow: none; break-after: page; page-break-after: always; }
         .page:last-child { break-after: auto; page-break-after: auto; }
@@ -402,6 +381,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
         .total-row.final { font-size: 12px; }
         .signatures { gap: 18px; margin-top: 10px; }
         .sig-line { margin-top: 18px; padding-top: 3px; }
+        .continued { padding: 12px 0 4px; }
         .footer { margin-top: 4px; }
       }
     </style>

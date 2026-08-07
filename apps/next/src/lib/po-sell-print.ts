@@ -1,14 +1,12 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { paginateStandardPrintItems } from '@/lib/print-pagination'
 
 const companyProfilePayloadSchema = z.object({
   ...companyProfileResponseSchema.shape,
   selectedBranchName: z.string().nullable().default(null),
 })
-
-const FIRST_PAGE_ITEM_ROWS = 17
-const CONTINUATION_PAGE_ITEM_ROWS = 28
 
 export type PoSellPrintItem = {
   discount: number
@@ -120,11 +118,11 @@ function totalsByUnit(po: PoSellPrintDocument) {
   return Array.from(byUnit.entries()).map(([unit, value]) => ({ ...value, unit }))
 }
 
-function itemRows(items: PoSellPrintItem[], pageIndex: number, startIndex: number) {
+function itemRows(items: PoSellPrintItem[], startIndex: number) {
   return items.map((item, idx) => {
     const totalRowAmount = item.qty * item.price - item.discount
     return `
-    <tr class="item-row">
+    <tr class="item-row" data-row-slot="${startIndex + idx + 1}">
       <td class="center rank-cell">${startIndex + idx + 1}</td>
       <td>${escapeHtml(item.productId)}</td>
       <td>
@@ -141,8 +139,8 @@ function itemRows(items: PoSellPrintItem[], pageIndex: number, startIndex: numbe
 }
 
 function emptyRows(count: number) {
-  return Array.from({ length: Math.max(0, count) }, () => (
-    '<tr class="empty"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+  return Array.from({ length: Math.max(0, count) }, (_, index) => (
+    `<tr class="empty" data-row-slot="empty-${index + 1}"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`
   )).join('')
 }
 
@@ -151,127 +149,55 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
   const cancelled = ['cancelled', 'canceled'].includes(po.documentStatus.toLowerCase())
   const title = 'ใบสั่งจองขาย / PO SELL'
 
-  // Chunk items into pages
-  const pages: PoSellPrintItem[][] = []
-  let remainingItems = [...po.items]
-
-  if (remainingItems.length <= FIRST_PAGE_ITEM_ROWS) {
-    pages.push(remainingItems)
-    remainingItems = []
-  } else {
-    pages.push(remainingItems.slice(0, FIRST_PAGE_ITEM_ROWS))
-    remainingItems = remainingItems.slice(FIRST_PAGE_ITEM_ROWS)
-    while (remainingItems.length > 0) {
-      pages.push(remainingItems.slice(0, CONTINUATION_PAGE_ITEM_ROWS))
-      remainingItems = remainingItems.slice(CONTINUATION_PAGE_ITEM_ROWS)
-    }
-  }
-
+  const pages = paginateStandardPrintItems(po.items)
   const totalPages = pages.length
   const tableQtySummaryText = totalsByUnit(po).map((item) => `${money(item.qty)} ${item.unit}`).join(' / ') || '-'
   const tableSubtotal = po.items.reduce((sum, item) => sum + (item.qty * item.price), 0)
   const tableDiscountTotal = po.items.reduce((sum, item) => sum + item.discount, 0)
 
-  const pagesHtml = pages.map((pageItems, pageIndex) => {
-    const isFirstPage = pageIndex === 0
-    const isLastPage = pageIndex === totalPages - 1
-    const pageNo = pageIndex + 1
-
-    let itemsLimit = isFirstPage ? FIRST_PAGE_ITEM_ROWS : CONTINUATION_PAGE_ITEM_ROWS
-    let padCount = itemsLimit - pageItems.length
-    if (isLastPage && padCount > 0) {
-      // make sure we leave room if it's the last page and needs signatures
-      padCount = Math.max(0, padCount)
-    }
-
-    const startIndex = isFirstPage ? 0 : FIRST_PAGE_ITEM_ROWS + (pageIndex - 1) * CONTINUATION_PAGE_ITEM_ROWS
-    const tableRows = itemRows(pageItems, pageIndex, startIndex) + emptyRows(padCount)
-    const tableFooter = isLastPage ? `
-            <tfoot>
-              <tr>
-                <td colspan="3" class="num">รวมทั้งสิ้น</td>
-                <td class="num">${escapeHtml(tableQtySummaryText)}</td>
-                <td></td>
-                <td></td>
-                <td class="num">${money(tableDiscountTotal)}</td>
-                <td class="num final-amount">${money(tableSubtotal - tableDiscountTotal)}</td>
-              </tr>
-            </tfoot>
-          ` : ''
-
-    let bottomSectionHtml = ''
-    if (isLastPage) {
-      const qtySummaryText = totalsByUnit(po).map((item) => `${money(item.qty)} ${item.unit}`).join(' / ') || '-'
-      const subtotal = po.items.reduce((sum, item) => sum + (item.qty * item.price), 0)
-      const totalDiscount = po.items.reduce((sum, item) => sum + item.discount, 0)
-      const vatAmount = po.vatAmount ?? 0
-      const vatRate = po.vatRatePercent ?? 7
-
-      bottomSectionHtml = `
-        <div class="summary-cards">
-          <div class="summary-card">
-            <div class="label">จำนวนจองรวมทั้งหมด / Total Quantity</div>
-            <div class="value">${escapeHtml(qtySummaryText)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="label">จำนวนรายการ</div>
-            <div class="value">${escapeHtml(String(po.items.length))} รายการ</div>
-          </div>
+  const pagesHtml = pages.map((page) => {
+    const display = (value: string) => page.isFinalPage ? value : '-'
+    const tableRows = itemRows(page.items, page.startIndex) + emptyRows(page.emptyRowCount)
+    const vatAmount = po.vatAmount ?? 0
+    const vatRate = po.vatRatePercent ?? 7
+    const bottomSectionHtml = `
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="label">จำนวนจองรวมทั้งหมด / Total Quantity</div>
+          <div class="value">${display(escapeHtml(tableQtySummaryText))}</div>
         </div>
-
-        <div class="bottom-grid">
-          <div class="panel">
-            <div class="panel-title">หมายเหตุ / Note</div>
-            <div class="panel-body note">${escapeHtml(plain(po.note))}</div>
-          </div>
-
-          <div class="totals">
-            <div class="total-row">
-              <div class="total-label">มูลค่าก่อนหักส่วนลด / Subtotal</div>
-              <div class="num">${money(subtotal)}</div>
-            </div>
-            <div class="total-row">
-              <div class="total-label">ส่วนลดรวม / Total Discount</div>
-              <div class="num">${money(totalDiscount)}</div>
-            </div>
-            <div class="total-row">
-              <div class="total-label">ยอดหลังหักส่วนลด / Net Subtotal</div>
-              <div class="num">${money(subtotal - totalDiscount)}</div>
-            </div>
-            <div class="total-row">
-              <div class="total-label">ภาษีมูลค่าเพิ่ม / VAT (${vatRate}%)</div>
-              <div class="num">${money(vatAmount)}</div>
-            </div>
-            <div class="total-row final">
-              <div class="total-label">จำนวนเงินสุทธิ / Net Total</div>
-              <div class="num">${money(po.totalAmount)}</div>
-            </div>
-          </div>
+        <div class="summary-card">
+          <div class="label">จำนวนรายการ</div>
+          <div class="value">${display(`${escapeHtml(String(po.items.length))} รายการ`)}</div>
         </div>
+      </div>
 
-        <div class="signatures">
-          <div class="sig">
-            <div>ผู้อนุมัติรายการ / Approved By</div>
-            <div class="sig-line">${escapeHtml(po.createdBy || '-')}</div>
-            <div style="font-size: 12px;margin-top:2px">${escapeHtml(dateTimeDisplay(po.createdAt))}</div>
-          </div>
-          <div class="sig">
-            <div>ผู้ประสานงานขาย / Sales Coordinator</div>
-            <div class="sig-line">&nbsp;</div>
-            <div style="font-size: 12px;margin-top:2px">วันที่ ______/______/______</div>
-          </div>
-          <div class="sig">
-            <div>ผู้ยืนยันใบสั่งจอง (ลูกค้า) / Confirmed By (Customer)</div>
-            <div class="sig-line">&nbsp;</div>
-            <div style="font-size: 12px;margin-top:2px">วันที่ ______/______/______</div>
-          </div>
+      <div class="bottom-grid">
+        <div class="panel">
+          <div class="panel-title">หมายเหตุ / Note</div>
+          <div class="panel-body note${page.isFinalPage ? '' : ' placeholder'}">${display(escapeHtml(plain(po.note)))}</div>
         </div>
-      `
-    }
+        <div class="totals">
+          <div class="total-row"><div class="total-label">มูลค่าก่อนหักส่วนลด / Subtotal</div><div class="num">${display(money(tableSubtotal))}</div></div>
+          <div class="total-row"><div class="total-label">ส่วนลดรวม / Total Discount</div><div class="num">${display(money(tableDiscountTotal))}</div></div>
+          <div class="total-row"><div class="total-label">ยอดหลังหักส่วนลด / Net Subtotal</div><div class="num">${display(money(tableSubtotal - tableDiscountTotal))}</div></div>
+          <div class="total-row"><div class="total-label">ภาษีมูลค่าเพิ่ม / VAT (${vatRate}%)</div><div class="num">${display(money(vatAmount))}</div></div>
+          <div class="total-row final"><div class="total-label">จำนวนเงินสุทธิ / Net Total</div><div class="num">${display(money(po.totalAmount))}</div></div>
+        </div>
+      </div>
+
+      ${page.isFinalPage ? `
+        <div class="signatures" data-signatures="final">
+          <div class="sig"><div>ผู้อนุมัติรายการ / Approved By</div><div class="sig-line">${escapeHtml(po.createdBy || '-')}</div><div style="font-size:12px;margin-top:2px">${escapeHtml(dateTimeDisplay(po.createdAt))}</div></div>
+          <div class="sig"><div>ผู้ประสานงานขาย / Sales Coordinator</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
+          <div class="sig"><div>ผู้ยืนยันใบสั่งจอง (ลูกค้า) / Confirmed By (Customer)</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
+        </div>
+      ` : `<div class="continued">( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )</div>`}
+    `
 
     return `
-      <div class="page">
-        <div class="print-footer">หน้า ${pageNo} / ${totalPages} · เอกสารนี้พิมพ์จากระบบ ERP</div>
+      <main class="page" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
+        <div class="print-footer">หน้า ${page.pageNo} / ${totalPages} · เอกสารนี้พิมพ์จากระบบ ERP</div>
         <div class="page-content">
           <div class="accent"></div>
           
@@ -279,8 +205,8 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
             <div class="company">
               ${logoHtml}
               <div>
-                <div class="company-name">${escapeHtml(profile.name)}</div>
-                <div class="company-en">${escapeHtml(profile.nameEn)}</div>
+                <div class="company-name">${escapeHtml(missing(profile.name))}</div>
+                ${profile.nameEn ? `<div class="company-en">${escapeHtml(profile.nameEn)}</div>` : ''}
                 <div class="company-info">${companyInfo(profile, po)}</div>
               </div>
             </div>
@@ -301,7 +227,7 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
                 </div>
                 <div class="kv">
                   <div class="label">หน้า / Page</div>
-                  <div class="value">${pageNo} / ${totalPages}</div>
+                  <div class="value">หน้า ${page.pageNo} / ${totalPages}</div>
                 </div>
               </div>
             </div>
@@ -369,13 +295,22 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
             <tbody>
               ${tableRows}
             </tbody>
-            ${tableFooter}
+            <tfoot data-page-totals="${page.isFinalPage ? 'final' : 'placeholder'}">
+              <tr>
+                <td colspan="3" class="num">รวมทั้งสิ้น</td>
+                <td class="num">${display(escapeHtml(tableQtySummaryText))}</td>
+                <td></td>
+                <td></td>
+                <td class="num">${display(money(tableDiscountTotal))}</td>
+                <td class="num final-amount">${display(money(tableSubtotal - tableDiscountTotal))}</td>
+              </tr>
+            </tfoot>
           </table>
 
           ${bottomSectionHtml}
         </div>
         <div class="watermark">ยกเลิก / CANCELLED</div>
-      </div>
+      </main>
     `
   }).join('')
 
@@ -383,11 +318,12 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
     <style>
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #f8fafc; }
+      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #334155; padding: 16px 0; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #6b21a8; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 7mm; background: white; position: relative; }
+      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
+      .page:last-of-type { break-after: auto; page-break-after: auto; }
       .print-footer { display: none; }
       .accent { height: 4px; background: linear-gradient(90deg, #6b21a8, #a855f7, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
@@ -428,6 +364,7 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
       .summary-card .value { font-size: 12px; font-weight: 900; color: #0f172a; margin-top: 2px; }
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
+      .placeholder { color: #94a3b8; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 30mm; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }
@@ -435,13 +372,14 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
       .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 20px; break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 28px; font-weight: 800; color: #1e293b; }
+      .continued { padding: 18px 0 6px; text-align: center; color: #6b21a8; font-weight: 800; }
       .footer { margin-top: 8px; text-align: center; color: #64748b; font-size: 12px; }
       .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
         @page { size: A4 portrait; margin: 8mm 8mm 12mm; }
-        body { background: white; font-size: 12px; line-height: 1.2; }
+        body { background: white; padding: 0; font-size: 12px; line-height: 1.2; }
         .toolbar { display: none; }
-        .page { width: auto; min-height: auto; padding: 0; }
+        .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
         .print-footer { display: block; position: fixed; bottom: -6mm; left: 0; right: 0; text-align: center; color: #64748b; font-size: 12px; }
         .accent { margin-bottom: 7px; }
         .header { gap: 10px; padding-bottom: 7px; }
@@ -470,6 +408,7 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
         .total-row.final { font-size: 12px; }
         .signatures { gap: 18px; margin-top: 10px; }
         .sig-line { margin-top: 18px; padding-top: 3px; }
+        .continued { padding: 12px 0 4px; }
         .footer { margin-top: 4px; }
       }
     </style>

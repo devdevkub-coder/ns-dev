@@ -132,7 +132,7 @@ Legacy มี action พิมพ์บิลรับซื้อรายใ�
 - หน้า detail/modal และ direct URL `/purchase/bills/{docNo}` ต้องมี action `พิมพ์บิลรับซื้อ` ใช้ read-model เดียวกับ list
 - action พิมพ์ใช้ได้กับ PB ที่บันทึกแล้วทุกสถานะ เพื่อเก็บสำเนาประวัติ; ถ้า PB ถูกยกเลิกหรือถูก void จาก supplier swap เอกสารพิมพ์ต้องแสดงสถานะ/ลายน้ำ `ยกเลิก` หรือ `ยกเลิก/เปลี่ยน Supplier`
 - เอกสารพิมพ์เป็น print preview/popup แบบ A4 มี toolbar เฉพาะบนจอ เช่น `พิมพ์` และ `ปิด`; browser print ต้องสามารถ Save as PDF ได้
-- เอกสารพิมพ์ต้องรองรับบิลที่มีรายการมากกว่า 30 รายการและแตกเป็นหลายหน้าได้ โดยตารางรายการต้อง repeat table header ทุกหน้า, ห้ามตัด row กลางรายการ, และ summary/หมายเหตุ/ลายเซ็นต้องย้ายไปหน้าสุดท้ายหรือหน้าใหม่เมื่อพื้นที่ไม่พอ
+- เอกสารพิมพ์ต้องแบ่งหน้าละ 15 รายการและสร้างหน้า `1..N` ได้โดยไม่จำกัดไว้ที่ 2 หน้า โดยตารางรายการต้อง repeat table header ทุกหน้า, ห้ามตัด row กลางรายการ, หน้า `1..N-1` แสดงยอด/หมายเหตุเป็น `-` พร้อม `Continued on Page X` และหน้า `N` เท่านั้นแสดงยอดจริง/หมายเหตุ/ลายเซ็น
 - ปุ่มพิมพ์ต้องไม่สร้าง `PMA`, `PMT`, stock movement, allocation, หรือ transaction side effect ใด ๆ
 
 ### Header / Company Profile Source
@@ -184,9 +184,9 @@ Legacy มี action พิมพ์บิลรับซื้อรายใ�
 
 ### Implementation Notes
 
-- Implemented 2026-06-09, updated 2026-06-10: active Next exposes PB print from `/purchase/bills` list row action, detail modal, and direct detail page. Template is corporate A4 portrait, opens a print window immediately, loads branch-specific Company Profile for header data, shows `ไม่มีข้อมูล` for missing company-profile fields instead of fallback data, includes cancelled/supplier-swap watermark, and supports multi-page item tables for 30+ lines with repeated table header and non-splitting item rows.
+- Implemented 2026-06-09, updated 2026-08-07: active Next exposes PB print from `/purchase/bills` list row action, detail modal, and direct detail page. Template is corporate A4 portrait, opens a print window immediately, loads branch-specific Company Profile for header data, shows `ไม่มีข้อมูล` for missing company-profile fields instead of fallback data, includes cancelled/supplier-swap watermark, and supports 15-row `1..N` item pages with repeated table headers and non-splitting item rows.
 - Updated 2026-06-10: `REMARK` ในตารางสินค้า PB print ดึงจากหมายเหตุ lot ของใบรับของ (`weight_ticket_lines.note`) ผ่าน summary ที่ถูก allocate เข้า PB; บิล Trading หรือบรรทัดที่ไม่มี receipt allocation จึงค่อยใช้หมายเหตุบรรทัด PB เดิม
-- Updated 2026-06-10: summary ยอดท้ายเอกสารเรียงตามลำดับที่ผู้ใช้กำหนด และแถว `หักเงินมัดจำ/ชำระบางส่วน` ใช้ยอดชำระรวมของบิล (`paidAmount`) เพื่อให้ครอบคลุมทั้งมัดจำและการชำระบางส่วน
+- Updated 2026-08-07: summary ท้ายเอกสารแสดงยอดของ PB และการใช้ ADV ก่อน VAT เท่านั้น ไม่แสดง `ชำระแล้ว` หรือ `ค้างชำระ` เพราะสถานะการจ่ายเงินเป็นคนละเอกสาร/flow กับบิลรับซื้อ
 - Updated 2026-06-10: stock PB validation ต้องตรวจ product membership ของ PO Buy จาก `po_buys.items` รายสินค้า ไม่ใช่ `po_buys.product_id` ระดับหัวเอกสาร เพราะ multi-product PO เช่น `POB012606-0005` อาจมีหัวเอกสารเป็น `SKU108` แต่ยังมี `SKU109` ที่ต้องตัดยอดกับ `ทองแดงเบอร์ 2` ได้
 - Updated 2026-06-12: PB printable supplier fields are document-owned snapshots. `purchase_bills` stores `supplier_name_snapshot`, `supplier_tax_id_snapshot`, `supplier_address_snapshot`, `supplier_phone_snapshot`, and `supplier_sales_rep_snapshot` at create time from the selected active Supplier master. Address uses `suppliers.address` only, phone uses `suppliers.phone`, tax id uses `suppliers.tax_id`, and sale contact uses `suppliers.sales_rep`; no fallback to `purchase_bills.contact_name`, address-line fields, structured address fields, or current live Supplier master in PB/RV print/detail read paths.
 - ใช้ style print เดียวกับ active print helper เช่น WTI/WTO print และ Company Profile preview โดยใช้ `Noto Sans Thai`

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { paginateStandardPrintItems } from './print-pagination'
 import { calculatePurchaseBillPostAdvanceTotals } from '@/lib/purchase-advance'
 import type { PurchaseBillDetail } from '@/lib/server/purchase-bill-detail'
 
@@ -8,9 +9,6 @@ const companyProfilePayloadSchema = z.object({
   ...companyProfileResponseSchema.shape,
   selectedBranchName: z.string().nullable().default(null),
 })
-
-const FIRST_PAGE_ITEM_ROWS = 15
-const CONTINUATION_PAGE_ITEM_ROWS = 24
 
 function escapeHtml(value: unknown) {
   return String(value ?? '')
@@ -43,33 +41,10 @@ function companyInfo(profile: CompanyProfilePrintValues, bill: PurchaseBillDetai
   ].filter(Boolean).map(escapeHtml).join('<br>')
 }
 
-function itemRows(bill: PurchaseBillDetail) {
-  return bill.allocationRows.map((item) => `
-    <tr class="item-row">
-      <td class="center rank-cell">${item.lineNo}</td>
-      <td>
-        <div class="item-name">${escapeHtml(item.productName)}</div>
-      </td>
-      <td>${escapeHtml(item.note || '-')}</td>
-      <td class="num">${money(item.grossWeight)}</td>
-      <td class="num">${money(item.deductWeight)}</td>
-      <td class="num strong">${money(item.qty)} ${escapeHtml(item.unit)}</td>
-      <td class="num">${money(item.price)}</td>
-      <td class="num strong">${money(item.amount)}</td>
-    </tr>
-  `).join('')
-}
-
 function emptyRows(count: number) {
-  return Array.from({ length: Math.max(0, count) }, () => (
-    '<tr class="empty"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+  return Array.from({ length: Math.max(0, count) }, (_, index) => (
+    `<tr class="empty" data-row-slot="empty-${index + 1}"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`
   )).join('')
-}
-
-function fillerRowCount(itemCount: number) {
-  if (itemCount <= FIRST_PAGE_ITEM_ROWS) return FIRST_PAGE_ITEM_ROWS - itemCount
-  const lastPageRows = (itemCount - FIRST_PAGE_ITEM_ROWS) % CONTINUATION_PAGE_ITEM_ROWS
-  return lastPageRows === 0 ? 0 : CONTINUATION_PAGE_ITEM_ROWS - lastPageRows
 }
 
 function totalsByUnit(bill: PurchaseBillDetail) {
@@ -112,113 +87,8 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
     : ''
 
   const allItems = bill.allocationRows
-  const itemCount = allItems.length
-  const isMultiPage = itemCount > 15
+  const pages = paginateStandardPrintItems(allItems)
 
-  const styleHtml = `
-    <style>
-      @page { size: A4 portrait; margin: 10mm; }
-      * { box-sizing: border-box; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #cbd5e1; padding: 16px 0; }
-      .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
-      .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; font-weight: bold; }
-      .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 4px; }
-      .print-only { display: none; }
-      .accent { height: 4px; background: linear-gradient(90deg, #166534, #65a30d, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
-      .header { display: grid; grid-template-columns: 1.4fr .6fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
-      .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
-      .logo { width: 64px; height: 64px; object-fit: contain; }
-      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
-      .company-name { font-size: 14px; font-weight: 900; color: #0f172a; line-height: 1.25; }
-      .company-en { font-size: 12px; font-weight: 700; color: #475569; margin-top: 1px; }
-      .company-info { margin-top: 4px; color: #475569; font-size: 12px; }
-      .doc-head { text-align: right; }
-      .doc-title { font-size: 22px; font-weight: 900; color: #14532d; letter-spacing: 0; }
-      .doc-grid { margin-top: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; text-align: left; }
-      .kv { border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 7px; background: #f8fafc; }
-      .kv .label { color: #64748b; font-size: 12px; }
-      .kv .value { font-weight: 800; color: #0f172a; margin-top: 1px; }
-      .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-      .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
-      .panel-title { padding: 6px 9px; background: #f1f5f9; color: #334155; font-weight: 900; }
-      .panel-body { padding: 8px 9px; }
-      .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; }
-      .field-label { color: #64748b; font-size: 12px; }
-      .field-value { font-weight: 750; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
-      table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 12px; font-size: 12px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
-      .items thead { display: table-header-group; }
-      .items tbody { break-inside: auto; page-break-inside: auto; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; }
-      .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
-      .items tr { break-inside: avoid; page-break-inside: avoid; }
-      .items .empty td { height: 24px; color: transparent; }
-      .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
-      .items tfoot .final-amount { color: #14532d; }
-      .item-name { font-weight: 850; color: #0f172a; }
-      .muted { color: #64748b; font-size: 12px; margin-top: 1px; }
-      .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-      .center { text-align: center; }
-      .rank-cell { padding-left: 2px !important; padding-right: 2px !important; }
-      .strong { font-weight: 900; }
-      .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
-      .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
-      .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
-      .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 30mm; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
-      .total-row:last-child { border-bottom: 0; }
-      .total-row.final { background: #14532d; color: white; font-size: 13px; font-weight: 900; }
-      .total-row.advance { color: #b45309; }
-      .total-row.advance-sub { color: #0369a1; font-size: 12px; }
-      .weight-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
-      .weight-card { border: 1px solid #dbe3ea; border-radius: 8px; padding: 7px; background: #f8fafc; }
-      .weight-card .label { color: #64748b; font-size: 12px; }
-      .weight-card .value { font-size: 12px; font-weight: 900; color: #0f172a; margin-top: 2px; }
-      .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 20px; break-inside: avoid; }
-      .sig { text-align: center; color: #475569; }
-      .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 28px; font-weight: 800; color: #1e293b; }
-      .footer { margin-top: 8px; text-align: center; color: #64748b; font-size: 12px; }
-      .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
-      @media print {
-        @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; font-size: 12px; line-height: 1.2; }
-        .toolbar { display: none; }
-        .page { width: auto; min-height: auto; padding: 0; }
-        .print-only { display: initial; }
-        .accent { margin-bottom: 7px; }
-        .header { gap: 10px; padding-bottom: 7px; }
-        .company { grid-template-columns: 48px 1fr; gap: 8px; }
-        .logo { width: 48px; height: 48px; }
-        .company-name { font-size: 14px; }
-        .company-info { font-size: 12px; line-height: 1.25; margin-top: 2px; }
-        .doc-title { font-size: 19px; }
-        .doc-grid { gap: 3px 6px; margin-top: 5px; }
-        .kv { padding: 3px 5px; }
-        .section-grid { gap: 8px; margin-top: 7px; }
-        .panel-title { padding: 4px 7px; }
-        .panel-body { padding: 5px 7px; }
-        .two-col { gap: 4px 8px; }
-        .header, .section-grid { break-inside: avoid; page-break-inside: avoid; }
-        .items { font-size: 12px; margin-top: 7px; page-break-before: auto; }
-        .items th { padding: 3px 3px; }
-        .items td { padding: 3px 3px; }
-        .items .empty td { height: 18px; }
-        .muted { font-size: 12px; }
-        .weight-summary { gap: 6px; margin-top: 6px; }
-        .weight-card { padding: 5px; }
-        .weight-card .value { font-size: 12px; }
-        .bottom-grid { gap: 8px; margin-top: 7px; break-before: auto; page-break-before: auto; }
-        .note { min-height: 24px; }
-        .total-row { padding: 3px 6px; }
-        .total-row.final { font-size: 12px; }
-      }
-    </style>
-  </head><body>
-    <div class="toolbar">
-      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
-      <button class="secondary" onclick="window.close()">ปิด</button>
-      <span style="font-size: 12px;color:#cbd5e1">A4 portrait corporate print</span>
-    </div>`
 
   function renderHeader(pageLabel = '') {
     return `
@@ -266,8 +136,9 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
     `
   }
 
-  function renderBottomGridAndSignatures(options?: { isPage1?: boolean }) {
-    const isPage1 = options?.isPage1 ?? false
+  function renderBottomGridAndSignatures(options?: { isPlaceholderPage?: boolean; nextPageNo?: number }) {
+    const isPlaceholderPage = options?.isPlaceholderPage ?? false
+    const nextPageNo = options?.nextPageNo ?? 2
 
     return `
       <section class="bottom-grid">
@@ -276,7 +147,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
             <div class="panel">
               <div class="panel-title">เลขที่บัญชี / Bank Account</div>
               <div class="panel-body">
-                ${isPage1 ? `
+                ${isPlaceholderPage ? `
                   <div style="font-size: 12px; color: #94a3b8;">-</div>
                 ` : bill.supplierBankAccounts.slice(0, 2).map((account, index) => `
                   <div style="font-size: 12px; ${index > 0 ? 'margin-top: 6px; border-top: 1px dashed #cbd5e1; padding-top: 6px;' : ''}">
@@ -290,26 +161,26 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
           <div class="panel">
             <div class="panel-title">หมายเหตุ</div>
             <div class="panel-body">
-              <div class="note" style="${isPage1 ? 'color: #94a3b8;' : ''}">${isPage1 ? '-' : escapeHtml(plain(bill.note))}</div>
+              <div class="note" style="${isPlaceholderPage ? 'color: #94a3b8;' : ''}">${isPlaceholderPage ? '-' : escapeHtml(plain(bill.note))}</div>
             </div>
           </div>
         </div>
         <div class="totals">
-          <div class="total-row"><div>ยอดรวมรายการ</div><div class="num" style="${isPage1 ? 'color: #94a3b8;' : ''}">${isPage1 ? '-' : money(bill.subtotal)}</div></div>
-          <div class="total-row"><div>หักส่วนลด</div><div class="num" style="${isPage1 ? 'color: #94a3b8;' : ''}">${isPage1 ? '-' : money(bill.discount)}</div></div>
-          ${isPage1 ? '' : advanceBreakdownHtml}
-          <div class="total-row"><div>${bill.hasVat ? 'ยอดที่ต้องจ่ายก่อน VAT' : 'ยอดที่ต้องจ่าย'}</div><div class="num" style="${isPage1 ? 'color: #94a3b8;' : ''}">${isPage1 ? '-' : money(postAdvanceTotals.taxableBaseAmount)}</div></div>
-          ${(bill.hasVat && !isPage1) ? `<div class="total-row"><div>${escapeHtml(vatLabel)}</div><div class="num">${money(postAdvanceTotals.vatAmount)}</div></div>` : ''}
-          <div class="total-row final"><div>${bill.hasVat ? 'ยอดสุทธิรวม VAT ที่ต้องจ่าย' : 'ยอดสุทธิที่ต้องจ่าย'}</div><div class="num">${isPage1 ? '-' : money(postAdvanceTotals.totalAmount)}</div></div>
+          <div class="total-row"><div>ยอดรวมรายการ</div><div class="num" style="${isPlaceholderPage ? 'color: #94a3b8;' : ''}">${isPlaceholderPage ? '-' : money(bill.subtotal)}</div></div>
+          <div class="total-row"><div>หักส่วนลด</div><div class="num" style="${isPlaceholderPage ? 'color: #94a3b8;' : ''}">${isPlaceholderPage ? '-' : money(bill.discount)}</div></div>
+          ${isPlaceholderPage ? '' : advanceBreakdownHtml}
+          <div class="total-row"><div>${bill.hasVat ? 'ยอดที่ต้องจ่ายก่อน VAT' : 'ยอดที่ต้องจ่าย'}</div><div class="num" style="${isPlaceholderPage ? 'color: #94a3b8;' : ''}">${isPlaceholderPage ? '-' : money(postAdvanceTotals.taxableBaseAmount)}</div></div>
+          ${(bill.hasVat && !isPlaceholderPage) ? `<div class="total-row"><div>${escapeHtml(vatLabel)}</div><div class="num">${money(postAdvanceTotals.vatAmount)}</div></div>` : ''}
+          <div class="total-row final"><div>${bill.hasVat ? 'ยอดสุทธิรวม VAT ที่ต้องจ่าย' : 'ยอดสุทธิที่ต้องจ่าย'}</div><div class="num">${isPlaceholderPage ? '-' : money(postAdvanceTotals.totalAmount)}</div></div>
         </div>
       </section>
 
-      ${isPage1 ? `
+      ${isPlaceholderPage ? `
         <div style="text-align: center; padding: 22px 0 10px; font-weight: bold; color: #166534; font-size: 13px; letter-spacing: 0.5px;">
-          ( มีต่อหน้า 2 / Continued on Page 2 ➔ )
+          ( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )
         </div>
       ` : `
-        <section class="signatures">
+        <section class="signatures" data-signatures="final">
           <div class="sig"><div class="sig-line">ผู้ส่งสินค้า / Supplier</div><div>วันที่ ____ / ____ / ______</div></div>
           <div class="sig"><div class="sig-line">ผู้ตรวจรับ / ตรวจนับ</div><div>วันที่ ____ / ____ / ______</div></div>
           <div class="sig"><div class="sig-line">ผู้รับสินค้า / บริษัท</div><div>วันที่ ____ / ____ / ______</div></div>
@@ -321,7 +192,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
 
   function itemRowsSlice(rows: PurchaseBillDetail['allocationRows'], startIndex = 0) {
     return rows.map((item, index) => `
-      <tr class="item-row">
+      <tr class="item-row" data-row-slot="${startIndex + index + 1}">
         <td class="center rank-cell">${startIndex + index + 1}</td>
         <td>
           <div class="item-name">${escapeHtml(item.productName)}</div>
@@ -336,24 +207,21 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
     `).join('')
   }
 
-  let pagesHtml = ''
+  const pagesHtml = pages.map((page) => {
+    const placeholder = !page.isFinalPage
+    const display = (value: string) => placeholder ? '-' : value
 
-  if (isMultiPage) {
-    const page1Items = allItems.slice(0, 15)
-    const page2Items = allItems.slice(15)
-    const page2EmptyCount = Math.max(0, 15 - page2Items.length)
-
-    pagesHtml = `
-      <main class="page">
+    return `
+      <main class="page${page.pageNo > 1 ? ' page-break-before' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
         <div class="watermark">${escapeHtml(bill.statusLabel)}</div>
         <div class="accent"></div>
-        ${renderHeader('หน้า 1/2')}
+        ${renderHeader(`หน้า ${page.pageNo} / ${page.totalPages}`)}
         ${renderSupplierDocSections()}
         <table class="items">
           <thead>
             <tr>
               <th class="center rank-cell" style="width:5mm">#</th>
-              <th style="width:38mm">สินค้า</th>
+              <th style="width:38mm">สินค้า${page.pageNo > 1 ? ' (ต่อ)' : ''}</th>
               <th>REMARK</th>
               <th class="num" style="width:20mm">นน.ก่อนหัก</th>
               <th class="num" style="width:18mm">นน.หัก</th>
@@ -363,88 +231,24 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
             </tr>
           </thead>
           <tbody>
-            ${itemRowsSlice(page1Items, 0)}
+            ${itemRowsSlice(page.items, page.startIndex)}
+            ${emptyRows(page.emptyRowCount)}
           </tbody>
-        </table>
-        ${renderBottomGridAndSignatures({ isPage1: true })}
-      </main>
-
-      <main class="page page-break-before">
-        <div class="watermark">${escapeHtml(bill.statusLabel)}</div>
-        <div class="accent"></div>
-        ${renderHeader('หน้า 2/2')}
-        ${renderSupplierDocSections()}
-        <table class="items">
-          <thead>
-            <tr>
-              <th class="center rank-cell" style="width:5mm">#</th>
-              <th style="width:38mm">สินค้า (ต่อ)</th>
-              <th>REMARK</th>
-              <th class="num" style="width:20mm">นน.ก่อนหัก</th>
-              <th class="num" style="width:18mm">นน.หัก</th>
-              <th class="num" style="width:26mm">นน.สุทธิ</th>
-              <th class="num" style="width:18mm">ราคา</th>
-              <th class="num" style="width:24mm">รวม</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemRowsSlice(page2Items, 15)}
-            ${emptyRows(page2EmptyCount)}
-          </tbody>
-          <tfoot>
+          <tfoot data-page-totals="${placeholder ? 'placeholder' : 'final'}">
             <tr>
               <td colspan="3" class="num" style="padding-right: 6px;">รวมทั้งสิ้น</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(grossSummaryText)}</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(deductSummaryText)}</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(totalSummaryText)}</td>
+              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${display(escapeHtml(grossSummaryText))}</td>
+              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${display(escapeHtml(deductSummaryText))}</td>
+              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${display(escapeHtml(totalSummaryText))}</td>
               <td></td>
-              <td class="num final-amount">${money(bill.subtotal)}</td>
+              <td class="num final-amount">${display(money(bill.subtotal))}</td>
             </tr>
           </tfoot>
         </table>
-        ${renderBottomGridAndSignatures({ isPage1: false })}
+        ${renderBottomGridAndSignatures({ isPlaceholderPage: placeholder, nextPageNo: page.pageNo + 1 })}
       </main>
     `
-  } else {
-    const singleEmptyCount = Math.max(0, 15 - itemCount)
-    pagesHtml = `
-      <main class="page">
-        <div class="watermark">${escapeHtml(bill.statusLabel)}</div>
-        <div class="accent"></div>
-        ${renderHeader()}
-        ${renderSupplierDocSections()}
-        <table class="items">
-          <thead>
-            <tr>
-              <th class="center rank-cell" style="width:5mm">#</th>
-              <th style="width:38mm">สินค้า</th>
-              <th>REMARK</th>
-              <th class="num" style="width:20mm">นน.ก่อนหัก</th>
-              <th class="num" style="width:18mm">นน.หัก</th>
-              <th class="num" style="width:26mm">นน.สุทธิ</th>
-              <th class="num" style="width:18mm">ราคา</th>
-              <th class="num" style="width:24mm">รวม</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemRowsSlice(allItems, 0)}
-            ${emptyRows(singleEmptyCount)}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3" class="num" style="padding-right: 6px;">รวมทั้งสิ้น</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(grossSummaryText)}</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(deductSummaryText)}</td>
-              <td class="num" style="white-space: nowrap; font-size: 11px; padding: 4px 2px;">${escapeHtml(totalSummaryText)}</td>
-              <td></td>
-              <td class="num final-amount">${money(bill.subtotal)}</td>
-            </tr>
-          </tfoot>
-        </table>
-        ${renderBottomGridAndSignatures({ isPage1: false })}
-      </main>
-    `
-  }
+  }).join('')
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} ${escapeHtml(bill.docNo)}</title>
     <style>

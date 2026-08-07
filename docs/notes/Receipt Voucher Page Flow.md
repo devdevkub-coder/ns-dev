@@ -415,6 +415,7 @@ Print document must include:
 - license plate and salesperson if available
 - source PB reference if selected
 - line items with quantity, unit, price, amount
+- รายการแบ่งหน้าละ 15 แถวและสร้างหน้า `1..N` ได้อัตโนมัติ; หน้า `1..N-1` แสดงยอด/หมายเหตุเป็น `-` พร้อม `Continued on Page X` และไม่มีลายเซ็น ส่วนหน้าสุดท้ายแสดงยอดจริง/หมายเหตุ/ลายเซ็น
 - total quantity summary by unit, total amount, and amount in Thai words
 - note
 - payer signer and receiver signer

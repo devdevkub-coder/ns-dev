@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { paginateStandardPrintItems } from '@/lib/print-pagination'
 
 const companyProfilePayloadSchema = z.object({
   ...companyProfileResponseSchema.shape,
@@ -144,18 +145,28 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     ? 'เอกสารนี้เป็นหลักฐานรับเงินจาก Supplier ตามบัญชีที่ระบุในเอกสาร'
     : 'เอกสารนี้เป็นหลักฐานรับเงินสดจาก Supplier เท่านั้น ไม่ใช่เอกสารโอนเงินหรือรายการธนาคาร'
 
-  const itemCount = printItems.length
-  const isDense = itemCount >= 9 && itemCount <= 15
-  const isMultiPage = itemCount > 15
+  const pages = paginateStandardPrintItems(printItems)
 
   function renderRows(rowsToRender: ReceiptVoucherPrintItem[], startIndex: number) {
     return rowsToRender.map((item, index) => `
-      <tr>
+      <tr data-row-slot="${startIndex + index + 1}">
         <td class="center">${startIndex + index + 1}</td>
         <td class="item-name">${escapeHtml(item.description || '-')}</td>
         <td class="num">${money(toNumber(item.qty))} ${escapeHtml(item.unit || 'หน่วย')}</td>
         <td class="num">${money(toNumber(item.price))}</td>
         <td class="num font-black">${money(toNumber(item.amount))}</td>
+      </tr>
+    `).join('')
+  }
+
+  function renderEmptyRows(count: number) {
+    return Array.from({ length: count }, (_, index) => `
+      <tr class="empty-row" data-row-slot="empty-${index + 1}">
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
       </tr>
     `).join('')
   }
@@ -267,14 +278,15 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     `
   }
 
-  function renderBottomGridAndSignatures(options?: { isPage1?: boolean }) {
-    const isPage1 = options?.isPage1 ?? false
+  function renderBottomGridAndSignatures(options?: { isPlaceholderPage?: boolean; nextPageNo?: number }) {
+    const isPlaceholderPage = options?.isPlaceholderPage ?? false
+    const nextPageNo = options?.nextPageNo ?? 2
 
     return `
       <section class="bottom-grid">
         <div class="notes-panel">
           ${(() => {
-            if (isPage1) {
+            if (isPlaceholderPage) {
               return `
                 <div class="note-box">
                   <div class="note-box-header">จำนวนเงิน (ตัวอักษร)</div>
@@ -304,24 +316,24 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           })()}
           <div class="note-box">
             <div class="note-box-header">หมายเหตุ</div>
-            <div class="note-content-small" style="${isPage1 ? 'color:#94a3b8;' : ''}">${isPage1 ? '-' : escapeHtml(row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)')}</div>
+            <div class="note-content-small" style="${isPlaceholderPage ? 'color:#94a3b8;' : ''}">${isPlaceholderPage ? '-' : escapeHtml(row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)')}</div>
           </div>
         </div>
         
         <div class="summary-box">
           <div class="summary-row">
             <div style="font-weight: bold; color: #475569;">จำนวนรวม</div>
-            <div style="text-align: right; font-weight: 900; color: ${isPage1 ? '#94a3b8' : '#0f172a'};">${isPage1 ? '-' : escapeHtml(quantitySummary || '-')}</div>
+            <div style="text-align: right; font-weight: 900; color: ${isPlaceholderPage ? '#94a3b8' : '#0f172a'};">${isPlaceholderPage ? '-' : escapeHtml(quantitySummary || '-')}</div>
           </div>
           <div class="summary-row" style="border-bottom: 0;">
             <div style="font-weight: bold; color: #475569;">ยอดเงินรวม</div>
-            <div style="text-align: right; font-weight: 900; color: ${isPage1 ? '#94a3b8' : '#0f172a'};">${isPage1 ? '-' : money(row.totalAmount)}</div>
+            <div style="text-align: right; font-weight: 900; color: ${isPlaceholderPage ? '#94a3b8' : '#0f172a'};">${isPlaceholderPage ? '-' : money(row.totalAmount)}</div>
           </div>
           <div class="summary-row highlight">
             <div>ยอดรับเงิน</div>
-            <div style="text-align: right; font-variant-numeric: tabular-nums;">${isPage1 ? '-' : money(row.totalAmount)}</div>
+            <div style="text-align: right; font-variant-numeric: tabular-nums;">${isPlaceholderPage ? '-' : money(row.totalAmount)}</div>
           </div>
-          ${(selectedBankAccount && !isPage1) ? `
+          ${(selectedBankAccount && !isPlaceholderPage) ? `
             <div style="padding: 6px 8px; text-align: right; font-size: 12px; font-weight: bold; color: #065f46; background: #ecfdf5; border-top: 1px solid #cbd5e1;">
               (${escapeHtml(row.amountInWords || '-')})
             </div>
@@ -330,12 +342,12 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       </section>
       
       <div class="footer-group">
-        ${isPage1 ? `
+        ${isPlaceholderPage ? `
           <div style="text-align: center; padding: 22px 0 10px; font-weight: bold; color: #059669; font-size: 13px; letter-spacing: 0.5px;">
-            ( มีต่อหน้า 2 / Continued on Page 2 ➔ )
+            ( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )
           </div>
         ` : `
-          <div class="signatures">
+          <div class="signatures" data-signatures="final">
             <div class="sig-block">
               <div class="sig-line"></div>
               <div class="sig-title">ผู้จ่ายเงิน</div>
@@ -358,136 +370,43 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     `
   }
 
-  // Generate pages HTML
-  let pagesHtml = ''
+  const pagesHtml = pages.map((page) => {
+    const placeholder = !page.isFinalPage
+    const display = (value: string) => placeholder ? '-' : value
 
-  if (isMultiPage) {
-    const page1Items = printItems.slice(0, 15)
-    const page2Items = printItems.slice(15)
-
-    const page1FilledCount = page1Items.length
-    const page1EmptyCount = Math.max(0, 15 - page1FilledCount)
-    const page1EmptyRowsHtml = Array.from({ length: page1EmptyCount }).map(() => `
-      <tr class="empty-row">
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-      </tr>
-    `).join('')
-
-    const page2FilledCount = page2Items.length
-    const page2EmptyCount = Math.max(0, 15 - page2FilledCount)
-    const page2EmptyRowsHtml = Array.from({ length: page2EmptyCount }).map(() => `
-      <tr class="empty-row">
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-      </tr>
-    `).join('')
-
-    pagesHtml = `
-      <div class="page is-dense">
+    return `
+      <div class="page is-dense${page.pageNo > 1 ? ' page-break-before' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
         ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
         <div class="accent"></div>
-        ${renderHeader('Receipt Voucher', 'หน้า 1/2')}
+        ${renderHeader('Receipt Voucher', `หน้า ${page.pageNo} / ${page.totalPages}`)}
         ${renderSupplierPayerSections()}
         <table class="items">
           <thead>
             <tr>
               <th style="width: 8mm; text-align: center;">#</th>
-              <th>รายการ</th>
+              <th>รายการ${page.pageNo > 1 ? ' (ต่อ)' : ''}</th>
               <th style="width: 28mm; text-align: right;">จำนวน/หน่วย</th>
               <th style="width: 25mm; text-align: right;">ราคา/หน่วย</th>
               <th style="width: 29mm; text-align: right;">จำนวนเงิน</th>
             </tr>
           </thead>
           <tbody>
-            ${renderRows(page1Items, 0)}
+            ${renderRows(page.items, page.startIndex)}
+            ${renderEmptyRows(page.emptyRowCount)}
           </tbody>
-        </table>
-        ${renderBottomGridAndSignatures({ isPage1: true })}
-      </div>
-
-      <div class="page is-dense page-break-before">
-        ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
-        <div class="accent"></div>
-        ${renderHeader('Receipt Voucher', 'หน้า 2/2')}
-        ${renderSupplierPayerSections()}
-        <table class="items">
-          <thead>
-            <tr>
-              <th style="width: 8mm; text-align: center;">#</th>
-              <th>รายการ (ต่อ)</th>
-              <th style="width: 28mm; text-align: right;">จำนวน/หน่วย</th>
-              <th style="width: 25mm; text-align: right;">ราคา/หน่วย</th>
-              <th style="width: 29mm; text-align: right;">จำนวนเงิน</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${renderRows(page2Items, 15)}
-            ${page2EmptyRowsHtml}
-          </tbody>
-          <tfoot>
+          <tfoot data-page-totals="${placeholder ? 'placeholder' : 'final'}">
             <tr>
               <td colspan="2" class="num">รวมทั้งสิ้น</td>
-              <td class="num">${escapeHtml(quantitySummary || '-')}</td>
+              <td class="num">${display(escapeHtml(quantitySummary || '-'))}</td>
               <td></td>
-              <td class="num final-amount">${money(row.totalAmount)}</td>
+              <td class="num final-amount">${display(money(row.totalAmount))}</td>
             </tr>
           </tfoot>
         </table>
-        ${renderBottomGridAndSignatures()}
+        ${renderBottomGridAndSignatures({ isPlaceholderPage: placeholder, nextPageNo: page.pageNo + 1 })}
       </div>
     `
-  } else {
-    const tableRowTarget = isDense ? itemCount : 7
-    const emptyRowsHtml = Array.from({ length: Math.max(0, tableRowTarget - printItems.length) }).map(() => `
-      <tr class="empty-row">
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-      </tr>
-    `).join('')
-
-    pagesHtml = `
-      <div class="page${isDense ? ' is-dense' : ''}">
-        ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
-        <div class="accent"></div>
-        ${renderHeader()}
-        ${renderSupplierPayerSections()}
-        <table class="items">
-          <thead>
-            <tr>
-              <th style="width: 8mm; text-align: center;">#</th>
-              <th>รายการ</th>
-              <th style="width: 28mm; text-align: right;">จำนวน/หน่วย</th>
-              <th style="width: 25mm; text-align: right;">ราคา/หน่วย</th>
-              <th style="width: 29mm; text-align: right;">จำนวนเงิน</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${renderRows(printItems, 0)}
-            ${emptyRowsHtml}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="2" class="num">รวมทั้งสิ้น</td>
-              <td class="num">${escapeHtml(quantitySummary || '-')}</td>
-              <td></td>
-              <td class="num final-amount">${money(row.totalAmount)}</td>
-            </tr>
-          </tfoot>
-        </table>
-        ${renderBottomGridAndSignatures()}
-      </div>
-    `
-  }
+  }).join('')
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบสำคัญรับเงิน ${escapeHtml(row.docNo)}</title>
     <style>

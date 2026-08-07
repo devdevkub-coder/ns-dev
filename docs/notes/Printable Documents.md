@@ -11,7 +11,7 @@ tags:
   - business-flow
 status: draft
 created: 2026-06-09
-updated: 2026-07-03
+updated: 2026-08-07
 ---
 
 # Printable Documents / เอกสารที่ต้องพิมพ์
@@ -30,14 +30,23 @@ updated: 2026-07-03
 
 | Priority | เอกสาร | Route หลัก | สถานะ Next | Legacy evidence | หมายเหตุ |
 |---|---|---|---|---|---|
-| P0 | `POB` PO Buy / ใบสั่งซื้อ | `/purchase/po-buy` | Implemented | Legacy PO Buy อยู่ใน flow จองซื้อ/สั่งซื้อก่อนรับของ; active target ใช้เลข `POB...` เป็นเอกสารซื้อหลักก่อน PB | ใช้ corporate A4 portrait ที่อ้างอิง design บิลซื้อ, Company Profile header, พิมพ์จาก list/detail modal, แสดง Supplier พร้อมที่อยู่, รายการสินค้าครบพร้อมหน่วยจริง, ยอดสั่งซื้อ/คงเหลือ, หมายเหตุ, ช่องลงนาม และลายน้ำเฉพาะกรณียกเลิก |
-| P0 | `PB` บิลรับซื้อ / ใบรับสินค้า | `/purchase/bills` | Implemented | `erp.printDocument('receipt', row.raw.id)` ที่ `old-apps/legacy/index.html:15119`, helper ที่ `old-apps/legacy/index.html:6449` | ใช้ corporate A4 portrait, Company Profile header, พิมพ์จาก list/detail/direct detail, รองรับ multi-page สำหรับ 30+ รายการ |
-| P0 | `SB` บิลขาย / ใบส่งของ | `/sales/bills` | Implemented print, allocation hardening follow-up | `erp.printDocument('delivery', b.id)` ที่ `old-apps/legacy/index.html:20390`, helper เดียวกับ PB ที่ `old-apps/legacy/index.html:6449` | ใช้ flow `WTO -> SB` ตาม [[Sales Bills Page Flow]], A4 portrait/multi-page/totals baseline เดียวกับ PB, Company Profile ตามสาขา, แสดง Customer, WTO trace, VAT, หักมัดจำ Customer, และยอดลูกหนี้สุทธิ; follow-up คือแสดง `PO Sell`/`Spot Sale` จาก line-level allocation facts เมื่อ write flow แยก allocation ครบ |
+| P0 | `POB` PO Buy / ใบสั่งซื้อ | `/purchase/po-buy` | Implemented | Legacy PO Buy อยู่ใน flow จองซื้อ/สั่งซื้อก่อนรับของ; active target ใช้เลข `POB...` เป็นเอกสารซื้อหลักก่อน PB | ใช้ corporate A4 portrait ที่อ้างอิง design บิลซื้อ, Company Profile header, พิมพ์จาก list/detail modal, แสดง Supplier พร้อมที่อยู่, รายการสินค้าครบพร้อมหน่วยจริง, ยอดสั่งซื้อ/คงเหลือ, หมายเหตุ, ช่องลงนาม และลายน้ำเฉพาะกรณียกเลิก; ตารางแบ่งหน้าละ 15 รายการและเพิ่มหน้าได้ต่อเนื่อง |
+| P0 | `PB` บิลรับซื้อ / ใบรับสินค้า | `/purchase/bills` | Implemented | `erp.printDocument('receipt', row.raw.id)` ที่ `old-apps/legacy/index.html:15119`, helper ที่ `old-apps/legacy/index.html:6449` | ใช้ corporate A4 portrait, Company Profile header, พิมพ์จาก list/detail/direct detail, รองรับหลายหน้าแบบไม่จำกัดที่ 2 หน้า โดยแบ่งหน้าละ 15 รายการ |
+| P0 | `SB` บิลขาย / ใบส่งของ | `/sales/bills` | Implemented print, allocation hardening follow-up | `erp.printDocument('delivery', b.id)` ที่ `old-apps/legacy/index.html:20390`, helper เดียวกับ PB ที่ `old-apps/legacy/index.html:6449` | ใช้ flow `WTO -> SB` ตาม [[Sales Bills Page Flow]], A4 portrait/N-page/totals baseline เดียวกับ PB, Company Profile ตามสาขา, แสดง Customer, WTO trace, VAT, หักมัดจำ Customer, และยอดลูกหนี้สุทธิ; follow-up คือแสดง `PO Sell`/`Spot Sale` จาก line-level allocation facts เมื่อ write flow แยก allocation ครบ |
 | P0 | `WTI/WTO` ใบรับของ/ใบส่งของจากงานชั่ง | `/daily/weight-ticket-list` | Implemented print, share/audit follow-up | `printWeighingTicket(ticket)` และปุ่ม `ใบชั่ง` ที่ `old-apps/legacy/index.html:52560` ถึง `old-apps/legacy/index.html:52985` | Active helper รองรับ WTI/WTO แล้ว; PDF ต้องให้หน้าแรกเป็นใบพิมพ์ A4 ที่ตรงกับตัวพิมพ์และจบใน 1 หน้าเมื่อเป็นเอกสารความหนาแน่นปกติ โดยเน้นน้ำหนัก/สิ่งเจือปน/ทะเบียนรถ/ลายเซ็น จากนั้นต่อหน้า 2+ เป็นหน้าอัลบั้มรูปหลักฐานจากรูปรถและรูปสินค้า |
 | P1 | `PMA` ใบอนุมัติจ่ายเงิน / ส่ง Cashier | `/daily/payment-approval`, `/purchase/payments` | Required follow-up | `printApprovalSheet` และปุ่ม `พิมพ์ใบอนุมัติส่ง Cashier` ที่ `old-apps/legacy/index.html:27680` ถึง `old-apps/legacy/index.html:27773` | ต้องพิมพ์จาก approval snapshot หลังเกิด PMA แล้ว ไม่พิมพ์จาก pending source live row |
 | P1 | `PMT` Payment Voucher / ใบสำคัญจ่าย | `/purchase/payments?tab=history` | Partial: daily report implemented, per-voucher print follow-up | Legacy payment-history evidence ไม่ชัดเท่า PB/SB/PMA แต่ active UI มี shell `ดู/พิมพ์` ใน history | ต้องอยู่ในแท็บประวัติเท่านั้น เพราะ PMT เป็นเอกสารหลังจ่ายจริงหรือหลังยกเลิก |
 | P1 | `RV` ใบสำคัญรับเงิน Supplier | `/purchase/receipt-vouchers` | Partial: manual create/edit/print implemented, cancel/status follow-up | legacy `view-receiptVoucher` ที่ `old-apps/legacy/index.html:42799` ถึง `old-apps/legacy/index.html:43240` | ใช้ให้ Supplier/ผู้รับเงินเซ็นรับเงินสดจากบริษัทเท่านั้น active modal เลือก Supplier เพื่อเติมข้อมูลผู้รับเงิน และเลือก PB optional เพื่อเติมรายการ/ยอดอัตโนมัติ ไม่ใช่ payment posting owner และไม่ใช้กับโอนเงิน/เช็ค; active print ใช้ compact A4 template ที่ใกล้ legacy print density พร้อม Company Profile header, receiver/company text blocks, item table, unit-separated quantity summary, amount text, signer blocks; ยังต้อง harden signer/payment method policy และ status/cancel watermark |
 | P2 | `RCP` Receipt Voucher / ใบรับเงิน Customer | `/sales/receipts` | Required follow-up | legacy customer receipt component อยู่ใน flow `รับเงิน Customer` และรองรับหลายบิลต่อ voucher | แยกจาก `RV`; ควรใช้หลักเดียวกับ PMT คือพิมพ์จาก receipt history หลังเกิด receipt แล้ว และผูก bank statement/AR settlement |
+
+## 2026-08-07 Unlimited Corporate Pagination Contract
+
+- เอกสารตารางแบบ corporate ที่ปรับใน batch นี้ ได้แก่ `POB`, `PB`, `SB`, `PO Sell`, `ADV` และ `RV` ใช้กติกากลางหน้าละ 15 รายการ และสร้างหน้า `1..N` ตามจำนวนข้อมูลจริงโดยไม่จำกัดสูงสุดไว้ที่ 2 หน้า
+- ตัวอย่าง boundary: 15 รายการ = 1 หน้า, 16 รายการ = 2 หน้า, 31 รายการ = 3 หน้า และ 46 รายการ = 4 หน้า; ทุกหน้าต้องมีแถวตารางรวม 15 ช่องและเลขหน้า `หน้า X / N`
+- หน้า `1..N-1` แสดงยอด/หมายเหตุเป็น `-`, มีข้อความ `Continued on Page X` และไม่มีช่องลงนาม เพื่อไม่ให้ยอดระหว่างทางถูกเข้าใจว่าเป็นยอดเอกสารฉบับสมบูรณ์
+- หน้า `N` เท่านั้นที่แสดงยอดจริง หมายเหตุ และช่องลงนาม โดยยังคง Company Profile, document snapshot, cancelled watermark, table header และข้อมูลเอกสารบนทุกหน้า
+- การพิมพ์ยังเป็น read-only: การแบ่งหน้าไม่สร้างหรือแก้เอกสาร, payment, stock, allocation, cache, API, DB หรือ Storage
+- `WTI/WTO` เป็นข้อยกเว้นด้านความจุ เพราะหน้าแรกเป็นแบบฟอร์มชั่งและหน้า 2+ เป็นอัลบั้มหลักฐาน; helper เดิมรองรับจำนวนหน้าอัตโนมัติอยู่แล้วและไม่ถูกบังคับเป็น 15 รูป/รายการต่อหน้า
 
 ## Payment History Print Status
 

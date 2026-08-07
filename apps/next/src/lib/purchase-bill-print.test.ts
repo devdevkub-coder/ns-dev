@@ -18,7 +18,17 @@ const profile: CompanyProfilePrintValues = {
   website: null,
 }
 
-function makeBill(overrides: Partial<PurchaseBillDetail> = {}): PurchaseBillDetail {
+const PRINT_BOUNDARIES = [
+  { count: 0, pages: 1 },
+  { count: 1, pages: 1 },
+  { count: 15, pages: 1 },
+  { count: 16, pages: 2 },
+  { count: 30, pages: 2 },
+  { count: 31, pages: 3 },
+  { count: 46, pages: 4 },
+] as const
+
+function makeBill(overrides: Partial<PurchaseBillDetail> = {}, allocationCount = 31): PurchaseBillDetail {
   return {
     advanceAllocatedAmount: 107,
     advanceAllocatedSubtotalAmount: 100,
@@ -28,7 +38,7 @@ function makeBill(overrides: Partial<PurchaseBillDetail> = {}): PurchaseBillDeta
     advancePaymentInvoiceNo: 'INV-ADV-001',
     advancePaymentVatType: 'EXCLUDE',
     advancePaymentVatTypeLabel: 'ไม่รวม VAT',
-    allocationRows: Array.from({ length: 31 }, (_, index) => ({
+    allocationRows: Array.from({ length: allocationCount }, (_, index) => ({
       amount: 100,
       deductWeight: 1,
       grossWeight: 11,
@@ -86,6 +96,30 @@ function makeBill(overrides: Partial<PurchaseBillDetail> = {}): PurchaseBillDeta
 }
 
 describe('purchase bill print', () => {
+  it.each(PRINT_BOUNDARIES)('renders $count rows across $pages page(s)', ({ count, pages: expectedPages }) => {
+    const html = buildPurchaseBillPrintHtml(makeBill({}, count), profile)
+    const pages = [...html.matchAll(/<main class="page[^"]*" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
+
+    expect(pages).toHaveLength(expectedPages)
+    pages.forEach((page, index) => {
+      expect(page.match(/data-row-slot/g)).toHaveLength(15)
+      expect(page).toContain(`หน้า ${index + 1} / ${expectedPages}`)
+      if (index < expectedPages - 1) {
+        expect(page).toContain('data-page-totals="placeholder"')
+        expect(page).toMatch(/data-page-totals="placeholder"[\s\S]*?>-\s*</)
+        expect(page).toContain(`Continued on Page ${index + 2}`)
+        expect(page).not.toContain('data-signatures="final"')
+      } else {
+        expect(page).toContain('data-page-totals="final"')
+        expect(page).toContain('data-signatures="final"')
+        expect(page).not.toContain('Continued on Page')
+      }
+    })
+    expect([...html.matchAll(/data-row-slot="(\d+)"/g)].map((match) => Number(match[1]))).toEqual(
+      Array.from({ length: count }, (_, index) => index + 1),
+    )
+  })
+
   it('omits payment progress while preserving the complete purchase document', () => {
     const html = buildPurchaseBillPrintHtml(makeBill(), profile)
 

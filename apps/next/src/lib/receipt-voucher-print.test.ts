@@ -24,11 +24,71 @@ const document: ReceiptVoucherPrintDocument = {
   totalQty: 10,
 }
 
+const PRINT_BOUNDARIES = [
+  { count: 0, pages: 1 },
+  { count: 1, pages: 1 },
+  { count: 15, pages: 1 },
+  { count: 16, pages: 2 },
+  { count: 30, pages: 2 },
+  { count: 31, pages: 3 },
+  { count: 46, pages: 4 },
+] as const
+
+function makeItems(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    amount: 100,
+    description: `สินค้า ${index + 1}`,
+    id: String(index + 1),
+    price: 10,
+    qty: 10,
+    unit: 'กก.',
+  }))
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
 describe('receipt voucher print layout', () => {
+  it.each(PRINT_BOUNDARIES)('renders $count rows across $pages page(s)', async ({ count, pages: expectedPages }) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      profile: { address: '99 กรุงเทพ', logoUrl: null, name: longCompanyName, phone: '021234567', taxId: '0105559999999' },
+      profileConfigured: true,
+      selectedBranchName: null,
+    }), { headers: { 'content-type': 'application/json' }, status: 200 })))
+
+    let html = ''
+    const printWindow = {
+      document: { close: vi.fn(), open: vi.fn(), write: vi.fn((value: string) => { html = value }) },
+      focus: vi.fn(),
+    } as unknown as Window
+    await openReceiptVoucherPrint({
+      ...document,
+      items: makeItems(count),
+    }, printWindow)
+
+    const pages = [...html.matchAll(/<div class="page[^"]*" data-print-page="\d+"[\s\S]*?<\/div>\s*(?=<div class="page|<\/body>)/g)].map((match) => match[0])
+    expect(pages).toHaveLength(expectedPages)
+    pages.forEach((page, index) => {
+      expect(page.match(/data-row-slot/g)).toHaveLength(15)
+      expect(page).toContain(`หน้า ${index + 1} / ${expectedPages}`)
+      if (index < expectedPages - 1) {
+        expect(page).toContain('data-page-totals="placeholder"')
+        expect(page).toMatch(/data-page-totals="placeholder"[\s\S]*?>-\s*</)
+        expect(page).toContain(`Continued on Page ${index + 2}`)
+        expect(page).not.toContain('data-signatures="final"')
+      } else {
+        expect(page).toContain('data-page-totals="final"')
+        expect(page).toContain('data-signatures="final"')
+        expect(page).not.toContain('Continued on Page')
+      }
+    })
+    const renderedItemCount = Math.max(1, count)
+    expect([...html.matchAll(/data-row-slot="(\d+)"/g)].map((match) => Number(match[1]))).toEqual(
+      Array.from({ length: renderedItemCount }, (_, index) => index + 1),
+    )
+  })
+
   it('gives the long Company Payer name a full row without leaving gaps in the two-column grid', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       profile: {
