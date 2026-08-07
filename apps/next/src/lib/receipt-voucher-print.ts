@@ -349,6 +349,18 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
     const page1Items = printItems.slice(0, 15)
     const page2Items = printItems.slice(15)
 
+    const page2FilledCount = page2Items.length
+    const page2EmptyCount = Math.max(0, 15 - page2FilledCount)
+    const page2EmptyRowsHtml = Array.from({ length: page2EmptyCount }).map(() => `
+      <tr class="empty-row">
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+      </tr>
+    `).join('')
+
     pagesHtml = `
       <div class="page is-dense">
         ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
@@ -378,6 +390,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
         ${isCancelled ? '<div class="watermark">ยกเลิก / CANCELLED</div>' : ''}
         <div class="accent"></div>
         ${renderHeader('Receipt Voucher', 'หน้า 2/2')}
+        ${renderSupplierPayerSections()}
         <table class="items">
           <thead>
             <tr>
@@ -390,6 +403,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           </thead>
           <tbody>
             ${renderRows(page2Items, 15)}
+            ${page2EmptyRowsHtml}
           </tbody>
           <tfoot>
             <tr>
