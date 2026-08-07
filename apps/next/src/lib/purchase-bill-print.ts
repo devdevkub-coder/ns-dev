@@ -253,7 +253,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
             <div><div class="field-label">เลขที่เอกสาร</div><div class="field-value">${escapeHtml(bill.docNo)}</div></div>
             <div><div class="field-label">วันที่ส่ง / วันที่เอกสาร</div><div class="field-value">${escapeHtml(plain(bill.date))}</div></div>
             <div><div class="field-label">ผู้จัดทำ</div><div class="field-value">${escapeHtml(plain(bill.createdBy))}</div></div>
-            <div><div class="field-label">Sale</div><div class="field-value">${escapeHtml(plain(bill.salesName))}</div></div>
+            <div><div class="field-label">Sale</div><div class="field-value" style="word-break: break-word;">${escapeHtml(bill.salesName ? (bill.salesName.includes('@') ? bill.salesName.split('@')[0] : bill.salesName) : '-')}</div></div>
             <div><div class="field-label">ใบรับของ</div><div class="field-value">${escapeHtml(bill.receiptDocNos.join(', ') || '-')}</div></div>
           </div>
         </div>
@@ -287,12 +287,6 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
           </tr>
         </tfoot>
       </table>
-
-      <div class="weight-summary">
-        <div class="weight-card"><div class="label">น้ำหนักก่อนหักรวม</div><div class="value">${escapeHtml(grossSummaryText)}</div></div>
-        <div class="weight-card"><div class="label">น้ำหนักหักรวม</div><div class="value">${escapeHtml(deductSummaryText)}</div></div>
-        <div class="weight-card"><div class="label">น้ำหนักสุทธิรวม</div><div class="value">${escapeHtml(totalSummaryText)}</div></div>
-      </div>
 
       <section class="bottom-grid">
         <div class="panel-group" style="display: flex; flex-direction: column; gap: 10px;">
