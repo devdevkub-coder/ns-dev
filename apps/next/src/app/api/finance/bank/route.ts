@@ -113,6 +113,15 @@ function xlsxResponse(body: Buffer, filename: string) {
   })
 }
 
+function parseBigIntId(value: string | null) {
+  if (!value || !/^\d+$/.test(value)) return null
+  try {
+    return BigInt(value)
+  } catch {
+    return null
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -160,6 +169,42 @@ export async function GET(request: Request) {
       where: statementWhere(query, internalAccountId, visibleAccountIds, true),
     })
 
+    const receiptIds = Array.from(new Set(sourceRows
+      .filter((row) => row.ref_type === 'RCP' && row.ref_id)
+      .map((row) => parseBigIntId(row.ref_id))
+      .filter((id): id is bigint => id != null)))
+    const receiptDocNos = Array.from(new Set(sourceRows
+      .filter((row) => row.ref_type === 'RCP' && row.ref_no)
+      .map((row) => row.ref_no as string)))
+    const customerReceipts = receiptIds.length > 0 || receiptDocNos.length > 0
+      ? await prisma.customer_receipts.findMany({
+        select: {
+          customer_name_snapshot: true,
+          customer_receipt_allocations: {
+            orderBy: [{ line_no: 'asc' }],
+            select: { sales_bill_doc_no_snapshot: true },
+          },
+          doc_no: true,
+          id: true,
+        },
+        where: {
+          OR: [
+            ...(receiptIds.length > 0 ? [{ id: { in: receiptIds } }] : []),
+            ...(receiptDocNos.length > 0 ? [{ doc_no: { in: receiptDocNos } }] : []),
+          ],
+        },
+      })
+      : []
+    const receiptDetailsByReference = new Map<string, { customerName: string; sourceDocNos: string[] }>()
+    for (const receipt of customerReceipts) {
+      const detail = {
+        customerName: receipt.customer_name_snapshot,
+        sourceDocNos: Array.from(new Set(receipt.customer_receipt_allocations.map((allocation) => allocation.sales_bill_doc_no_snapshot).filter(Boolean))),
+      }
+      receiptDetailsByReference.set(receipt.id.toString(), detail)
+      receiptDetailsByReference.set(receipt.doc_no, detail)
+    }
+
     const accountByInternalId = new Map(accounts.map((account: AccountReferenceRecord) => [String(account.id), account] as const))
     // Bank Statement is the only balance source for this page. Account Master
     // only supplies the selectable account metadata and never seeds a balance.
@@ -190,7 +235,14 @@ export async function GET(request: Request) {
         branchName: row.accounts?.branches?.name ?? '-',
         cashFlowCategory: row.cash_flow_category ?? '',
         date: toDateOnly(row.date),
-        description: row.description ?? row.desc ?? '',
+        description: (() => {
+          const fallback = row.description ?? row.desc ?? ''
+          if (row.ref_type === 'RCP' && row.ref_id) {
+            const detail = receiptDetailsByReference.get(row.ref_id) ?? receiptDetailsByReference.get(row.ref_no ?? '')
+            if (detail?.sourceDocNos.length && detail.customerName) return `${detail.sourceDocNos.join(', ')} - ${detail.customerName}`
+          }
+          return fallback
+        })(),
         id: row.doc_no,
         movement,
         movementCurrencyCode: row.movement_currency_code,
