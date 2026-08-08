@@ -1096,14 +1096,9 @@ export function PaymentApprovalPageClient() {
                       </TableCell>
                       <TableCell className="ns-leading-business-column whitespace-nowrap text-center font-mono text-sm font-semibold text-slate-700">
                         <div>{row.docNo}</div>
-                        <div className="text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</div>
-                        <div className="text-xs text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-center font-mono text-sm font-semibold text-slate-700">
                         <div>{row.sourceDocNo}</div>
-                        {row.sourceType === 'advance_payment' ? null : (
-                          <div className="text-xs text-slate-500">{paymentApprovalSourcePresentation(row).desktopSublabel}</div>
-                        )}
                         {row.sourceType === 'advance_payment' && advanceMetaLabel(row) ? (
                           <div className="text-xs font-normal text-slate-500">{advanceMetaLabel(row)}</div>
                         ) : null}
