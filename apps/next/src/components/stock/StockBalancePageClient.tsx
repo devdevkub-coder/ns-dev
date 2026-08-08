@@ -1423,9 +1423,6 @@ function MatrixTable({
                           <div className="truncate font-semibold text-slate-800" title={`${product.productCode} ${product.productName}`}>
                             {product.productCode} {product.productName}
                           </div>
-                          <div className="mt-0.5 truncate text-xs font-medium text-slate-400" title={`สินค้าในหมวด ${row.group}`}>
-                            สินค้าในหมวด {row.group}
-                          </div>
                         </div>
                       </div>
                     </td>
