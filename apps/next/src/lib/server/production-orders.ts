@@ -628,12 +628,12 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
       ledgerRows.push(
         {
           branch_id: order.branch_id,
+          not_available_for_sale: false,
           created_by: actor,
           created_at: recordedAt,
           date: normalizeDate(postingDate),
           lot_no: line.lotNo ?? null,
           movement_type: 'PRODUCTION_INPUT_OUT',
-          not_available_for_sale: false,
           output_category: line.stockStatus,
           product_id: product.id,
           qty_out: line.netQty,
@@ -646,12 +646,12 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
         },
         {
           branch_id: order.branch_id,
+          not_available_for_sale: false,
           created_by: actor,
           created_at: recordedAt,
           date: normalizeDate(postingDate),
           lot_no: line.lotNo ?? null,
           movement_type: 'WIP_IN',
-          not_available_for_sale: false,
           output_category: 'WIP',
           // WIP is a stock bucket for the exact input line that was issued.
           // The production order target is not a substitute for the source product.
@@ -791,11 +791,11 @@ async function returnProductionInputInTransaction(tx: Prisma.TransactionClient, 
       ledgerRows.push(
         {
           branch_id: order.branch_id,
+          not_available_for_sale: false,
           created_by: actor,
           date: normalizeDate(toBangkokDateOnly(new Date())),
           lot_no: input.lot_no,
           movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
-          not_available_for_sale: false,
           notes: values.reason,
           output_category: 'WIP',
           product_id: input.product_id,
@@ -809,11 +809,11 @@ async function returnProductionInputInTransaction(tx: Prisma.TransactionClient, 
         },
         {
           branch_id: order.branch_id,
+          not_available_for_sale: false,
           created_by: actor,
           date: normalizeDate(toBangkokDateOnly(new Date())),
           lot_no: input.lot_no,
           movement_type: 'PRODUCTION_INPUT_RETURN_STOCK_IN',
-          not_available_for_sale: false,
           notes: values.reason,
           output_category: stockCategory,
           product_id: input.product_id,
@@ -1021,11 +1021,11 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
         ...lineOutputAllocations.map((allocation) => {
           return {
             branch_id: order.branch_id,
+            not_available_for_sale: false,
             created_by: actor,
             date: normalizeDate(values.date),
             lot_no: line.lotNo ?? null,
             movement_type: 'PRODUCTION_OUTPUT_WIP_OUT',
-            not_available_for_sale: false,
             notes: values.notes ?? null,
             output_category: 'WIP',
             product_id: BigInt(allocation.productId),
@@ -1041,11 +1041,11 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
       )
       ledgerRows.push({
           branch_id: order.branch_id,
+          not_available_for_sale: false,
           created_by: actor,
           date: normalizeDate(values.date),
           lot_no: line.lotNo ?? null,
           movement_type: line.categoryCode === 'FG' ? 'PRODUCTION_OUTPUT_IN' : 'PRODUCTION_OUTPUT_RM_IN',
-          not_available_for_sale: false,
           notes: values.notes ?? null,
           output_category: line.categoryCode,
           product_id: product.id,
@@ -1089,12 +1089,13 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
       ledgerRows.push(...lossAllocations.map((allocation) => {
         return {
           branch_id: order.branch_id,
+          not_available_for_sale: false,
           created_by: actor,
           date: normalizeDate(values.date),
           movement_type: 'PRODUCTION_LOSS',
-          not_available_for_sale: false,
           notes: values.notes ?? null,
-          output_category: 'LOSS',
+          // Loss is consumed from the WIP stock bucket; movement_type carries the loss meaning.
+          output_category: 'WIP',
           product_id: BigInt(allocation.productId),
           qty_out: allocation.qty,
           ref_id: created.id.toString(),
@@ -1245,11 +1246,11 @@ async function voidProductionOutputInTransaction(tx: Prisma.TransactionClient, o
         if (available.qty < qty) throw new ProductionOrderError(`สินค้าในคลังปลายทางของ ${outputDocNo} ไม่พอสำหรับยกเลิก`)
         ledgerRows.push({
           branch_id: order.branch_id,
+          not_available_for_sale: false,
           created_by: actor,
           date: normalizeDate(values.date),
           lot_no: output.lot_no,
           movement_type: 'PRODUCTION_OUTPUT_REVERSE_STOCK_OUT',
-          not_available_for_sale: false,
           notes: values.reason,
           output_category: stockStatus,
           product_id: output.product_id,
@@ -1283,11 +1284,11 @@ async function voidProductionOutputInTransaction(tx: Prisma.TransactionClient, o
           }]
       ledgerRows.push(...sourceAllocations.map((allocation) => ({
         branch_id: order.branch_id,
+        not_available_for_sale: false,
         created_by: actor,
         date: normalizeDate(values.date),
         lot_no: output.lot_no,
         movement_type: 'PRODUCTION_OUTPUT_REVERSE_WIP_IN',
-        not_available_for_sale: false,
         notes: values.reason,
         output_category: 'WIP',
         product_id: allocation.productId,
@@ -1399,12 +1400,12 @@ export async function completeProductionOrder(orderDocNo: string, note: string |
         ledgerRows.push(
           {
             branch_id: order.branch_id,
+            not_available_for_sale: false,
             created_by: actor,
             created_at: recordedAt,
             date: postingDate,
             lot_no: input.lot_no,
             movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
-            not_available_for_sale: false,
             notes: note?.trim() || 'คืน WIP คงเหลือก่อนปิดงาน',
             output_category: 'WIP',
             product_id: input.product_id,
@@ -1418,12 +1419,12 @@ export async function completeProductionOrder(orderDocNo: string, note: string |
           },
           {
             branch_id: order.branch_id,
+            not_available_for_sale: false,
             created_by: actor,
             created_at: recordedAt,
             date: postingDate,
             lot_no: input.lot_no,
             movement_type: 'PRODUCTION_INPUT_RETURN_STOCK_IN',
-            not_available_for_sale: false,
             notes: note?.trim() || 'คืน WIP คงเหลือก่อนปิดงาน',
             output_category: input.stock_category,
             product_id: input.product_id,
