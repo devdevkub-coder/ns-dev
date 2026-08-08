@@ -1082,11 +1082,11 @@ export async function POST(request: Request) {
       request,
     })
 
-    return NextResponse.json({
+    return NextResponse.json(serializePaymentApprovalJson({
       items: result,
       selfApproval,
       warning: selfApproval ? 'รายการนี้ถูกอนุมัติโดยผู้สร้างรายการเดียวกัน' : null,
-    })
+    }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'อนุมัติจ่ายเงินไม่ได้', 400)
