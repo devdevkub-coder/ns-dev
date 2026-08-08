@@ -122,6 +122,7 @@ flowchart TD
   - source ที่ถูก cancel ก่อนอนุมัติต้องหายจาก pending queue
 - `/purchase/payments`
   - อ่านเฉพาะ `PMA approved` ที่ยังไม่ถูกออก `PMT`
+  - ตอนสร้าง `PMT` ผู้ใช้ระบุ `วันที่จ่ายเงิน` แยกจากวันที่สร้างรายการ เพื่อรองรับการบันทึกย้อนหลัง; server ใช้ค่านี้เป็น business date ของ payment
   - หลัง transaction สร้าง `PMT` สำเร็จ ให้สร้างและส่ง LINE job ประเภท `purchase_payment` / `PMT`; LINE ล้มเหลวต้องไม่ย้อน transaction การจ่ายเงิน
   - เลือกหลาย `PMA` ของ supplier เดียวกันมาจ่ายใน `PMT` เดียวได้เฉพาะเมื่อ destination payment method, bank และ account snapshot ตรงกัน
   - เลข `PMT` ออกโดย server เท่านั้น ห้ามรับเลขเอกสารจาก client
@@ -282,4 +283,3 @@ advance payment เป็น source document ของ flow นี้เช่�
   - approve บางส่วน -> PMA rows + source balance remains pending
   - PMT full-pay selected PMAs
   - cancel PMT -> source balance returns to pending approval
-
