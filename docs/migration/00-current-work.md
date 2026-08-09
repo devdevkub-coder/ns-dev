@@ -1,12 +1,36 @@
-## Current objective — Corporate print/PDF standardization — 2026-08-07
+## Latest payment timeline/action checkpoint — 2026-08-09
+
+PB Timeline now reads PMT payment date plus the paying company bank/account from persisted PMT snapshots and legacy payment allocation facts; it no longer presents Voucher UUID as the primary user-facing detail. Runtime list pages use the shared ellipsis/dropdown contract on Desktop and labelled `จัดการ` on Mobile; cancelled rows have no action trigger, while editable detail modals expose the same permitted edit/cancel commands. PMT History remains read-only by business rule. Focused action/payment tests, lint, type-check, build (337 static pages), and `git diff --check` pass. Browser UAT was not run because this request asked for code changes only.
+
+## Current objective — Corporate print/PDF standardization — 2026-08-08
+
+Active corporate print follow-up: keep every formal business document on the PB A4 standard. PB retains its two-pass `194 × 281 มม.` measurement, REMARK splitting, 15-row ceiling and 30 มม. signature zone; the shared `corporate-print-layout` now measures and redistributes complete rows for ADV, EXP, PMA, POB, POS, RV, SB, PMT/RCP vouchers, and WTI/WTO form pages. Attachment albums and daily PMT/RCP reports keep their dedicated contracts. Print buttons stay disabled until layout and overflow checks complete; API, DB, Storage, Cache and business calculations are unchanged. Focused tests, lint, type-check and production build are passing; native browser print preview remains the only unverified evidence because this environment has no Chromium distribution.
+
+Latest PB unit-display correction: equivalent kilogram labels are normalized to `กก.` at the detail and print presentation boundaries. PB print now keeps numeric quantity and `หน่วย` in separate table cells (including the final multi-unit totals), while numbered REMARK text is shown as separate lines and unit words inside REMARK are normalized too. True non-weight units such as `ลัง` remain separate; the detail trace label uses `รายการ` instead of `lot`; no persisted snapshot or business calculation changes.
+
+Latest visible PB detail correction: product-summary and allocation tables now also keep numeric quantity and `หน่วย` in separate columns, with empty-state `colSpan` values updated for the added column. This closes the remaining UI mismatch that made the change look like a font-only update.
 
 Apply the accepted A4 preview and unlimited-pagination contract to every formal business document, not only WTI/WTO. The active uncommitted batch covers POB, PB, SB, PO Sell, ADV, RV, PMT, RCP, WTI/WTO, PMA and EXP while preserving document snapshots, cancellation marks, permissions and read-only printing.
 
-Latest gap closed: PMA and EXP now use 15 table rows per page, repeat header/document metadata, keep blank table footer plus two empty summary frames and continuation text on pages `1..N-1`, and show real totals/notes/signatures only on page `N`. PMA group-total rows count toward the 15-row physical table capacity.
+Latest gap closed: PMA and EXP now use 15 table rows per page, repeat header/document metadata, keep a blank table footer plus two titled placeholder panels and continuation text on pages `1..N-1`, and show real totals/notes/signatures only on page `N`. PMA group-total rows count toward the 15-row physical table capacity.
 
-Validation completed: focused print/FCD tests `104/104`, full lint, type-check, production build (337 static pages) and `git diff --check` passed. Independent code review is `APPROVED`, architecture contract is `PASS`, and fresh-context acceptance is `ACCEPTED`. Browser/PDF visual UAT remains unrun unless the user explicitly requests testing.
+WTI/WTO continuation follow-up: the three reserved summary panels on pages `1..N-1` now keep the titles `สรุปตามหมวดสินค้า`, `หมายเหตุ`, `ข้อมูลน้ำหนัก / Weight Info` with `-` placeholders in both browser print HTML and React-PDF; real totals, business notes and signatures remain final-page-only.
 
-Delivery checkpoint: fetched `sit-origin/main` at `85f545c4` with ahead/behind `0/0`; no remote integration is required before the focused local commit. Include the new PMT/RCP behavioral test explicitly and leave unrelated dirty/untracked files untouched. Push/deploy only on a separate user request.
+Latest layout correction: keep the signature block anchored at the original bottom position (`margin-top: auto`) and enlarge only final-page empty table rows to 28px in both HTML and React-PDF, so short WTI/WTO forms use the unused paper without changing the signature placement or overflowing A4.
+
+Latest browser-print color correction: `purchase-bill-print.ts` now applies `print-color-adjust: exact` (and the WebKit equivalent) to preserve the accent gradient, table total fills, and final-total color when the document is printed; screen preview styling remains unchanged.
+
+Latest shared reflow correction: when a full source page has no empty-row prototype, `corporate-print-layout` synthesizes a presentation-only empty row from the existing table structure before redistributing rows, so every measured continuation page can still fill available space consistently with PB.
+
+PDF regression fixed: a detailed 31-row WTI fixture previously pushed the continuation panels onto an extra page. The shared continuation capacity is now 14 rows (12 on the first form page), keeping the WTI/WTO form pages contiguous before the attachment album. Real local React-PDF evidence now renders both WTI and WTO as 3 form pages plus 2 attachment pages with no continuation-only page.
+
+All other formal multi-page print templates now follow the same non-empty continuation rule: POB, PB, SB, PO Sell use `สรุปตามหมวดสินค้า` + `หมายเหตุ`; ADV, EXP, PMA use a document-specific summary title + `หมายเหตุ`; RV/RCP use `รายละเอียดการรับเงิน` + `หมายเหตุ`; PMT uses `รายละเอียดการจ่ายเงิน` + `หมายเหตุ`. No active continuation template uses an empty reserved panel.
+
+Validation checkpoint after this regression fix: focused print/PDF tests `157/157` (8 files), full lint, type-check, production build (337 static pages) and `git diff --check` passed. Daily PMT/RCP report boundaries now cover 0/1/8/9/23/24 rows with an 8-row first-page budget and 15-row continuation pages. Local React-PDF fixtures for WTI and WTO render 3 form pages plus 2 attachment pages with no continuation-only page; Poppler confirmed A4 page size. Native browser print preview/output could not be inspected in this environment because the available browser runner has no Chrome distribution, so browser HTML overflow remains a documented evidence gap.
+
+Full Vitest was also run: print/PDF suites remain green; the workspace still has 15 unrelated failures in form-action, reference-cache, gallery, WTO collaboration, finance-route and table-action contracts. Those files are outside this print/PDF batch and were left untouched.
+
+Delivery checkpoint: fetched `sit-origin/main` at `85f545c4` with ahead/behind `0/0`; the active local line is ready for the user-requested delivery step, with unrelated dirty/untracked files preserved. No push/deploy was performed in this task.
 
 ## Current objective — WTI/WTO Production baseline — 2026-08-07
 
@@ -258,6 +282,15 @@ Blocker/next: continue the remaining broad finance-route audit documented in `do
 
 # 00 Current Work
 
+## Active nested impurity deduction batch — 2026-08-09
+
+- Scope: WTI/WTO form, calculation, deletion confirmation, detail table and print-row classification.
+- Contract: `parentId` and `impuritySourceLineId` are traversed recursively; every impurity line and every purchased impurity line can receive another impurity deduction. API, DB, Storage, Cache and existing PDF/Print layout contracts are preserved.
+- Latest UI correction: `หักสิ่งเจือปนต่อ` is now a full-width action row under each completed impurity, nested rows render in the same editor with indentation, and the new field receives focus without opening a misleading product editor.
+- Latest UI correction: every impurity entry, including `สินค้าอื่น` and nested entries, now uses the same collapsible card header as `เต๋าสินค้า` on desktop and mobile. Collapsed cards keep the status/weight summary and expose a delete action; expanded cards preserve all existing fields, image attachments and nested-deduction controls.
+- Validation: focused nested/WTI tests `59/59`, product-entry contract tests `31/31`, formal print/PDF suites `158/158`, workspace lint, type-check, production build (with `NODE_OPTIONS=--max-old-space-size=4096`) and `git diff --check` passed. No commit, push or deploy yet.
+- Remaining risk: native Chromium print preview was not available in this environment; React-PDF/HTML contract tests are the current evidence.
+
 ## NSERP-180 — Compact AR/AP filters — 2026-08-04
 
 Active objective: reduce the desktop filter height on `/finance/ar` and `/finance/ap` while preserving every finance/query contract.
@@ -275,3 +308,13 @@ Required validation before publication:
 2. Fresh desktop/mobile Codex Browser evidence for both AR and AP plus an independent acceptance verdict.
 3. Fresh remote comparison, intended-only commit, normal SIT push and remote-SHA/deploy verification.
 4. Upload evidence, add the Thai completion report and move Plane to `wait for test` through REST, then read everything back as UTF-8.
+Latest integration safety fix (2026-08-08): batch RCP vouchers now pass an internal `data-print-group` boundary so each independent voucher is measured and rendered without merging rows, totals, or signatures. WTI/WTO keep their dedicated 12/14-row form paginator; the shared layer only applies the A4 asset/overflow gate for those forms. No public API or persisted contract changed.
+
+Latest fallback hardening (2026-08-08): when a shared measured split is needed but a builder emitted only its final page, the derived continuation now preserves the document wrapper grid, reserves the placeholder footer height, keeps both continuation marker CSS contracts, and uses the exact ADV/PMA summary titles. Focused print/PDF tests are `155/155`; lint, type-check and production build pass. Native Chromium print-preview evidence remains unavailable in this environment.
+## Audit follow-up — 2026-08-09
+
+- Fixed nested impurity-purchase cleanup so every real lot and nested descendant is preserved when the derived purchase root is removed; the impurity/source branch itself is still removed.
+- Fixed the desktop Sales Receipt history action column to stay sticky at the right edge of the table viewport.
+- Added the missing SB detail print button using the existing Sales Bill print contract; no API, DB, Storage, Cache or business calculation changes.
+- Fixed the print-header read path for document viewers (including sales-only users): document view permissions are read-only, the company-profile GET filters/validates the requested branch against `getBranchCodeIntersection`, and settings writes remain `system.settings.manage` only.
+- Validation: focused audit/print/permission suites 208/208, lint, type-check, production build (337 static pages) and `git diff --check` pass. Browser smoke confirms sticky header geometry and the SB print button; local receipt-list API data loading, role-authenticated route integration, and native print popup remain environment-limited.

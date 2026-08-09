@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { COMPANY_PROFILE_READ_PERMISSIONS, companyProfileSchema, type CompanyProfileFormValues } from '@/lib/company-profile'
+import { COMPANY_PROFILE_READ_PERMISSIONS, companyProfileSchema, isCompanyProfileBranchAllowed, type CompanyProfileFormValues } from '@/lib/company-profile'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requireAnyPermission, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requireAnyPermission, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId, listActiveBranches } from '@/lib/server/reference-master-cache'
@@ -119,7 +119,14 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const branches = await activeBranches()
     const requestedBranchId = url.searchParams.get('branchId')
-    const branch = await findActiveBranch(requestedBranchId || branches[0]?.code)
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    const visibleBranches = allowedBranchCodes === null
+      ? branches
+      : branches.filter((candidate) => allowedBranchCodes.includes(candidate.code.trim().toUpperCase()))
+    const branch = await findActiveBranch(requestedBranchId || visibleBranches[0]?.code)
+    if (branch && !isCompanyProfileBranchAllowed(allowedBranchCodes, branch.code)) {
+      throw new AuthContextError('à¸¡à¸µà¸ªà¸´à¸—à¸˜à¸´à¹€à¸‰à¸žà¸²à¸°à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸šà¸£à¸´à¸©à¸±à¸—à¸‚à¸­à¸‡à¸ªà¸²à¸‚à¸²à¸—à¸µà¹ˆà¸­à¸™à¸¸à¸à¸²à¸•', 403)
+    }
     const [profile, profileBranchIds] = await Promise.all([
       branch
         ? prisma.company_profiles.findFirst({
@@ -130,7 +137,7 @@ export async function GET(request: Request) {
     ])
 
     return NextResponse.json({
-      branches: branchListJson(branches, profileBranchIds),
+      branches: branchListJson(visibleBranches, profileBranchIds),
       profile: profileForBranch(profile),
       profileConfigured: Boolean(profile),
       selectedBranchId: branch?.code ?? null,

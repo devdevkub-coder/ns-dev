@@ -79,11 +79,22 @@ describe('Printable company profile permissions', () => {
   it('allows weight-ticket creators to read the profile without granting settings access', () => {
     expect(permissionCodesForPath('/api/admin/company-profile')).toEqual([
       'system.settings.manage',
+      'finance.cash.view',
+      'finance.debt_payments.view',
+      'finance.debt_receipts.view',
+      'daily.expenses.view',
+      'daily.payment_approval.view',
       'daily.weight_tickets.view',
       'daily.weight_tickets.create',
+      'purchase.advance_payments.view',
+      'purchase.bills.view',
+      'purchase.po_buy.view',
+      'sales.bills.view',
+      'sales.po_sell.view',
     ])
     expect(canAccessPath('/api/admin/company-profile', { permissions: ['daily.weight_tickets.create'] })).toBe(true)
     expect(canAccessPath('/api/admin/company-profile', { permissions: ['daily.weight_tickets.view'] })).toBe(true)
+    expect(canAccessPath('/api/admin/company-profile', { permissions: ['sales.bills.view'] })).toBe(true)
   })
 })
 

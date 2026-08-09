@@ -2,9 +2,29 @@ import { z } from 'zod'
 
 export const COMPANY_PROFILE_READ_PERMISSIONS = [
   'system.settings.manage',
+  'finance.cash.view',
+  'finance.debt_payments.view',
+  'finance.debt_receipts.view',
+  'daily.expenses.view',
+  'daily.payment_approval.view',
   'daily.weight_tickets.view',
   'daily.weight_tickets.create',
+  'purchase.advance_payments.view',
+  'purchase.bills.view',
+  'purchase.po_buy.view',
+  'sales.bills.view',
+  'sales.po_sell.view',
 ] as const
+
+export function isCompanyProfileBranchAllowed(
+  allowedBranchCodes: readonly string[] | null,
+  requestedBranchCode: string,
+) {
+  const normalizedRequestedCode = requestedBranchCode.trim().toUpperCase()
+  if (!normalizedRequestedCode) return false
+  if (allowedBranchCodes === null) return true
+  return allowedBranchCodes.some((code) => code.trim().toUpperCase() === normalizedRequestedCode)
+}
 
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
