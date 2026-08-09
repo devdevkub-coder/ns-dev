@@ -21,6 +21,7 @@ const validWtiLine = (id: string, parentId?: string) => ({
   id,
   imageNames: [`${id}.jpg`],
   impurityId: '',
+  impuritySourceLineId: undefined as string | undefined,
   parentId,
   productId: 'PROD-A',
   warehouseId: '',
@@ -159,6 +160,140 @@ describe('weight ticket totals', () => {
     expect(calculation.lineTotalsById.get('product-a-impurity')?.deductionWeight).toBe(10)
     expect(calculation.sourceTotalsByLineId.get('product-a-lot')?.netWeight).toBe(0)
     expect(calculation.sourceTotalsByLineId.get('product-b-lot')?.netWeight).toBe(100)
+  })
+
+  it('deducts a nested impurity from the purchased impurity line without deducting the source product twice', () => {
+    const calculation = calculateWeightTicketLineTotals([
+      {
+        containerDeductionWeight: '0',
+        deductionMode: 'none',
+        deductionValue: '0',
+        grossWeight: '100',
+        id: 'source-product',
+        productId: 'PROD-A',
+      },
+      {
+        containerDeductionWeight: '0',
+        deductionMode: 'kg',
+        deductionValue: '30',
+        grossWeight: '0',
+        id: 'source-impurity',
+        impurityId: 'impurity-a',
+        parentId: 'source-product',
+        productId: 'PROD-A',
+      },
+      {
+        containerDeductionWeight: '0',
+        deductionMode: 'none',
+        deductionValue: '0',
+        grossWeight: '30',
+        id: 'purchased-product',
+        impuritySourceLineId: 'source-impurity',
+        productId: 'PROD-B',
+      },
+      {
+        containerDeductionWeight: '0',
+        deductionMode: 'kg',
+        deductionValue: '5',
+        grossWeight: '0',
+        id: 'nested-impurity',
+        impurityId: 'impurity-b',
+        parentId: 'purchased-product',
+        productId: 'PROD-B',
+      },
+    ])
+
+    expect(calculation.lineTotalsById.get('source-product')?.netWeight).toBe(70)
+    expect(calculation.lineTotalsById.get('purchased-product')?.netWeight).toBe(25)
+    expect(calculation.lineTotalsById.get('nested-impurity')?.deductionWeight).toBe(5)
+    expect(calculation.totals).toEqual({
+      containerDeductionWeight: 0,
+      deductionWeight: 35,
+      grossWeight: 130,
+      netWeight: 95,
+    })
+  })
+
+  it('accepts a nested impurity under a purchased impurity line and preserves both relations', () => {
+    const result = weightTicketFormSchema.safeParse(validWtiPayload([
+      {
+        ...validWtiLine('source-product'),
+        grossWeight: 100,
+      },
+      {
+        ...validWtiLine('source-impurity', 'source-product'),
+        deductionMode: 'kg',
+        deductionValue: 30,
+        grossWeight: 0,
+        imageNames: [],
+        impurityId: 'impurity-a',
+      },
+      {
+        ...validWtiLine('purchased-product'),
+        grossWeight: 30,
+        impuritySourceLineId: 'source-impurity',
+        productId: 'PROD-B',
+      },
+      {
+        ...validWtiLine('nested-impurity', 'purchased-product'),
+        deductionMode: 'kg',
+        deductionValue: 5,
+        grossWeight: 0,
+        imageNames: [],
+        impurityId: 'impurity-b',
+        productId: 'PROD-B',
+      },
+    ]))
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Expected nested impurity payload to pass validation')
+    expect(result.data.lines[2]).toMatchObject({
+      id: 'purchased-product',
+      impuritySourceLineId: 'source-impurity',
+    })
+    expect(result.data.lines[3]).toMatchObject({
+      id: 'nested-impurity',
+      parentId: 'purchased-product',
+    })
+  })
+
+  it('deducts a second impurity from the remaining weight of the original product', () => {
+    const calculation = calculateWeightTicketLineTotals([
+      {
+        containerDeductionWeight: '0',
+        deductionMode: 'none',
+        deductionValue: '0',
+        grossWeight: '100',
+        id: 'source-product',
+        productId: 'PROD-A',
+      },
+      {
+        containerDeductionWeight: '0',
+        deductionMode: 'kg',
+        deductionValue: '30',
+        grossWeight: '0',
+        id: 'source-impurity',
+        impurityId: 'impurity-a',
+        parentId: 'source-product',
+        productId: 'PROD-A',
+      },
+      {
+        containerDeductionWeight: '0',
+        deductionMode: 'kg',
+        deductionValue: '5',
+        grossWeight: '0',
+        id: 'nested-impurity',
+        impurityId: 'impurity-b',
+        parentId: 'source-impurity',
+        productId: 'PROD-A',
+      },
+    ])
+
+    expect(calculation.lineTotalsById.get('source-product')?.netWeight).toBe(65)
+    expect(calculation.lineTotalsById.get('source-impurity')?.deductionWeight).toBe(30)
+    expect(calculation.lineTotalsById.get('nested-impurity')?.deductionWeight).toBe(5)
+    expect(calculation.sourceTotalsByLineId.get('source-product')?.deductionWeight).toBe(35)
+    expect(calculation.totals).toMatchObject({ deductionWeight: 35, netWeight: 65 })
   })
 
   it('rejects aggregate child impurity deduction before the calculator clamps it', () => {

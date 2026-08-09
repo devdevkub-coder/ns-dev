@@ -76,7 +76,11 @@ type FormState = {
 
 type CollaborationHeaderField = 'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'
 
-function collaborationLineSnapshot(line: Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight' | 'id' | 'impurityId' | 'impurityProductId' | 'note' | 'productId' | 'warehouseId'>, imageNames: string[]) {
+type WeightTicketLineRelation = Pick<WeightTicketLine, 'id' | 'parentId'> & {
+  impuritySourceLineId?: string
+}
+
+function collaborationLineSnapshot(line: Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight' | 'id' | 'impurityId' | 'impurityProductId' | 'note' | 'productId' | 'warehouseId'> & WeightTicketLineRelation, imageNames: string[]) {
   return JSON.stringify({
     containerDeductionWeight: line.containerDeductionWeight,
     deductionMode: line.deductionMode,
@@ -86,7 +90,9 @@ function collaborationLineSnapshot(line: Pick<WeightTicketLine, 'containerDeduct
     imageNames,
     impurityId: line.impurityId,
     impurityProductId: line.impurityProductId ?? '',
+    impuritySourceLineId: line.impuritySourceLineId ?? '',
     note: line.note,
+    parentId: line.parentId ?? '',
     productId: line.productId,
     warehouseId: line.warehouseId,
   })
@@ -374,13 +380,29 @@ function isFreshImpurityLine(
   )
 }
 
+export function getWeightTicketRelatedLineIds<
+  T extends WeightTicketLineRelation,
+>(lines: T[], lineId: string) {
+  const relatedIds = new Set([lineId])
+  let expanded = true
+
+  while (expanded) {
+    expanded = false
+    lines.forEach((line) => {
+      if (relatedIds.has(line.id)) return
+      if (relatedIds.has(line.parentId ?? '') || relatedIds.has(line.impuritySourceLineId ?? '')) {
+        relatedIds.add(line.id)
+        expanded = true
+      }
+    })
+  }
+
+  return relatedIds
+}
+
 function linesRemovedByLineRemoval(lines: WeightTicketDeletionLine[], lineId: string) {
-  const childIds = new Set(lines.filter((line) => line.parentId === lineId).map((line) => line.id))
-  return lines.filter((line) => (
-    line.id === lineId
-    || line.parentId === lineId
-    || childIds.has(line.impuritySourceLineId ?? '')
-  ))
+  const relatedIds = getWeightTicketRelatedLineIds(lines, lineId)
+  return lines.filter((line) => relatedIds.has(line.id))
 }
 
 export function shouldConfirmWeightTicketProductRemoval(lines: WeightTicketDeletionLine[], lineId: string) {
@@ -403,7 +425,8 @@ export function shouldConfirmWeightTicketImpurityRemoval(
     ? lines.find((line) => line.id === sourceLine.parentId)
     : undefined
   const isFresh = parentLine && isFreshImpurityLine(sourceLine, parentLine, defaultImpurityId)
-  const removedPurchaseLines = lines.filter((line) => line.impuritySourceLineId === sourceLineId)
+  const relatedIds = getWeightTicketRelatedLineIds(lines, sourceLineId)
+  const removedPurchaseLines = lines.filter((line) => relatedIds.has(line.id) && line.id !== sourceLineId)
 
   return !isFresh || removedPurchaseLines.some(hasMeaningfulProductLineData)
 }
@@ -469,6 +492,12 @@ export function shouldConfirmWeightTicketImpurityChange(
   clearsImpurityProduct = false,
 ) {
   const sourceLine = lines.find((line) => line.id === sourceLineId)
+  const relatedIds = getWeightTicketRelatedLineIds(lines, sourceLineId)
+  const removedPurchaseLines = lines.filter((line) => (
+    line.id !== sourceLineId
+    && relatedIds.has(line.id)
+    && Boolean(line.impuritySourceLineId)
+  ))
   return Boolean(
     (clearsDeductionValue && hasEnteredText(sourceLine?.deductionValue))
     || (clearsImpurityProduct && (
@@ -476,7 +505,7 @@ export function shouldConfirmWeightTicketImpurityChange(
       || hasEnteredText(sourceLine?.impurityProductName)
     ))
     || sourceLine?.impurityPurchaseAction === 'buy'
-    || lines.filter((line) => line.impuritySourceLineId === sourceLineId).some(hasMeaningfulProductLineData),
+    || removedPurchaseLines.some(hasMeaningfulProductLineData),
   )
 }
 
@@ -504,6 +533,21 @@ export function changeWeightTicketProduct(
 
 function getMainParentLines(lines: FormWeightTicketLine[]) {
   return lines.filter((line) => !line.parentId)
+}
+
+function getWeightTicketRootLine(lines: FormWeightTicketLine[], line: FormWeightTicketLine) {
+  const lineById = new Map(lines.map((entry) => [entry.id, entry] as const))
+  const visited = new Set<string>()
+  let current = line
+
+  while (current.parentId && !visited.has(current.id)) {
+    visited.add(current.id)
+    const parent = lineById.get(current.parentId)
+    if (!parent) break
+    current = parent
+  }
+
+  return current
 }
 
 /**
@@ -538,18 +582,17 @@ export function removeWeightTicketLot<T extends Pick<FormWeightTicketLine, 'dedu
       }))
   }
 
-  const childIds = new Set(lines.filter((line) => line.parentId === lotId).map((line) => line.id))
-  const removedLines = new Set([
-    lotId,
-    ...childIds,
-    ...lines.filter((line) => childIds.has(line.impuritySourceLineId ?? '')).map((line) => line.id),
-  ])
+  const removedLines = getWeightTicketRelatedLineIds(lines, lotId)
   return lines.filter((line) => !removedLines.has(line.id))
 }
 
 function getBoughtImpurityEntriesForLine(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
+  const relatedIds = getWeightTicketRelatedLineIds(allLines, line.id)
   const targetEntries = allLines
-    .filter((entry) => entry.impuritySourceLineId && (entry.id === line.id || entry.parentId === line.id))
+    .filter((entry) => (
+      entry.impuritySourceLineId
+      && (entry.id === line.id || relatedIds.has(entry.impuritySourceLineId))
+    ))
     .map((purchaseLine) => ({
       purchaseLine,
       sourceLine: allLines.find((entry) => entry.id === purchaseLine.impuritySourceLineId),
@@ -563,33 +606,79 @@ function getBoughtImpurityEntriesForLine(line: FormWeightTicketLine, allLines: F
   return [...byId.values()]
 }
 
-function removeImpurityPurchaseLinesForSource(lines: FormWeightTicketLine[], sourceLineId: string) {
-  const purchaseLines = lines.filter((line) => line.impuritySourceLineId === sourceLineId)
-  const purchaseLineIds = new Set(purchaseLines.map((line) => line.id))
-  const promotedParentByPurchaseId = new Map<string, string>()
-  const promotedLineIds = new Set<string>()
-
-  purchaseLines.forEach((purchaseLine) => {
-    if (purchaseLine.parentId) return
-    const realChildLots = lines.filter((line) =>
-      line.parentId === purchaseLine.id
-      && !isImpurityPurchaseLine(line)
-      && (Number(line.grossWeight || 0) > 0 || !line.impurityId)
-    )
-    const promotedLine = realChildLots[0]
-    if (!promotedLine) return
-    promotedParentByPurchaseId.set(purchaseLine.id, promotedLine.id)
-    promotedLineIds.add(promotedLine.id)
+function getImpurityChildLines(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
+  const childrenByParentId = new Map<string, FormWeightTicketLine[]>()
+  allLines.forEach((entry) => {
+    if (!entry.parentId) return
+    const children = childrenByParentId.get(entry.parentId) ?? []
+    children.push(entry)
+    childrenByParentId.set(entry.parentId, children)
   })
 
+  const impurityLines: FormWeightTicketLine[] = []
+  const visitedParentIds = new Set<string>()
+  const visit = (parentId: string) => {
+    if (visitedParentIds.has(parentId)) return
+    visitedParentIds.add(parentId)
+    for (const child of childrenByParentId.get(parentId) ?? []) {
+      if (isImpurityPurchaseLine(child) || child.deductionMode === 'none') continue
+      impurityLines.push(child)
+      visit(child.id)
+    }
+  }
+
+  visit(line.id)
+  return impurityLines
+}
+
+export function removeImpurityPurchaseLinesForSource(lines: FormWeightTicketLine[], sourceLineId: string) {
+  const purchaseLines = lines.filter((line) => line.impuritySourceLineId === sourceLineId)
+  if (purchaseLines.length === 0) return lines
+
+  const lineById = new Map(lines.map((line) => [line.id, line] as const))
+  const removedLineIds = new Set<string>()
+  const reparentedParentIds = new Map<string, string | undefined>()
+
+  for (const purchaseLine of purchaseLines) {
+    const relatedIds = getWeightTicketRelatedLineIds(lines, purchaseLine.id)
+    const relatedLines = lines.filter((line) => relatedIds.has(line.id))
+    const realLotLines = relatedLines.filter((line) => (
+      line.id !== purchaseLine.id
+      && !isImpurityPurchaseLine(line)
+      && line.deductionMode === 'none'
+    ))
+    const realLotIds = new Set(realLotLines.map((line) => line.id))
+    const topLevelLots = realLotLines.filter((line) => !line.parentId || !realLotIds.has(line.parentId))
+    const promotedLot = topLevelLots[0]
+
+    if (promotedLot) {
+      topLevelLots.forEach((lot, index) => {
+        reparentedParentIds.set(lot.id, index === 0 ? purchaseLine.parentId : promotedLot.id)
+      })
+
+      // Keep the nested lot tree intact. If an impurity/source node was between
+      // a real lot and its child, attach that child to the promoted lot rather
+      // than dropping the whole descendant branch with the source node.
+      for (const lot of realLotLines) {
+        if (reparentedParentIds.has(lot.id)) continue
+        let parentId = lot.parentId
+        const visited = new Set<string>()
+        while (parentId && !realLotIds.has(parentId) && !visited.has(parentId)) {
+          visited.add(parentId)
+          parentId = lineById.get(parentId)?.parentId
+        }
+        reparentedParentIds.set(lot.id, parentId || promotedLot.id)
+      }
+    }
+
+    relatedIds.forEach((lineId) => {
+      if (!realLotIds.has(lineId) && lineId !== sourceLineId) removedLineIds.add(lineId)
+    })
+  }
+
   return lines.flatMap((line) => {
-    if (purchaseLineIds.has(line.id)) return []
-    if (promotedLineIds.has(line.id)) {
-      return [{ ...line, parentId: undefined }]
-    }
-    if (line.parentId && promotedParentByPurchaseId.has(line.parentId)) {
-      return [{ ...line, parentId: promotedParentByPurchaseId.get(line.parentId)! }]
-    }
+    if (removedLineIds.has(line.id)) return []
+    if (reparentedParentIds.has(line.id)) return [{ ...line, parentId: reparentedParentIds.get(line.id) }]
     return [line]
   })
 }
@@ -1161,7 +1250,7 @@ export function WeightTicketFormCore({
   const activeLine = useMemo(
     () => {
       const parentLines = getMainParentLines(form.lines)
-      const found = parentLines.find((line) => line.id === activeLineId)
+      const found = form.lines.find((line) => line.id === activeLineId)
       return found ?? parentLines[0] ?? null
     },
     [activeLineId, form.lines],
@@ -1368,7 +1457,7 @@ export function WeightTicketFormCore({
       setActiveLineId('')
       return
     }
-    if (!activeLineId || !parentLines.some((line) => line.id === activeLineId)) {
+    if (!activeLineId || !form.lines.some((line) => line.id === activeLineId)) {
       setActiveLineId(parentLines[0].id)
     }
   }, [activeLineId, form.lines])
@@ -1616,7 +1705,8 @@ export function WeightTicketFormCore({
       const cleanedLines = target?.impurityPurchaseAction === 'buy'
         ? updatedLines
         : removeImpurityPurchaseLinesForSource(updatedLines, lineId)
-      markLinesDirty(cleanedLines.filter((line) => line.id === lineId || line.parentId === lineId).map((line) => line.id))
+      const relatedIds = getWeightTicketRelatedLineIds(cleanedLines, lineId)
+      markLinesDirty(cleanedLines.filter((line) => relatedIds.has(line.id)).map((line) => line.id))
       markLinesDeleted(current.lines.filter((line) => !cleanedLines.some((nextLine) => nextLine.id === line.id)).map((line) => line.id))
       if (target && !target.parentId) {
         return {
@@ -1920,7 +2010,8 @@ export function WeightTicketFormCore({
   }
 
   function changeLineWarehouse(lineId: string, warehouseId: string, warehouse: WtoStockWarehouseOption | null | undefined) {
-    markLinesDirty(form.lines.filter((line) => line.id === lineId || line.parentId === lineId).map((line) => line.id))
+    const relatedIds = getWeightTicketRelatedLineIds(form.lines, lineId)
+    markLinesDirty(form.lines.filter((line) => relatedIds.has(line.id)).map((line) => line.id))
     setMergeNotice('')
     setForm((current) => {
       const targetLine = current.lines.find((line) => line.id === lineId)
@@ -1932,9 +2023,10 @@ export function WeightTicketFormCore({
         warehouseName: warehouse?.name ?? '',
         warehouseType: warehouse?.type ?? '',
       }
+      const nextRelatedIds = getWeightTicketRelatedLineIds(current.lines, lineId)
       let nextLines = current.lines.map((line) => {
         if (line.id === lineId) return nextTargetLine
-        if (line.parentId === lineId) {
+        if (nextRelatedIds.has(line.id)) {
           return {
             ...line,
             productId: nextTargetLine.productId,
@@ -1969,38 +2061,22 @@ export function WeightTicketFormCore({
   function removeLine(lineId: string) {
     setForm((current) => {
       const targetLine = current.lines.find((line) => line.id === lineId)
-      if (targetLine && isImpurityPurchaseLine(targetLine)) {
-        const childIds = current.lines.filter((line) => line.parentId === lineId).map((line) => line.id)
-        const purchaseSourceIds = [
-          targetLine.impuritySourceLineId,
-          ...current.lines
-            .filter((line) => line.parentId === lineId && line.impuritySourceLineId)
-            .map((line) => line.impuritySourceLineId),
-        ].filter((id): id is string => Boolean(id))
-        const nextLines = current.lines
-          .filter((line) => line.id !== lineId && line.parentId !== lineId && !childIds.includes(line.impuritySourceLineId ?? ''))
-          .map((line) => purchaseSourceIds.includes(line.id)
-            ? { ...line, impurityPurchaseAction: 'none' as const }
-            : line)
-        markLinesDeleted(current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).map((line) => line.id))
-        return {
-          ...current,
-          lines: nextLines,
-        }
-      }
-
       const parentLines = getMainParentLines(current.lines)
-      if (parentLines.length === 1) return current
-      const childIds = current.lines.filter((line) => line.parentId === lineId).map((line) => line.id)
-      const purchaseSourceIds = current.lines
-        .filter((line) => line.parentId === lineId && line.impuritySourceLineId)
-        .map((line) => line.impuritySourceLineId!)
+      if (!targetLine) return current
+      if (!isImpurityPurchaseLine(targetLine) && !targetLine.parentId && parentLines.length === 1) return current
+
+      const removedIds = getWeightTicketRelatedLineIds(current.lines, lineId)
+      const purchaseSourceIds = new Set(
+        current.lines
+          .filter((line) => removedIds.has(line.id) && line.impuritySourceLineId)
+          .map((line) => line.impuritySourceLineId!),
+      )
       const nextLines = current.lines
-        .filter((line) => line.id !== lineId && line.parentId !== lineId && !childIds.includes(line.impuritySourceLineId ?? ''))
-        .map((line) => purchaseSourceIds.includes(line.id)
+        .filter((line) => !removedIds.has(line.id))
+        .map((line) => purchaseSourceIds.has(line.id)
           ? { ...line, impurityPurchaseAction: 'none' as const }
           : line)
-      markLinesDeleted(current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).map((line) => line.id))
+      markLinesDeleted([...removedIds])
       return {
         ...current,
         lines: nextLines,
@@ -2114,7 +2190,14 @@ export function WeightTicketFormCore({
 
   function addImpurityLine(sourceLine: FormWeightTicketLine) {
     if (isLoadingTicket || saveInFlightRef.current === 'save') return
-    if (calculateRealLotSummary(sourceLine, form.lines).lotCount === 0) return
+    const sourceSummary = calculateRealLotSummary(sourceLine, form.lines)
+    const purchaseSourceWeight = Math.max(
+      0,
+      Number(sourceLine.grossWeight || 0) - Number(sourceLine.containerDeductionWeight || 0),
+    )
+    if (isImpurityPurchaseLine(sourceLine)
+      ? purchaseSourceWeight <= 0
+      : sourceSummary.lotCount === 0) return
     if (shouldIgnoreRapidAdd(`impurity:${sourceLine.id}`)) return
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = sourceLine.productId
@@ -2179,11 +2262,12 @@ export function WeightTicketFormCore({
       lines: (() => {
         const currentSourceLine = current.lines.find((line) => line.id === sourceLine.id)
         if (!currentSourceLine || !targetProductId) return current.lines
-        const removedPurchaseLineIds = current.lines
-          .filter((line) => line.impuritySourceLineId === currentSourceLine.id)
-          .map((line) => line.id)
-        markLinesDeleted(removedPurchaseLineIds)
-        const baseLines = current.lines.filter((line) => line.impuritySourceLineId !== currentSourceLine.id)
+        const baseLines = removeImpurityPurchaseLinesForSource(current.lines, currentSourceLine.id)
+        markLinesDeleted(
+          current.lines
+            .filter((line) => !baseLines.some((nextLine) => nextLine.id === line.id))
+            .map((line) => line.id),
+        )
         const lineTotals = calculateAdjustedLineTotals(
           currentSourceLine,
           calculateWeightTicketLineTotals(current.lines),
@@ -2941,7 +3025,7 @@ export function WeightTicketFormCore({
                             <h3>{activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
                           </div>
                           <div className="mt-1 flex min-w-0 items-center gap-2">
-                            <p className="shrink-0 text-xs font-medium text-slate-500">รายการ {getMainParentLines(form.lines).findIndex((entry) => entry.id === activeLine.id) + 1}</p>
+                            <p className="shrink-0 text-xs font-medium text-slate-500">รายการ {getMainParentLines(form.lines).findIndex((entry) => entry.id === getWeightTicketRootLine(form.lines, activeLine).id) + 1}</p>
                             <span aria-hidden="true" className="shrink-0 text-xs text-slate-300">·</span>
                             <div className="min-w-0 truncate text-sm font-semibold text-slate-700">
                               {products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
@@ -2964,17 +3048,26 @@ export function WeightTicketFormCore({
                       {(() => {
                 const line = activeLine
                 const parentLines = getMainParentLines(form.lines)
-                const index = parentLines.findIndex((entry) => entry.id === line.id)
+                const rootLine = getWeightTicketRootLine(form.lines, line)
+                const index = parentLines.findIndex((entry) => entry.id === rootLine.id)
                 const lineTotals = calculateAdjustedLineTotals(line, lineCalculation)
                 const hasSelectedProduct = Boolean(line.productId)
                 const isPurchaseOnlyLine = isImpurityPurchaseLine(line)
                 const realLotSummary = calculateRealLotSummary(line, form.lines)
-                const canAddImpurityLine = hasSelectedProduct && realLotSummary.lotCount > 0
-                const impurityChildLines = form.lines.filter((entry) => entry.parentId === line.id && entry.deductionMode !== 'none')
+                const purchaseSourceWeight = Math.max(
+                  0,
+                  Number(line.grossWeight || 0) - Number(line.containerDeductionWeight || 0),
+                )
+                const canAddImpurityLine = hasSelectedProduct && (isPurchaseOnlyLine
+                  ? purchaseSourceWeight > 0
+                  : realLotSummary.lotCount > 0)
+                const impurityChildLines = getImpurityChildLines(line, form.lines)
                 const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(line, form.lines)
-                const boughtImpurityTotal = boughtImpurityLinesForLine.reduce((sum, entry) => sum + calculateAdjustedLineTotals(entry.sourceLine, lineCalculation).deductionWeight, 0)
-                const purchaseOnlyNote = isPurchaseOnlyLine && boughtImpurityLinesForLine.length > 0
-                  ? `ซื้อเพิ่มจากสิ่งเจือปน ${boughtImpurityLinesForLine.length} รายการ รวม ${formatWeight(boughtImpurityTotal)} กก.`
+                const purchaseSourceLine = isPurchaseOnlyLine
+                  ? form.lines.find((entry) => entry.id === line.impuritySourceLineId)
+                  : undefined
+                const purchaseOnlyNote = purchaseSourceLine
+                  ? `ซื้อเพิ่มจากสิ่งเจือปน 1 รายการ รวม ${formatWeight(calculateAdjustedLineTotals(purchaseSourceLine, lineCalculation).deductionWeight)} กก.`
                   : ''
                 const isLineProductImpurity = (() => {
                   if (!line.productId) return false
@@ -3041,7 +3134,7 @@ export function WeightTicketFormCore({
                       <div className="mb-3 hidden items-center justify-between gap-3 sm:mb-4 xl:flex">
                       <div className="inline-flex rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">รายการ {index + 1}</div>
                       <div className="flex items-center gap-2">
-                        {parentLines.length > 1 ? (
+                        {parentLines.length > 1 && !isPurchaseOnlyLine ? (
                           <Button
                             size="xs"
                             type="button"
@@ -3284,6 +3377,21 @@ export function WeightTicketFormCore({
 	                                    <div key={sourceLine.id} className="grid grid-cols-1 gap-1 px-3 py-2 text-sm text-slate-700 md:grid-cols-[minmax(160px,1fr)_120px_120px_minmax(150px,0.9fr)_minmax(180px,1fr)] md:gap-3">
 	                                      <div>
 	                                        <div className="font-semibold text-slate-900">{product?.name ?? product?.label ?? sourceLine.impurityProductId}</div>
+	                                        {purchaseLine ? (
+	                                          <Button
+	                                            className="mt-1 h-8 px-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+	                                            data-testid={`weight-ticket-edit-purchased-line-${purchaseLine.id}`}
+	                                            size="xs"
+	                                            type="button"
+	                                            variant="ghost"
+	                                            onClick={() => {
+	                                              setActiveLineId(purchaseLine.id)
+	                                              setMobileProductView('editor')
+	                                            }}
+	                                          >
+	                                            เพิ่มสิ่งเจือปน{form.lines.filter((entry) => entry.parentId === purchaseLine.id && entry.deductionMode !== 'none').length > 0 ? 'ต่อ' : ''}
+	                                          </Button>
+	                                        ) : null}
 	                                        <div className="md:hidden text-xs font-semibold text-slate-500">น้ำหนักซื้อเพิ่ม {formatWeight(purchaseWeight)} กก.</div>
 	                                        <div className="md:hidden text-xs font-semibold text-slate-500">{deductionTypeLabel}</div>
 	                                      </div>
@@ -3388,7 +3496,7 @@ export function WeightTicketFormCore({
                                 const mustSelectImpurityProductFirst = isOtherProductImpurity && child.impurityPurchaseAction === 'buy' && !child.impurityProductId
                                 const canEditImpurityDeduction = hasSelectedProduct && hasSelectedImpurity
                                 const calculatedDeductionWeight = calculateAdjustedLineTotals(child, lineCalculation).deductionWeight
-                                const isCollapsed = !isOtherProductImpurity && Boolean(collapsedImpurityIds[child.id])
+                                const isCollapsed = Boolean(collapsedImpurityIds[child.id])
                                 const deductionValue = Number(child.deductionValue || 0)
                                 const isImpurityComplete = hasSelectedImpurity
                                   && deductionValue > 0
@@ -3396,6 +3504,7 @@ export function WeightTicketFormCore({
                                 const deductionSummary = child.deductionMode === 'percent'
                                   ? `หัก ${formatWeight(deductionValue)}%`
                                   : `หัก ${formatWeight(deductionValue)} กก.`
+                                const showImpuritySummary = isCollapsed
                                 const usesPercentDeduction = child.deductionMode === 'percent'
                                 const mobileImpurityRowGridColumns = isOtherProductImpurity
                                   ? 'grid-cols-1'
@@ -3404,31 +3513,43 @@ export function WeightTicketFormCore({
                                     : 'grid-cols-2'
                                 const mobileImpuritySelectorColumns = usesPercentDeduction ? 'col-span-3 md:col-span-1' : 'col-span-2 md:col-span-1'
                                 return (
-                                  <div key={child.id} className="bg-white p-2 rounded-xl border border-slate-200/60">
-                                    {!isOtherProductImpurity ? (
-                                      <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 md:hidden">
-                                        <button
-                                          aria-expanded={!isCollapsed}
-                                          className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none"
-                                          type="button"
-                                          onClick={() => toggleImpurityCollapsed(child.id)}
-                                        >
-                                          <ChevronDown className={cn('size-4 shrink-0 text-slate-500 transition-transform', isCollapsed ? '-rotate-90' : 'rotate-0')} />
-                                          <div className="min-w-0">
-                                            <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                                              <span>สิ่งเจือปนที่ {childIndex + 1}</span>
-                                              <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-bold', isImpurityComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
-                                                {isImpurityComplete ? 'ครบ' : 'ไม่ครบ'}
-                                              </span>
-                                            </div>
+                                  <div
+                                    key={child.id}
+                                    className={cn(
+                                      'bg-white p-2 rounded-xl border border-slate-200/60',
+                                      child.parentId !== line.id && 'ml-4 border-l-4 border-l-red-200 bg-red-50/30 md:ml-8',
+                                    )}
+                                  >
+                                    <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                      <button
+                                        aria-controls={`weight-ticket-impurity-panel-${child.id}`}
+                                        aria-expanded={!isCollapsed}
+                                        className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+                                        type="button"
+                                        onClick={() => toggleImpurityCollapsed(child.id)}
+                                      >
+                                        <ChevronDown className={cn('size-4 shrink-0 text-slate-500 transition-transform', isCollapsed ? '-rotate-90' : 'rotate-0')} />
+                                        <div className="min-w-0">
+                                          <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-700">
+                                            <span id={`weight-ticket-impurity-title-${child.id}`}>สิ่งเจือปนที่ {childIndex + 1}</span>
+                                            <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-bold', isImpurityComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
+                                              {isImpurityComplete ? 'ครบ' : 'ไม่ครบ'}
+                                            </span>
+                                          </div>
+                                          {showImpuritySummary ? (
                                             <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs font-semibold text-slate-500">
                                               <span className="truncate">{selectedImpurityLabel || 'ยังไม่ได้เลือกสิ่งเจือปน'}</span>
+                                              {isOtherProductImpurity && selectedImpurityProductLabel ? <span className="truncate">ปนมา: {selectedImpurityProductLabel}</span> : null}
                                               <span>{deductionSummary}</span>
                                             </div>
-                                          </div>
-                                        </button>
+                                          ) : null}
+                                        </div>
+                                      </button>
+                                      <div className="flex shrink-0 items-center gap-1">
                                         <Button
-                                          className="h-8 shrink-0 px-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                          aria-controls={`weight-ticket-impurity-panel-${child.id}`}
+                                          aria-expanded={!isCollapsed}
+                                          className="h-9 px-3 text-sm font-semibold text-slate-600 hover:bg-white"
                                           size="xs"
                                           type="button"
                                           variant="ghost"
@@ -3436,9 +3557,23 @@ export function WeightTicketFormCore({
                                         >
                                           {isCollapsed ? 'ขยาย' : 'ยุบ'}
                                         </Button>
+                                        {isCollapsed ? (
+                                          <Button
+                                            aria-label="ลบรายการหักสิ่งเจือปน"
+                                            className="h-9 px-2 text-rose-600 hover:bg-rose-50"
+                                            size="xs"
+                                            type="button"
+                                            variant="ghost"
+                                            onClick={() => requestImpurityRemoval(child.id)}
+                                          >
+                                            <Trash2 className="size-4" />
+                                          </Button>
+                                        ) : null}
                                       </div>
-                                    ) : null}
-                                    <div className={cn(isCollapsed && 'hidden md:block')}>
+                                    </div>
+                                    <div id={`weight-ticket-impurity-panel-${child.id}`}>
+                                      {!isCollapsed ? (
+                                      <>
                                       <div className={cn(
                                       "grid gap-2 md:gap-3 items-start",
                                       mobileImpurityRowGridColumns,
@@ -3454,7 +3589,6 @@ export function WeightTicketFormCore({
                                           label="สิ่งเจือปน*"
                                           options={impurityOptionsForChild}
                                           placeholder={impurityOptions.length > 0 ? 'เลือกสิ่งเจือปน' : 'ยังไม่มีสิ่งเจือปนที่ใช้งาน'}
-                                          readOnly
                                           value={selectedImpurityId}
                                           onChange={(value) => {
                                             const impurity = impurityOptionsForChild.find((option) => option.id === value)
@@ -3583,6 +3717,21 @@ export function WeightTicketFormCore({
                                           <Trash2 className="size-4" />
                                         </Button>
                                       </div>
+                                      <div className="col-span-full mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-2">
+                                        <Button
+                                          data-testid={`weight-ticket-add-nested-impurity-${child.id}`}
+                                          disabled={!isImpurityComplete || isLoadingTicket || isSaving}
+                                          size="xs"
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() => addImpurityLine(child)}
+                                          title="เพิ่มการหักสิ่งเจือปนจากรายการนี้อีกครั้ง"
+                                          className="h-9 border-red-200 px-3 text-xs font-semibold text-red-700 hover:bg-red-50"
+                                        >
+                                          <Plus className="mr-1 size-3.5" />
+                                          หักสิ่งเจือปนต่อ
+                                        </Button>
+                                      </div>
                                     </div>
                                     {mustSelectImpurityProductFirst ? (
                                       <div className="mt-1 px-1 text-xs font-semibold text-amber-700">
@@ -3620,6 +3769,8 @@ export function WeightTicketFormCore({
                                         ลบสิ่งเจือปน
                                       </Button>
                                     ) : null}
+                                      </>
+                                      ) : null}
                                     </div>
                                   </div>
                                 )
@@ -3671,7 +3822,7 @@ export function WeightTicketFormCore({
                           บันทึกสินค้านี้
                         </Button>
                         ) : null}
-                        {getMainParentLines(form.lines).length > 1 ? (
+                        {getMainParentLines(form.lines).length > 1 && !isImpurityPurchaseLine(activeLine) ? (
                           <Button
                             className="h-9 border-rose-200 bg-white text-xs font-semibold text-rose-700 hover:bg-rose-50"
                             size="sm"

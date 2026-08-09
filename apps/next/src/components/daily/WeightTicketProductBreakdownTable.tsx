@@ -30,7 +30,7 @@ function isImpurityLine(line: WeightTicketRecord['lines'][number]) {
 }
 
 function isPurchaseFromImpurityLine(line: WeightTicketRecord['lines'][number]) {
-  return line.grossWeightValue > 0 && line.note.includes('มาจากสิ่งเจือปน')
+  return line.grossWeightValue > 0 && line.impuritySourceLineNo != null
 }
 
 function rawLotNetWeight(line: WeightTicketRecord['lines'][number]) {

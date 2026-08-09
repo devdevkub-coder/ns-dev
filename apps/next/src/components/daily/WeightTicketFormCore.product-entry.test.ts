@@ -207,6 +207,9 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('disabled={!hasSelectedProduct || isLoadingTicket}')
     expect(formSource).toContain('if (!firstLineError)')
     expect(formSource).toContain('impurityChildLines.length > 0')
+    expect(formSource).toContain('data-testid={`weight-ticket-add-nested-impurity-${child.id}`}')
+    expect(formSource).toContain('onClick={() => addImpurityLine(child)}')
+    expect(formSource).toContain('หักสิ่งเจือปนต่อ')
     expect(formSource).toContain('data-testid={`weight-ticket-lot-${lot.id}`}')
     expect(formSource).toContain('รายละเอียดเต๋าที่ {lotIndex + 1}')
     expect(formSource).toContain('border-slate-300 bg-white p-3 shadow-sm')
@@ -272,8 +275,10 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain("!isOtherProductImpurity && 'self-end md:self-auto'")
   })
 
-  it('keeps impurity selection as a keyboard-free dropdown', () => {
-    expect(formSource).toMatch(/inputId=\{`weight-impurity-\$\{child\.id\}`\}[\s\S]*?readOnly\s+value=\{selectedImpurityId\}/)
+  it('allows typing to search impurity options', () => {
+    const impuritySelectorSource = formSource.match(/inputId=\{`weight-impurity-\$\{child\.id\}`\}([\s\S]*?)<\/FieldBlock>/)
+    expect(impuritySelectorSource?.[1]).toContain('value={selectedImpurityId}')
+    expect(impuritySelectorSource?.[1]).not.toContain('readOnly')
     expect(formSource).not.toMatch(/<SearchCombobox\s+key=\{`\$\{child\.id\}:\$\{selectedImpurityId\}:\$\{selectedImpurityLabel\}`\}/)
   })
 
@@ -289,10 +294,17 @@ describe('weight-ticket mobile product workspace contract', () => {
   it('uses collapsible mobile cards for impurity entries', () => {
     expect(formSource).toContain('const [collapsedImpurityIds, setCollapsedImpurityIds] = useState<Record<string, boolean>>({})')
     expect(formSource).toContain('function toggleImpurityCollapsed(impurityId: string)')
-    expect(formSource).toContain('const isCollapsed = !isOtherProductImpurity && Boolean(collapsedImpurityIds[child.id])')
+    expect(formSource).toContain('const isCollapsed = Boolean(collapsedImpurityIds[child.id])')
     expect(formSource).toContain('aria-expanded={!isCollapsed}')
+    expect(formSource).toContain('aria-controls={`weight-ticket-impurity-panel-${child.id}`}')
+    expect(formSource).toContain('focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1')
+    expect(formSource).toContain('id={`weight-ticket-impurity-panel-${child.id}`}')
     expect(formSource).toContain('setCollapsedImpurityIds((current) => ({')
-    expect(formSource).toContain("isOtherProductImpurity ? 'flex' : 'hidden md:flex'")
+    expect(formSource).toContain('const showImpuritySummary = isCollapsed')
+    expect(formSource).toContain('!isCollapsed ? (')
+    expect(formSource).toContain('rounded-lg border border-slate-200 bg-slate-50')
+    expect(formSource).toContain('isOtherProductImpurity && selectedImpurityProductLabel')
+    expect(formSource).toContain('aria-label="ลบรายการหักสิ่งเจือปน"')
     expect(formSource).toContain('ลบสิ่งเจือปน')
   })
   it('keeps mobile product and impurity removal behind the confirmation guards', () => {
@@ -567,6 +579,155 @@ describe('weight-ticket product editor behavior', () => {
     })
 
     expect(productInput?.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('collapses and expands a product impurity card after it is added', async () => {
+    await renderForm()
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
+      await Promise.resolve()
+    })
+
+    const productInput = container.querySelector<HTMLInputElement>('[id^="weight-product-"]')
+    expect(productInput).not.toBeNull()
+    await act(async () => {
+      productInput?.click()
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => {
+      expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.includes('เหล็ก'))).toBe(true)
+    })
+    const productOption = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((button) => button.textContent?.includes('เหล็ก'))
+    await act(async () => {
+      productOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+      await Promise.resolve()
+    })
+
+    await vi.waitFor(() => {
+      expect(container.querySelector<HTMLInputElement>('[id^="weight-product-"]')?.value).toContain('เหล็ก')
+    })
+    const addImpurityButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'เพิ่มสิ่งเจือปน')
+    expect(addImpurityButton).not.toBeUndefined()
+    await act(async () => {
+      addImpurityButton?.click()
+      await Promise.resolve()
+    })
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[id^="weight-impurity-"]')).not.toBeNull()
+    })
+    const collapseButton = container.querySelector<HTMLButtonElement>('button[aria-controls^="weight-ticket-impurity-panel-"]')
+    expect(collapseButton).not.toBeUndefined()
+    await act(async () => {
+      collapseButton?.click()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('[id^="weight-impurity-"]')).toBeNull()
+    const expandButton = container.querySelector<HTMLButtonElement>('button[aria-controls^="weight-ticket-impurity-panel-"]')
+    expect(expandButton).not.toBeUndefined()
+    await act(async () => {
+      expandButton?.click()
+      await Promise.resolve()
+    })
+    expect(container.querySelector('[id^="weight-impurity-"]')).not.toBeNull()
+  })
+
+  it('keeps nested impurity cards independent and preserves entered values while collapsing', async () => {
+    mocks.fetchFreshWeightTicketReferences.mockImplementation((url: string) => Promise.resolve(
+      url.endsWith('/products')
+        ? { rows: [{ code: 'P-001', id: 'product-001', name: 'เหล็ก', type: 'เศษเหล็ก', unit: 'กก.' }] }
+        : url.endsWith('/impurity-options')
+          ? { options: [{ id: 'impurity-001', label: 'ฝุ่น' }] }
+          : url.includes('type=WTI')
+            ? { options: [{ branchIds: ['branch-001'], id: 'supplier-001', name: 'ผู้ขายทดสอบ' }] }
+            : { options: [{ branchIds: ['branch-001'], id: 'customer-001', name: 'ลูกค้าทดสอบ' }] },
+    ))
+
+    await renderForm()
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
+      await Promise.resolve()
+    })
+
+    const productInput = container.querySelector<HTMLInputElement>('[id^="weight-product-"]')
+    await act(async () => {
+      productInput?.click()
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => {
+      expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.includes('เหล็ก'))).toBe(true)
+    })
+    const productOption = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((button) => button.textContent?.includes('เหล็ก'))
+    await act(async () => {
+      productOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => expect(container.querySelector<HTMLInputElement>('[id^="weight-product-"]')?.value).toContain('เหล็ก'))
+
+    const addImpurityButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'เพิ่มสิ่งเจือปน')
+    expect(addImpurityButton).not.toBeUndefined()
+    await act(async () => {
+      addImpurityButton?.click()
+      await Promise.resolve()
+    })
+
+    const firstImpurityInput = container.querySelector<HTMLInputElement>('[id^="weight-impurity-"]')
+    expect(firstImpurityInput).not.toBeNull()
+    await vi.waitFor(() => expect(firstImpurityInput?.value).toContain('ฝุ่น'))
+    const firstDeductionInput = container.querySelector<HTMLInputElement>('[id^="weight-deduction-"]')
+    expect(firstDeductionInput).not.toBeNull()
+    const firstImpurityId = firstDeductionInput?.id.replace('weight-deduction-', '') ?? ''
+    const setInputValue = async (input: HTMLInputElement, value: string) => {
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        setter?.call(input, value)
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        input.dispatchEvent(new Event('change', { bubbles: true }))
+        await Promise.resolve()
+      })
+    }
+    await setInputValue(firstDeductionInput!, '2')
+
+    const nestedAddButton = container.querySelector<HTMLButtonElement>(`[data-testid="weight-ticket-add-nested-impurity-${firstImpurityId}"]`)
+    expect(nestedAddButton?.disabled).toBe(false)
+    await act(async () => {
+      nestedAddButton?.click()
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => expect(container.querySelectorAll('[id^="weight-impurity-"]').length).toBe(2))
+
+    const deductionInputs = Array.from(container.querySelectorAll<HTMLInputElement>('[id^="weight-deduction-"]'))
+    expect(deductionInputs).toHaveLength(2)
+    const secondImpurityId = deductionInputs.find((input) => input.id !== firstDeductionInput?.id)?.id.replace('weight-deduction-', '') ?? ''
+    const panelIds = Array.from(container.querySelectorAll<HTMLElement>('[id^="weight-ticket-impurity-panel-"]')).map((panel) => panel.id)
+    expect(panelIds).toHaveLength(2)
+
+    const panelControls = (panelId: string) => Array.from(container.querySelectorAll<HTMLButtonElement>(`button[aria-controls="${panelId}"]`))
+    expect(panelControls(panelIds[0])).toHaveLength(2)
+    expect(panelControls(panelIds[0]).every((button) => button.getAttribute('aria-expanded') === 'true')).toBe(true)
+
+    await act(async () => {
+      panelControls(panelIds[0])[1]?.click()
+      await Promise.resolve()
+    })
+    expect(panelControls(panelIds[0]).every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true)
+    expect(container.querySelector(`#weight-deduction-${firstImpurityId}`)).toBeNull()
+    expect(container.querySelector(`#weight-deduction-${secondImpurityId}`)).not.toBeNull()
+
+    await act(async () => {
+      panelControls(panelIds[0])[0]?.click()
+      await Promise.resolve()
+    })
+    expect(container.querySelector<HTMLInputElement>(`#weight-deduction-${firstImpurityId}`)?.value).toBe('2')
+
+    await act(async () => {
+      panelControls(panelIds[1])[1]?.click()
+      await Promise.resolve()
+    })
+    expect(container.querySelector(`#weight-deduction-${firstImpurityId}`)).not.toBeNull()
+    expect(container.querySelector(`#weight-deduction-${secondImpurityId}`)).toBeNull()
   })
 
   it('reserves equal mobile label height for all three product-entry weight inputs', async () => {

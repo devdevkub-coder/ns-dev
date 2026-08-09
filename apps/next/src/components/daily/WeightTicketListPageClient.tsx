@@ -799,10 +799,7 @@ export function WeightTicketListPageClient() {
                 </div>
               </div>
 
-              <div className={cn(
-                'mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-2.5',
-                isCancelled ? 'border-red-200' : 'border-slate-100/50',
-              )} onClick={(e) => e.stopPropagation()}>
+              {!isCancelled ? <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100/50 pt-2.5" onClick={(e) => e.stopPropagation()}>
                 <TableActionButton
                   aria-label={`จัดการ ${ticket.documentNo}`}
                   busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id}
@@ -829,7 +826,7 @@ export function WeightTicketListPageClient() {
                     </>
                   )}
                 />
-              </div>
+              </div> : null}
             </div>
           )
           })
@@ -917,7 +914,7 @@ export function WeightTicketListPageClient() {
                       <div className="whitespace-nowrap text-xs text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-center">
-                      <TableActionButton
+                      {isCancelled ? null : <TableActionButton
                         aria-label={`จัดการ ${ticket.documentNo}`}
                         busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id}
                         menu={(
@@ -942,7 +939,7 @@ export function WeightTicketListPageClient() {
                           </>
                         )}
                         onClick={(event) => event.stopPropagation()}
-                      />
+                      />}
                     </td>
                   </tr>
                 )

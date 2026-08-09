@@ -961,15 +961,37 @@ export function calculateWeightTicketLineTotals(lines: WeightTicketCalculationLi
     childrenByParentId.set(line.parentId, children)
   })
 
-  childrenByParentId.forEach((children, parentId) => {
+  const lineDepth = (lineId: string) => {
+    let depth = 0
+    let current = lineById.get(lineId)
+    const visited = new Set<string>()
+    while (current?.parentId && !visited.has(current.id)) {
+      visited.add(current.id)
+      depth += 1
+      current = lineById.get(current.parentId)
+    }
+    return depth
+  }
+
+  ;[...childrenByParentId.entries()]
+    .sort(([leftParentId], [rightParentId]) => lineDepth(leftParentId) - lineDepth(rightParentId))
+    .forEach(([parentId, children]) => {
     const parent = lineById.get(parentId)
     const impurityLines = children.filter(isChildImpurityLine)
     if (!parent || impurityLines.length === 0) return
 
+    let sourceParent = parent
+    while (isChildImpurityLine(sourceParent) && sourceParent.parentId) {
+      const ancestor = lineById.get(sourceParent.parentId)
+      if (!ancestor) break
+      sourceParent = ancestor
+    }
+    const sourceChildren = childrenByParentId.get(sourceParent.id) ?? []
     const sourceLots = [
-      parent,
-      ...children.filter((line) => !isChildImpurityLine(line) && !line.impuritySourceLineId),
+      sourceParent,
+      ...sourceChildren.filter((line) => !isChildImpurityLine(line) && !line.impuritySourceLineId),
     ]
+    const nestedFromImpurity = sourceParent.id !== parent.id
     const netBeforeImpurityWeight = sourceLots.reduce((sum, line) => {
       const grossWeight = Math.max(0, toNumber(line.grossWeight))
       const containerDeductionWeight = Math.min(
@@ -987,7 +1009,7 @@ export function calculateWeightTicketLineTotals(lines: WeightTicketCalculationLi
       const childTotals = lineTotalsById.get(line.id)
       if (!childTotals) return
       const rawDeduction = line.deductionMode === 'percent'
-        ? netBeforeImpurityWeight * Math.max(0, toNumber(line.deductionValue)) / 100
+        ? (nestedFromImpurity ? availableNetWeight : netBeforeImpurityWeight) * Math.max(0, toNumber(line.deductionValue)) / 100
         : Math.max(0, toNumber(line.deductionValue))
       if (roundWeight(rawDeduction) > roundWeight(availableNetWeight)) {
         overflowingChildImpurityLineIds.add(line.id)
@@ -1008,13 +1030,22 @@ export function calculateWeightTicketLineTotals(lines: WeightTicketCalculationLi
       })
       availableNetWeight = roundWeight(availableNetWeight - deductionWeight)
     })
-  })
+    })
 
   const sourceTotalsByLineId = new Map<string, ReturnType<typeof calculateLineTotals>>()
   lines.forEach((line) => {
     if (line.parentId) return
-    const children = childrenByParentId.get(line.id) ?? []
-    const groupedLines = [line, ...children]
+    const groupedLines: WeightTicketCalculationLine[] = []
+    const pendingLines = [line]
+    const visitedLineIds = new Set<string>()
+    let pendingIndex = 0
+    while (pendingIndex < pendingLines.length) {
+      const currentLine = pendingLines[pendingIndex++]
+      if (visitedLineIds.has(currentLine.id)) continue
+      visitedLineIds.add(currentLine.id)
+      groupedLines.push(currentLine)
+      pendingLines.push(...(childrenByParentId.get(currentLine.id) ?? []))
+    }
     const sourceTotals = groupedLines.reduce(
       (totals, groupedLine) => {
         const lineTotals = lineTotalsById.get(groupedLine.id)

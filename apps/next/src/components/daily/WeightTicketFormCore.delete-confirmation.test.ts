@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   requestWeightTicketSelectionChange,
+  getWeightTicketRelatedLineIds,
+  removeImpurityPurchaseLinesForSource,
   removeWeightTicketLot,
   shouldConfirmWeightTicketBranchChange,
   shouldConfirmWeightTicketImpurityChange,
@@ -109,6 +111,97 @@ describe('WeightTicketFormCore local deletion confirmation', () => {
     expect(populated.state()).toEqual({ retained: true })
     populated.confirm()
     expect(populated.mutations()).toBe(1)
+  })
+
+  it('tracks and removes nested impurity purchases with their source tree', () => {
+    const product = line({ id: 'product-1', productId: 'product-1', warehouseId: 'warehouse-1' })
+    const source = line({
+      id: 'impurity-1',
+      parentId: product.id,
+      productId: product.productId,
+      warehouseId: product.warehouseId,
+      impurityId: 'impurity-1',
+      deductionMode: 'kg',
+      deductionValue: '30',
+    })
+    const purchase = line({
+      id: 'purchase-1',
+      parentId: product.id,
+      productId: 'product-2',
+      grossWeight: '30',
+      impuritySourceLineId: source.id,
+    })
+    const nestedSource = line({
+      id: 'nested-impurity-1',
+      parentId: purchase.id,
+      productId: purchase.productId,
+      impurityId: 'impurity-2',
+      deductionMode: 'kg',
+      deductionValue: '5',
+    })
+    const nestedPurchase = line({
+      id: 'nested-purchase-1',
+      parentId: product.id,
+      productId: 'product-3',
+      grossWeight: '5',
+      impuritySourceLineId: nestedSource.id,
+    })
+    const lines = [product, source, purchase, nestedSource, nestedPurchase]
+
+    expect(getWeightTicketRelatedLineIds(lines, source.id)).toEqual(new Set([
+      source.id,
+      purchase.id,
+      nestedSource.id,
+      nestedPurchase.id,
+    ]))
+    expect(getWeightTicketRelatedLineIds(lines, purchase.id)).toEqual(new Set([
+      purchase.id,
+      nestedSource.id,
+      nestedPurchase.id,
+    ]))
+    expect(shouldConfirmWeightTicketImpurityChange(lines, source.id)).toBe(true)
+    expect(removeImpurityPurchaseLinesForSource(lines, source.id).map((entry) => entry.id)).toEqual([
+      product.id,
+      source.id,
+    ])
+  })
+
+  it('preserves every real lot and its nested lots when removing an impurity purchase root', () => {
+    const product = line({ id: 'product-1', productId: 'product-1', warehouseId: 'warehouse-1' })
+    const source = line({
+      id: 'impurity-1',
+      parentId: product.id,
+      productId: product.productId,
+      warehouseId: product.warehouseId,
+      impurityId: 'impurity-1',
+      deductionMode: 'kg',
+      deductionValue: '30',
+    })
+    const purchaseRoot = line({
+      id: 'purchase-root',
+      productId: 'product-2',
+      grossWeight: '30',
+      impuritySourceLineId: source.id,
+    })
+    const lot2 = line({ id: 'lot-2', parentId: purchaseRoot.id, productId: 'product-2', grossWeight: '20' })
+    const lot3 = line({ id: 'lot-3', parentId: purchaseRoot.id, productId: 'product-2', grossWeight: '10' })
+    const nestedLot = line({ id: 'nested-lot', parentId: lot3.id, productId: 'product-2', grossWeight: '4' })
+
+    const nextLines = removeImpurityPurchaseLinesForSource(
+      [product, source, purchaseRoot, lot2, lot3, nestedLot],
+      source.id,
+    )
+
+    expect(nextLines.map((entry) => entry.id)).toEqual([
+      product.id,
+      source.id,
+      lot2.id,
+      lot3.id,
+      nestedLot.id,
+    ])
+    expect(nextLines.find((entry) => entry.id === lot2.id)?.parentId).toBeUndefined()
+    expect(nextLines.find((entry) => entry.id === lot3.id)?.parentId).toBe(lot2.id)
+    expect(nextLines.find((entry) => entry.id === nestedLot.id)?.parentId).toBe(lot3.id)
   })
 
   it('keeps a selected impurity product until a main impurity change is confirmed', () => {
