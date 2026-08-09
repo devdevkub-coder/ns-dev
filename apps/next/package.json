@@ -7,7 +7,7 @@
     "predev": "prisma generate",
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "prebuild": "prisma generate",
-    "build": "next build",
+    "build": "NODE_OPTIONS='--max-old-space-size=8192' next build",
     "db:pull": "prisma db pull",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
