@@ -140,6 +140,7 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
                         gross_weight: true,
                         impurity_id: true,
                         impurity_name: true,
+                        impurity_source_line_no: true,
                         line_no: true,
                         note: true,
                         product_id: true,
@@ -165,6 +166,7 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
                     gross_weight: true
                     impurity_id: true
                     impurity_name: true
+                    impurity_source_line_no: true
                     line_no: true
                     note: true
                     product_id: true
@@ -277,6 +279,33 @@ function historyMetaValue(meta: unknown, key: string) {
   return (meta as Record<string, unknown>)[key]
 }
 
+type PaymentAccountDisplay = {
+  accountNo: string | null
+  bankName: string | null
+}
+
+function paymentAccountSnapshotRows(meta: unknown): PaymentAccountDisplay[] {
+  const rawRows = historyMetaValue(meta, 'paymentAccounts')
+  if (!Array.isArray(rawRows)) return []
+  return rawRows.flatMap((rawRow) => {
+    if (!rawRow || typeof rawRow !== 'object' || Array.isArray(rawRow)) return []
+    const row = rawRow as Record<string, unknown>
+    const accountNo = typeof row.accountNo === 'string' && row.accountNo.trim() ? row.accountNo.trim() : null
+    const bankName = typeof row.bankName === 'string' && row.bankName.trim() ? row.bankName.trim() : null
+    return accountNo || bankName ? [{ accountNo, bankName }] : []
+  })
+}
+
+function uniquePaymentAccountRows(rows: PaymentAccountDisplay[]) {
+  const seen = new Set<string>()
+  return rows.filter((row) => {
+    const key = `${row.bankName ?? ''}|${row.accountNo ?? ''}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function sourceSnapshotValue(snapshot: unknown, key: string) {
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null
   const value = (snapshot as Record<string, unknown>)[key]
@@ -292,19 +321,14 @@ function isImpurityLine(line: PurchaseBillReceiptLine) {
 }
 
 function isPurchaseFromImpurityLine(line: PurchaseBillReceiptLine) {
-  return toNumber(line.gross_weight) > 0 && (line.note ?? '').includes('มาจากสิ่งเจือปน')
+  return toNumber(line.gross_weight) > 0 && line.impurity_source_line_no != null
 }
 
 function findPurchaseLineForImpurity(
   impurityLine: PurchaseBillReceiptLine,
-  sourceProductName: string,
   purchaseLines: PurchaseBillReceiptLine[],
 ) {
-  return purchaseLines.find((purchaseLine) => {
-    const note = purchaseLine.note ?? ''
-    if (!note.includes(sourceProductName) && !note.includes(String(impurityLine.product_id))) return false
-    return Math.abs(toNumber(purchaseLine.gross_weight) - toNumber(impurityLine.deduct_weight)) < 0.001
-  })
+  return purchaseLines.find((purchaseLine) => purchaseLine.impurity_source_line_no === impurityLine.line_no)
 }
 
 function receiptLineRemark(receiptAllocation: PurchaseBillDetailRow['purchase_bill_items'][number]['purchase_bill_receipt_allocations']) {
@@ -323,7 +347,7 @@ function receiptLineRemark(receiptAllocation: PurchaseBillDetailRow['purchase_bi
 
   if (impurityLines.length > 0) {
     const impurityRemarks = impurityLines.map((line, index) => {
-      const purchaseLine = findPurchaseLineForImpurity(line, summary.product_name, purchaseLines)
+      const purchaseLine = findPurchaseLineForImpurity(line, purchaseLines)
       const impurityName = cleanImpurityName(line.impurity_name) || 'สิ่งเจือปน'
       const prefix = `- ${index + 1}. ${impurityName} ${weight(toNumber(line.deduct_weight))} กก.`
       return purchaseLine ? `${prefix} ซื้อเป็น ${purchaseLine.product_name}` : prefix
@@ -374,6 +398,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
                           gross_weight: true,
                           impurity_id: true,
                           impurity_name: true,
+                          impurity_source_line_no: true,
                           line_no: true,
                           note: true,
                           product_id: true,
@@ -399,6 +424,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
                       gross_weight: true,
                       impurity_id: true,
                       impurity_name: true,
+                      impurity_source_line_no: true,
                       line_no: true,
                       note: true,
                       product_id: true,
@@ -445,6 +471,92 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
 
   if (!bill) return null
 
+  const paymentApprovalFacts = await prisma.payment_approvals.findMany({
+    select: { id: true },
+    where: {
+      source_id: bill.id.toString(),
+      source_type: 'purchase_bill',
+    },
+  })
+  const paymentApprovalIds = paymentApprovalFacts.map((approval) => approval.id)
+  const paymentAllocationConditions: Prisma.payment_allocationsWhereInput[] = [
+    { source_doc_no_snapshot: bill.doc_no, source_type: 'purchase_bill' },
+    ...(paymentApprovalIds.length > 0 ? [{ payment_approval_id: { in: paymentApprovalIds } }] : []),
+  ]
+  const paymentAllocationFacts = await prisma.payment_allocations.findMany({
+    select: {
+      payment_doc_no: true,
+      payment_id: true,
+      payment_voucher_id: true,
+    },
+    where: { OR: paymentAllocationConditions },
+  })
+  const paymentIdsFromAllocations = paymentAllocationFacts
+    .map((allocation) => allocation.payment_id)
+    .filter((paymentId): paymentId is bigint => paymentId != null)
+  const paymentDocNosFromAllocations = paymentAllocationFacts.map((allocation) => allocation.payment_doc_no)
+  const paymentVoucherIdsFromAllocations = paymentAllocationFacts
+    .map((allocation) => allocation.payment_voucher_id)
+    .filter((voucherId): voucherId is string => Boolean(voucherId))
+  const paymentConditions: Prisma.paymentsWhereInput[] = [
+    { bill_id: bill.id },
+    ...(paymentIdsFromAllocations.length > 0 ? [{ id: { in: paymentIdsFromAllocations } }] : []),
+    ...(paymentDocNosFromAllocations.length > 0 ? [{ doc_no: { in: paymentDocNosFromAllocations } }] : []),
+    ...(paymentVoucherIdsFromAllocations.length > 0 ? [{ voucher_id: { in: paymentVoucherIdsFromAllocations } }] : []),
+  ]
+  const paymentFacts = await prisma.payments.findMany({
+    select: {
+      accounts: {
+        select: {
+          account_no: true,
+          bank: true,
+          bank_name: true,
+          code: true,
+          name: true,
+        },
+      },
+      date: true,
+      doc_no: true,
+      id: true,
+      voucher_id: true,
+    },
+    where: { OR: paymentConditions },
+  })
+  const paymentIds = paymentFacts.map((payment) => payment.id)
+  const paymentDocNos = paymentFacts.map((payment) => payment.doc_no)
+  const paymentVoucherIds = paymentFacts
+    .map((payment) => payment.voucher_id)
+    .filter((voucherId): voucherId is string => Boolean(voucherId))
+  const paymentAccountSplitConditions: Prisma.payment_account_splitsWhereInput[] = [
+    ...(paymentIds.length > 0 ? [{ payment_id: { in: paymentIds } }] : []),
+    ...(paymentDocNos.length > 0 ? [{ payment_doc_no: { in: paymentDocNos } }] : []),
+    ...(paymentVoucherIds.length > 0 ? [{ payment_voucher_id: { in: paymentVoucherIds } }] : []),
+  ]
+  const paymentAccountSplitFacts = await prisma.payment_account_splits.findMany({
+    orderBy: [{ payment_doc_no: 'asc' }, { id: 'asc' }],
+    select: {
+      account_code_snapshot: true,
+      account_name_snapshot: true,
+      accounts: {
+        select: {
+          account_no: true,
+          bank: true,
+          bank_name: true,
+          code: true,
+          name: true,
+        },
+      },
+      amount: true,
+      id: true,
+      payment_doc_no: true,
+      payment_id: true,
+      payment_voucher_id: true,
+    },
+    where: paymentAccountSplitConditions.length > 0
+      ? { OR: paymentAccountSplitConditions }
+      : { id: { in: [] } },
+  })
+
   const allocationRows = bill.purchase_bill_items.map((item, index) => {
     const receiptAllocation = item.purchase_bill_receipt_allocations
     const poAllocation = item.purchase_bill_po_allocations
@@ -465,7 +577,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const lineNo = item.line_no ?? index + 1
     const remark = receiptLineRemark(receiptAllocation)
     const receiptSummaryLabel = receiptAllocation?.weight_ticket_product_summaries
-      ? `รวมจาก ${receiptAllocation.weight_ticket_product_summaries.line_count ?? 0} lot · ${receiptAllocation.weight_ticket_product_summaries.product_name ?? '-'}`
+      ? `รวมจาก ${receiptAllocation.weight_ticket_product_summaries.line_count ?? 0} รายการ · ${receiptAllocation.weight_ticket_product_summaries.product_name ?? '-'}`
       : '-'
     const poDocNo = poAllocation?.po_buys.doc_no
       ?? item.po_buys?.doc_no
@@ -544,12 +656,59 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const amount = historyMetaValue(log.meta, 'amount')
     const accountCode = historyMetaValue(log.meta, 'accountCode')
     const accountName = historyMetaValue(log.meta, 'accountName')
+    const accountNoSnapshot = historyMetaValue(log.meta, 'accountNo')
+    const bankNameSnapshot = historyMetaValue(log.meta, 'bankName')
     const discount = historyMetaValue(log.meta, 'discount')
     const fee = historyMetaValue(log.meta, 'fee')
+    const paymentDateSnapshot = historyMetaValue(log.meta, 'paymentDate')
     const paymentDocNo = historyMetaValue(log.meta, 'paymentDocNo')
     const transactionMode = historyMetaValue(log.meta, 'transactionMode')
     const voucherId = historyMetaValue(log.meta, 'voucherId')
     const withholdingTax = historyMetaValue(log.meta, 'withholdingTax')
+    const paymentFact = paymentFacts.find((payment) => (
+      (typeof paymentDocNo === 'string' && paymentDocNo && payment.doc_no === paymentDocNo)
+      || (typeof voucherId === 'string' && voucherId && payment.voucher_id === voucherId)
+    ))
+    const paymentSplitFacts = paymentFact
+      ? paymentAccountSplitFacts.filter((split) => (
+        split.payment_id === paymentFact.id
+        || split.payment_doc_no === paymentFact.doc_no
+        || (paymentFact.voucher_id != null && split.payment_voucher_id === paymentFact.voucher_id)
+      ))
+      : []
+    const paymentAccountSnapshots = paymentAccountSnapshotRows(log.meta)
+    const paymentAccountRows = uniquePaymentAccountRows(
+      paymentAccountSnapshots.length > 0
+        ? paymentAccountSnapshots
+        : paymentSplitFacts.length > 0
+          ? paymentSplitFacts.map((split) => ({
+            accountNo: split.accounts?.account_no ?? null,
+            bankName: split.accounts?.bank_name ?? split.accounts?.bank ?? null,
+          }))
+          : paymentFact?.accounts
+            ? [{
+              accountNo: paymentFact.accounts.account_no ?? null,
+              bankName: paymentFact.accounts.bank_name ?? paymentFact.accounts.bank ?? null,
+            }]
+            : [],
+    )
+    const legacyPaymentAccountRows = uniquePaymentAccountRows([
+      ...(typeof bankNameSnapshot === 'string' && bankNameSnapshot.trim() ? [{ bankName: bankNameSnapshot.trim(), accountNo: null }] : []),
+      ...(typeof accountNoSnapshot === 'string' && accountNoSnapshot.trim() ? [{ bankName: null, accountNo: accountNoSnapshot.trim() }] : []),
+    ])
+    const displayPaymentAccountRows = uniquePaymentAccountRows([
+      ...paymentAccountRows,
+      ...legacyPaymentAccountRows,
+    ])
+    const bankNames = [...new Set(displayPaymentAccountRows.map((account) => account.bankName).filter((value): value is string => Boolean(value)))]
+    const accountNos = [...new Set(displayPaymentAccountRows.map((account) => account.accountNo).filter((value): value is string => Boolean(value)))]
+    const paymentDate = typeof paymentDateSnapshot === 'string' && paymentDateSnapshot
+      ? paymentDateSnapshot
+      : paymentFact
+        ? toDateOnly(paymentFact.date)
+        : null
+    const bankName = bankNames.length > 0 ? bankNames.join(', ') : null
+    const accountNo = accountNos.length > 0 ? accountNos.join(', ') : null
     const transitionText = log.from_status && log.from_status !== log.to_status
       ? `${purchaseBillStatusLabel(log.from_status)} -> ${purchaseBillStatusLabel(log.to_status)}`
       : purchaseBillStatusLabel(log.to_status)
@@ -558,7 +717,9 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       `ผู้ทำ ${log.created_by ?? '-'}`,
     ]
     if (typeof paymentDocNo === 'string' && paymentDocNo) details.push(`เลขที่การชำระเงิน ${paymentDocNo}`)
-    if (typeof voucherId === 'string' && voucherId) details.push(`Voucher ${voucherId}`)
+    if (paymentDate) details.push(`วันที่จ่ายตามเอกสาร PMT ${paymentDate}`)
+    if (bankName) details.push(`ธนาคารบริษัทที่จ่ายออก ${bankName}`)
+    if (accountNo) details.push(`เลขที่บัญชีบริษัทที่จ่ายออก ${accountNo}`)
     if (typeof amount === 'number') details.push(`ยอดจ่าย ${money(amount)}`)
     if (typeof withholdingTax === 'number') details.push(`WHT ${money(withholdingTax)}`)
     if (typeof discount === 'number') details.push(`ส่วนลด ${money(discount)}`)

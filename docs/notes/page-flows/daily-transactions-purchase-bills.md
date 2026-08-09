@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-19
+updated: 2026-08-09
 route: /purchase/bills
 ---
 
@@ -37,6 +37,10 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 - คำนวณ subtotal/discount/VAT/ADV allocation/payable balance และส่ง source payable เข้า Payment Flow
 - แสดง detail/timeline/source allocation/print PB และ lock เมื่อมี PMA/PMT active
 - Print PB เป็นเอกสารยืนยันการรับซื้อและยอดตามเอกสาร จึงแสดง subtotal/ส่วนลด/VAT/ยอดสุทธิ/ADV แต่ไม่แสดงแถว `ชำระแล้ว` หรือ `ค้างชำระ`; สองค่านี้เป็น payment progress ที่ยังคงอยู่ใน list/detail และ API/Payment Flow ตามเดิม
+- Print PB ใช้ตัวจัดหน้าตามความสูงจริง: 15 เป็นจำนวนรายการสูงสุดต่อหน้า, หน้าสุดท้ายสงวนพื้นที่ลายเซ็น 30 มม., และปุ่มพิมพ์เปิดเมื่อยืนยัน Noto Sans Thai Regular/Bold พร้อม logo และตรวจว่า logical A4 ทุกหน้าไม่ overflow แล้วเท่านั้น. REMARK หลายข้อเรียง `1.`, `2.`, `3.` คนละบรรทัด; ถ้าต้องแบ่งรายการเดียวจะแบ่งเฉพาะระหว่างข้อและไม่ทำค่าน้ำหนัก/ราคา/ยอดซ้ำใน segment ต่อ.
+- ตาราง detail ของ PB แยกตัวเลขน้ำหนัก/จำนวนออกจากคอลัมน์ `หน่วย` เช่นเดียวกับเอกสารใบรับส่ง และ normalize หน่วยกิโลกรัมทุก alias เป็น `กก.` เฉพาะตอนแสดงผล; snapshot และ business calculation ไม่เปลี่ยน.
+- ใน PB Timeline รายการที่ทำจ่ายต้องแสดง `วันที่จ่ายตามเอกสาร PMT`, `ธนาคารบริษัทที่จ่ายออก` และเลขที่บัญชีบริษัทที่จ่ายออกจาก snapshot ของ PMT เพื่อให้ผู้ตรวจสอบรู้ว่าเงินออกเมื่อไรและออกจากบัญชีใด; ห้ามใช้ Voucher UUID เป็นข้อมูลหลักที่ผู้ใช้ต้องตีความ.
+- เมนู `จัดการ` ใช้ ellipsis/shared dropdown เดียวกันทั้ง Desktop และ Mobile โดยรวมคำสั่งที่ทำได้ของแถวนั้นไว้ในเมนู; แถวที่สถานะ `cancelled` ไม่แสดง trigger และ Modal รายละเอียดต้องแสดง `แก้ไข`/`ยกเลิก` เมื่อเอกสารยังอนุญาต. PMT History เป็น read-only และแก้โดยยกเลิกแล้วทำจ่ายใหม่ เพื่อรักษา audit trail.
 
 ## Non-Responsibilities
 
@@ -141,6 +145,10 @@ When a user chooses `เปิดบิลซื้อ` from a WTI row, `/purcha
 ## 2026-07-23 Purchase list center-alignment checkpoint
 
 The `/purchase/bills` desktop list now centers every visible header/body column except `ยอดรวม` and `ค้างชำระ`, which stay right-aligned as monetary facts. What is what: this changes only the Purchase Bill list table geometry; `ยอดรวม` remains the bill total and `ค้างชำระ` remains the payable balance used by Payment Flow. Why it has to be like this: the requested office scanning pattern groups document identifiers, dates, supplier, status, source docs, payment docs, updater, and actions around the column center while preserving right alignment for money comparison. This does not change calculations, filters, APIs, permissions, database schema, or DB state.
+
+## 2026-08-08 PB print measured-pagination checkpoint
+
+What is what: `purchase-bill-print-layout.ts` owns only REMARK normalization and the pure PB page plan; `purchase-bill-print.ts` owns the two-pass browser measurement, A4 HTML, preview/print fit gate and rendering from the existing PB detail snapshot. Why it has to be like this: a fixed row count cannot predict Thai REMARK wrapping, so Browser previously pushed totals/signatures onto an unintended physical page. Measuring the exact print width and reserving the final signature zone keeps all data visible without changing purchase, stock, payable, API or database behavior.
 
 ## 2026-07-31 VAT form presentation checkpoint
 

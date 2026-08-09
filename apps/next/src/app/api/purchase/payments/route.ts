@@ -677,6 +677,16 @@ export async function POST(request: Request) {
     if (splitAccountReferences.some(([, account]) => !account)) throw new Error('บัญชีจ่ายบางรายการไม่ถูกต้องหรือไม่ active')
     const primaryAccount = paymentSplits[0]?.accountId ? splitAccountByCode.get(paymentSplits[0].accountId) ?? null : null
     if (!primaryAccount) throw new Error('เลือกบัญชีจ่าย')
+    const paymentAccountsForLog = paymentSplits.map((split) => {
+      const account = splitAccountByCode.get(split.accountId) ?? null
+      return {
+        accountCode: account?.code ?? null,
+        accountName: account?.name ?? null,
+        accountNo: account?.accountNo ?? null,
+        amount: toNumber(split.amount),
+        bankName: account?.bankName ?? account?.bank ?? null,
+      }
+    })
     const activePaymentMethods = await getActivePaymentMethods()
     const activePaymentMethod = activePaymentMethods.find((method) => (
       normalizePaymentMethod(method.name) === normalizePaymentMethod(values.method)
@@ -1151,10 +1161,14 @@ export async function POST(request: Request) {
           meta: {
             accountCode: primaryAccountForLog?.code ?? null,
             accountName: primaryAccountForLog?.name ?? null,
+            accountNo: primaryAccountForLog?.accountNo ?? null,
             amount: line.amount,
+            bankName: primaryAccountForLog?.bankName ?? primaryAccountForLog?.bank ?? null,
             discount: line.discount,
             fee: line.fee,
             method: paymentMethod,
+            paymentAccounts: paymentAccountsForLog,
+            paymentDate: toDateOnly(paymentDate),
             paymentDocNo: docNo,
             voucherId,
             withholdingTax: line.withholdingTax,
