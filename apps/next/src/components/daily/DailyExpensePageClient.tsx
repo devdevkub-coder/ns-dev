@@ -1935,6 +1935,10 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             <ExpenseDetailModal
               row={detailRow}
               onClose={() => setDetailRow(null)}
+              onCancel={(row) => {
+                setDetailRow(null)
+                void cancelExpense(row)
+              }}
               onEdit={(row) => {
                 setDetailRow(null)
                 openEditForm(row)
@@ -2085,7 +2089,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   )
 }
 
-function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onEdit: (row: ExpenseRow) => void; row: ExpenseRow }) {
+function ExpenseDetailModal({ onCancel, onClose, onEdit, row }: { onCancel: (row: ExpenseRow) => void; onClose: () => void; onEdit: (row: ExpenseRow) => void; row: ExpenseRow }) {
   const lines = normalizeExpenseLines(row.lines, row)
   const canEdit = canMutateExpense(row.status)
   const [isPrinting, setIsPrinting] = useState(false)
@@ -2122,6 +2126,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
               {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
             </Button>
             {canEdit ? <Button className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" type="button" variant="outline" onClick={() => onEdit(row)}>แก้ไข</Button> : null}
+            {canEdit ? <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => onCancel(row)}>ยกเลิก</Button> : null}
             <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</Button>
           </div>
           </div>

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
+import { SalesBillPrintButton } from '@/components/sales-flow/SalesBillPrintButton'
 import { formatMoney } from '@/lib/daily'
 import { AuthContextError, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
@@ -48,7 +49,10 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
             <h1 className="text-base font-bold text-slate-900">รายละเอียดบิลขาย {bill.docNo}</h1>
             <p className="mt-1 text-sm text-slate-500">{bill.customerName}</p>
           </div>
-          <Link className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50" href="/sales/bills">กลับรายการ</Link>
+          <div className="flex flex-wrap items-start gap-2">
+            <SalesBillPrintButton bill={bill} />
+            <Link className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50" href="/sales/bills">กลับรายการ</Link>
+          </div>
         </div>
 
         <div className="space-y-4 p-4">

@@ -26,11 +26,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { prepareCorporatePrintLayout } from '@/lib/corporate-print-layout'
 import { calculateCustomerReceiptCashRequired, calculateCustomerReceiptSettlement } from '@/lib/customer-receipt-settlement'
 import { customerReceiptFormSchema, dailyFetchJson, formatMoney, supplierPaymentFormSchema, todayDateInput, type CustomerReceiptFormValues, type DailyAccountOption, type SupplierPaymentFormValues } from '@/lib/daily'
 import { formatAccountNoDisplay, formatDateDisplay } from '@/lib/format'
 import { normalizePaymentMethod, paymentDestinationKey } from '@/lib/payment-destination'
-import { paginateStandardPrintItems } from '@/lib/print-pagination'
+import { paginatePaymentDailyReportItems, paginateStandardPrintItems } from '@/lib/print-pagination'
 
 type PartyBankAccount = {
   accountNo?: string | null
@@ -654,7 +655,7 @@ function paymentDailyReportDateRangeLabel(dateFrom: string, dateTo: string) {
   return from === to ? formatDateDisplay(from) : `${formatDateDisplay(from)} - ${formatDateDisplay(to)}`
 }
 
-function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePrintValues, params: { dateFrom: string; dateTo: string; kind: 'payment' | 'receipt'; printedAt: Date }) {
+export function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePrintValues, params: { dateFrom: string; dateTo: string; kind: 'payment' | 'receipt'; printedAt: Date }) {
   const isReceipt = params.kind === 'receipt'
   const companyName = missingCompanyData(profile.name).replace(/\s+/g, ' ').trim()
   const reportTitle = isReceipt ? 'รายงานประวัติการรับเงินประจำวัน' : 'รายงานประวัติการจ่ายเงินประจำวัน'
@@ -678,87 +679,35 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
   const paidFee = paidRows.reduce((sum, row) => sum + (row.fee ?? 0), 0)
   const paidNet = paidRows.reduce((sum, row) => sum + historyBookNetAmount(row, params.kind), 0)
   const cancelledAmount = cancelledRows.reduce((sum, row) => sum + historyBookAmount(row, params.kind), 0)
-  const rowHtml = rows.map((row, index) => {
-    const billRefs = row.billDocNos?.length ? row.billDocNos.join(', ') : row.billDocNo || '-'
-    const accounts = (row.accountSummaries?.length ? row.accountSummaries : [row.accountName || '-'])
-      .map(escapeHtml)
-      .join('<br>')
-    return `<tr class="${row.status === 'cancelled' ? 'cancelled' : ''}">
-      <td class="c">${index + 1}</td>
-      <td class="mono">${escapeHtml(row.docNo)}</td>
-      <td>${escapeHtml(formatDateDisplay(row.date))}</td>
-      <td>${escapeHtml(row.partyName || '-')}</td>
-      <td class="mono small">${escapeHtml(billRefs)}</td>
-      <td class="small">${accounts}</td>
-      <td class="r">${escapeHtml(formatMoney(historyBookAmount(row, params.kind)))}</td>
-      <td class="r">${escapeHtml(formatMoney(row.fee ?? 0))}</td>
-      <td class="r strong">${escapeHtml(formatMoney(row.status === 'cancelled' ? 0 : historyBookNetAmount(row, params.kind)))}</td>
-      <td>${escapeHtml(paymentHistoryStatusLabel(row.status))}</td>
-      <td>${escapeHtml(row.notes || '-')}</td>
-    </tr>`
-  }).join('')
-  const emptyRow = `<tr class="empty-row"><td class="empty" colspan="11">${escapeHtml(emptyText)}</td></tr>`
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(reportTitle)}</title>
-    <style>
-      @page { size: A4 landscape; margin: 10mm; }
-      * { box-sizing: border-box; }
-      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #334155; padding: 16px 0; }
-      .toolbar { background: #0f172a; color: white; padding: 8px; text-align: center; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
-      .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
-      .page { width: 277mm; min-height: 190mm; margin: 0 auto 16px; padding: 7mm; background: #fff; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
-      .header { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
-      .logo { max-height: 52px; max-width: 180px; object-fit: contain; margin-bottom: 4px; }
-      .no-logo { display: flex; align-items: center; justify-content: center; width: 120px; height: 52px; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
-      .co-name { font-size: 18px; font-weight: 800; white-space: nowrap; }
-      .co-info { color: #475569; line-height: 1.45; margin-top: 3px; }
-      .doc-title { text-align: right; }
-      .doc-title h1 { font-size: 20px; margin: 0 0 4px; white-space: nowrap; }
-      .doc-title .range { color: #be123c; font-size: 15px; font-weight: 800; }
-      .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0; }
-      .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; background: #fff; }
-      .card .label { color: #64748b; font-size: 12px; }
-      .card .value { font-size: 16px; font-weight: 800; margin-top: 2px; }
-      .green { color: #047857; }
-      .rose { color: #be123c; }
-      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-size: 12px; font-weight: 900; padding: 6px 5px; text-align: left; }
-      td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
-      tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
-      tr.cancelled td { color: #64748b; }
-      .r { text-align: right; }
-      .c { text-align: center; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-      .small { font-size: 12px; }
-      .strong { font-weight: 800; }
-      .empty { color: #64748b; padding: 24px; text-align: center; }
-      .empty-row td { height: 24px; }
-      .final-amount { color: #047857; font-weight: 900; }
-      .footer { border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 12px; margin-top: 12px; padding-top: 8px; }
-      @media print {
-        body { background: white; padding: 0; }
-        .toolbar { display: none; }
-        .page { width: auto; min-height: auto; margin: 0; padding: 0; background: #fff; box-shadow: none; border-radius: 0; }
-      }
-    </style>
-  </head><body>
-    <div class="toolbar">
-      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
-      <button onclick="window.close()" style="background:#64748b">ปิด</button>
-    </div>
-    <div class="page">
-      <div class="header">
-        <div>
-          ${profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="logo no-logo">ไม่มีข้อมูล</div>'}
-          <div class="co-name">${escapeHtml(companyName)}</div>
-          ${profile.nameEn ? `<div>${escapeHtml(profile.nameEn)}</div>` : ''}
-          <div class="co-info">${companyInfoForPrint(profile)}</div>
-        </div>
-        <div class="doc-title">
-          <h1>${escapeHtml(reportTitle)}</h1>
-          <div class="range">${escapeHtml(paymentDailyReportDateRangeLabel(params.dateFrom, params.dateTo))}</div>
-          <div>พิมพ์เมื่อ ${escapeHtml(params.printedAt.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }))}</div>
-        </div>
-      </div>
+  const pages = paginatePaymentDailyReportItems(rows)
+  const pagesHtml = pages.map((page) => {
+    const rowHtml = page.items.map((row, index) => {
+      const billRefs = row.billDocNos?.length ? row.billDocNos.join(', ') : row.billDocNo || '-'
+      const accounts = (row.accountSummaries?.length ? row.accountSummaries : [row.accountName || '-'])
+        .map(escapeHtml)
+        .join('<br>')
+      const rowNumber = page.startIndex + index + 1
+      return `<tr class="${row.status === 'cancelled' ? 'cancelled' : ''}">
+        <td class="c">${rowNumber}</td>
+        <td class="mono">${escapeHtml(row.docNo)}</td>
+        <td>${escapeHtml(formatDateDisplay(row.date))}</td>
+        <td>${escapeHtml(row.partyName || '-')}</td>
+        <td class="mono small">${escapeHtml(billRefs)}</td>
+        <td class="small">${accounts}</td>
+        <td class="r">${escapeHtml(formatMoney(historyBookAmount(row, params.kind)))}</td>
+        <td class="r">${escapeHtml(formatMoney(row.fee ?? 0))}</td>
+        <td class="r strong">${escapeHtml(formatMoney(row.status === 'cancelled' ? 0 : historyBookNetAmount(row, params.kind)))}</td>
+        <td>${escapeHtml(paymentHistoryStatusLabel(row.status))}</td>
+        <td>${escapeHtml(row.notes || '-')}</td>
+      </tr>`
+    }).join('')
+    const emptyRow = rows.length === 0 && page.pageNo === 1
+      ? `<tr class="empty-row"><td class="empty" colspan="11">${escapeHtml(emptyText)}</td></tr>`
+      : ''
+    const continuationNote = page.pageNo > 1
+      ? `<div class="continuation-note">ต่อจากหน้า ${page.pageNo - 1} / Continued from Page ${page.pageNo - 1}</div>`
+      : ''
+    const summaryHtml = page.pageNo === 1 ? `
       <div class="summary">
         <div class="card"><div class="label">รายการ ${escapeHtml(docLabel)} ทั้งหมด</div><div class="value">${rows.length.toLocaleString('th-TH')}</div></div>
         <div class="card"><div class="label">${escapeHtml(activeLabel)}</div><div class="value green">${paidRows.length.toLocaleString('th-TH')}</div></div>
@@ -771,6 +720,36 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
         <div class="card"><div class="label">${escapeHtml(cancelledSummaryLabel)}</div><div class="value rose">${escapeHtml(formatMoney(cancelledAmount))}</div></div>
         <div class="card"><div class="label">หมายเหตุการนับยอด</div><div class="value" style="font-size:12px">${escapeHtml(noteText)}</div></div>
       </div>
+    ` : ''
+    const footerHtml = page.isFinalPage ? `
+      <tfoot data-page-totals="final">
+        <tr>
+          <td colspan="6" class="r">รวมทั้งสิ้น</td>
+          <td class="r">${escapeHtml(formatMoney(paidAmount))}</td>
+          <td class="r">${escapeHtml(formatMoney(paidFee))}</td>
+          <td class="r final-amount">${escapeHtml(formatMoney(paidNet))}</td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    ` : ''
+    return `<main class="page${page.pageNo > 1 ? ' page-break-before' : ''}" data-document-type="${docLabel}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
+      <div class="header">
+        <div>
+          ${profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="logo no-logo">ไม่มีข้อมูล</div>'}
+          <div class="co-name">${escapeHtml(companyName)}</div>
+          ${profile.nameEn ? `<div>${escapeHtml(profile.nameEn)}</div>` : ''}
+          <div class="co-info">${companyInfoForPrint(profile)}</div>
+        </div>
+        <div class="doc-title">
+          <h1>${escapeHtml(reportTitle)}</h1>
+          <div class="range">${escapeHtml(paymentDailyReportDateRangeLabel(params.dateFrom, params.dateTo))}</div>
+          <div>พิมพ์เมื่อ ${escapeHtml(params.printedAt.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }))}</div>
+          <div class="page-label">หน้า ${page.pageNo} / ${page.totalPages}</div>
+        </div>
+      </div>
+      ${continuationNote}
+      ${summaryHtml}
       <table>
         <thead>
           <tr>
@@ -788,19 +767,64 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
           </tr>
         </thead>
         <tbody>${rowHtml || emptyRow}</tbody>
-        <tfoot>
-          <tr>
-            <td colspan="6" class="r">รวมทั้งสิ้น</td>
-            <td class="r">${escapeHtml(formatMoney(paidAmount))}</td>
-            <td class="r">${escapeHtml(formatMoney(paidFee))}</td>
-            <td class="r final-amount">${escapeHtml(formatMoney(paidNet))}</td>
-            <td></td>
-            <td></td>
-          </tr>
-        </tfoot>
+        ${footerHtml}
       </table>
-      <div class="footer">${escapeHtml(footerText)}</div>
+      <div class="footer">${page.isFinalPage ? escapeHtml(footerText) : `ต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1}`}<span>หน้า ${page.pageNo} / ${page.totalPages}</span></div>
+    </main>`
+  }).join('')
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(reportTitle)}</title>
+    <style>
+      @page { size: A4 landscape; margin: 10mm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #334155; padding: 16px 0; }
+      .toolbar { background: #0f172a; color: white; padding: 8px; text-align: center; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
+      .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
+      .page { width: 277mm; min-height: 190mm; margin: 0 auto 16px; padding: 7mm; background: #fff; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
+      .page:last-of-type { break-after: auto; page-break-after: auto; }
+      .page-break-before { break-before: page; page-break-before: always; }
+      .header { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+      .logo { max-height: 52px; max-width: 180px; object-fit: contain; margin-bottom: 4px; }
+      .no-logo { display: flex; align-items: center; justify-content: center; width: 120px; height: 52px; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
+      .co-name { font-size: 18px; font-weight: 800; white-space: nowrap; }
+      .co-info { color: #475569; line-height: 1.45; margin-top: 3px; }
+      .doc-title { text-align: right; }
+      .doc-title h1 { font-size: 20px; margin: 0 0 4px; white-space: nowrap; }
+      .doc-title .range { color: #be123c; font-size: 15px; font-weight: 800; }
+      .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0; }
+      .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; background: #fff; }
+      .card .label { color: #64748b; font-size: 12px; }
+      .card .value { font-size: 16px; font-weight: 800; margin-top: 2px; }
+      .green { color: #047857; }
+      .rose { color: #be123c; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; break-inside: auto; page-break-inside: auto; }
+      thead { display: table-header-group; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
+      th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-size: 12px; font-weight: 900; padding: 6px 5px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
+      td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+      tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
+      tr.cancelled td { color: #64748b; }
+      .r { text-align: right; }
+      .c { text-align: center; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .small { font-size: 12px; }
+      .strong { font-weight: 800; }
+      .empty { color: #64748b; padding: 24px; text-align: center; }
+      .empty-row td { height: 24px; }
+      .continuation-note { color: #64748b; font-size: 12px; font-weight: 700; margin: 10px 0 4px; }
+      .final-amount { color: #047857; font-weight: 900; }
+      .footer { border-top: 1px dashed #cbd5e1; color: #64748b; display: flex; justify-content: space-between; gap: 12px; font-size: 12px; margin-top: 12px; padding-top: 8px; }
+      @media print {
+        body { background: white; padding: 0; }
+        .toolbar { display: none; }
+        .page { width: auto; min-height: auto; margin: 0; padding: 0; background: #fff; box-shadow: none; border-radius: 0; }
+      }
+    </style>
+  </head><body>
+    <div class="toolbar">
+      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
+      <button onclick="window.close()" style="background:#64748b">ปิด</button>
     </div>
+    ${pagesHtml}
   </body></html>`
 }
 
@@ -868,9 +892,15 @@ export function buildPaymentVoucherPrintHtml(row: MoneyRow, detail: PaymentHisto
         `}
       </table>
       ${placeholder ? `
-        <section class="continuation-summary" data-continuation-summary="empty" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
-          <div class="continuation-empty-panel" aria-hidden="true"></div>
-          <div class="continuation-empty-panel" aria-hidden="true"></div>
+        <section class="continuation-summary" data-continuation-summary="placeholder" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
+          <div class="continuation-summary-panel">
+            <div class="continuation-panel-title">รายละเอียดการจ่ายเงิน</div>
+            <div class="continuation-placeholder">-</div>
+          </div>
+          <div class="continuation-summary-panel">
+            <div class="continuation-panel-title">หมายเหตุ</div>
+            <div class="continuation-placeholder">-</div>
+          </div>
         </section>
         <div class="continuation-signature">( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )</div>
       ` : `
@@ -916,8 +946,8 @@ export function buildPaymentVoucherPrintHtml(row: MoneyRow, detail: PaymentHisto
       .value { font-weight: 800; margin-top: 2px; overflow-wrap: anywhere; }
       .section-title { background: #f1f5f9; border: 1px solid #cbd5e1; border-bottom: 0; font-weight: 900; padding: 6px 8px; }
       table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; }
-      td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
+      th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
+      td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       .empty-row td { color: transparent; height: 24px; }
       tfoot td { background: #ecfdf5; font-weight: 900; }
       tfoot[data-page-totals="placeholder"] td { background: white; color: transparent; height: 28px; }
@@ -927,7 +957,9 @@ export function buildPaymentVoucherPrintHtml(row: MoneyRow, detail: PaymentHisto
       .final { color: #047857; }
       .note { margin-top: 10px; }
       .continuation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-      .continuation-empty-panel { min-height: 58px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+      .continuation-summary-panel { min-height: 58px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; padding: 8px; }
+      .continuation-panel-title { font-weight: 900; color: #1e293b; }
+      .continuation-placeholder { margin-top: 8px; color: #94a3b8; }
       .continuation-signature { margin-top: auto; padding-top: 28px; color: #475569; font-weight: 800; text-align: center; }
       .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: auto; padding-top: 28px; }
       .sig { color: #475569; text-align: center; }
@@ -966,7 +998,8 @@ async function loadCustomerReceiptPrintEntries(rows: MoneyRow[]) {
 }
 
 function buildBatchReceiptPrintHtml(entries: CustomerReceiptPrintEntry[], title = 'พิมพ์ใบเสร็จรับเงินหลายรายการ') {
-  const pagesHtml = entries.flatMap(({ profile, row }) => {
+  const pagesHtml = entries.flatMap(({ profile, row }, entryIndex) => {
+    const printGroup = `receipt-${entryIndex + 1}`
     const companyName = missingCompanyData(profile.name).replace(/\s+/g, ' ').trim()
     const companyNameEn = profile.nameEn?.replace(/\s+/g, ' ').trim() || ''
     const billDocNos = row.sourceType === 'CADV'
@@ -1002,7 +1035,7 @@ function buildBatchReceiptPrintHtml(entries: CustomerReceiptPrintEntry[], title 
     </tr>`).join('')
       const fillerRows = printEmptyRows(5, page.emptyRowCount)
 
-      return `<main class="page" data-document-type="RCP" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
+      return `<main class="page" data-document-type="RCP" data-print-group="${printGroup}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
       <div class="watermark" style="display:${row.status === 'cancelled' ? 'block' : 'none'}">ยกเลิก / CANCELLED</div>
       <div class="header">
         <div class="company">
@@ -1038,9 +1071,15 @@ function buildBatchReceiptPrintHtml(entries: CustomerReceiptPrintEntry[], title 
         `}
       </table>
       ${placeholder ? `
-        <section class="continuation-summary" data-continuation-summary="empty" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
-          <div class="continuation-empty-panel" aria-hidden="true"></div>
-          <div class="continuation-empty-panel" aria-hidden="true"></div>
+        <section class="continuation-summary" data-continuation-summary="placeholder" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
+          <div class="continuation-summary-panel">
+            <div class="continuation-panel-title">รายละเอียดการรับเงิน</div>
+            <div class="continuation-placeholder">-</div>
+          </div>
+          <div class="continuation-summary-panel">
+            <div class="continuation-panel-title">หมายเหตุ</div>
+            <div class="continuation-placeholder">-</div>
+          </div>
         </section>
         <div class="continuation-signature">( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )</div>
       ` : `
@@ -1086,8 +1125,8 @@ function buildBatchReceiptPrintHtml(entries: CustomerReceiptPrintEntry[], title 
       .label { color: #64748b; font-size: 12px; }
       .value { font-weight: 800; margin-top: 2px; }
       table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
-      th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; }
-      td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
+      th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
+      td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
       tfoot[data-page-totals="placeholder"] td { background: white; color: transparent; height: 28px; }
       .empty-row td { height: 24px; color: transparent; }
@@ -1098,7 +1137,9 @@ function buildBatchReceiptPrintHtml(entries: CustomerReceiptPrintEntry[], title 
       .green { color: #047857; }
       .final-amount { color: #047857; font-weight: 900; }
       .continuation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-      .continuation-empty-panel { min-height: 58px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+      .continuation-summary-panel { min-height: 58px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; padding: 8px; }
+      .continuation-panel-title { font-weight: 900; color: #1e293b; }
+      .continuation-placeholder { margin-top: 8px; color: #94a3b8; }
       .continuation-signature { margin-top: auto; padding-top: 28px; color: #475569; font-weight: 800; text-align: center; }
       .signatures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; margin-top: auto; padding-top: 28px; }
       .sig { color: #475569; text-align: center; }
@@ -2191,6 +2232,7 @@ export function MoneyMovementPageClient({
       printWindow.document.open()
       printWindow.document.write(buildBatchReceiptPrintHtml(entries))
       printWindow.document.close()
+      await prepareCorporatePrintLayout(printWindow.document, { groupAttribute: 'data-print-group' })
       printWindow.focus()
     } catch (caught) {
       printWindow.close()
@@ -2220,6 +2262,7 @@ export function MoneyMovementPageClient({
       printWindow.document.open()
       printWindow.document.write(buildPaymentVoucherPrintHtml(row, detail, profile))
       printWindow.document.close()
+      await prepareCorporatePrintLayout(printWindow.document)
       printWindow.focus()
     } catch (caught) {
       printWindow.close()
@@ -2243,6 +2286,7 @@ export function MoneyMovementPageClient({
       printWindow.document.open()
       printWindow.document.write(buildCustomerReceiptPrintHtml(row, profile))
       printWindow.document.close()
+      await prepareCorporatePrintLayout(printWindow.document)
       printWindow.focus()
     } catch (caught) {
       printWindow.close()
@@ -3456,14 +3500,16 @@ export function MoneyMovementPageClient({
                       <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(bill.totalAmount)}</span>
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
-                    <TableActionButton mobileLabel menu={(
-                      <>
-                        <TableActionMenuItem onSelect={() => openFormForBill(bill)}>รับเงิน</TableActionMenuItem>
-                        {cancelableReceipt ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(cancelableReceipt); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
-                      </>
-                    )} onClick={(event) => event.stopPropagation()} />
-                  </div>
+                  {paymentBillStatus(bill) === 'cancelled' ? null : (
+                    <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
+                      <TableActionButton mobileLabel menu={(
+                        <>
+                          <TableActionMenuItem onSelect={() => openFormForBill(bill)}>รับเงิน</TableActionMenuItem>
+                          {cancelableReceipt ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(cancelableReceipt); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
+                        </>
+                      )} onClick={(event) => event.stopPropagation()} />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -3529,12 +3575,14 @@ export function MoneyMovementPageClient({
                       <TableCell className="whitespace-nowrap text-center text-xs font-medium text-slate-600">{formatDateTimeDisplay(bill.receiptUpdatedAt)}</TableCell>
                       <TableCell className="truncate text-xs font-medium text-slate-700">{bill.receiptUpdatedBy || '-'}</TableCell>
                       <TableCell className="text-center">
-                        <TableActionButton menu={(
-                          <>
-                            <TableActionMenuItem onSelect={() => openFormForBill(bill)}>รับเงิน</TableActionMenuItem>
-                            {cancelableReceipt ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(cancelableReceipt); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
-                          </>
-                        )} />
+                        {paymentBillStatus(bill) === 'cancelled' ? null : (
+                          <TableActionButton menu={(
+                            <>
+                              <TableActionMenuItem onSelect={() => openFormForBill(bill)}>รับเงิน</TableActionMenuItem>
+                              {cancelableReceipt ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(cancelableReceipt); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
+                            </>
+                          )} />
+                        )}
                       </TableCell>
                     </TableRow>
                   )
@@ -3624,7 +3672,8 @@ export function MoneyMovementPageClient({
               const supplier = supplierMap.get(bill.supplierId ?? '')
               const supplierBankAccounts = approvalBankAccountLines(bill).length > 0 ? approvalBankAccountLines(bill) : supplierBankAccountLines(supplier, paymentMethods)
               const bankAccount = supplierBankAccounts[0]
-              const canCancelApproval = (bill.paidAmount ?? 0) <= 0.01 && Boolean(bill.approvalId)
+              const isCancelled = paymentBillStatus(bill) === 'cancelled'
+              const canCancelApproval = !isCancelled && (bill.paidAmount ?? 0) <= 0.01 && Boolean(bill.approvalId)
               const showApprovedAmount = Math.abs((bill.totalAmount ?? 0) - balance) > 0.01
               return (
                 <div
@@ -3677,14 +3726,16 @@ export function MoneyMovementPageClient({
                       {showApprovedAmount ? <span className="mt-0.5 block text-xs text-slate-500">อนุมัติ {formatMoney(bill.totalAmount)}</span> : null}
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
-                    <TableActionButton mobileLabel menu={(
-                      <>
-                        <TableActionMenuItem onSelect={() => openFormForBill(bill)}>ทำจ่าย</TableActionMenuItem>
-                        {canCancelApproval ? <TableActionMenuItem onSelect={() => { setCancelApprovalTarget(bill); setCancelApprovalReason(''); setError(null) }}>ยกเลิก</TableActionMenuItem> : null}
-                      </>
-                    )} />
-                  </div>
+                  {isCancelled ? null : (
+                    <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
+                      <TableActionButton mobileLabel menu={(
+                        <>
+                          <TableActionMenuItem onSelect={() => openFormForBill(bill)}>ทำจ่าย</TableActionMenuItem>
+                          {canCancelApproval ? <TableActionMenuItem onSelect={() => { setCancelApprovalTarget(bill); setCancelApprovalReason(''); setError(null) }}>ยกเลิก</TableActionMenuItem> : null}
+                        </>
+                      )} />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -3720,7 +3771,8 @@ export function MoneyMovementPageClient({
                     const supplier = supplierMap.get(bill.supplierId ?? '')
                     const approvalAccounts = approvalBankAccountLines(bill)
                     const supplierBankAccounts = approvalAccounts.length > 0 ? approvalAccounts : supplierBankAccountLines(supplier, paymentMethods)
-                    const canCancelApproval = (bill.paidAmount ?? 0) <= 0.01 && Boolean(bill.approvalId)
+                    const isCancelled = paymentBillStatus(bill) === 'cancelled'
+                    const canCancelApproval = !isCancelled && (bill.paidAmount ?? 0) <= 0.01 && Boolean(bill.approvalId)
                     return (
                       <TableRow key={`${bill.id}:${bill.approvalId ?? 'no-approval'}`} className="group hover:bg-slate-50">
                         <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">
@@ -3767,12 +3819,14 @@ export function MoneyMovementPageClient({
                         <TableCell className={`whitespace-nowrap text-right pr-4 text-xs font-semibold tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</TableCell>
                         <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{ageInDays(bill.date)}</TableCell>
                         <TableCell className="sticky right-0 z-10 bg-white text-center group-hover:bg-slate-50">
-                          <TableActionButton menu={(
-                            <>
-                              <TableActionMenuItem onSelect={() => openFormForBill(bill)}>ทำจ่าย</TableActionMenuItem>
-                              {canCancelApproval ? <TableActionMenuItem onSelect={() => { setCancelApprovalTarget(bill); setCancelApprovalReason(''); setError(null) }}>ยกเลิก</TableActionMenuItem> : null}
-                            </>
-                          )} />
+                          {isCancelled ? null : (
+                            <TableActionButton menu={(
+                              <>
+                                <TableActionMenuItem onSelect={() => openFormForBill(bill)}>ทำจ่าย</TableActionMenuItem>
+                                {canCancelApproval ? <TableActionMenuItem onSelect={() => { setCancelApprovalTarget(bill); setCancelApprovalReason(''); setError(null) }}>ยกเลิก</TableActionMenuItem> : null}
+                              </>
+                            )} />
+                          )}
                         </TableCell>
                       </TableRow>
                     )
@@ -4579,14 +4633,16 @@ export function MoneyMovementPageClient({
                             <span className={`font-bold text-sm tabular-nums ${theme.strong}`}>{formatMoney(historyBookNetAmount(row, mode))}</span>
                           </div>
                         </div>
-                        <TableActionButton mobileLabel menu={(
-                          <>
-                            <TableActionMenuItem onSelect={() => { if (mode === 'payment') void openPaymentHistoryRow(row); else openReceiptDetail(row) }}>ดูรายละเอียด</TableActionMenuItem>
-                            {row.status !== 'cancelled' && mode === 'receipt' ? <TableActionMenuItem onSelect={() => openFormForReceipt(row)}>แก้ไข</TableActionMenuItem> : null}
-                            {row.status !== 'cancelled' && mode === 'receipt' ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(row); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
-                            {row.status !== 'cancelled' && mode !== 'receipt' ? <TableActionMenuItem onSelect={() => setCancelPaymentTarget(row)}>ยกเลิก</TableActionMenuItem> : null}
-                          </>
-                        )} />
+                        {row.status === 'cancelled' ? null : (
+                          <TableActionButton mobileLabel menu={(
+                            <>
+                              <TableActionMenuItem onSelect={() => { if (mode === 'payment') void openPaymentHistoryRow(row); else openReceiptDetail(row) }}>ดูรายละเอียด</TableActionMenuItem>
+                              {mode === 'receipt' ? <TableActionMenuItem onSelect={() => openFormForReceipt(row)}>แก้ไข</TableActionMenuItem> : null}
+                              {mode === 'receipt' ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(row); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
+                              {mode !== 'receipt' ? <TableActionMenuItem onSelect={() => setCancelPaymentTarget(row)}>ยกเลิก</TableActionMenuItem> : null}
+                            </>
+                          )} />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -4631,7 +4687,12 @@ export function MoneyMovementPageClient({
                     <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label={mode === 'receipt' ? 'เงินเข้าสุทธิ (THB)' : 'สุทธิ'} resizeProps={historyColumnResize.getResizeHandleProps('netAmount', mode === 'receipt' ? 'เงินเข้าสุทธิ (THB)' : 'สุทธิ')} sortKey="netAmount" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="center" direction={historySortDirection} label="สถานะ" resizeProps={historyColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="หมายเหตุ" resizeProps={historyColumnResize.getResizeHandleProps('notes', 'หมายเหตุ')} sortKey="notes" onSort={toggleHistorySort} />
-                    <ResizableTableHead align="center" label="จัดการ" resizeProps={historyColumnResize.getResizeHandleProps('action', 'จัดการ')} />
+                    <ResizableTableHead
+                      align="center"
+                      className="sticky right-0 z-20 bg-slate-100 shadow-[-4px_0_6px_-4px_rgba(15,23,42,0.24)]"
+                      label="จัดการ"
+                      resizeProps={historyColumnResize.getResizeHandleProps('action', 'จัดการ')}
+                    />
                   </tr>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
@@ -4649,7 +4710,7 @@ export function MoneyMovementPageClient({
                     return (
                       <TableRow
                         key={row.id}
-                        className={row.status === 'cancelled' ? 'bg-red-100/60 text-slate-400' : 'hover:bg-slate-50'}
+                        className={row.status === 'cancelled' ? 'group bg-red-100/60 text-slate-400' : 'group hover:bg-slate-50'}
                       >
                         {mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? (
                           <TableCell className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -4695,15 +4756,17 @@ export function MoneyMovementPageClient({
                           </div>
                         </TableCell>
                         <TableCell className="max-w-56 truncate text-sm font-medium text-slate-700">{row.notes || '-'}</TableCell>
-                        <TableCell className="p-2 text-center">
-                          <TableActionButton menu={(
-                            <>
-                              <TableActionMenuItem onSelect={() => { if (mode === 'payment') void openPaymentHistoryRow(row); else openReceiptDetail(row) }}>ดูรายละเอียด</TableActionMenuItem>
-                              {row.status !== 'cancelled' && mode === 'receipt' ? <TableActionMenuItem onSelect={() => openFormForReceipt(row)}>แก้ไข</TableActionMenuItem> : null}
-                              {row.status !== 'cancelled' && mode === 'receipt' ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(row); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
-                              {row.status !== 'cancelled' && mode !== 'receipt' ? <TableActionMenuItem onSelect={() => setCancelPaymentTarget(row)}>ยกเลิก</TableActionMenuItem> : null}
-                            </>
-                          )} />
+                        <TableCell className={`sticky right-0 z-10 p-2 text-center shadow-[-4px_0_6px_-4px_rgba(15,23,42,0.18)] ${row.status === 'cancelled' ? 'bg-red-100/60' : 'bg-white group-hover:bg-slate-50'}`}>
+                          {row.status === 'cancelled' ? null : (
+                            <TableActionButton menu={(
+                              <>
+                                <TableActionMenuItem onSelect={() => { if (mode === 'payment') void openPaymentHistoryRow(row); else openReceiptDetail(row) }}>ดูรายละเอียด</TableActionMenuItem>
+                                {mode === 'receipt' ? <TableActionMenuItem onSelect={() => openFormForReceipt(row)}>แก้ไข</TableActionMenuItem> : null}
+                                {mode === 'receipt' ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(row); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
+                                {mode !== 'receipt' ? <TableActionMenuItem onSelect={() => setCancelPaymentTarget(row)}>ยกเลิก</TableActionMenuItem> : null}
+                              </>
+                            )} />
+                          )}
                         </TableCell>
                       </TableRow>
                     )
@@ -4764,7 +4827,6 @@ export function MoneyMovementPageClient({
       {mode === 'receipt' ? (
         <ReceiptDetailDialog
           open={receiptDetailOpen}
-          readOnly
           row={receiptDetailRow}
           onCancel={(row) => {
             setReceiptDetailOpen(false)
@@ -5163,6 +5225,7 @@ function ReceivableBillDetailDialog({
   const balance = bill?.receivableBalance ?? 0
   const receivedAmount = Math.max(0, (bill?.totalAmount ?? 0) - balance)
   const receiptDocNo = bill ? receiptQueueDocNo(bill) : '-'
+  const canManage = bill ? paymentBillStatus(bill) !== 'cancelled' : false
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden rounded-md !p-0 flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" fallbackTitle="รายละเอียดใบรับเงินลูกค้า" hideClose>
@@ -5177,8 +5240,8 @@ function ReceivableBillDetailDialog({
               <Printer className="h-4 w-4" />
               พิมพ์
             </UiButton>
-            <UiButton className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" disabled={!bill} type="button" variant="outline" onClick={() => bill && onEdit(bill)}>แก้ไข</UiButton>
-            {cancelableReceipt ? (
+            {canManage ? <UiButton className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" disabled={!bill} type="button" variant="outline" onClick={() => bill && onEdit(bill)}>แก้ไข</UiButton> : null}
+            {canManage && cancelableReceipt ? (
               <UiButton
                 className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white"
                 title={`ยกเลิกใบรับเงิน ${cancelableReceipt.docNo}`}

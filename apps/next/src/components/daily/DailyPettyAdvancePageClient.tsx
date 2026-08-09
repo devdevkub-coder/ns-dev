@@ -691,7 +691,15 @@ export function DailyPettyAdvancePageClient() {
         </div>
       ) : null}
 
-      {detailRow ? <DetailModal row={detailRow} onClose={() => setDetailRow(null)} onReturn={openReturnForm} /> : null}
+      {detailRow ? <DetailModal
+        row={detailRow}
+        onClose={() => setDetailRow(null)}
+        onEdit={(row) => {
+          setDetailRow(null)
+          openEditForm(row)
+        }}
+        onReturn={openReturnForm}
+      /> : null}
 
       {/* Table Card Controls */}
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
@@ -774,15 +782,17 @@ export function DailyPettyAdvancePageClient() {
                 </div>
               </div>
             </div>
-            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
-              <TableActionButton mobileLabel menu={(
-                <>
-                  <TableActionMenuItem onSelect={() => setDetailRow(row)}>ดูรายละเอียด</TableActionMenuItem>
-                  {row.status === 'active' && row.remaining > 0 && row.pendingReturn <= 0 ? <TableActionMenuItem onSelect={() => openReturnForm(row)}>คืนเงิน</TableActionMenuItem> : null}
-                  {row.status === 'active' ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                </>
-              )} />
-            </div>
+            {row.status === 'cancelled' ? null : (
+              <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                <TableActionButton mobileLabel menu={(
+                  <>
+                    <TableActionMenuItem onSelect={() => setDetailRow(row)}>ดูรายละเอียด</TableActionMenuItem>
+                    {row.status === 'active' && row.remaining > 0 && row.pendingReturn <= 0 ? <TableActionMenuItem onSelect={() => openReturnForm(row)}>คืนเงิน</TableActionMenuItem> : null}
+                    {row.status === 'active' ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                  </>
+                )} />
+              </div>
+            )}
           </div>
         ))}
         {!isLoading && filteredRows.length === 0 ? (
@@ -826,7 +836,7 @@ export function DailyPettyAdvancePageClient() {
                 <td className={`p-2 pr-4 text-right font-bold tabular-nums ${row.remaining > 1 ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(row.remaining)}</td>
                 <td className="p-2 text-center"><StatusBadge status={row.status} /></td>
                 <td className="whitespace-nowrap p-2 text-center">
-                  <TableActionButton
+                  {row.status === 'cancelled' ? null : <TableActionButton
                     menu={(
                       <>
                         <TableActionMenuItem onSelect={() => setDetailRow(row)}>ดูรายละเอียด</TableActionMenuItem>
@@ -834,7 +844,7 @@ export function DailyPettyAdvancePageClient() {
                         {row.status === 'active' ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
                       </>
                     )}
-                  />
+                  />}
                 </td>
               </tr>
             ))}
@@ -847,9 +857,10 @@ export function DailyPettyAdvancePageClient() {
   )
 }
 
-function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn: (row: PettyAdvanceRow) => void; row: PettyAdvanceRow }) {
+function DetailModal({ onClose, onEdit, onReturn, row }: { onClose: () => void; onEdit: (row: PettyAdvanceRow) => void; onReturn: (row: PettyAdvanceRow) => void; row: PettyAdvanceRow }) {
   const returns = row.returns ?? []
   const canReturn = row.status === 'active' && row.remaining > 0 && row.pendingReturn <= 0
+  const canEdit = row.status === 'active'
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onClick={onClose}>
       <div className="w-full max-w-4xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onClick={(event) => event.stopPropagation()}>
@@ -859,6 +870,11 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
             <p className="mt-0.5 text-xs">{typeLabel(row.type)} · วันที่จ่าย {formatDateDisplay(row.date)} · จำนวน {formatMoney(row.amount)} บาท</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {canEdit ? (
+              <button className="h-9 rounded-md border border-slate-600 bg-slate-800 px-4 text-sm font-normal text-white outline-none hover:bg-slate-700" type="button" onClick={() => onEdit(row)}>
+                แก้ไข
+              </button>
+            ) : null}
             {canReturn ? (
               <button className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white outline-none hover:bg-emerald-700" type="button" onClick={() => onReturn(row)}>
                 คืนเงิน

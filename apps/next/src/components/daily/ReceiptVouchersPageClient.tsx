@@ -797,15 +797,17 @@ export function ReceiptVouchersPageClient() {
                   <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(row.totalAmount)}</span>
                 </div>
               </div>
-              <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
-                <TableActionButton busy={printingDocNo === row.docNo} mobileLabel menu={(
-                  <>
-                    <TableActionMenuItem disabled={printingDocNo === row.docNo} onSelect={() => void printReceiptVoucher(row)}>พิมพ์</TableActionMenuItem>
-                    {row.status !== 'cancelled' ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                    {row.status !== 'cancelled' ? <TableActionMenuItem onSelect={() => { setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</TableActionMenuItem> : null}
-                  </>
-                )} />
-              </div>
+              {row.status === 'cancelled' ? null : (
+                <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                  <TableActionButton busy={printingDocNo === row.docNo} mobileLabel menu={(
+                    <>
+                      <TableActionMenuItem disabled={printingDocNo === row.docNo} onSelect={() => void printReceiptVoucher(row)}>พิมพ์</TableActionMenuItem>
+                      <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
+                      <TableActionMenuItem onSelect={() => { setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</TableActionMenuItem>
+                    </>
+                  )} />
+                </div>
+              )}
             </div>
           ))}
           {!isLoading && totalRows === 0 ? (
@@ -848,16 +850,16 @@ export function ReceiptVouchersPageClient() {
                   <TableNumberCell value={formatMoney(row.totalQty)} />
                   <TableNumberCell strong value={formatMoney(row.totalAmount)} />
                   <td className="whitespace-nowrap p-2 text-center">
-                    <TableActionButton
+                    {row.status === 'cancelled' ? null : <TableActionButton
                       busy={printingDocNo === row.docNo}
                       menu={(
                         <>
                           <TableActionMenuItem disabled={printingDocNo === row.docNo} onSelect={() => void printReceiptVoucher(row)}>พิมพ์</TableActionMenuItem>
-                          {row.status !== 'cancelled' ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                          {row.status !== 'cancelled' ? <TableActionMenuItem onSelect={() => { setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</TableActionMenuItem> : null}
+                          <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
+                          <TableActionMenuItem onSelect={() => { setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</TableActionMenuItem>
                         </>
                       )}
-                    />
+                    />}
                   </td>
                 </TableRow>
               ))}
@@ -886,7 +888,23 @@ export function ReceiptVouchersPageClient() {
         />
       ) : null}
 
-      {detailRow ? <ReceiptVoucherDetailModal row={detailRow} onClose={() => setDetailRow(null)} onPrint={() => void printReceiptVoucher(detailRow)} /> : null}
+      {detailRow ? <ReceiptVoucherDetailModal
+        row={detailRow}
+        onClose={() => setDetailRow(null)}
+        onEdit={() => {
+          const row = detailRow
+          setDetailRow(null)
+          openEditForm(row)
+        }}
+        onCancel={() => {
+          const row = detailRow
+          setDetailRow(null)
+          setCancelingRow(row)
+          setCancelNote('')
+          setCancelError(null)
+        }}
+        onPrint={() => void printReceiptVoucher(detailRow)}
+      /> : null}
       {cancelingRow ? (
         <CancelReceiptVoucherDialog
           error={cancelError}
@@ -1227,7 +1245,7 @@ function StatusPill({ status }: { status: string }) {
   )
 }
 
-function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => void; onPrint: () => void; row: ReceiptVoucherRow }) {
+function ReceiptVoucherDetailModal({ onCancel, onClose, onEdit, onPrint, row }: { onCancel: () => void; onClose: () => void; onEdit: () => void; onPrint: () => void; row: ReceiptVoucherRow }) {
   const timeline = row.timeline ?? []
   return (
     <Dialog open onOpenChange={(open) => {
@@ -1248,6 +1266,10 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
                 <Printer className="size-4" />
                 <span className="sr-only sm:not-sr-only">พิมพ์</span>
               </Button>
+              {row.status !== 'cancelled' ? <>
+                <Button className="h-10 shrink-0 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white sm:h-9" type="button" variant="outline" onClick={onEdit}>แก้ไข</Button>
+                <Button className="h-10 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white sm:h-9" type="button" variant="outline" onClick={onCancel}>ยกเลิก</Button>
+              </> : null}
               <Button className="h-10 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white sm:h-9" type="button" variant="outline" onClick={onClose}>ปิด</Button>
             </div>
           </div>

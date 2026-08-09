@@ -1045,15 +1045,17 @@ export function AdvancePaymentsPageClient() {
                     <span className="font-bold text-amber-700 text-sm tabular-nums">{formatMoney(row.remainingAmount)}</span>
                   </div>
                 </div>
-                <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
-                  <TableActionButton mobileLabel menu={(
-                    <>
-                      <TableActionMenuItem onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
-                      <TableActionMenuItem disabled={!row.canEdit} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
-                      <TableActionMenuItem disabled={!row.canCancel} onSelect={() => void openCancelFromRow(row.id)}>ยกเลิก</TableActionMenuItem>
-                    </>
-                  )} />
-                </div>
+                {row.status === 'cancelled' ? null : (
+                  <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                    <TableActionButton mobileLabel menu={(
+                      <>
+                        <TableActionMenuItem onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
+                        <TableActionMenuItem disabled={!row.canEdit} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
+                        <TableActionMenuItem disabled={!row.canCancel} onSelect={() => void openCancelFromRow(row.id)}>ยกเลิก</TableActionMenuItem>
+                      </>
+                    )} />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1107,13 +1109,13 @@ export function AdvancePaymentsPageClient() {
                     <TableNumberCell tone="amber" value={formatMoney(row.remainingAmount)} />
                     <td className="whitespace-nowrap p-3 text-center"><StatusDot status={row.status} label={row.statusLabel} /></td>
                     <td className="p-3 text-center">
-                      <TableActionButton menu={(
+                      {row.status === 'cancelled' ? null : <TableActionButton menu={(
                         <>
                           <TableActionMenuItem onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
                           <TableActionMenuItem disabled={!row.canEdit} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
                           <TableActionMenuItem disabled={!row.canCancel} onSelect={() => void openCancelFromRow(row.id)}>ยกเลิก</TableActionMenuItem>
                         </>
-                      )} />
+                      )} />}
                     </td>
                   </tr>
                 ))}
@@ -1143,26 +1145,30 @@ export function AdvancePaymentsPageClient() {
                 >
                   พิมพ์
                 </Button>
-                <Button
-                  className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white"
-                  disabled={!detail?.canEdit}
-                  title={!detail?.canEdit ? detail?.lockedReason ?? 'รายการนี้ยังแก้ไขไม่ได้' : undefined}
-                  type="button"
-                  variant="outline"
-                  onClick={() => detail ? openEditForm(detail) : undefined}
-                >
-                  แก้ไข
-                </Button>
-                <Button
-                  className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white"
-                  disabled={!detail?.canCancel}
-                  title={!detail?.canCancel ? detail?.lockedReason ?? 'รายการนี้ยังยกเลิกไม่ได้' : undefined}
-                  type="button"
-                  variant="outline"
-                  onClick={() => detail ? openCancelDialog(detail) : undefined}
-                >
-                  ยกเลิก
-                </Button>
+                {detail?.status !== 'cancelled' ? (
+                  <>
+                    <Button
+                      className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white"
+                      disabled={!detail?.canEdit}
+                      title={!detail?.canEdit ? detail?.lockedReason ?? 'รายการนี้ยังแก้ไขไม่ได้' : undefined}
+                      type="button"
+                      variant="outline"
+                      onClick={() => detail ? openEditForm(detail) : undefined}
+                    >
+                      แก้ไข
+                    </Button>
+                    <Button
+                      className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white"
+                      disabled={!detail?.canCancel}
+                      title={!detail?.canCancel ? detail?.lockedReason ?? 'รายการนี้ยังยกเลิกไม่ได้' : undefined}
+                      type="button"
+                      variant="outline"
+                      onClick={() => detail ? openCancelDialog(detail) : undefined}
+                    >
+                      ยกเลิก
+                    </Button>
+                  </>
+                ) : null}
                 <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => setIsDetailOpen(false)}>ปิด</Button>
               </div>
             </div>

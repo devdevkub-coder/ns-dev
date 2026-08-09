@@ -118,6 +118,10 @@ function formSafetySnapshot(form: StockTransferFormValues) {
   return JSON.stringify(form)
 }
 
+function canManageStockTransferRow(row: Pick<Row, 'canCancel' | 'canEdit' | 'canPost' | 'status'>) {
+  return row.status !== 'cancelled' && (row.canEdit || row.canPost || row.canCancel)
+}
+
 export function StockTransferPageClient() {
   const { requestConfirmation } = useActionConfirmation()
   const [data, setData] = useState<Payload>({ branches: [], page: 1, pageSize: 10, permissions: { canCancel: false, canCreate: false, canPost: false }, products: [], rows: [], sourceStock: [], summary: { totalQty: 0, totalRows: 0, totalValue: 0 }, totalRows: 0, warehouses: [] })
@@ -231,7 +235,7 @@ export function StockTransferPageClient() {
     })
   }, [data.rows, sortDirection, sortKey])
   const hasRowActions = useMemo(
-    () => sortedRows.some((row) => row.canEdit || row.canPost || row.canCancel),
+    () => sortedRows.some((row) => canManageStockTransferRow(row)),
     [sortedRows],
   )
   const visibleColumns = useMemo(
@@ -896,8 +900,34 @@ export function StockTransferPageClient() {
         <Dialog open onOpenChange={(open) => { if (!open) setDetailRow(null) }}>
           <DialogContent hideClose mobileAppShell={false} aria-labelledby="stock-transfer-detail-title" className="max-w-5xl rounded-md !p-0 overflow-hidden flex max-h-[90vh] flex-col bg-slate-900 border-0 outline-none focus:outline-none">
             <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white">
-              <DialogTitle id="stock-transfer-detail-title" className="text-lg text-white">รายละเอียดโอนสินค้าระหว่างสาขา {detailRow.docNo}</DialogTitle>
-              <DialogDescription className="text-slate-300">ข้อมูลเอกสาร การเคลื่อนไหวสินค้า และต้นทุนจากรายการโอน</DialogDescription>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <div className="min-w-0">
+                  <DialogTitle id="stock-transfer-detail-title" className="text-lg text-white">รายละเอียดโอนสินค้าระหว่างสาขา {detailRow.docNo}</DialogTitle>
+                  <DialogDescription className="text-slate-300">ข้อมูลเอกสาร การเคลื่อนไหวสินค้า และต้นทุนจากรายการโอน</DialogDescription>
+                </div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  {detailRow.status !== 'cancelled' ? (
+                    <>
+                      <Button className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" disabled={!detailRow.canEdit || isSaving} type="button" variant="outline" onClick={() => {
+                        const row = detailRow
+                        setDetailRow(null)
+                        openEditForm(row)
+                      }}>แก้ไข</Button>
+                      <Button className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" disabled={!detailRow.canPost || isSaving} type="button" variant="outline" onClick={() => {
+                        const row = detailRow
+                        setDetailRow(null)
+                        void postDraft(row)
+                      }}>ยืนยันโอนสินค้า</Button>
+                      <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" disabled={!detailRow.canCancel || isSaving} type="button" variant="outline" onClick={() => {
+                        const row = detailRow
+                        setDetailRow(null)
+                        cancelDraft(row)
+                      }}>ยกเลิก</Button>
+                    </>
+                  ) : null}
+                  <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => setDetailRow(null)}>ปิด</Button>
+                </div>
+              </div>
             </DialogHeader>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 sm:p-5">
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -976,9 +1006,6 @@ export function StockTransferPageClient() {
                 </div>
               </div>
             </div>
-            <DialogFooter className="shrink-0 bg-white">
-              <Button type="button" variant="secondary" onClick={() => setDetailRow(null)}>ปิด</Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       ) : null}
@@ -1055,7 +1082,7 @@ export function StockTransferPageClient() {
               <SummaryCell label="รายการ" value={`${row.itemCount.toLocaleString('th-TH')} รายการ`} />
               <SummaryCell label="วันที่สร้างรายการ" value={formatDateTime(row.createdAt)} />
             </div>
-            {hasRowActions ? (
+            {canManageStockTransferRow(row) ? (
               <div className="mt-3 flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
                 <TableActionButton mobileLabel menu={(
                   <>
@@ -1123,7 +1150,7 @@ export function StockTransferPageClient() {
                 <TableCell className="text-center"><StatusBadge status={row.status} /></TableCell>
                 {hasRowActions ? (
                   <TableCell className="whitespace-nowrap text-center" onClick={(event) => event.stopPropagation()}>
-                    <div className="flex justify-center gap-1">
+                    {canManageStockTransferRow(row) ? <div className="flex justify-center gap-1">
                       <RowActionButton
                         menu={(
                           <>
@@ -1135,7 +1162,7 @@ export function StockTransferPageClient() {
                         label="จัดการ"
                         onClick={() => undefined}
                       />
-                    </div>
+                    </div> : null}
                   </TableCell>
                 ) : null}
               </TableRow>

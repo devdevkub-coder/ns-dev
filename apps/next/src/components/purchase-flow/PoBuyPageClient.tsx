@@ -1093,16 +1093,18 @@ export function PoBuyPageClient() {
                 </span>
               </div>
             </div>
-            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
-              <TableActionButton mobileLabel menu={(
-                <>
-                  {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                  {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
-                  <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
-                  {shouldShowShortCloseButton(row) ? <TableActionMenuItem disabled={!canShortClosePoBuy(row)} onSelect={() => openShortCloseDialog(row)}>ปิดรับไม่ครบ</TableActionMenuItem> : null}
-                </>
-              )} />
-            </div>
+            {poBuyStatusKey(row.status) === 'cancelled' ? null : (
+              <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                <TableActionButton mobileLabel menu={(
+                  <>
+                    {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                    {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
+                    <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
+                    {shouldShowShortCloseButton(row) ? <TableActionMenuItem disabled={!canShortClosePoBuy(row)} onSelect={() => openShortCloseDialog(row)}>ปิดรับไม่ครบ</TableActionMenuItem> : null}
+                  </>
+                )} />
+              </div>
+            )}
           </div>
         ))}
 
@@ -1165,14 +1167,14 @@ export function PoBuyPageClient() {
                 </TableCell>
                 <TableCell className="w-28 whitespace-nowrap text-center text-xs text-slate-600"><div className="truncate">{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-xs text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></TableCell>
                 <TableCell className="whitespace-nowrap text-center">
-                  <TableActionButton menu={(
+                  {poBuyStatusKey(row.status) === 'cancelled' ? null : <TableActionButton menu={(
                     <>
                       {data?.capabilities.update && row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
                       {data?.capabilities.cancel && row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
                       <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
                       {data?.capabilities.shortClose && shouldShowShortCloseButton(row) ? <TableActionMenuItem disabled={!canShortClosePoBuy(row)} onSelect={() => openShortCloseDialog(row)}>ปิดรับไม่ครบ</TableActionMenuItem> : null}
                     </>
-                  )} />
+                  )} />}
                 </TableCell>
               </TableRow>
             ))}

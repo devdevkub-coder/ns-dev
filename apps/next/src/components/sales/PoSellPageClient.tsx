@@ -99,6 +99,10 @@ function canShortClosePoSell(row: PoSellRow) {
   return row.canShortClose && (row.documentStatus === 'open' || row.documentStatus === 'partial') && row.remainingQty > 0
 }
 
+function isCancelledPoSell(row: Pick<PoSellRow, 'documentStatus' | 'status'>) {
+  return row.documentStatus === 'cancelled' || row.status === 'cancelled'
+}
+
 type StatusFilterOption = {
   label: string
   value: string
@@ -917,16 +921,18 @@ export function PoSellPageClient() {
                 </span>
               </div>
             </div>
-            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
-              <TableActionButton mobileLabel menu={(
-                <>
-                  {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                  <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoSell(row)}>พิมพ์</TableActionMenuItem>
-                  {canShortClosePoSell(row) ? <TableActionMenuItem disabled={isSaving} onSelect={() => openShortCloseDialog(row)}>ปิดส่งไม่ครบ</TableActionMenuItem> : null}
-                  {row.canCancel ? <TableActionMenuItem disabled={isSaving} onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
-                </>
-              )} />
-            </div>
+            {isCancelledPoSell(row) ? null : (
+              <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                <TableActionButton mobileLabel menu={(
+                  <>
+                    {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                    <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoSell(row)}>พิมพ์</TableActionMenuItem>
+                    {canShortClosePoSell(row) ? <TableActionMenuItem disabled={isSaving} onSelect={() => openShortCloseDialog(row)}>ปิดส่งไม่ครบ</TableActionMenuItem> : null}
+                    {row.canCancel ? <TableActionMenuItem disabled={isSaving} onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
+                  </>
+                )} />
+              </div>
+            )}
           </div>
         ))}
 
@@ -996,14 +1002,14 @@ export function PoSellPageClient() {
                 <div className="truncate font-mono text-xs text-slate-400" title={formatTimestampDisplay(row.updatedAt)}>{formatTimestampDisplay(row.updatedAt)}</div>
               </TableCell>
               <TableCell className="whitespace-nowrap text-center">
-                <TableActionButton menu={(
+                {isCancelledPoSell(row) ? null : <TableActionButton menu={(
                   <>
                     {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
                     <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoSell(row)}>พิมพ์</TableActionMenuItem>
                     {canShortClosePoSell(row) ? <TableActionMenuItem disabled={isSaving} onSelect={() => openShortCloseDialog(row)}>ปิดส่งไม่ครบ</TableActionMenuItem> : null}
                     {row.canCancel ? <TableActionMenuItem disabled={isSaving} onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
                   </>
-                )} />
+                )} />}
               </TableCell>
             </TableRow>
           ))}
@@ -1028,6 +1034,14 @@ export function PoSellPageClient() {
           isPrinting={printingPoDocNo === selectedRow.docNo}
           row={selectedRow}
           onClose={() => setSelectedRow(null)}
+          onEdit={(rowToEdit) => {
+            setSelectedRow(null)
+            openEditForm(rowToEdit)
+          }}
+          onCancel={(rowToCancel) => {
+            setSelectedRow(null)
+            openCancelDialog(rowToCancel)
+          }}
           onShortClose={(rowToShortClose) => {
             setSelectedRow(null)
             openShortCloseDialog(rowToShortClose)
@@ -1599,12 +1613,16 @@ function PoSellShortCloseModal({
 
 function PoSellDetailModal({
   onClose,
+  onCancel,
+  onEdit,
   row,
   isPrinting,
   onShortClose,
   onPrint,
 }: {
   onClose: () => void
+  onCancel: (row: PoSellRow) => void
+  onEdit: (row: PoSellRow) => void
   row: PoSellRow
   isPrinting: boolean
   onShortClose: (row: PoSellRow) => void
@@ -1622,7 +1640,13 @@ function PoSellDetailModal({
             <DialogDescription className="truncate text-slate-300">{row.customerName}</DialogDescription>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
-            {canShortClosePoSell(row) ? (
+            {!isCancelledPoSell(row) && row.canEdit ? (
+              <UiButton className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" type="button" variant="outline" onClick={() => onEdit(row)}>แก้ไข</UiButton>
+            ) : null}
+            {!isCancelledPoSell(row) && row.canCancel ? (
+              <UiButton className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => onCancel(row)}>ยกเลิก</UiButton>
+            ) : null}
+            {!isCancelledPoSell(row) && canShortClosePoSell(row) ? (
               <UiButton
                 className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white"
                 type="button"

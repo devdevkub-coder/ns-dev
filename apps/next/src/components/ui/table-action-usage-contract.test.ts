@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 const actionHeaderPattern = /label=["'](?:การ)?จัดการ["']|>\s*(?:การ)?จัดการ\s*<\/th>|label:\s*["'](?:การ)?จัดการ["']/
 const actionColumnDefinitionPattern = /\{[^{}]*key:\s*["'](?:__)?actions?["'][^{}]*defaultWidth:\s*\d+[^{}]*\}/g
+const sharedActionTriggerPattern = /<(?:TableActionButton|LedgerActionMenu)\b/
 
 function listTsxFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -25,7 +26,7 @@ function getTableActionSurfaceViolations(file: string): string[] {
       if ((tagName === 'table' || tagName === 'Table') && actionHeaderPattern.test(node.getText(sourceFile))) {
         const surfaceText = node.getText(sourceFile)
         const surfaceLine = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1
-        if (!surfaceText.includes('<TableActionButton') && /<button\b/.test(surfaceText)) {
+        if (!sharedActionTriggerPattern.test(surfaceText) && /<button\b/.test(surfaceText)) {
           violations.push(`${path.relative(path.resolve(process.cwd(), 'src'), file)}:${surfaceLine}: missing TableActionButton`)
         }
 

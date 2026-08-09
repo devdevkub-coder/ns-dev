@@ -621,7 +621,23 @@ export function CustomerAdvanceForm() {
               <DialogTitle className="truncate text-white">{detail ? `รายละเอียด ${detail.docNo}` : `รายละเอียด ${detailDocNo}`}</DialogTitle>
               <DialogDescription className="truncate text-slate-300">ข้อมูลเอกสารรับเงินล่วงหน้า ยอดคงเหลือ และประวัติรายการ</DialogDescription>
             </div>
-            <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={closeDetail}>ปิด</Button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              {detail && detail.status !== 'cancelled' ? (
+                <>
+                  {detail.canEdit ? <Button className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" type="button" variant="outline" onClick={() => {
+                    closeDetail()
+                    void openEditForm(detail)
+                  }}>แก้ไข</Button> : null}
+                  {detail.canCancel ? <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => {
+                    closeDetail()
+                    setSubmitError('')
+                    setCancelReason('')
+                    setCancelRow(detail)
+                  }}>ยกเลิก</Button> : null}
+                </>
+              ) : null}
+              <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={closeDetail}>ปิด</Button>
+            </div>
           </div>
         </DialogHeader>
         {isDetailLoading ? (
@@ -869,12 +885,12 @@ export function CustomerAdvanceForm() {
                         </span>
                       </td>
                       <td className="p-3">
-                        <TableActionButton menu={(
+                        {row.status === 'cancelled' ? null : <TableActionButton menu={(
                           <>
                             <TableActionMenuItem disabled={!row.canEdit} onSelect={() => void openEditForm(row)}>แก้ไข</TableActionMenuItem>
                             <TableActionMenuItem disabled={!row.canCancel} onSelect={() => { setSubmitError(''); setCancelReason(''); setCancelRow(row) }}>ยกเลิก</TableActionMenuItem>
                           </>
-                        )} />
+                        )} />}
                       </td>
                     </tr>
                   ))}

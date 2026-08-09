@@ -998,7 +998,7 @@ export function ProductionOrdersPageClient() {
                         <StatusBadge compact status={row.status} />
                       </td>
                       <td className="p-3 text-center">
-                        <TableActionButton
+                        {row.status === 'Cancelled' ? null : <TableActionButton
                           label="เปิด"
                           menu={(
                             <>
@@ -1023,7 +1023,7 @@ export function ProductionOrdersPageClient() {
                               ) : null}
                             </>
                           )}
-                        />
+                        />}
                       </td>
                     </tr>
                   )
@@ -2081,6 +2081,9 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                   ) : null}
                   {canWrite && row.status !== 'Cancelled' ? (
                     <button className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50 sm:h-9" disabled={isSaving} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิกใบสั่งผลิต</button>
+                  ) : null}
+                  {canWrite ? (
+                    <button className="h-11 rounded-md border border-slate-700 bg-slate-800 px-4 text-sm font-normal text-white hover:bg-slate-700 disabled:opacity-50 sm:h-9" disabled={isSaving} type="button" onClick={() => setTab('input')}>แก้ไข</button>
                   ) : null}
                   <ModalDismissButton disabled={isSaving} onClick={requestModalClose} />
                 </>

@@ -576,7 +576,7 @@ export function DailyTransferPageClient() {
                   <DialogDescription className="mt-1 truncate text-xs text-slate-300">{selectedRow.fromAccountName} → {selectedRow.toAccountName}</DialogDescription>
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                  <Button className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" size="sm" type="button" variant="outline" onClick={() => openEditFromDetail(selectedRow)}>แก้ไข</Button>
+                  {selectedRow.status !== 'cancelled' ? <Button className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" size="sm" type="button" variant="outline" onClick={() => openEditFromDetail(selectedRow)}>แก้ไข</Button> : null}
                   <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" size="sm" type="button" variant="outline" onClick={closeDetail}>ปิด</Button>
                 </div>
               </div>
@@ -660,9 +660,11 @@ export function DailyTransferPageClient() {
                 <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(row.amount)}</span>
               </div>
             </div>
-            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
-              <TableActionButton mobileLabel menu={<TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>} />
-            </div>
+            {row.status === 'cancelled' ? null : (
+              <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                <TableActionButton mobileLabel menu={<TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>} />
+              </div>
+            )}
           </div>
         ))}
         {!isLoading && pagedRows.length === 0 ? (
@@ -716,7 +718,7 @@ export function DailyTransferPageClient() {
                 <TableCell className="text-xs font-semibold text-slate-700">{row.byPerson || '-'}</TableCell>
                 <TableCell className="text-xs font-semibold text-slate-700 truncate max-w-[200px]" title={row.notes ?? ''}>{row.notes || '-'}</TableCell>
                 <TableCell className="whitespace-nowrap text-center">
-                  <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>} />
+                  {row.status === 'cancelled' ? null : <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>} />}
                 </TableCell>
               </TableRow>
             ))}

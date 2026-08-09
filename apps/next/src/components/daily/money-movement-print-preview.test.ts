@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { CompanyProfilePrintValues } from '../../lib/company-profile'
 import {
+  buildPaymentDailyReportHtml,
   buildCustomerReceiptPrintHtml,
   buildPaymentVoucherPrintHtml,
   type MoneyRow,
@@ -39,7 +40,7 @@ const PRINT_BOUNDARIES = [
 ] as const
 
 function transactionPages(html: string, documentType: 'PMT' | 'RCP') {
-  return [...html.matchAll(new RegExp(`<main class="page" data-document-type="${documentType}"[\\s\\S]*?</main>`, 'g'))]
+  return [...html.matchAll(new RegExp(`<main class="page(?: [^"]+)*" data-document-type="${documentType}"[\\s\\S]*?</main>`, 'g'))]
     .map((match) => match[0])
 }
 
@@ -47,20 +48,23 @@ function expectTransactionPagination(html: string, documentType: 'PMT' | 'RCP', 
   const pages = transactionPages(html, documentType)
 
   expect(pages).toHaveLength(expectedPages)
+  expect(html).toMatch(/th\s*\{[^}]*overflow-wrap:\s*anywhere[^}]*word-break:\s*break-word/)
+  expect(html).toMatch(/td\s*\{[^}]*overflow-wrap:\s*anywhere[^}]*word-break:\s*break-word/)
   expect(pages.reduce((count, page) => count + (page.match(/data-row-slot=/g)?.length ?? 0), 0)).toBe(expectedItems)
   pages.forEach((page, pageIndex) => {
     expect(page.match(/<tr(?: data-row-slot=| class="empty-row")/g)).toHaveLength(15)
     if (pageIndex < pages.length - 1) {
       expect(page).toContain('data-page-totals="placeholder"')
-      expect(page).toContain('data-continuation-summary="empty"')
-      expect(page.match(/class="continuation-empty-panel"/g)).toHaveLength(2)
+      expect(page).toContain('data-continuation-summary="placeholder"')
+      expect(page.match(/class="continuation-summary-panel"/g)).toHaveLength(2)
+      expect(page.match(/class="continuation-placeholder"/g)).toHaveLength(2)
       expect(page).not.toContain('data-page-totals="final"')
       expect(page).not.toContain('data-signatures="final"')
     } else {
       expect(page).toContain('data-page-totals="final"')
       expect(page).toContain('data-signatures="final"')
       expect(page).not.toContain('data-page-totals="placeholder"')
-      expect(page).not.toContain('data-continuation-summary="empty"')
+      expect(page).not.toContain('data-continuation-summary="placeholder"')
     }
   })
 }
@@ -133,6 +137,17 @@ function receiptRow(itemCount: number): MoneyRow {
   }
 }
 
+function dailyReportRows(count: number, kind: 'payment' | 'receipt'): MoneyRow[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...paymentRow(),
+    bookAmountThb: kind === 'receipt' ? 100 : undefined,
+    bookNetCashInThb: kind === 'receipt' ? 100 : undefined,
+    docNo: `${kind === 'receipt' ? 'RCP' : 'PMT'}2608-${String(index + 1).padStart(4, '0')}`,
+    id: `${kind}-${index + 1}`,
+    status: kind === 'receipt' ? 'completed' : 'paid',
+  }))
+}
+
 function printBuilderSource(name: string, nextName: string) {
   const start = source.indexOf(`function ${name}`)
   const end = source.indexOf(`function ${nextName}`, start + 1)
@@ -174,8 +189,9 @@ describe('money document print previews', () => {
     for (const builder of [paymentVoucher, customerReceipts]) {
       expect(builder).toContain('data-page-totals="placeholder"')
       expect(builder).toContain('data-page-totals="final"')
-      expect(builder).toContain('data-continuation-summary="empty"')
-      expect(builder.match(/class="continuation-empty-panel"/g)).toHaveLength(2)
+      expect(builder).toContain('data-continuation-summary="placeholder"')
+      expect(builder.match(/class="continuation-summary-panel"/g)).toHaveLength(2)
+      expect(builder.match(/class="continuation-placeholder"/g)).toHaveLength(2)
       expect(builder).toContain('Continued on Page ${page.pageNo + 1}')
       expect(builder).toContain('data-signatures="final"')
     }
@@ -197,6 +213,34 @@ describe('money document print previews', () => {
     })
   })
 
+  it.each([
+    { count: 0, pages: 1 },
+    { count: 1, pages: 1 },
+    { count: 8, pages: 1 },
+    { count: 9, pages: 2 },
+    { count: 23, pages: 2 },
+    { count: 24, pages: 3 },
+  ])('keeps PMT and RCP daily reports within the first-page budget at $count rows', ({ count, pages }) => {
+    for (const kind of ['payment', 'receipt'] as const) {
+      const documentType = kind === 'payment' ? 'PMT' : 'RCP'
+      const html = buildPaymentDailyReportHtml(dailyReportRows(count, kind), profile, {
+        dateFrom: '2026-08-07',
+        dateTo: '2026-08-07',
+        kind,
+        printedAt: new Date('2026-08-07T08:00:00.000Z'),
+      })
+      const reportPages = transactionPages(html, documentType)
+
+      expect(reportPages).toHaveLength(pages)
+      expect(reportPages[0]?.match(/<tr class=/g)?.length).toBe(count === 0 ? 1 : Math.min(count, 8))
+      expect(reportPages.reduce((total, page) => total + (page.match(/<tr class=/g)?.length ?? 0), 0)).toBe(count || 1)
+      reportPages.forEach((page, index) => {
+        expect(page).toContain(`data-print-page="${index + 1}"`)
+        expect(page).toContain(`data-final-page="${index === pages - 1}"`)
+      })
+    }
+  })
+
   it('loads the branch company profile before printing payment and receipt history', () => {
     expect(source).toContain('async function printPaymentVoucher(row: MoneyRow, detail: PaymentHistoryDetail)')
     expect(source).toContain('buildPaymentVoucherPrintHtml(row, detail, profile)')
@@ -205,6 +249,9 @@ describe('money document print previews', () => {
     expect(source).toContain('async function printSelectedReceipts()')
     expect(source).toContain('const entries = await loadCustomerReceiptPrintEntries(rowsToPrint)')
     expect(source).toContain('buildBatchReceiptPrintHtml(entries)')
+    expect(source).toContain('const printGroup = `receipt-${entryIndex + 1}`')
+    expect(source).toContain('data-print-group="${printGroup}"')
+    expect(source).toContain("groupAttribute: 'data-print-group'")
     expect(source.match(/loadCompanyProfileForPrint\(row\.branchId\)/g)?.length).toBeGreaterThanOrEqual(3)
     expect(source).toContain("detail?.type === 'payment'")
     expect(source).toContain('readOnly')

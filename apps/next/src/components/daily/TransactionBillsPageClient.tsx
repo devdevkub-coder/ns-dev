@@ -32,7 +32,8 @@ import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, sanitizeDe
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCancelValues, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { calculatePurchaseBillPostAdvanceTotals } from '@/lib/purchase-advance'
 import { calculateSupplierAdvanceAllocation } from '@/lib/purchase-advance'
-import { openPurchaseBillPrint, openPurchaseBillPrintWindow } from '@/lib/purchase-bill-print'
+import { normalizePurchaseBillPrintText, normalizePurchaseBillPrintUnit, openPurchaseBillPrint, openPurchaseBillPrintWindow } from '@/lib/purchase-bill-print'
+import { parsePurchaseBillRemark } from '@/lib/purchase-bill-print-layout'
 import { calculateSalesNetWeight, normalizeSalesBillWeights, salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
 import { openSalesBillPrint, openSalesBillPrintWindow } from '@/lib/sales-bill-print'
 import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
@@ -100,6 +101,14 @@ type BillRow = {
   vatRatePercent?: number
   warehouseId?: string
   warehouseName?: string
+}
+
+function isCancelledBillStatus(status: string | null | undefined) {
+  return status === 'cancelled' || status === 'cancelled_supplier_swap'
+}
+
+function isCancelledBillRow(row: Pick<BillRow, 'status'>) {
+  return isCancelledBillStatus(row.status)
 }
 
 type PurchaseBillDetailTimelineEvent = {
@@ -193,6 +202,14 @@ type PurchaseBillDetail = {
 
 function isPurchaseBillDetail(row: BillRow | PurchaseBillDetail): row is PurchaseBillDetail {
   return Array.isArray((row as PurchaseBillDetail).allocationRows)
+}
+
+function formatPurchaseBillDetailRemark(value: string | null | undefined) {
+  const remark = parsePurchaseBillRemark(value ?? '')
+  if (remark.kind === 'numbered') {
+    return remark.items.map((item, index) => `${index + 1}. ${normalizePurchaseBillPrintText(item)}`).join('\n')
+  }
+  return normalizePurchaseBillPrintText(remark.text || '-')
 }
 
 function isSalesBillDetail(row: BillRow | SalesBillDetail): row is SalesBillDetail {
@@ -967,6 +984,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [cancelNoteError, setCancelNoteError] = useState('')
   const [cancelingBill, setCancelingBill] = useState<BillRow | null>(null)
   const [detailBill, setDetailBill] = useState<PurchaseBillDetail | null>(null)
+  const [detailRow, setDetailRow] = useState<BillRow | null>(null)
   const [salesDetailBill, setSalesDetailBill] = useState<SalesBillDetail | null>(null)
   const [detailBillDocNo, setDetailBillDocNo] = useState<string | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
@@ -1911,6 +1929,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     const docNo = row.docNo || row.id
     const requestId = latestDetailRequestRef.current + 1
     latestDetailRequestRef.current = requestId
+    setDetailRow(row)
     setDetailBillDocNo(docNo)
     setDetailBill(null)
     setSalesDetailBill(null)
@@ -1937,6 +1956,32 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
   function openListRow(row: BillRow) {
     void openRow(row)
+  }
+
+  function closeDetail() {
+    latestDetailRequestRef.current += 1
+    setDetailBillDocNo(null)
+    setDetailBill(null)
+    setDetailRow(null)
+    setSalesDetailBill(null)
+    setDetailError(null)
+    setIsDetailLoading(false)
+  }
+
+  function editDetailRow() {
+    const row = detailRow
+    closeDetail()
+    if (!row) return
+    if (mode === 'sales') void openEditSalesForm(row)
+    else void openEditPurchaseForm(row)
+  }
+
+  function cancelDetailRow() {
+    const row = detailRow
+    closeDetail()
+    if (!row) return
+    if (mode === 'sales') openCancelSalesBill(row)
+    else openCancelPurchaseBill(row)
   }
 
   async function reloadSalesDetail(docNo: string) {
@@ -3619,18 +3664,20 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 </div>
               </div>
 
-              <div className="flex justify-end mt-3 pt-2 border-t border-slate-100/60" onClick={(e) => e.stopPropagation()}>
-                <TableActionButton mobileLabel menu={(
-                  <>
-                    {mode === 'purchase' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>พิมพ์</TableActionMenuItem> : null}
-                    {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                    {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem onSelect={() => openCancelPurchaseBill(row)}>ยกเลิก</TableActionMenuItem> : null}
-                    {mode === 'sales' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printSalesBill(row)}>พิมพ์</TableActionMenuItem> : null}
-                    {mode === 'sales' && row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditSalesForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                    {mode === 'sales' && row.canCancel !== false ? <TableActionMenuItem onSelect={() => openCancelSalesBill(row)}>ยกเลิก</TableActionMenuItem> : null}
-                  </>
-                )} />
-              </div>
+              {isCancelledBillRow(row) ? null : (
+                <div className="flex justify-end mt-3 pt-2 border-t border-slate-100/60" onClick={(e) => e.stopPropagation()}>
+                  <TableActionButton mobileLabel menu={(
+                    <>
+                      {mode === 'purchase' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>พิมพ์</TableActionMenuItem> : null}
+                      {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                      {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem onSelect={() => openCancelPurchaseBill(row)}>ยกเลิก</TableActionMenuItem> : null}
+                      {mode === 'sales' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printSalesBill(row)}>พิมพ์</TableActionMenuItem> : null}
+                      {mode === 'sales' && row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditSalesForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                      {mode === 'sales' && row.canCancel !== false ? <TableActionMenuItem onSelect={() => openCancelSalesBill(row)}>ยกเลิก</TableActionMenuItem> : null}
+                    </>
+                  )} />
+                </div>
+              )}
             </div>
           )
         })}
@@ -3713,24 +3760,24 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 </td>
                 {mode === 'purchase' ? (
                   <td className="whitespace-nowrap p-2 text-center">
-                    <TableActionButton menu={(
+                    {isCancelledBillRow(row) ? null : <TableActionButton menu={(
                       <>
                         <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>พิมพ์</TableActionMenuItem>
                         {row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
                         {row.canEdit !== false ? <TableActionMenuItem onSelect={() => openCancelPurchaseBill(row)}>ยกเลิก</TableActionMenuItem> : null}
                       </>
-                    )} />
+                    )} />}
                   </td>
                 ) : null}
                 {mode === 'sales' ? (
                   <td className="whitespace-nowrap p-2 text-center">
-                    <TableActionButton menu={(
+                    {isCancelledBillRow(row) ? null : <TableActionButton menu={(
                       <>
                         <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printSalesBill(row)}>พิมพ์</TableActionMenuItem>
                         {row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditSalesForm(row)}>แก้ไข</TableActionMenuItem> : null}
                         {row.canCancel !== false ? <TableActionMenuItem onSelect={() => openCancelSalesBill(row)}>ยกเลิก</TableActionMenuItem> : null}
                       </>
-                    )} />
+                    )} />}
                   </td>
                 ) : null}
               </TableRow>
@@ -4921,14 +4968,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           error={detailError}
           isLoading={isDetailLoading}
           isPrinting={printingBillDocNo === detailBillDocNo}
-          onClose={() => {
-            latestDetailRequestRef.current += 1
-            setDetailBillDocNo(null)
-            setDetailBill(null)
-            setSalesDetailBill(null)
-            setDetailError(null)
-            setIsDetailLoading(false)
-          }}
+          onClose={closeDetail}
+          onEdit={editDetailRow}
+          onCancel={cancelDetailRow}
           onPrint={(detail) => void printPurchaseBill(detail)}
 	        />
 	      ) : null}
@@ -4940,14 +4982,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           isLoading={isDetailLoading}
           isPrinting={printingBillDocNo === detailBillDocNo}
           tradingCostSources={options.tradingCostSources ?? []}
-          onClose={() => {
-            latestDetailRequestRef.current += 1
-            setDetailBillDocNo(null)
-            setDetailBill(null)
-            setSalesDetailBill(null)
-            setDetailError(null)
-            setIsDetailLoading(false)
-          }}
+          onClose={closeDetail}
+          onEdit={editDetailRow}
+          onCancel={cancelDetailRow}
           onCorrectTradingAllocations={correctTradingAllocations}
           onPrint={(detail) => void printSalesBill(detail)}
 	        />
@@ -4999,7 +5036,9 @@ function PurchaseBillDetailModal({
   error,
   isLoading,
   isPrinting,
+  onCancel,
   onClose,
+  onEdit,
   onPrint,
 }: {
   detail: PurchaseBillDetail | null
@@ -5007,7 +5046,9 @@ function PurchaseBillDetailModal({
   error: string | null
   isLoading: boolean
   isPrinting: boolean
+  onCancel: () => void
   onClose: () => void
+  onEdit: () => void
   onPrint: (detail: PurchaseBillDetail) => void
 }) {
   const detailTitle = detail?.docNo ?? docNo
@@ -5050,6 +5091,12 @@ function PurchaseBillDetailModal({
                 <Printer className="size-4" />
                 {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
               </Button>
+            ) : null}
+            {detail && !isCancelledBillStatus(detail.status) ? (
+              <>
+                <Button className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" type="button" variant="outline" onClick={onEdit}>แก้ไข</Button>
+                <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onCancel}>ยกเลิก</Button>
+              </>
             ) : null}
             <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</Button>
           </div>
@@ -5135,6 +5182,7 @@ function PurchaseBillDetailModal({
                       <th className="px-3 py-2 text-left font-medium">ใบรับของ</th>
                       <th className="px-3 py-2 text-left font-medium">ที่มา</th>
                       <th className="px-3 py-2 text-right font-medium">น้ำหนัก</th>
+                      <th className="px-3 py-2 text-center font-medium">หน่วย</th>
                       <th className="px-3 py-2 text-right font-medium">ยอดรวม</th>
                     </tr>
                   </thead>
@@ -5150,11 +5198,12 @@ function PurchaseBillDetailModal({
                           <div>{item.sourceKinds.join(' + ') || '-'}</div>
                           <div className="whitespace-nowrap text-xs text-slate-500">{item.poDocNos.join(', ') || 'Spot Buy'}</div>
                         </td>
-                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-center font-medium">{normalizePurchaseBillPrintUnit(item.unit)}</td>
                         <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(item.amount)}</td>
                       </tr>
                     ))}
-                    {detail.productSummaries.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={5}>ไม่มีรายการสินค้าในบิล</td></tr> : null}
+                    {detail.productSummaries.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={6}>ไม่มีรายการสินค้าในบิล</td></tr> : null}
                   </tbody>
                 </table>
               </div>
@@ -5173,6 +5222,7 @@ function PurchaseBillDetailModal({
                       <th className="px-3 py-2 text-right font-medium">น้ำหนักหลัก</th>
                       <th className="px-3 py-2 text-right font-medium">หักสิ่งเจือปน</th>
                       <th className="px-3 py-2 text-right font-medium">น้ำหนักสุทธิ</th>
+                      <th className="px-3 py-2 text-center font-medium">หน่วย</th>
                       <th className="px-3 py-2 text-right font-medium">ราคา/กก.</th>
                       <th className="px-3 py-2 text-right font-medium">ยอดรวม</th>
                     </tr>
@@ -5183,7 +5233,7 @@ function PurchaseBillDetailModal({
                         <td className="px-3 py-2 align-top">
                           <div className="font-medium text-slate-900">{item.productName}</div>
                           <div className="text-xs text-slate-500">{[item.productCode || null, `line ${item.lineNo}`].filter(Boolean).join(' · ')}</div>
-                          {item.note ? <div className="mt-1 text-xs text-slate-500">{item.note}</div> : null}
+                          {item.note ? <div className="mt-1 whitespace-pre-line text-xs text-slate-500">{formatPurchaseBillDetailRemark(item.note)}</div> : null}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono">
                           <div className="text-slate-900">{item.receiptTicketDocNo}</div>
@@ -5195,12 +5245,13 @@ function PurchaseBillDetailModal({
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.grossWeight)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.deductWeight)}</td>
-                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-center font-medium">{normalizePurchaseBillPrintUnit(item.unit)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.price)}</td>
                         <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(item.amount)}</td>
                       </tr>
                     ))}
-                    {detail.allocationRows.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={8}>ไม่มีรายการ allocation ในบิล</td></tr> : null}
+                    {detail.allocationRows.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={9}>ไม่มีรายการ allocation ในบิล</td></tr> : null}
                   </tbody>
                 </table>
               </div>
@@ -5242,9 +5293,11 @@ function SalesBillDetailModal({
   error,
   isLoading,
   isPrinting,
+  onCancel,
   tradingCostSources,
   onClose,
   onCorrectTradingAllocations,
+  onEdit,
   onPrint,
 }: {
   detail: SalesBillDetail | null
@@ -5252,9 +5305,11 @@ function SalesBillDetailModal({
   error: string | null
   isLoading: boolean
   isPrinting: boolean
+  onCancel: () => void
   tradingCostSources: Option[]
   onClose: () => void
   onCorrectTradingAllocations: (docNo: string, allocations: Array<{ salesLineNo: number; tradingCostSourceId: string }>, note: string) => Promise<void>
+  onEdit: () => void
   onPrint: (detail: SalesBillDetail) => void
 }) {
   const [correctionError, setCorrectionError] = useState<string | null>(null)
@@ -5331,6 +5386,12 @@ function SalesBillDetailModal({
                 <Printer className="size-4" />
                 {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
               </Button>
+            ) : null}
+            {detail && !isCancelledBillStatus(detail.status) ? (
+              <>
+                <Button className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white" type="button" variant="outline" onClick={onEdit}>แก้ไข</Button>
+                <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onCancel}>ยกเลิก</Button>
+              </>
             ) : null}
             <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</Button>
           </div>
