@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { renderToBuffer } from '@react-pdf/renderer'
 import { Children, createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -11,6 +13,9 @@ import {
   buildPrintWeightRows,
   buildReceiptPrintHtml,
   buildWeightTicketAttachmentImages,
+  CONTINUATION_PAGE_ITEM_ROWS,
+  FIRST_PAGE_ITEM_ROWS,
+  paginatePrintWeightRows,
   WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE,
 } from './weight-ticket-print'
 import { encodeStoredImageReference, type WeightTicketRecord } from './weight-tickets'
@@ -31,6 +36,8 @@ const profile: CompanyProfilePrintValues = {
   taxId: '0105559999999',
   website: null,
 }
+
+const weightTicketPrintSource = readFileSync(new URL('./weight-ticket-print.ts', import.meta.url), 'utf8')
 
 function line(
   overrides: Partial<WeightTicketRecord['lines'][number]>,
@@ -259,7 +266,7 @@ function ticketWithAttachmentCount(count: number): WeightTicketRecord {
   }
 }
 
-function ticketWithPrintRowCount(count: number): WeightTicketRecord {
+function ticketWithPrintRowCount(count: number, type: 'WTI' | 'WTO' = 'WTI'): WeightTicketRecord {
   const lines = Array.from({ length: count }, (_, index) => line({
     grossWeight: '100',
     grossWeightValue: 100,
@@ -272,7 +279,7 @@ function ticketWithPrintRowCount(count: number): WeightTicketRecord {
 
   return {
     ...ticket,
-    documentNo: 'WTI190726-MULTI',
+    documentNo: `${type}190726-MULTI`,
     lines,
     productSummaries: lines.map((ticketLine, index) => ({
       billedWeight: 0,
@@ -298,10 +305,47 @@ function ticketWithPrintRowCount(count: number): WeightTicketRecord {
       grossWeight: count * 100,
       netWeight: count * 100,
     },
+    type,
   }
 }
 
 describe('weight ticket print HTML', () => {
+  it('fills each WTI/WTO table page to its form capacity with blank rows', () => {
+    for (const type of ['WTI', 'WTO'] as const) {
+      const singleRowHtml = buildReceiptPrintHtml(ticketWithPrintRowCount(1, type), profile)
+      const singlePageBody = singleRowHtml.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || ''
+
+      expect(singlePageBody.match(/<tr class="item-row/g)).toHaveLength(FIRST_PAGE_ITEM_ROWS)
+      expect(singlePageBody.match(/class="item-row empty(?:\s|\")/g)).toHaveLength(FIRST_PAGE_ITEM_ROWS - 1)
+
+      const continuationHtml = buildReceiptPrintHtml(ticketWithPrintRowCount(13, type), profile)
+      const bodies = [...continuationHtml.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)].map((match) => match[1])
+
+      expect(bodies).toHaveLength(2)
+      expect(bodies[0].match(/<tr class="item-row/g)).toHaveLength(FIRST_PAGE_ITEM_ROWS)
+      expect(bodies[1].match(/<tr class="item-row/g)).toHaveLength(type === 'WTI' ? FIRST_PAGE_ITEM_ROWS : CONTINUATION_PAGE_ITEM_ROWS)
+    }
+  })
+
+  it('reserves the WTI final-page height so PDF page labels stay truthful', async () => {
+    await ensurePdfFontsRegistered()
+
+    for (const count of [24, 25, 26, 38, 39, 40]) {
+      const ticketWithRows = ticketWithPrintRowCount(count, 'WTI')
+      const html = buildReceiptPrintHtml(ticketWithRows, profile)
+      const htmlPages = [...html.matchAll(/<main class="page" data-print-page="\d+"[\s\S]*?<\/main>/g)]
+      const expectedPageCount = count === 24 ? 2 : count <= 38 ? 3 : 4
+      expect(htmlPages).toHaveLength(expectedPageCount)
+      expect(htmlPages.at(-1)?.[0]).toContain(`หน้า ${expectedPageCount} / ${expectedPageCount}`)
+      expect(htmlPages.at(-1)?.[0]).toContain('data-signatures="final"')
+
+      const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithRows }))
+      expect(countPdfPages(Buffer.from(pdf))).toBe(expectedPageCount)
+    }
+
+    expect(paginatePrintWeightRows(buildPrintWeightRows(ticketWithPrintRowCount(25, 'WTI'), true), true).map((page) => page.items.length)).toEqual([12, 12, 1])
+  }, 30_000)
+
   it('uses the corporate preview contrast and keeps the legal company name on one line', () => {
     const companyName = 'บริษัท นิวโซลูชั่นส์ (ไทยแลนด์) จำกัด (สำนักงานใหญ่)'
     const html = buildReceiptPrintHtml(ticket, {
@@ -314,25 +358,55 @@ describe('weight ticket print HTML', () => {
     expect(html).toMatch(/body\s*\{[^}]*background:\s*#334155/)
     expect(html).toMatch(/\.page\s*\{[^}]*box-shadow:/)
     expect(html).toMatch(/\.company-name\s*\{[^}]*white-space:\s*nowrap/)
+    expect(html).toMatch(/\.signatures\s*\{[^}]*margin-top:\s*auto/)
+    expect(html).toMatch(/\.items \.final-empty td\s*\{[^}]*height:\s*28px/)
   })
 
-  it('reserves empty summary panels and replaces signatures with a continuation marker on non-final HTML/PDF pages', async () => {
+  it('keeps WTI/WTO form pagination owned by the dedicated paginator', () => {
+    expect(weightTicketPrintSource).toContain(
+      "prepareCorporatePrintLayout(printWindow.document, { reflowRows: false })",
+    )
+  })
+
+  it('shows titled placeholder summary panels and replaces signatures with a continuation marker on non-final HTML/PDF pages', async () => {
     const multiPageTicket = ticketWithPrintRowCount(13)
     const html = buildReceiptPrintHtml(multiPageTicket, profile)
     const pages = [...html.matchAll(/<main class="page" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
 
     expect(pages).toHaveLength(2)
-    expect(pages[0]).toContain('data-continuation-panels="empty"')
-    expect(pages[0].match(/class="panel continuation-empty-panel"/g)).toHaveLength(3)
+    expect(pages[0]).toContain('data-continuation-panels="placeholder"')
+    expect(pages[0].match(/class="panel continuation-summary-panel"/g)).toHaveLength(3)
+    expect(pages[0].match(/class="continuation-placeholder"/g)).toHaveLength(3)
+    expect(pages[0]).toContain('สรุปตามหมวดสินค้า')
+    expect(pages[0]).toContain('หมายเหตุ')
+    expect(pages[0]).toContain('ข้อมูลน้ำหนัก / Weight Info')
+    expect(pages[0]).toContain('>-</div>')
     expect(pages[0]).toContain('Continued on Page 2')
     expect(pages[0]).not.toContain('data-signatures="final"')
     expect(pages[1]).toContain('data-signatures="final"')
-    expect(pages[1]).not.toContain('data-continuation-panels="empty"')
+    expect(pages[1]).not.toContain('data-continuation-panels="placeholder"')
 
     await ensurePdfFontsRegistered()
     const pdfDocument = WeightTicketDocument({ profile, ticket: multiPageTicket })
-    expect(nodeText(pdfDocument)).toContain('Continued on Page 2')
+    const pdfText = nodeText(pdfDocument)
+    expect(pdfText).toContain('Continued on Page 2')
+    expect(pdfText.match(/สรุปตามหมวดสินค้า/g)).toHaveLength(2)
+    expect(pdfText.match(/หมายเหตุ/g)).toHaveLength(2)
+    expect(pdfText.match(/Weight Info/g)).toHaveLength(2)
     expect(countPdfPages(Buffer.from(await renderToBuffer(pdfDocument)))).toBe(2)
+  }, 30_000)
+
+  it('keeps detailed multi-page WTI/WTO forms from pushing continuation panels onto an extra PDF page', async () => {
+    await ensurePdfFontsRegistered()
+
+    for (const type of ['WTI', 'WTO'] as const) {
+      const buffer = await renderToBuffer(WeightTicketDocument({
+        profile,
+        ticket: ticketWithPrintRowCount(31, type),
+      }))
+
+      expect(countPdfPages(Buffer.from(buffer))).toBe(3)
+    }
   }, 30_000)
 
   it('loads the existing local Thai fonts without external stylesheets', () => {
@@ -676,5 +750,23 @@ describe('weight ticket print HTML', () => {
     expect(mobileHtml).toContain('203.00 กก.')
     expect(mobileHtml).not.toContain('171.00 กก.')
     expect(mobileHtml).toContain('228.00 กก.')
+  })
+
+  it('classifies an impurity purchase from its line relation even when the note is blank', () => {
+    const relationOnlyTicket = {
+      ...ticket,
+      lines: ticket.lines.map((line) => line.id === 'purchase-1' ? { ...line, note: '' } : line),
+    }
+
+    const printRows = buildPrintWeightRows(relationOnlyTicket, true)
+    expect(printRows.filter((row) => row.className === 'purchase-row')).toHaveLength(1)
+    expect(printRows.filter((row) => row.className === 'lot-row')).toHaveLength(2)
+
+    const html = renderToStaticMarkup(createElement(WeightTicketProductBreakdownTable, {
+      onOpenLineGallery: () => undefined,
+      ticket: relationOnlyTicket,
+    }))
+    expect(html).toContain('สิ่งเจือปนที่ซื้อ')
+    expect(html).not.toContain('ซื้อเพิ่มจากสิ่งเจือปน (0 รายการ)')
   })
 })

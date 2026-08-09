@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { prepareCorporatePrintLayout } from './corporate-print-layout'
 import { paginateStandardPrintItems } from '@/lib/print-pagination'
 import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 
@@ -180,9 +181,15 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
         </table>
 
         ${placeholder ? `
-          <section class="bottom-grid continuation-summary" data-continuation-summary="empty" aria-label="Continuation page reserved summary area">
-            <div class="continuation-empty-panel" aria-hidden="true"></div>
-            <div class="continuation-empty-panel" aria-hidden="true"></div>
+          <section class="bottom-grid continuation-summary" data-continuation-summary="placeholder" aria-label="Continuation page summary placeholders">
+            <div class="continuation-summary-panel">
+              <div class="continuation-panel-title">สรุปตามหมวดสินค้า</div>
+              <div class="continuation-placeholder">-</div>
+            </div>
+            <div class="continuation-summary-panel">
+              <div class="continuation-panel-title">หมายเหตุ</div>
+              <div class="continuation-placeholder">-</div>
+            </div>
           </section>
           <div class="continued" data-continuation-signature="true">( มีต่อหน้า ${nextPageNo} / Continued on Page ${nextPageNo} ➔ )</div>
         ` : `
@@ -254,8 +261,8 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       table { width: 100%; border-collapse: collapse; }
       .items { margin-top: 12px; table-layout: fixed; }
       .items thead { display: table-header-group; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; }
-      .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
+      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; overflow-wrap: anywhere; word-break: break-word; }
+      .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty td { height: 24px; color: transparent; }
       .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
@@ -272,7 +279,9 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       .summary-card .label { color: #64748b; }
       .summary-card .value { font-weight: 900; margin-top: 2px; }
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
-      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-summary-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; padding: 8px; }
+      .continuation-panel-title { font-weight: 900; color: #1e293b; }
+      .continuation-placeholder { margin-top: 12px; color: #94a3b8; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .placeholder { color: #94a3b8; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
@@ -349,5 +358,6 @@ export async function openSalesBillPrint(bill: SalesBillDetail, targetWindow?: W
   printWindow.document.open()
   printWindow.document.write(buildSalesBillPrintHtml(bill, profile))
   printWindow.document.close()
+  await prepareCorporatePrintLayout(printWindow.document)
   printWindow.focus()
 }

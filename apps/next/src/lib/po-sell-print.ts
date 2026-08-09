@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { prepareCorporatePrintLayout } from './corporate-print-layout'
 import { paginateStandardPrintItems } from '@/lib/print-pagination'
 
 const companyProfilePayloadSchema = z.object({
@@ -191,9 +192,15 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
         <div class="sig"><div>ผู้ยืนยันใบสั่งจอง (ลูกค้า) / Confirmed By (Customer)</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
       </div>
     ` : `
-      <section class="continuation-summary" data-continuation-summary="empty" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
-        <div class="continuation-empty-panel" aria-hidden="true"></div>
-        <div class="continuation-empty-panel" aria-hidden="true"></div>
+      <section class="continuation-summary" data-continuation-summary="placeholder" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
+        <div class="continuation-summary-panel">
+          <div class="continuation-panel-title">สรุปตามหมวดสินค้า</div>
+          <div class="continuation-placeholder">-</div>
+        </div>
+        <div class="continuation-summary-panel">
+          <div class="continuation-panel-title">หมายเหตุ</div>
+          <div class="continuation-placeholder">-</div>
+        </div>
       </section>
       <div class="continuation-signature" data-continuation-signature="true">
         ( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )
@@ -357,8 +364,8 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
       .items { margin-top: 12px; font-size: 12px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
       .items thead { display: table-header-group; }
       .items tbody { break-inside: auto; page-break-inside: auto; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; }
-      .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
+      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; overflow-wrap: anywhere; word-break: break-word; }
+      .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty td { height: 24px; color: transparent; }
       .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
@@ -378,7 +385,9 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .placeholder { color: #94a3b8; }
       .continuation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
-      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-summary-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; padding: 8px; }
+      .continuation-panel-title { font-weight: 900; color: #1e293b; }
+      .continuation-placeholder { margin-top: 12px; color: #94a3b8; }
       .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; color: #6b21a8; font-size: 13px; font-weight: 800; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 30mm; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
@@ -462,5 +471,6 @@ export async function openPoSellPrint(po: PoSellPrintDocument, targetWindow?: Wi
   printWindow.document.open()
   printWindow.document.write(buildPoSellPrintHtml(po, profile))
   printWindow.document.close()
+  await prepareCorporatePrintLayout(printWindow.document)
   printWindow.focus()
 }

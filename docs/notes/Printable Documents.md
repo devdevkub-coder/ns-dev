@@ -11,7 +11,7 @@ tags:
   - business-flow
 status: draft
 created: 2026-06-09
-updated: 2026-08-07
+updated: 2026-08-08
 ---
 
 # Printable Documents / เอกสารที่ต้องพิมพ์
@@ -19,6 +19,9 @@ updated: 2026-08-07
 เอกสารนี้เป็น source of truth กลางสำหรับรายการเอกสารธุรกิจที่ต้องมี print/Save as PDF ใน active Next app โดยอิงจาก legacy `old-apps/legacy/index.html` และ flow target ปัจจุบัน
 
 หลักทั่วไป:
+
+- เอกสารธุรกิจทุกชนิดใช้ measured A4 layout กลาง (`corporate-print-layout`) หลังโหลด font/logo แล้ว. ความสูงจริงเป็นตัวตัดสินการแบ่งหน้า; 15 รายการเป็นจำนวนสูงสุดต่อหน้า ไม่ใช่จำนวนที่ต้องยัดให้ครบ. หน้าต่อเนื่องมีหัวข้อ placeholder และ `( มีต่อหน้า X / Continued on Page X ➔ )`, ส่วนยอดจริง/หมายเหตุจริง/ลายเซ็นอยู่หน้าสุดท้ายเท่านั้น.
+- ข้อยกเว้นที่ต้องคงตัวจัดหน้าเฉพาะเอกสาร: PB (วัดสองรอบและแบ่ง REMARK ตามข้อ), WTI/WTO (form capacity และ attachment album แยก), และรายงาน PMT/RCP ประจำวัน (งบหน้าแรก 8 แถว). PMA ใช้ A4 landscape ผ่านตัวจัดหน้ากลาง.
 
 - เอกสารพิมพ์ต้องใช้ข้อมูลหัวกระดาษจาก `/admin/company-profile` หรือ `ข้อมูลบริษัท (สำหรับใบพิมพ์)` เป็นหลัก
 - เอกสารพิมพ์ต้องเป็น snapshot/read-model ของเอกสารนั้น ห้ามกดพิมพ์แล้วเกิด side effect เช่น สร้าง `PMA`, `PMT`, `BST`, stock ledger, หรือแก้สถานะ
@@ -32,9 +35,9 @@ updated: 2026-08-07
 |---|---|---|---|---|---|
 | P0 | `POB` PO Buy / ใบสั่งซื้อ | `/purchase/po-buy` | Implemented | Legacy PO Buy อยู่ใน flow จองซื้อ/สั่งซื้อก่อนรับของ; active target ใช้เลข `POB...` เป็นเอกสารซื้อหลักก่อน PB | ใช้ corporate A4 portrait ที่อ้างอิง design บิลซื้อ, Company Profile header, พิมพ์จาก list/detail modal, แสดง Supplier พร้อมที่อยู่, รายการสินค้าครบพร้อมหน่วยจริง, ยอดสั่งซื้อ/คงเหลือ, หมายเหตุ, ช่องลงนาม และลายน้ำเฉพาะกรณียกเลิก; ตารางแบ่งหน้าละ 15 รายการและเพิ่มหน้าได้ต่อเนื่อง |
 | P0 | `PO Sell` ใบสั่งขาย | `/sales/po-sell` | Implemented | Active Next มีปุ่มพิมพ์จาก PO Sell detail และใช้ Company Profile ตามสาขา | ใช้ corporate A4 portrait, Customer และรายการขายจาก snapshot, ยอดรวม/หมายเหตุ/ช่องลงนามเฉพาะหน้าสุดท้าย รองรับหลายหน้าแบบไม่จำกัดและลายน้ำกรณียกเลิก |
-| P0 | `PB` บิลรับซื้อ / ใบรับสินค้า | `/purchase/bills` | Implemented | `erp.printDocument('receipt', row.raw.id)` ที่ `old-apps/legacy/index.html:15119`, helper ที่ `old-apps/legacy/index.html:6449` | ใช้ corporate A4 portrait, Company Profile header, พิมพ์จาก list/detail/direct detail, รองรับหลายหน้าแบบไม่จำกัดที่ 2 หน้า โดยแบ่งหน้าละ 15 รายการ |
+| P0 | `PB` บิลรับซื้อ / ใบรับสินค้า | `/purchase/bills` | Implemented | `erp.printDocument('receipt', row.raw.id)` ที่ `old-apps/legacy/index.html:15119`, helper ที่ `old-apps/legacy/index.html:6449` | ใช้ corporate A4 portrait, Company Profile header, พิมพ์จาก list/detail/direct detail, รองรับหลายหน้าไม่จำกัด; 15 เป็นจำนวนสูงสุดต่อหน้าและตัวจัดหน้าวัดความสูงจริงเพื่อสงวนกรอบล่างกับลายเซ็น |
 | P0 | `SB` บิลขาย / ใบส่งของ | `/sales/bills` | Implemented print, allocation hardening follow-up | `erp.printDocument('delivery', b.id)` ที่ `old-apps/legacy/index.html:20390`, helper เดียวกับ PB ที่ `old-apps/legacy/index.html:6449` | ใช้ flow `WTO -> SB` ตาม [[Sales Bills Page Flow]], A4 portrait/N-page/totals baseline เดียวกับ PB, Company Profile ตามสาขา, แสดง Customer, WTO trace, VAT, หักมัดจำ Customer, และยอดลูกหนี้สุทธิ; follow-up คือแสดง `PO Sell`/`Spot Sale` จาก line-level allocation facts เมื่อ write flow แยก allocation ครบ |
-| P0 | `WTI/WTO` ใบรับของ/ใบส่งของจากงานชั่ง | `/daily/weight-ticket-list` | Implemented print, share/audit follow-up | `printWeighingTicket(ticket)` และปุ่ม `ใบชั่ง` ที่ `old-apps/legacy/index.html:52560` ถึง `old-apps/legacy/index.html:52985` | Active helper รองรับ WTI/WTO แล้ว; ส่วนใบพิมพ์หลักสร้างหน้า A4 `1..N` ตามจำนวนรายการ โดยหน้าก่อนสุดท้ายใช้กรอบสรุปว่างและข้อความมีต่อหน้า ส่วนยอด/หมายเหตุ/ลายเซ็นอยู่หน้าสุดท้ายของใบพิมพ์หลัก จากนั้นจึงต่อด้วยหน้าอัลบั้มรูปหลักฐานจากรูปรถและรูปสินค้า |
+| P0 | `WTI/WTO` ใบรับของ/ใบส่งของจากงานชั่ง | `/daily/weight-ticket-list` | Implemented print, share/audit follow-up | `printWeighingTicket(ticket)` และปุ่ม `ใบชั่ง` ที่ `old-apps/legacy/index.html:52560` ถึง `old-apps/legacy/index.html:52985` | Active helper รองรับ WTI/WTO แล้ว; ส่วนใบพิมพ์หลักสร้างหน้า A4 `1..N` ตามจำนวนรายการ โดยหน้าก่อนสุดท้ายใช้กรอบสรุป 3 กรอบที่มีหัวข้อ `สรุปตามหมวดสินค้า`, `หมายเหตุ`, `ข้อมูลน้ำหนัก / Weight Info` และค่า placeholder `-` พร้อมข้อความมีต่อหน้า ส่วนยอด/หมายเหตุจริง/ลายเซ็นอยู่หน้าสุดท้ายของใบพิมพ์หลัก จากนั้นจึงต่อด้วยหน้าอัลบั้มรูปหลักฐานจากรูปรถและรูปสินค้า |
 | P1 | `PMA` ใบอนุมัติจ่ายเงิน / ส่ง Cashier | `/daily/payment-approval`, `/purchase/payments` | Implemented: selected approval sheet | `printApprovalSheet` และปุ่ม `พิมพ์ใบอนุมัติส่ง Cashier` ที่ `old-apps/legacy/index.html:27680` ถึง `old-apps/legacy/index.html:27773` | พิมพ์จาก approval snapshot หลังเกิด PMA แล้ว ไม่พิมพ์จาก pending source live row; รองรับหลายหน้าแบบไม่จำกัด โดยคง group total ตามผู้รับเงิน/ปลายทาง และแสดงยอดรวม/ลายเซ็นเฉพาะหน้าสุดท้าย |
 | P1 | `EXP` ใบสำคัญจ่ายค่าใช้จ่าย | `/daily/expense` | Implemented | Active Next มีปุ่มพิมพ์จาก EXP detail และใช้ Company Profile ตามสาขา | พิมพ์จาก EXP snapshot แบบ read-only; แสดงรายการค่าใช้จ่าย, VAT, WHT, ยอดสุทธิ, หมายเหตุ และช่องลงนาม รองรับหลายหน้าแบบไม่จำกัด |
 | P1 | `ADV` ใบเงินล่วงหน้า/มัดจำ Supplier | `/purchase/advance-payments` | Implemented | Active Next มีปุ่มพิมพ์จาก ADV detail และใช้ Company Profile ตามสาขา | พิมพ์จาก ADV snapshot แบบ read-only แสดง Supplier, ประเภท ADV, Invoice, รายการอ้างอิง, ยอด/หมายเหตุ/ช่องลงนามเฉพาะหน้าสุดท้าย และรองรับหลายหน้าแบบไม่จำกัด |
@@ -46,13 +49,38 @@ updated: 2026-08-07
 
 - เอกสารธุรกรรมแบบ corporate ที่ปรับใน batch นี้ ได้แก่ `POB`, `PB`, `SB`, `PO Sell`, `ADV`, `PMA`, `EXP`, `RV`, `PMT` และ `RCP` ใช้กติกากลางหน้าละ 15 แถวรายการ และสร้างหน้า `1..N` ตามจำนวนข้อมูลจริงโดยไม่จำกัดสูงสุดไว้ที่ 2 หน้า; สำหรับ PMA แถวรวมตามผู้รับเงิน/ปลายทางนับเป็นหนึ่งแถวตารางเพื่อรักษาความสูง A4 ให้คงที่
 - ตัวอย่าง boundary: 15 รายการ = 1 หน้า, 16 รายการ = 2 หน้า, 31 รายการ = 3 หน้า และ 46 รายการ = 4 หน้า; ทุกหน้าต้องมีแถวตารางรวม 15 ช่องและเลขหน้า `หน้า X / N`
-- หน้า `1..N-1` ต้องมี footer ตารางว่างและกรอบสรุปว่าง 2 กรอบโดยไม่มี `-`, label, ยอด หรือหมายเหตุ พร้อมข้อความ `Continued on Page X` แทนช่องลงนาม เพื่อไม่ให้ยอดระหว่างทางถูกเข้าใจว่าเป็นยอดเอกสารฉบับสมบูรณ์
+- หน้า `1..N-1` ต้องมี footer ตารางว่างและกรอบสรุป placeholder ตาม template ของเอกสาร โดยไม่แสดงยอดหรือหมายเหตุธุรกิจจริง พร้อมข้อความ `Continued on Page X` แทนช่องลงนาม เพื่อไม่ให้ยอดระหว่างทางถูกเข้าใจว่าเป็นยอดเอกสารฉบับสมบูรณ์
 - หน้า `N` เท่านั้นที่แสดงยอดจริง หมายเหตุ และช่องลงนาม โดยยังคง Company Profile, document snapshot, cancelled watermark, table header และข้อมูลเอกสารบนทุกหน้า
 - คำว่า `หมายเหตุ` ในกติกา final-page-only หมายถึงหมายเหตุธุรกิจของรายการ; หมายเหตุทางกฎหมาย/ข้อความบังคับของแบบฟอร์มยังคงแสดงทุกหน้าตาม `docs/design.md`
 - การพิมพ์ยังเป็น read-only: การแบ่งหน้าไม่สร้างหรือแก้เอกสาร, payment, stock, allocation, cache, API, DB หรือ Storage
-- `WTI/WTO` ใช้ความจุเฉพาะของแบบฟอร์มชั่ง (12 รายการในหน้าหลักแรก และ 17 รายการในหน้าหลักถัดไป): หน้าหลัก `1..N-1` มี footer ตารางว่าง กรอบสรุปว่าง 3 กรอบ และข้อความมีต่อหน้า; หน้าหลัก `N` เท่านั้นมีสรุป/หมายเหตุ/ลายเซ็น จากนั้นจึงต่ออัลบั้มหลักฐาน 6 รูปต่อหน้า
-- รายงานรวม เช่น Payment/Receipt daily report ยังคงเป็น report-style print และใช้การแบ่งหน้าตามตารางรายงาน ไม่บังคับกรอบสรุป/ลายเซ็นแบบ transaction pagination ข้างต้น
+- `WTI/WTO` ใช้ความจุเฉพาะของแบบฟอร์มชั่ง (12 รายการในหน้าหลักแรก, หน้าต่อเนื่องที่ยังไม่ใช่หน้าสุดท้ายใช้ได้สูงสุด 14 รายการ, และหน้าสุดท้ายของ WTI สงวนไว้ 12 รายการเพื่อให้ยอดรวม/กรอบสรุป/ลายเซ็นอยู่หน้าเดียว): ต้องเติมแถวว่างให้ครบความจุของแต่ละหน้า แม้ข้อมูลจริงจะมีน้อย เพื่อให้เส้นตารางและพื้นที่แบบฟอร์มต่อเนื่องกัน; หน้าหลัก `1..N-1` มี footer ตารางว่าง กรอบสรุป 3 กรอบพร้อมหัวข้อ `สรุปตามหมวดสินค้า`, `หมายเหตุ`, `ข้อมูลน้ำหนัก / Weight Info` และค่า `-` เป็น placeholder พร้อมข้อความมีต่อหน้า; หน้าหลัก `N` เท่านั้นมีสรุป/หมายเหตุ/ลายเซ็นจริง จากนั้นจึงต่ออัลบั้มหลักฐาน 6 รูปต่อหน้า
+- รายงานรวม เช่น Payment/Receipt daily report ยังคงเป็น report-style print และใช้การแบ่งหน้าตามตารางรายงาน ไม่บังคับกรอบสรุป/ลายเซ็นแบบ transaction pagination ข้างต้น โดยหน้าแรกจองพื้นที่หัวรายงานและ summary cards จึงใช้ไม่เกิน 8 แถว ส่วนหน้าต่อเนื่องใช้ 15 แถว เพื่อไม่ให้ตารางล้นไปเป็นหน้ากระดาษที่ไม่มี template
 - Receipt Voucher Queue เป็น operational queue preview, Company Profile เป็น configuration sample preview และ dashboard/report ที่พิมพ์หน้าจอเป็น report-style print; ทั้งสามประเภทไม่ใช่ corporate transaction snapshot ใน inventory นี้
+
+## 2026-08-08 Continuation Placeholder Panel Contract
+
+WTI/WTO final-page empty rows use a taller 28px form row to consume unused paper without changing the signature block position; signatures remain anchored at the bottom of the A4 form.
+
+Every formal multi-page document keeps its real totals, business notes and signatures on the final page only. Pages `1..N-1` keep the continuation marker and titled placeholder panels instead of blank frames:
+
+- WTI/WTO: `สรุปตามหมวดสินค้า`, `หมายเหตุ`, `ข้อมูลน้ำหนัก / Weight Info`
+- POB, PB, SB, PO Sell: `สรุปตามหมวดสินค้า`, `หมายเหตุ`
+- ADV, EXP, PMA: document-specific summary title, `หมายเหตุ`
+- RV/RCP: `รายละเอียดการรับเงิน`, `หมายเหตุ`
+- PMT: `รายละเอียดการจ่ายเงิน`, `หมายเหตุ`
+
+Each placeholder panel contains `-` as the explicit empty value. The contract applies to both the direct browser print builders and the PMT/RCP builders embedded in `MoneyMovementPageClient`; it does not change report-style screen printing or any document data, totals, signatures or persistence behavior.
+
+## 2026-08-08 PB Measured Pagination Contract
+
+- `PB` แยกจาก shared count paginator: runtime render รอบวัดที่ความกว้าง `194 มม.` บังคับโหลดและยืนยัน Noto Sans Thai ทั้ง Regular/Bold พร้อม logo แล้ววัดหัวเอกสาร, ข้อมูลผู้ขาย, หัวตาราง, candidate row/REMARK segment, footer ตาราง, กรอบล่าง และพื้นที่ลายเซ็นก่อนสร้าง page plan.
+- 15 เป็นเพดานรายการต่อหน้า. แถวถัดไปที่ชนพื้นที่สงวนต้องย้ายทั้งแถวไปหน้าถัดไป; ถ้าแถวเดียวสูงเกินหน้าและมี REMARK หลายข้อ จึงแบ่งเฉพาะระหว่างข้อ โดยคงเลขรายการเดิม, ใส่ชื่อสินค้า `(ต่อ)`, เลขข้อเดินต่อ และไม่ทำยอดซ้ำ.
+- REMARK รูปแบบ `- 1. ... - 2. ...` แสดงเป็น `1. ...`, `2. ...` คนละบรรทัดด้วย hanging indent; หมายเหตุธรรมดายังคงเป็นข้อความธรรมดา. คอลัมน์ `#` กว้าง 8 มม. และยอดหลายหน่วยแสดงหนึ่งหน่วยต่อหนึ่งบรรทัด.
+- PB print normalizes equivalent kilogram labels (`กก.`, `กิโลกรัม`, `kg`) to `กก.` at the presentation boundary, merges those aliases into the same weight total line, and keeps the value inside its quantity column; true other units such as `ลัง` remain separate.
+- หน้าสุดท้ายสงวน signature zone 30 มม. และแสดงยอด/หมายเหตุ/ลายเซ็นจริง; หน้า `1..N-1` แสดง placeholder กับข้อความมีต่อหน้า. แถวว่างคำนวณจากพื้นที่คงเหลือจริงแทนการบังคับ 15 ช่องเท่ากันทุกกรณี.
+- Preview และ Print ใช้ content geometry เดียวกัน (`210 × 297 มม.` พร้อม padding 8 มม. เทียบกับ print content `194 × 281 มม.`). ปุ่มพิมพ์เปิดหลังตรวจทุก logical page ว่าไม่ overflow เท่านั้น; การวัดล้มเหลวต้อง fail closed และไม่เรียก `window.print()`.
+- Safety guard จำกัดเฉพาะ candidate ที่เพิ่มจากการลองแบ่ง REMARK หลายข้อ เพื่อกัน DOM โตแบบกำลังสอง; จำนวนแถว PB ปกติและจำนวนหน้ารวมยังไม่ถูกจำกัดโดย guard นี้.
+- ขอบเขตนี้เป็น presentation/read-only เท่านั้น ไม่เปลี่ยน API, DB, Storage, Cache, document snapshot, total calculation หรือเอกสารชนิดอื่น.
 
 ## Payment History Print Status
 

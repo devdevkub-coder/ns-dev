@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { prepareCorporatePrintLayout } from './corporate-print-layout'
 import { paginateStandardPrintItems } from '@/lib/print-pagination'
 
 const companyProfilePayloadSchema = z.object({
@@ -284,9 +285,15 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
 
     if (isPlaceholderPage) {
       return `
-        <section class="bottom-grid continuation-summary" data-continuation-summary="empty" aria-label="Continuation page reserved summary area">
-          <div class="continuation-empty-panel" aria-hidden="true"></div>
-          <div class="continuation-empty-panel" aria-hidden="true"></div>
+        <section class="bottom-grid continuation-summary" data-continuation-summary="placeholder" aria-label="Continuation page summary placeholders">
+          <div class="continuation-summary-panel">
+            <div class="continuation-panel-title">รายละเอียดการรับเงิน</div>
+            <div class="continuation-placeholder">-</div>
+          </div>
+          <div class="continuation-summary-panel">
+            <div class="continuation-panel-title">หมายเหตุ</div>
+            <div class="continuation-placeholder">-</div>
+          </div>
         </section>
 
         <div class="footer-group">
@@ -457,8 +464,8 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .items { margin-top: 8px; font-size: 11.5px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
       .items thead { display: table-header-group; }
       .items tbody { break-inside: auto; page-break-inside: auto; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 5px 6px; text-align: left; font-weight: 900; }
-      .items td { border: 1px solid #dbe3ea; padding: 5px 6px; vertical-align: middle; }
+      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 5px 6px; text-align: left; font-weight: 900; overflow-wrap: anywhere; word-break: break-word; }
+      .items td { border: 1px solid #dbe3ea; padding: 5px 6px; vertical-align: middle; overflow-wrap: anywhere; word-break: break-word; }
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty-row td { height: 26px; color: transparent; }
       .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; padding: 5px 6px; }
@@ -478,7 +485,9 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .summary-row { display: grid; grid-template-columns: 1fr 32mm; gap: 6px; border-bottom: 1px solid #cbd5e1; padding: 4px 6px; font-size: 11.5px; }
       .summary-row:last-child { border-bottom: 0; }
       .summary-row.highlight { background: #065f46; color: white; padding: 6px; font-size: 11.5px; font-weight: 900; }
-      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-summary-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; padding: 8px; }
+      .continuation-panel-title { font-weight: 900; color: #1e293b; }
+      .continuation-placeholder { margin-top: 12px; color: #94a3b8; }
       .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; color: #059669; font-size: 13px; letter-spacing: 0.5px; }
       
       .footer-group { break-inside: avoid; page-break-inside: avoid; }
@@ -557,6 +566,7 @@ export async function openReceiptVoucherPrint(row: ReceiptVoucherPrintDocument, 
     printWindow.document.open()
     printWindow.document.write(buildReceiptVoucherPrintHtml(row, profile))
     printWindow.document.close()
+    await prepareCorporatePrintLayout(printWindow.document)
     printWindow.focus()
   } catch (err) {
     printWindow.document.open()

@@ -74,8 +74,9 @@ describe('receipt voucher print layout', () => {
       expect(page).toContain(`หน้า ${index + 1} / ${expectedPages}`)
       if (index < expectedPages - 1) {
         expect(page).toContain('data-page-totals="placeholder"')
-        expect(page).toContain('data-continuation-summary="empty"')
-        expect(page.match(/class="continuation-empty-panel"/g)).toHaveLength(2)
+        expect(page).toContain('data-continuation-summary="placeholder"')
+        expect(page.match(/class="continuation-summary-panel"/g)).toHaveLength(2)
+        expect(page.match(/class="continuation-placeholder"/g)).toHaveLength(2)
         expect(page).toContain('data-continuation-signature="true"')
         expect(page).toContain('class="legal-note"')
         expect(page).toContain('เอกสารนี้เป็นหลักฐานรับเงินสดจาก Supplier เท่านั้น ไม่ใช่เอกสารโอนเงินหรือรายการธนาคาร')

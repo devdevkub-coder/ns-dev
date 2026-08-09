@@ -5,10 +5,9 @@ import { type WeightTicketRecord, type StoredImageAsset } from '@/lib/weight-tic
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import {
   buildPrintWeightRows,
+  paginatePrintWeightRows,
   buildWeightTicketAttachmentImages,
   formatPrintableNumber,
-  FIRST_PAGE_ITEM_ROWS,
-  CONTINUATION_PAGE_ITEM_ROWS,
   WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE,
   type PrintWeightRow,
 } from '@/lib/weight-ticket-print'
@@ -22,7 +21,7 @@ import { normalizeThai } from './thai-text'
  * เพื่อกำจัด dependency Chromium binary ออกจาก Docker image
  *
  * หลักการ:
- * - ใช้ business logic เดิม (buildPrintWeightRows, pagination 12/17) — pure data transform
+ * - ใช้ business logic เดิม (buildPrintWeightRows, pagination 12/14 with final WTI reservation) — pure data transform
  * - ทุก string ผ่าน normalizeThai ก่อนเข้า <Text> (แก้ Sara Am truncation, Issue #3295)
  * - CSS Grid → flex rows (react-pdf ไม่มี grid)
  * - <table> → fixed-width flex rows (ความกว้างตาม HTML เดิม)
@@ -275,6 +274,13 @@ const styles = StyleSheet.create({
     borderColor: BORDER_LIGHT,
     backgroundColor: '#ffffff',
   },
+  emptyTableRow: {
+    minHeight: 18,
+    backgroundColor: '#ffffff',
+  },
+  finalEmptyTableRow: {
+    minHeight: 28,
+  },
 
   // Bottom section
   bottomGrid: { flexDirection: 'row', gap: 7, marginTop: 6 },
@@ -293,6 +299,14 @@ const styles = StyleSheet.create({
   continuationPanel: {
     minHeight: 70,
     backgroundColor: '#ffffff',
+  },
+  continuationPanelBody: {
+    minHeight: 45,
+    padding: 4,
+  },
+  continuationPlaceholder: {
+    fontSize: 9,
+    color: TEXT_MUTED,
   },
 
   // Signatures
@@ -557,6 +571,25 @@ function EmptyTableFooter() {
   )
 }
 
+function EmptyTableRow({ isReceipt, isFinalPage }: { isReceipt: boolean; isFinalPage: boolean }) {
+  const widths = isReceipt
+    ? [COL_RANK, COL_ITEM, COL_GROSS, COL_CONTAINER, COL_AFTER_CONTAINER, COL_DEDUCTION, COL_NET]
+    : [COL_RANK, `${100 - 4 - 12 - 12 - 26}%`, COL_GROSS, COL_CONTAINER, COL_NET_WTO]
+
+  return (
+    <View style={[styles.tableRow, styles.emptyTableRow, ...(isFinalPage ? [styles.finalEmptyTableRow] : [])]}>
+      {widths.map((width, index) => (
+        <View
+          key={`empty-cell-${index}`}
+          style={[index === widths.length - 1 ? styles.tableCellLast : styles.tableCell, { width }]}
+        >
+          <Text>{' '}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
 // ============================================================
 // Main Document
 // ============================================================
@@ -576,19 +609,13 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
 
   // Business logic (reuse จาก HTML template)
   const printRows = buildPrintWeightRows(ticket, isReceipt)
-  const pages: Array<{ capacity: number; items: PrintWeightRow[] }> = []
-  let cursor = 0
-  while (cursor < printRows.length || pages.length === 0) {
-    const capacity = pages.length === 0 ? FIRST_PAGE_ITEM_ROWS : CONTINUATION_PAGE_ITEM_ROWS
-    pages.push({ capacity, items: printRows.slice(cursor, cursor + capacity) })
-    cursor += capacity
-  }
+  const pages = paginatePrintWeightRows(printRows, isReceipt)
   const totalPages = pages.length
 
   // Lot info (เหมือน HTML template)
   const isLotLine = (line: WeightTicketRecord['lines'][number]) => {
     if (!isReceipt) return true
-    return line.grossWeightValue > 0 && !line.note.includes('มาจากสิ่งเจือปน')
+    return line.grossWeightValue > 0 && line.impuritySourceLineNo == null
   }
   const lotLines = ticket.lines.filter(isLotLine)
   const lotCount = lotLines.length
@@ -716,6 +743,9 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
               {page.items.map((row, idx) => (
                 <ItemRow key={idx} row={row} isReceipt={isReceipt} />
               ))}
+              {Array.from({ length: Math.max(0, page.capacity - page.items.length) }, (_, idx) => (
+                <EmptyTableRow key={`empty-row-${idx}`} isReceipt={isReceipt} isFinalPage={isLastPage} />
+              ))}
               {isLastPage ? <TableFooter ticket={ticket} isReceipt={isReceipt} /> : <EmptyTableFooter />}
             </View>
 
@@ -796,9 +826,18 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
             ) : (
               <>
                 <View style={styles.bottomGrid} wrap={false}>
-                  <View style={[styles.panel, styles.continuationPanel, { flex: 1.15 }]} />
-                  <View style={[styles.panel, styles.continuationPanel, { flex: 0.8 }]} />
-                  <View style={[styles.panel, styles.continuationPanel, { flex: 1.05 }]} />
+                  <View style={[styles.panel, styles.continuationPanel, { flex: 1.15 }]}>
+                    <Text style={styles.panelTitle}>{nt('สรุปตามหมวดสินค้า')}</Text>
+                    <View style={styles.continuationPanelBody}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                  </View>
+                  <View style={[styles.panel, styles.continuationPanel, { flex: 0.8 }]}>
+                    <Text style={styles.panelTitle}>{nt('หมายเหตุ')}</Text>
+                    <View style={styles.continuationPanelBody}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                  </View>
+                  <View style={[styles.panel, styles.continuationPanel, { flex: 1.05 }]}>
+                    <Text style={styles.panelTitle}>{nt('ข้อมูลน้ำหนัก / Weight Info')}</Text>
+                    <View style={styles.continuationPanelBody}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                  </View>
                 </View>
                 <Text style={styles.continued}>{nt(`( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )`)}</Text>
               </>

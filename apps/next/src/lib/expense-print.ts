@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { prepareCorporatePrintLayout } from './corporate-print-layout'
 import { paginateStandardPrintItems } from './print-pagination'
 
 const companyProfilePayloadSchema = z.object({
@@ -184,9 +185,15 @@ export function buildExpensePrintHtml(expense: any, profile: CompanyProfilePrint
         <div class="sig"><div class="sig-line">ผู้รับเงิน (Recipient)</div><div>วันที่ ____ / ____ / ______</div></div>
       </section>
       ` : `
-      <section class="bottom-grid continuation-summary" data-continuation-summary="empty" aria-label="Continuation page reserved summary area">
-        <div class="continuation-empty-panel" aria-hidden="true"></div>
-        <div class="continuation-empty-panel" aria-hidden="true"></div>
+      <section class="bottom-grid continuation-summary" data-continuation-summary="placeholder" aria-label="Continuation page summary placeholders">
+        <div class="continuation-summary-panel">
+          <div class="continuation-panel-title">สรุปค่าใช้จ่าย</div>
+          <div class="continuation-placeholder">-</div>
+        </div>
+        <div class="continuation-summary-panel">
+          <div class="continuation-panel-title">หมายเหตุ</div>
+          <div class="continuation-placeholder">-</div>
+        </div>
       </section>
       <div class="continuation-signature" data-continuation-signature="true">
         ( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )
@@ -230,8 +237,8 @@ export function buildExpensePrintHtml(expense: any, profile: CompanyProfilePrint
       .field-value { font-weight: 750; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
       table { width: 100%; border-collapse: collapse; }
       .items { margin-top: 12px; font-size: 12px; table-layout: fixed; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; }
-      .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
+      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; overflow-wrap: anywhere; word-break: break-word; }
+      .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       .items .empty td { height: 24px; color: transparent; }
       .items tfoot td { background: #ecfdf5; color: #0f172a; font-weight: 900; }
       .items tfoot.placeholder-total td { height: 28px; background: #ffffff; color: transparent; }
@@ -242,7 +249,9 @@ export function buildExpensePrintHtml(expense: any, profile: CompanyProfilePrint
       .rank-cell { padding-left: 2px !important; padding-right: 2px !important; }
       .strong { font-weight: 900; }
       .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
-      .continuation-empty-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-summary-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; padding: 8px; }
+      .continuation-panel-title { font-weight: 900; color: #1e293b; }
+      .continuation-placeholder { margin-top: 12px; color: #94a3b8; }
       .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; color: #991b1b; font-size: 13px; letter-spacing: 0.5px; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
@@ -317,5 +326,6 @@ export async function openExpenseReceiptPrint(expense: any, targetWindow?: Windo
   printWindow.document.open()
   printWindow.document.write(buildExpensePrintHtml(expense, profile))
   printWindow.document.close()
+  await prepareCorporatePrintLayout(printWindow.document)
   printWindow.focus()
 }

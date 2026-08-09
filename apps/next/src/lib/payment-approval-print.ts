@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { prepareCorporatePrintLayout } from './corporate-print-layout'
 import { formatDateDisplay } from '@/lib/format'
 import { paginateStandardPrintItems } from './print-pagination'
 
@@ -397,9 +398,15 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
         <div class="sig"><div class="sig-line">ผู้จ่ายเงิน / Cashier</div><div>วันที่ ____ / ____ / ______</div></div>
       </section>
       ` : `
-      <section class="summary-grid continuation-summary" data-continuation-summary="empty" aria-label="Continuation page reserved summary area">
-        <div class="continuation-empty-panel" aria-hidden="true"></div>
-        <div class="continuation-empty-panel" aria-hidden="true"></div>
+      <section class="summary-grid continuation-summary" data-continuation-summary="placeholder" aria-label="Continuation page summary placeholders">
+        <div class="continuation-summary-panel">
+          <div class="continuation-panel-title">สรุปการอนุมัติจ่าย</div>
+          <div class="continuation-placeholder">-</div>
+        </div>
+        <div class="continuation-summary-panel">
+          <div class="continuation-panel-title">หมายเหตุ</div>
+          <div class="continuation-placeholder">-</div>
+        </div>
       </section>
       <div class="continuation-signature" data-continuation-signature="true">
         ( มีต่อหน้า ${page.pageNo + 1} / Continued on Page ${page.pageNo + 1} ➔ )
@@ -439,8 +446,8 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       .meta-info { color: #475569; font-size: 11px; font-weight: 600; margin-top: 7px; }
       
       .summary-table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #cbd5e1; table-layout: fixed; }
-      .summary-table th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; font-size: 12px; }
-      .summary-table td { border: 1px solid #dbe3ea; padding: 6px 5px; font-size: 12px; vertical-align: top; }
+      .summary-table th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 900; padding: 6px 5px; text-align: left; font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
+      .summary-table td { border: 1px solid #dbe3ea; padding: 6px 5px; font-size: 12px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       .summary-table tr { break-inside: avoid; page-break-inside: avoid; }
       .summary-table .num { text-align: right; font-variant-numeric: tabular-nums; }
       .summary-table .group-total td { background: #f1f5f9; border-top: 1px solid #94a3b8; border-bottom: 1px solid #cbd5e1; }
@@ -453,7 +460,9 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       .summary-label { color: #64748b; font-size: 11px; }
       .summary-value { color: #0f172a; font-size: 13px; font-weight: 800; margin-top: 5px; }
       .amount-panel { text-align: right; }
-      .continuation-empty-panel { min-height: 70px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
+      .continuation-summary-panel { min-height: 70px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; padding: 8px; }
+      .continuation-panel-title { font-weight: 900; color: #1e293b; }
+      .continuation-placeholder { margin-top: 10px; color: #94a3b8; }
       .continuation-signature { min-height: 56px; display: flex; align-items: center; justify-content: center; color: #1e40af; font-size: 13px; font-weight: 800; text-align: center; }
       .signatures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin-top: 16px; }
       .sig { color: #475569; text-align: center; }
@@ -515,5 +524,6 @@ export async function openPmaBatchPrint(rows: PrintPmaRow[], modeLabel: string, 
   printWindow.document.open()
   printWindow.document.write(buildPmaSummaryPrintHtml(rows, profile, modeLabel))
   printWindow.document.close()
+  await prepareCorporatePrintLayout(printWindow.document, { orientation: 'landscape' })
   printWindow.focus()
 }

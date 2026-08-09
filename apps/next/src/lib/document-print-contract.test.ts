@@ -37,7 +37,7 @@ function standardPages(html: string) {
   return [...html.matchAll(/<main class="page[^"]*" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
 }
 
-function expectStandardPrintContract(html: string, expectedPages: number, expectedItemCount: number) {
+function expectStandardPrintContract(html: string, expectedPages: number, expectedItemCount: number, continuationTitles: readonly string[]) {
   const pages = standardPages(html)
 
   expect(pages).toHaveLength(expectedPages)
@@ -50,8 +50,12 @@ function expectStandardPrintContract(html: string, expectedPages: number, expect
       const placeholderFooter = page.match(/<tfoot[^>]*data-page-totals="placeholder"[\s\S]*?<\/tfoot>/)?.[0]
       expect(placeholderFooter).toContain('&nbsp;')
       expect(placeholderFooter).not.toMatch(/>\s*-\s*</)
-      expect(page).toContain('data-continuation-summary="empty"')
-      expect(page.match(/class="continuation-empty-panel"/g)).toHaveLength(2)
+      expect(page).toContain('data-continuation-summary="placeholder"')
+      expect(page.match(/class="continuation-summary-panel"/g)).toHaveLength(2)
+      expect(page.match(/class="continuation-placeholder"/g)).toHaveLength(2)
+      continuationTitles.forEach((title) => {
+        expect(page).toContain(`<div class="continuation-panel-title">${title}</div>`)
+      })
       expect(page).toContain('data-continuation-signature="true"')
       expect(page).toContain(`Continued on Page ${index + 2}`)
       expect(page).not.toContain('data-signatures="final"')
@@ -66,6 +70,7 @@ function expectStandardPrintContract(html: string, expectedPages: number, expect
     Array.from({ length: expectedItemCount }, (_, index) => index + 1),
   )
   expect(html).toMatch(/body\s*\{[^}]*background:\s*#334155/)
+  expect(html).toMatch(/(?:\.items|\.summary-table)\s+(?:th|td)\s*\{[^}]*overflow-wrap:\s*anywhere[^}]*word-break:\s*break-word/)
   expect(html).toMatch(/\.page\s*\{[^}]*box-shadow:/)
   expect(html).toMatch(/@media print\s*\{[\s\S]*?body\s*\{[^}]*background:\s*(?:white|#fff)/)
   expect(html).toMatch(/@media print\s*\{[\s\S]*?\.page\s*\{[^}]*box-shadow:\s*none/)
@@ -310,15 +315,15 @@ function makePmaRows(rowCount: number) {
 }
 
 describe.each([
-  { build: (count: number, selectedProfile = profile) => buildSalesBillPrintHtml(makeSalesBill(count), selectedProfile), name: 'sales bill' },
-  { build: (count: number, selectedProfile = profile) => buildPoBuyPrintHtml(makePoBuy(count), selectedProfile), name: 'PO Buy' },
-  { build: (count: number, selectedProfile = profile) => buildPoSellPrintHtml(makePoSell(count), selectedProfile), name: 'PO Sell' },
-  { build: (count: number, selectedProfile = profile) => buildAdvancePaymentPrintHtml(makeAdvancePayment(count), selectedProfile), name: 'advance allocation history' },
-  { build: (count: number, selectedProfile = profile) => buildExpensePrintHtml(makeExpense(count), selectedProfile), name: 'expense voucher' },
-  { build: (count: number, selectedProfile = profile) => buildPmaSummaryPrintHtml(makePmaRows(count), selectedProfile, 'เจ้าหนี้การค้า'), name: 'payment approval' },
-])('$name print pagination', ({ build }) => {
+  { build: (count: number, selectedProfile = profile) => buildSalesBillPrintHtml(makeSalesBill(count), selectedProfile), continuationTitles: ['สรุปตามหมวดสินค้า', 'หมายเหตุ'], name: 'sales bill' },
+  { build: (count: number, selectedProfile = profile) => buildPoBuyPrintHtml(makePoBuy(count), selectedProfile), continuationTitles: ['สรุปตามหมวดสินค้า', 'หมายเหตุ'], name: 'PO Buy' },
+  { build: (count: number, selectedProfile = profile) => buildPoSellPrintHtml(makePoSell(count), selectedProfile), continuationTitles: ['สรุปตามหมวดสินค้า', 'หมายเหตุ'], name: 'PO Sell' },
+  { build: (count: number, selectedProfile = profile) => buildAdvancePaymentPrintHtml(makeAdvancePayment(count), selectedProfile), continuationTitles: ['สรุปการจัดสรร', 'หมายเหตุ'], name: 'advance allocation history' },
+  { build: (count: number, selectedProfile = profile) => buildExpensePrintHtml(makeExpense(count), selectedProfile), continuationTitles: ['สรุปค่าใช้จ่าย', 'หมายเหตุ'], name: 'expense voucher' },
+  { build: (count: number, selectedProfile = profile) => buildPmaSummaryPrintHtml(makePmaRows(count), selectedProfile, 'เจ้าหนี้การค้า'), continuationTitles: ['สรุปการอนุมัติจ่าย', 'หมายเหตุ'], name: 'payment approval' },
+])('$name print pagination', ({ build, continuationTitles }) => {
   it.each(PRINT_BOUNDARIES)('renders $count items across $pages page(s)', ({ count, pages }) => {
-    expectStandardPrintContract(build(count), pages, count)
+    expectStandardPrintContract(build(count), pages, count, continuationTitles)
   })
 
   it('keeps the legal company name on one line', () => {

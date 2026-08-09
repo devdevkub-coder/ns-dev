@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { prepareCorporatePrintLayout } from '@/lib/corporate-print-layout'
 import { decodeStoredImageAsset, displayWeightTicketStatus, isPreviewableStoredImageAsset, stripImpurityProductMeta, type StoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
 const companyProfilePayloadSchema = z.object({
@@ -9,7 +10,16 @@ const companyProfilePayloadSchema = z.object({
 })
 
 const FIRST_PAGE_ITEM_ROWS = 12
-const CONTINUATION_PAGE_ITEM_ROWS = 17
+// WTI rows include product detail lines, so 14 is the largest continuation
+// capacity that keeps the three placeholder panels and continuation marker on
+// the same A4 page in both browser print and React-PDF.
+const CONTINUATION_PAGE_ITEM_ROWS = 14
+// The final page also contains totals, three summary panels, and signatures.
+// Give the form a taller table so short tickets use the available paper instead
+// of leaving a large empty block above the signatures. The signatures still
+// stay anchored at the bottom of the form.
+const WTI_FINAL_PAGE_ITEM_ROWS = FIRST_PAGE_ITEM_ROWS
+const WTO_FINAL_PAGE_ITEM_ROWS = CONTINUATION_PAGE_ITEM_ROWS
 export const WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE = 6
 
 /** exported เพื่อให้ react-pdf template ใช้ค่าเดียวกันกับ HTML template */
@@ -139,7 +149,7 @@ function isImpurityLine(line: WeightTicketRecord['lines'][number]) {
 }
 
 function isPurchaseFromImpurityLine(line: WeightTicketRecord['lines'][number]) {
-  return line.grossWeightValue > 0 && line.note.includes('มาจากสิ่งเจือปน')
+  return line.grossWeightValue > 0 && line.impuritySourceLineNo != null
 }
 
 function formatImpurityPurchaseSourceDetail(line: WeightTicketRecord['lines'][number]) {
@@ -152,24 +162,19 @@ function formatImpurityPurchaseSourceDetail(line: WeightTicketRecord['lines'][nu
 
 function findPurchaseLineForImpurity(
   impurityLine: WeightTicketRecord['lines'][number],
-  sourceProductName: string,
   purchaseLines: WeightTicketRecord['lines'],
 ) {
-  return purchaseLines.find((purchaseLine) => {
-    if (!purchaseLine.note.includes(sourceProductName) && !purchaseLine.note.includes(impurityLine.productId)) return false
-    return Math.abs(purchaseLine.grossWeightValue - impurityLine.deductionWeight) < 0.001
-  })
+  return purchaseLines.find((purchaseLine) => purchaseLine.impuritySourceLineNo === impurityLine.lineNo)
 }
 
 function formatImpuritySummaryDetail(
   impurityLines: WeightTicketRecord['lines'],
-  sourceProductName: string,
   purchaseLines: WeightTicketRecord['lines'],
 ) {
   if (impurityLines.length === 0) return 'ไม่มีหักสิ่งเจือปน'
 
   const details = impurityLines.map((line, index) => {
-    const purchaseLine = findPurchaseLineForImpurity(line, sourceProductName, purchaseLines)
+    const purchaseLine = findPurchaseLineForImpurity(line, purchaseLines)
     const impurityName = cleanImpurityName(weightTicketImpurityDisplayName(line))
     const deductionText = `${formatPrintableWeight(line.deductionWeight)} กก.`
     const prefix = `- ${index + 1}. ${impurityName} ${deductionText}`
@@ -241,7 +246,7 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
         deductionWeight: summary.deductWeight,
         detail: [
           cleanNote(line.note),
-          formatImpuritySummaryDetail(impurityLines, summary.productName, allPurchaseLines),
+          formatImpuritySummaryDetail(impurityLines, allPurchaseLines),
         ].filter((val) => val && val !== '-').join('\n') || '-',
         grossWeight: summary.grossWeight,
         label: '',
@@ -296,7 +301,7 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
         containerDeductionWeight: summary.containerDeductionWeight,
         deductionWeight: summary.deductWeight,
         detail: [
-          formatImpuritySummaryDetail(impurityLines, summary.productName, allPurchaseLines),
+          formatImpuritySummaryDetail(impurityLines, allPurchaseLines),
           purchaseLines.length > 0 ? 'รวมรายการซื้อเพิ่มจากสิ่งเจือปนแล้ว' : '',
         ].filter(Boolean).join('\n'),
         grossWeight: summary.grossWeight,
@@ -308,6 +313,36 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
   })
 
   return rows
+}
+
+export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: boolean) {
+  const pages: Array<{ capacity: number; items: PrintWeightRow[] }> = []
+  let cursor = 0
+  while (cursor < printRows.length || pages.length === 0) {
+    const capacity = pages.length === 0 ? FIRST_PAGE_ITEM_ROWS : CONTINUATION_PAGE_ITEM_ROWS
+    pages.push({ capacity, items: printRows.slice(cursor, cursor + capacity) })
+    cursor += capacity
+  }
+
+  if (pages.length > 1) {
+    const finalCapacity = isReceipt ? WTI_FINAL_PAGE_ITEM_ROWS : WTO_FINAL_PAGE_ITEM_ROWS
+    const lastIndex = pages.length - 1
+    const lastPage = pages[lastIndex]
+    if (lastPage.items.length > finalCapacity) {
+      pages[lastIndex] = {
+        capacity: CONTINUATION_PAGE_ITEM_ROWS,
+        items: lastPage.items.slice(0, finalCapacity),
+      }
+      pages.push({
+        capacity: finalCapacity,
+        items: lastPage.items.slice(finalCapacity),
+      })
+    } else {
+      pages[lastIndex] = { capacity: finalCapacity, items: lastPage.items }
+    }
+  }
+
+  return pages
 }
 
 export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: CompanyProfilePrintValues) {
@@ -337,16 +372,16 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
 
   const isLotLine = (line: WeightTicketRecord['lines'][number]) => {
     if (!isReceipt) return true
-    return line.grossWeightValue > 0 && !line.note.includes('มาจากสิ่งเจือปน')
+    return line.grossWeightValue > 0 && line.impuritySourceLineNo == null
   }
   const lotLines = ticket.lines.filter(isLotLine)
   const lotCount = lotLines.length
 
-  function rowHtml(row: PrintWeightRow) {
+  function rowHtml(row: PrintWeightRow, rowSlot: number) {
     if (row.className === 'product-heading') {
       const colSpan = isReceipt ? 7 : 5
       return `
-        <tr class="item-row product-heading">
+        <tr class="item-row product-heading" data-row-slot="${rowSlot}">
           <td class="c rank-cell">${escapeHtml(row.rank || '')}</td>
           <td colspan="${colSpan - 1}">
             <div class="item-name">${escapeHtml(row.productName)}</div>
@@ -359,7 +394,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     const afterContainerWeight = Math.max(0, row.grossWeight - row.containerDeductionWeight)
 
     return `
-      <tr class="item-row ${escapeHtml(row.className || '')}">
+      <tr class="item-row ${escapeHtml(row.className || '')}" data-row-slot="${rowSlot}">
         <td class="c rank-cell">${escapeHtml(row.rank || '')}</td>
         <td>
           <div class="item-name">${escapeHtml(row.productName)}</div>
@@ -380,21 +415,18 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   }
 
   const printRows = buildPrintWeightRows(ticket, isReceipt)
-  const pages: Array<{ capacity: number; items: PrintWeightRow[] }> = []
-  let cursor = 0
-  while (cursor < printRows.length || pages.length === 0) {
-    const capacity = pages.length === 0 ? FIRST_PAGE_ITEM_ROWS : CONTINUATION_PAGE_ITEM_ROWS
-    pages.push({
-      capacity,
-      items: printRows.slice(cursor, cursor + capacity),
-    })
-    cursor += capacity
-  }
+  const pages = paginatePrintWeightRows(printRows, isReceipt)
 
   const totalPages = pages.length
+  let rowSlot = 0
   const pageHtml = pages.map((page, pageIndex) => {
     const isLastPage = pageIndex === totalPages - 1
-    const rows = page.items.map((row) => rowHtml(row)).join('')
+    const rows = page.items.map((row) => rowHtml(row, ++rowSlot)).join('')
+    const emptyRows = Array.from({ length: Math.max(0, page.capacity - page.items.length) }, (_, emptyIndex) => `
+      <tr class="item-row empty${isLastPage ? ' final-empty' : ''}" data-row-slot="empty-${pageIndex + 1}-${emptyIndex + 1}" aria-hidden="true">
+        ${Array.from({ length: isReceipt ? 7 : 5 }, () => '<td>&nbsp;</td>').join('')}
+      </tr>
+    `).join('')
     const totalAfterContainer = Math.max(0, ticket.totals.grossWeight - ticket.totals.containerDeductionWeight)
 
     return `
@@ -456,6 +488,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </thead>
           <tbody>
             ${rows}
+            ${emptyRows}
           </tbody>
           ${isLastPage ? `
             <tfoot>
@@ -515,10 +548,19 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
           </section>
         ` : `
-          <section class="bottom-grid" data-continuation-panels="empty" aria-label="Continuation page reserved summary area">
-            <div class="panel continuation-empty-panel" aria-hidden="true"></div>
-            <div class="panel continuation-empty-panel" aria-hidden="true"></div>
-            <div class="panel continuation-empty-panel" aria-hidden="true"></div>
+          <section class="bottom-grid" data-continuation-panels="placeholder" aria-label="Continuation page summary placeholders">
+            <div class="panel continuation-summary-panel">
+              <div class="panel-title">สรุปตามหมวดสินค้า</div>
+              <div class="panel-body continuation-panel-body"><div class="continuation-placeholder">-</div></div>
+            </div>
+            <div class="panel continuation-summary-panel">
+              <div class="panel-title">หมายเหตุ</div>
+              <div class="panel-body continuation-panel-body"><div class="continuation-placeholder">-</div></div>
+            </div>
+            <div class="panel continuation-summary-panel">
+              <div class="panel-title">ข้อมูลน้ำหนัก / Weight Info</div>
+              <div class="panel-body continuation-panel-body"><div class="continuation-placeholder">-</div></div>
+            </div>
           </section>
           <div class="continued" data-continuation-signature="true">
             ( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )
@@ -601,9 +643,10 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       table { width: 100%; border-collapse: collapse; }
       .items-frame { margin: 8px 1px 0; border-radius: 6px; box-shadow: 0 0 0 1px #cbd5e1; overflow: hidden; flex: 0 0 auto; }
       .items { margin-top: 0; font-size: 10.5px; table-layout: fixed; }
-      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 4px 3px; text-align: left; font-weight: 700; }
-      .items td { border: 1px solid #dbe3ea; padding: 4px 3px; vertical-align: top; }
+      .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 4px 3px; text-align: left; font-weight: 700; overflow-wrap: anywhere; word-break: break-word; }
+      .items td { border: 1px solid #dbe3ea; padding: 4px 3px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
       .items .empty td { height: 24px; color: transparent; }
+      .items .final-empty td { height: 28px; }
       .items .product-heading td { background: #f1f5f9; }
       .items .lot-row td { background: #ffffff; }
       .items .source-row td { background: #f8fafc; }
@@ -621,7 +664,9 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .c { text-align: center; }
       .strong { font-weight: 700; }
       .bottom-grid { display: grid; grid-template-columns: 1.15fr 0.8fr 1.05fr; gap: 8px; margin-top: 8px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
-      .continuation-empty-panel { min-height: 92px; background: #ffffff; }
+      .continuation-summary-panel { min-height: 92px; background: #ffffff; }
+      .continuation-panel-body { min-height: 58px; }
+      .continuation-placeholder { color: #64748b; font-size: 10.5px; }
       .note { min-height: 28px; color: #334155; white-space: pre-wrap; }
       .summary-cards { display: grid; gap: 8px; }
       .summary-card { border: 1px solid #dbe3ea; border-radius: 6px; padding: 5px; background: #f8fafc; }
@@ -670,6 +715,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .items { font-size: 10px; }
         .items th, .items td { padding: 2.5px; }
         .items .empty td { height: 18px; }
+        .items .final-empty td { height: 28px; }
         .muted { font-size: 9px; }
         .detail-line { margin-top: 0; line-height: 1.25; }
         .bottom-grid { gap: 8px; margin-top: 7px; }
@@ -678,6 +724,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .album-grid { gap: 7px; }
         .album-image-wrap { min-height: 170px; }
         .note { min-height: 24px; }
+        .continuation-placeholder { font-size: 10px; }
         .summary-card { padding: 5px; }
         .summary-card .value { font-size: 10.5px; }
         .signatures { gap: 12px; margin-top: auto; margin-bottom: 5mm; }
@@ -719,5 +766,8 @@ export async function openWeightTicketReceiptPrint(ticket: WeightTicketRecord, t
   printWindow.document.open()
   printWindow.document.write(buildReceiptPrintHtml(ticket, profile))
   printWindow.document.close()
+  // WTI/WTO already paginate their form rows with receipt/delivery-specific
+  // capacities; the shared layer only applies the measured A4 overflow gate.
+  await prepareCorporatePrintLayout(printWindow.document, { reflowRows: false })
   printWindow.focus()
 }
