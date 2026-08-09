@@ -618,7 +618,7 @@ export function ImpurityProductsPageClient() {
       ) : null}
 
       <Dialog open={formOpen} onOpenChange={(open) => { if (!open) requestCloseForm() }}>
-        <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
+        <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-white dark:bg-slate-900 border-0" hideClose>
           <ProductForm
             isSaving={isSaving}
             onDirtyChange={setFormDirty}
@@ -870,9 +870,9 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
   }
 
   return (
-    <form className="overflow-hidden rounded-md bg-slate-900 dark:bg-[#0f172a] shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
-      <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
-        <h3 className="text-lg font-bold text-white">{form.id ? 'แก้ไขสินค้าสิ่งเจือปน' : 'เพิ่มสินค้าสิ่งเจือปน'}</h3>
+    <form className="overflow-hidden rounded-md bg-white dark:bg-[#0f172a] shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
+      <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-100 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0 border-b border-slate-200 dark:border-slate-800">
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{form.id ? 'แก้ไขสินค้าสิ่งเจือปน' : 'เพิ่มสินค้าสิ่งเจือปน'}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(active) => {
             if (active) { update('active', true); return }

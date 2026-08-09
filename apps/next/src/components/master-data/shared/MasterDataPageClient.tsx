@@ -732,7 +732,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
       ) : null}
 
       <Dialog open={formOpen} onOpenChange={(open) => { if (!open) requestCloseForm() }}>
-        <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
+        <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-white dark:bg-slate-900 border-0" hideClose>
           <MasterDataForm
             config={resolvedConfig}
             isSaving={isSaving}
