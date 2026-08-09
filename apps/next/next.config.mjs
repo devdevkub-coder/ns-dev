@@ -71,12 +71,13 @@ const supabaseOrigin = (() => {
   }
 })()
 const supabaseWsOrigin = supabaseOrigin ? supabaseOrigin.replace('https://', 'wss://') : ''
-const cspConnectSources = ['self', supabaseOrigin, supabaseWsOrigin].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
+const cspConnectSources = ['self', supabaseOrigin, supabaseWsOrigin, 'https://va.vercel-scripts.com'].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
 const cspImageSources = ['self', 'data:', 'blob:', supabaseOrigin, 'https://sprofile.line-scdn.net'].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
 const isDevelopment = process.env.NODE_ENV !== 'production'
 const cspScriptSources = [
   "'self'",
   "'unsafe-inline'",
+  'https://va.vercel-scripts.com',
   ...(isDevelopment ? ["'unsafe-eval'"] : []),
 ].join(' ')
 const allowedDevOrigins = Array.from(new Set([

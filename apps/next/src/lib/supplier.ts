@@ -162,9 +162,7 @@ const optionalAccountNoSchema = z.preprocess(
 
 const supplierPaymentMethodSchema = z.preprocess(
   blankToNull,
-  z.string({ required_error: 'เลือกวิธีจ่าย/รับเงิน' })
-    .trim()
-    .min(1, 'เลือกวิธีจ่าย/รับเงิน'),
+  z.string().trim().nullable().default(null),
 )
 
 export const supplierBankAccountSchema = z.object({
@@ -352,6 +350,10 @@ export function supplierBankAccountValidationIssues(
   const seenAccountNos = new Set<string>()
 
   values.bankAccounts.forEach((account, index) => {
+    if (!account.paymentMethod || !account.paymentMethod.trim()) {
+      issues.push({ message: 'เลือกวิธีจ่าย/รับเงิน', path: ['bankAccounts', index, 'paymentMethod'] })
+      return
+    }
     const resolvedName = resolveSupplierPaymentMethodName(account.paymentMethod, paymentMethods)
     const group = supplierPaymentMethodGroup(account.paymentMethod, paymentMethods)
     if (!resolvedName || !group) {

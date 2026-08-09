@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@variant dark (&:where(.dark, .dark *));
+@variant dark (&:is(.dark, .dark *));
 
 ::view-transition-old(root),
 ::view-transition-new(root) {
@@ -1256,27 +1256,27 @@ aside a:visited {
   color: #ffffff !important;
 }
 
-.dark :where([class*="bg-red-50"]:not(tr):not(td):not(th), [class*="bg-rose-50"]:not(tr):not(td):not(th), [class*="bg-pink-50"]:not(tr):not(td):not(th), [class*="bg-red-100"]:not(tr):not(td):not(th), [class*="bg-rose-100"]:not(tr):not(td):not(th), [class*="bg-pink-100"]:not(tr):not(td):not(th)) {
+.dark :where([class*="bg-red-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-rose-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-pink-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-red-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-rose-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-pink-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(127, 29, 29, 0.58) !important;
   color: #fecaca !important;
 }
 
-.dark :where([class*="bg-amber-50"]:not(tr):not(td):not(th), [class*="bg-yellow-50"]:not(tr):not(td):not(th), [class*="bg-orange-50"]:not(tr):not(td):not(th), [class*="bg-amber-100"]:not(tr):not(td):not(th), [class*="bg-yellow-100"]:not(tr):not(td):not(th), [class*="bg-orange-100"]:not(tr):not(td):not(th)) {
+.dark :where([class*="bg-amber-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-yellow-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-orange-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-amber-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-yellow-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-orange-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(146, 64, 14, 0.58) !important;
   color: #fde68a !important;
 }
 
-.dark :where([class*="bg-emerald-50"]:not(tr):not(td):not(th), [class*="bg-green-50"]:not(tr):not(td):not(th), [class*="bg-lime-50"]:not(tr):not(td):not(th), [class*="bg-teal-50"]:not(tr):not(td):not(th), [class*="bg-emerald-100"]:not(tr):not(td):not(th), [class*="bg-green-100"]:not(tr):not(td):not(th), [class*="bg-lime-100"]:not(tr):not(td):not(th), [class*="bg-teal-100"]:not(tr):not(td):not(th)) {
+.dark :where([class*="bg-emerald-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-green-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-lime-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-teal-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-emerald-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-green-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-lime-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-teal-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(6, 95, 70, 0.58) !important;
   color: #bbf7d0 !important;
 }
 
-.dark :where([class*="bg-blue-50"]:not(tr):not(td):not(th), [class*="bg-sky-50"]:not(tr):not(td):not(th), [class*="bg-cyan-50"]:not(tr):not(td):not(th), [class*="bg-blue-100"]:not(tr):not(td):not(th), [class*="bg-sky-100"]:not(tr):not(td):not(th), [class*="bg-cyan-100"]:not(tr):not(td):not(th)) {
+.dark :where([class*="bg-blue-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-sky-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-cyan-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-blue-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-sky-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-cyan-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(30, 64, 175, 0.58) !important;
   color: #dbeafe !important;
 }
 
-.dark :where([class*="bg-indigo-50"]:not(tr):not(td):not(th), [class*="bg-violet-50"]:not(tr):not(td):not(th), [class*="bg-purple-50"]:not(tr):not(td):not(th), [class*="bg-fuchsia-50"]:not(tr):not(td):not(th), [class*="bg-indigo-100"]:not(tr):not(td):not(th), [class*="bg-violet-100"]:not(tr):not(td):not(th), [class*="bg-purple-100"]:not(tr):not(td):not(th), [class*="bg-fuchsia-100"]:not(tr):not(td):not(th)) {
+.dark :where([class*="bg-indigo-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-violet-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-purple-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-fuchsia-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-indigo-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-violet-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-purple-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-fuchsia-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(91, 33, 182, 0.56) !important;
   color: #ede9fe !important;
 }
@@ -1322,7 +1322,7 @@ aside a:visited {
     padding-left: 1rem !important;
   }
 
-  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900):not([data-ns-dialog-header]) {
+  [data-ns-dialog-content="app"] > :where(form, .bg-white, .bg-slate-900):not([data-ns-dialog-header]) {
     display: flex !important;
     flex: 1 1 auto !important;
     flex-direction: column !important;
@@ -1333,7 +1333,7 @@ aside a:visited {
     border-radius: 0 !important;
   }
 
-  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900):not([data-ns-dialog-header]) > .bg-slate-900:first-child {
+  [data-ns-dialog-content="app"] > :where(form, .bg-white, .bg-slate-900):not([data-ns-dialog-header]) > :where(.bg-white, .bg-slate-900, .bg-slate-100, [data-ns-dialog-header]):first-child {
     flex-shrink: 0 !important;
     border-radius: 0 !important;
     padding-top: calc(env(safe-area-inset-top) + 1rem) !important;
@@ -1341,24 +1341,23 @@ aside a:visited {
     padding-left: 1rem !important;
   }
 
-  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900):not([data-ns-dialog-header]) > :where(.bg-slate-50, .overflow-auto, .overflow-y-auto),
-  [data-ns-dialog-content="app"] > :where(.bg-slate-50, .overflow-auto, .overflow-y-auto) {
+  [data-ns-dialog-content="app"] > :where(form, .bg-white, .bg-slate-900):not([data-ns-dialog-header]) > :where(.bg-slate-50, .bg-white, .bg-slate-900, .overflow-auto, .overflow-y-auto),
+  [data-ns-dialog-content="app"] > :where(.bg-slate-50, .bg-white, .bg-slate-900, .overflow-auto, .overflow-y-auto) {
     flex: 1 1 auto !important;
     min-height: 0 !important;
     max-height: none !important;
     overflow-y: auto !important;
   }
 
-  .fixed.inset-0.z-50:has(> .bg-slate-900:not([data-ns-modal-shell="dialog"])),
-  .fixed.inset-0.z-50:has(> form.bg-slate-900:not([data-ns-modal-shell="dialog"])) {
+  .fixed.inset-0.z-50:has(> :where(form, .bg-white, .bg-slate-900):not([data-ns-modal-shell="dialog"])),
+  .fixed.inset-0.z-50:has(> form:not([data-ns-modal-shell="dialog"])) {
     align-items: stretch !important;
     justify-content: stretch !important;
     overflow: hidden !important;
     padding: 0 !important;
   }
 
-  .fixed.inset-0.z-50 > .bg-slate-900:not([data-ns-modal-shell="dialog"]),
-  .fixed.inset-0.z-50 > form.bg-slate-900:not([data-ns-modal-shell="dialog"]) {
+  .fixed.inset-0.z-50 > :where(form, .bg-white, .bg-slate-900):not([data-ns-modal-shell="dialog"]) {
     display: flex !important;
     flex-direction: column !important;
     margin: 0 !important;

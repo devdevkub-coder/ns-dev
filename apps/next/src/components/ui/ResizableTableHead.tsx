@@ -54,11 +54,11 @@ export function ResizableTableHead<TSortKey extends string>({
       className={`relative bg-inherit p-0 text-xs font-semibold text-slate-700 ${alignment.text} ${className}`}
     >
       {sortKey && onSort ? (
-        <button className={`flex w-full min-w-0 items-center ${alignment.justify} gap-1.5 ${contentPadding} ${alignment.text} hover:bg-slate-200 focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-blue-500/40`} type="button" onClick={() => onSort(sortKey)}>
+        <button className={`flex w-full min-w-0 items-center ${alignment.justify} gap-2 ${contentPadding} ${alignment.text} hover:bg-slate-200 focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-blue-500/40`} type="button" onClick={() => onSort(sortKey)}>
           {content}
         </button>
       ) : (
-        <div className={`flex min-w-0 items-center ${alignment.justify} gap-1.5 ${contentPadding} ${alignment.text}`}>
+        <div className={`flex min-w-0 items-center ${alignment.justify} gap-2 ${contentPadding} ${alignment.text}`}>
           {content}
         </div>
       )}

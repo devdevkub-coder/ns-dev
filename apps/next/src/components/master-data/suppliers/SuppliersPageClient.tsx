@@ -29,6 +29,7 @@ import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
+import { scrollToFirstFormError } from '@/lib/form-dom'
 import { formatAccountNoDisplay, formatPhoneDisplay, sanitizeAccountNoInput, sanitizePhoneInput } from '@/lib/format'
 import { loadSupplierOptions, type MasterDataRecord, type SupplierOptions } from '@/lib/master-data'
 import { SUPPLIER_OPTIONS_API_PATH } from '@/lib/supplier-page-permissions'
@@ -55,7 +56,7 @@ const supplierColumns: Array<ResizableColumnDefinition<SupplierColumnKey>> = [
 
 const emptyBankAccount: SupplierBankAccountForm = {
   id: null,
-  paymentMethod: '',
+  paymentMethod: null,
   bankName: null,
   accountNo: null,
   bankAccount: null,
@@ -68,7 +69,7 @@ export function isBlankSupplierBankAccount(
   account: Pick<SupplierBankAccountForm, 'accountNo' | 'bankAccount' | 'bankName' | 'branchCode' | 'id' | 'paymentMethod'>,
 ) {
   return account.id === null
-    && !account.paymentMethod.trim()
+    && !account.paymentMethod?.trim()
     && !account.bankName?.trim()
     && !account.accountNo?.trim()
     && !account.bankAccount?.trim()
@@ -131,7 +132,7 @@ function supplierToForm(supplier: Supplier, paymentMethods: MasterDataRecord[]):
     : supplier.accountNo
       ? [{
         id: null,
-        paymentMethod: defaultSupplierPaymentMethodName(paymentMethods, 'bank') ?? '',
+        paymentMethod: defaultSupplierPaymentMethodName(paymentMethods, 'bank') ?? null,
         bankName: supplier.bankName,
         accountNo: sanitizeAccountNoInput(supplier.accountNo),
         bankAccount: supplier.bankAccount,
@@ -1234,45 +1235,54 @@ function SupplierForm({ supplier, bankNames, branches, paymentMethods, districts
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const formElement = event.currentTarget
     const parsed = supplierFormSchema.safeParse(form)
-    if (form.branchIds.length === 0) {
-      setErrors({ branchIds: 'เลือกสาขาที่ใช้ได้อย่างน้อย 1 สาขา' })
-      return
-    }
-    if (!parsed.success) {
-      setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [issue.path.join('.'), issue.message])))
-      return
+    const zErrors: Record<string, string> = !parsed.success
+      ? Object.fromEntries(parsed.error.issues.map((issue) => [issue.path.join('.'), issue.message]))
+      : {}
+    const branchError: Record<string, string> = form.branchIds.length === 0
+      ? { branchIds: 'เลือกสาขาที่ใช้ได้อย่างน้อย 1 สาขา' }
+      : {}
+    const bankAccountIssues = supplierBankAccountValidationIssues(form, paymentMethods)
+    const bankErrors: Record<string, string> = Object.fromEntries(bankAccountIssues.map((issue) => [issue.path.join('.'), issue.message]))
+
+    const allErrors = {
+      ...zErrors,
+      ...branchError,
+      ...bankErrors,
     }
 
-    const bankAccountIssues = supplierBankAccountValidationIssues(parsed.data, paymentMethods)
-    if (bankAccountIssues.length > 0) {
-      setErrors(Object.fromEntries(bankAccountIssues.map((issue) => [issue.path.join('.'), issue.message])))
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors)
+      scrollToFirstFormError(formElement)
       return
     }
 
     setErrors({})
-    await onSubmit(parsed.data)
+    if (parsed.data) {
+      await onSubmit(parsed.data)
+    }
   }
 
   return (
-    <form className="overflow-hidden rounded-md bg-white dark:bg-[#0f172a] shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
-      <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-100 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0 border-b border-slate-200 dark:border-slate-800">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{form.id ? 'แก้ไขผู้ขาย' : 'เพิ่มผู้ขาย'}</h3>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-700 dark:text-current" onChange={(active) => {
+    <form noValidate className="flex flex-col w-full max-h-[85vh] sm:max-h-[90vh] overflow-hidden rounded-md bg-white dark:bg-[#0f172a] shadow-xl" onSubmit={handleSubmit}>
+      <div data-ns-dialog-header className="sticky top-0 z-10 flex flex-row items-center justify-between gap-2 bg-slate-100 dark:bg-[#0f172a] px-3.5 py-3 sm:px-5 sm:py-4 shrink-0 border-b border-slate-200 dark:border-slate-800">
+        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">{form.id ? 'แก้ไขผู้ขาย' : 'เพิ่มผู้ขาย'}</h3>
+        <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2">
+          <ActiveToggle checked={form.active} labelClassName="text-xs sm:text-sm font-medium text-slate-700 dark:text-current" onChange={(active) => {
             if (active) { update('active', true); return }
             requestConfirmation({ confirmLabel: 'ปิดการใช้งาน', description: 'ต้องการปิดการใช้งานผู้ขายเมื่อบันทึกใช่หรือไม่?', destructive: true, onConfirm: () => update('active', false), title: 'ปิดการใช้งานผู้ขาย?' })
           }} />
-          <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
+          <button className="h-8.5 sm:h-9 rounded-md border border-rose-600 bg-rose-600 px-3 sm:px-4 text-xs sm:text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
             ยกเลิก
           </button>
-          <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isSaving} type="submit">
+          <button className="h-8.5 sm:h-9 rounded-md bg-emerald-600 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isSaving} type="submit">
             {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
+      <div className="flex-1 min-h-0 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลผู้ขาย</h4>
           <div className="grid gap-4 md:grid-cols-4">
@@ -1408,7 +1418,7 @@ function SupplierForm({ supplier, bankNames, branches, paymentMethods, districts
               return (
                 <div key={`${account.id ?? 'new'}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 p-4">
                   <div className="grid gap-4 md:grid-cols-5">
-                    <SelectField required error={errors[`bankAccounts.${index}.paymentMethod`]} label="วิธีจ่าย/รับเงิน" placeholder="เลือกวิธีจ่าย/รับเงิน" value={account.paymentMethod} onChange={(value) => updateBankAccount(index, 'paymentMethod', value as SupplierBankAccountForm['paymentMethod'])}>
+                    <SelectField required error={errors[`bankAccounts.${index}.paymentMethod`]} label="วิธีจ่าย/รับเงิน" placeholder="เลือกวิธีจ่าย/รับเงิน" value={account.paymentMethod ?? ''} onChange={(value) => updateBankAccount(index, 'paymentMethod', value as SupplierBankAccountForm['paymentMethod'])}>
                       {paymentMethodOptions.map((paymentMethod) => <option key={paymentMethod.value} value={paymentMethod.value}>{paymentMethod.label}</option>)}
                     </SelectField>
                     {isBankMethod ? (

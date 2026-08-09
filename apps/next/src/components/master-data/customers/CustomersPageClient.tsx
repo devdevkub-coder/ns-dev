@@ -26,6 +26,7 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
+import { scrollToFirstFormError } from '@/lib/form-dom'
 import { formatPhoneDisplay, sanitizePhoneInput } from '@/lib/format'
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
@@ -924,42 +925,54 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const formElement = event.currentTarget
     const parsed = customerFormSchema.safeParse({
       ...form,
       primaryBranchId: form.branchIds[0] ?? null,
     })
-    if (form.branchIds.length === 0) {
-      setErrors({ branchIds: 'เลือกสาขาที่ใช้ได้อย่างน้อย 1 สาขา' })
-      return
+    const zErrors: Record<string, string> = !parsed.success
+      ? Object.fromEntries(parsed.error.issues.map((issue) => [issue.path.join('.'), issue.message]))
+      : {}
+    const branchError: Record<string, string> = form.branchIds.length === 0
+      ? { branchIds: 'เลือกสาขาที่ใช้ได้อย่างน้อย 1 สาขา' }
+      : {}
+
+    const allErrors = {
+      ...zErrors,
+      ...branchError,
     }
-    if (!parsed.success) {
-      setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [issue.path.join('.'), issue.message])))
+
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors)
+      scrollToFirstFormError(formElement)
       return
     }
 
     setErrors({})
-    await onSubmit(parsed.data)
+    if (parsed.data) {
+      await onSubmit(parsed.data)
+    }
   }
 
   return (
-    <form className="overflow-hidden rounded-md bg-white dark:bg-[#0f172a] shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
-      <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-100 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0 border-b border-slate-200 dark:border-slate-800">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'}</h3>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(active) => {
+    <form noValidate className="flex flex-col w-full max-h-[85vh] sm:max-h-[90vh] overflow-hidden rounded-md bg-white dark:bg-[#0f172a] shadow-xl" onSubmit={handleSubmit}>
+      <div data-ns-dialog-header className="sticky top-0 z-10 flex flex-row items-center justify-between gap-2 bg-slate-100 dark:bg-[#0f172a] px-3.5 py-3 sm:px-5 sm:py-4 shrink-0 border-b border-slate-200 dark:border-slate-800">
+        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">{form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'}</h3>
+        <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2">
+          <ActiveToggle checked={form.active} labelClassName="text-xs sm:text-sm font-medium text-current" onChange={(active) => {
             if (active) { update('active', true); return }
             requestConfirmation({ confirmLabel: 'ปิดการใช้งาน', description: 'ต้องการปิดการใช้งานลูกค้าเมื่อบันทึกใช่หรือไม่?', destructive: true, onConfirm: () => update('active', false), title: 'ปิดการใช้งานลูกค้า?' })
           }} />
-          <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
+          <button className="h-8.5 sm:h-9 rounded-md border border-rose-600 bg-rose-600 px-3 sm:px-4 text-xs sm:text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
             ยกเลิก
           </button>
-          <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isSaving} type="submit">
+          <button className="h-8.5 sm:h-9 rounded-md bg-emerald-600 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isSaving} type="submit">
             {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
+      <div className="flex-1 min-h-0 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลลูกค้า</h4>
           <div className="grid gap-4 md:grid-cols-4">

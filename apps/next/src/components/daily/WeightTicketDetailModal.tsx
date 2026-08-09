@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import Image from 'next/image'
-import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, Share2, SquarePen, XCircle, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, RotateCw, Scale, Share2, SquarePen, XCircle, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -361,10 +361,33 @@ export function WeightTicketDetailModal({
   }
 
   const activeGalleryImage = lineGallery?.images[lineGallery.activeIndex] ?? null
+  const [galleryRotate, setGalleryRotate] = useState(0)
+  const galleryViewportRef = useRef<HTMLDivElement | null>(null)
+
+  // แนบ wheel listener แบบ non-passive เพื่อให้ preventDefault ทำงานได้จริงในทุก browser
+  // (React onWheel แนบเป็น passive listener ทำให้ browser เตือน/ignore preventDefault)
+  useEffect(() => {
+    const node = galleryViewportRef.current
+    if (!node || !lineGallery) return
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      const delta = event.deltaY < 0 ? 0.25 : -0.25
+      setGalleryZoom((current) => {
+        const next = Math.min(4, Math.max(1, Number((current + delta).toFixed(2))))
+        if (next === 1) setGalleryPan({ x: 0, y: 0 })
+        return next
+      })
+    }
+
+    node.addEventListener('wheel', handleWheel, { passive: false })
+    return () => node.removeEventListener('wheel', handleWheel)
+  }, [lineGallery])
 
   useEffect(() => {
     setGalleryZoom(1)
     setGalleryPan({ x: 0, y: 0 })
+    setGalleryRotate(0)
     const thumbnail = activeThumbnailRef.current
     if (thumbnail && typeof thumbnail.scrollIntoView === 'function') {
       thumbnail.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
@@ -378,6 +401,7 @@ export function WeightTicketDetailModal({
   }) {
     setGalleryZoom(1)
     setGalleryPan({ x: 0, y: 0 })
+    setGalleryRotate(0)
     setLineGallery(payload)
   }
 
@@ -815,22 +839,107 @@ export function WeightTicketDetailModal({
           }}>
             <DialogContent hideClose className="max-w-5xl rounded-md !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
               <DialogHeader className="rounded-t-md">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 shrink">
                     <DialogTitle>{activeGalleryImage.contextTitle ?? lineGallery.title}</DialogTitle>
                     <DialogDescription className="truncate">
                       {activeGalleryImage.fileName} · รูป {lineGallery.activeIndex + 1} / {lineGallery.images.length}
                     </DialogDescription>
                   </div>
-                  <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 px-4 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => setLineGallery(null)}>ปิด</Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      aria-label="ย่อรูปภาพ"
+                      className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={galleryZoom <= 1}
+                      type="button"
+                      onClick={() => setGalleryZoom((current) => {
+                        const next = Math.max(1, Number((current - 0.25).toFixed(2)))
+                        if (next === 1) setGalleryPan({ x: 0, y: 0 })
+                        return next
+                      })}
+                    >
+                      <ZoomOut className="size-4" />
+                    </button>
+                    <button
+                      aria-label="คืนค่าซูม"
+                      className="min-w-[3rem] rounded-md px-1.5 py-1 text-center text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                      title="คลิกเพื่อรีเซ็ตซูมและหมุนรูป"
+                      type="button"
+                      onClick={() => {
+                        setGalleryZoom(1)
+                        setGalleryPan({ x: 0, y: 0 })
+                        setGalleryRotate(0)
+                      }}
+                    >
+                      {Math.round(galleryZoom * 100)}%
+                    </button>
+                    <button
+                      aria-label="ขยายรูปภาพ"
+                      className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={galleryZoom >= 4}
+                      type="button"
+                      onClick={() => setGalleryZoom((current) => Math.min(4, Number((current + 0.25).toFixed(2))))}
+                    >
+                      <ZoomIn className="size-4" />
+                    </button>
+                    <div className="h-5 w-px bg-slate-300 mx-0.5" />
+                    <button
+                      aria-label="หมุนรูปภาพ 90 องศา"
+                      className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                      title="หมุนรูปภาพ 90 องศา"
+                      type="button"
+                      onClick={() => setGalleryRotate((current) => (current + 90) % 360)}
+                    >
+                      <RotateCw className="size-4" />
+                    </button>
+                    <div className="h-5 w-px bg-slate-300 mx-0.5" />
+                    <Button className="h-8 shrink-0 border-rose-600 bg-rose-600 px-3 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => setLineGallery(null)}>ปิด</Button>
+                  </div>
                 </div>
               </DialogHeader>
               <div className="space-y-4 bg-slate-950 p-4">
                 <div
+                  ref={galleryViewportRef}
                   className={cn(
-                    'relative flex h-[min(65vh,48rem)] w-full items-center justify-center overflow-hidden rounded-md bg-slate-950 select-none',
-                    galleryZoom > 1 ? 'cursor-grab touch-none' : 'cursor-default',
+                    'relative flex h-[min(65vh,48rem)] w-full items-center justify-center overflow-hidden rounded-md bg-slate-950 select-none touch-none',
+                    galleryZoom > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in',
                   )}
+                  onDoubleClick={(event) => {
+                    if ((event.target as HTMLElement).closest('button')) return
+                    setGalleryZoom((current) => {
+                      if (current > 1) {
+                        setGalleryPan({ x: 0, y: 0 })
+                        return 1
+                      }
+                      return 2
+                    })
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowLeft' && lineGallery.images.length > 1) {
+                      setLineGallery((current) => current ? ({ ...current, activeIndex: current.activeIndex === 0 ? current.images.length - 1 : current.activeIndex - 1 }) : current)
+                    }
+                    if (event.key === 'ArrowRight' && lineGallery.images.length > 1) {
+                      setLineGallery((current) => current ? ({ ...current, activeIndex: current.activeIndex === current.images.length - 1 ? 0 : current.activeIndex + 1 }) : current)
+                    }
+                    if (event.key === '+' || event.key === '=') {
+                      setGalleryZoom((current) => Math.min(4, Number((current + 0.25).toFixed(2))))
+                    }
+                    if (event.key === '-') {
+                      setGalleryZoom((current) => {
+                        const next = Math.max(1, Number((current - 0.25).toFixed(2)))
+                        if (next === 1) setGalleryPan({ x: 0, y: 0 })
+                        return next
+                      })
+                    }
+                    if (event.key === '0' || event.key.toLowerCase() === 'r') {
+                      setGalleryZoom(1)
+                      setGalleryPan({ x: 0, y: 0 })
+                      setGalleryRotate(0)
+                    }
+                  }}
+                  onPointerCancel={() => {
+                    galleryDragRef.current = null
+                  }}
                   onPointerDown={(event) => {
                     if (galleryZoom <= 1 || event.button !== 0 || (event.target as HTMLElement).closest('button')) return
                     event.currentTarget.setPointerCapture(event.pointerId)
@@ -855,53 +964,17 @@ export function WeightTicketDetailModal({
                     galleryDragRef.current = null
                     event.currentTarget.releasePointerCapture(event.pointerId)
                   }}
-                  onPointerCancel={() => {
-                    galleryDragRef.current = null
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'ArrowLeft' && lineGallery.images.length > 1) {
-                      setLineGallery((current) => current ? ({ ...current, activeIndex: current.activeIndex === 0 ? current.images.length - 1 : current.activeIndex - 1 }) : current)
-                    }
-                    if (event.key === 'ArrowRight' && lineGallery.images.length > 1) {
-                      setLineGallery((current) => current ? ({ ...current, activeIndex: current.activeIndex === current.images.length - 1 ? 0 : current.activeIndex + 1 }) : current)
-                    }
-                  }}
                   tabIndex={0}
                 >
                   <Image
                     alt={activeGalleryImage.fileName}
-                    className="pointer-events-none object-contain transition-transform duration-200"
+                    className="pointer-events-none object-contain transition-transform duration-150 ease-out"
                     fill
-                    src={activeGalleryImage.url}
-                    style={{ transform: `translate(${galleryPan.x}px, ${galleryPan.y}px) scale(${galleryZoom})` }}
-                    unoptimized
                     sizes="(max-width: 768px) 100vw, 80vw"
+                    src={activeGalleryImage.url}
+                    style={{ transform: `translate(${galleryPan.x}px, ${galleryPan.y}px) scale(${galleryZoom}) rotate(${galleryRotate}deg)` }}
+                    unoptimized
                   />
-                  <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/60 p-1">
-                    <button
-                      aria-label="ย่อรูปภาพ"
-                      className="inline-flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={galleryZoom <= 1}
-                      type="button"
-                      onClick={() => setGalleryZoom((current) => {
-                        const next = Math.max(1, Number((current - 0.25).toFixed(2)))
-                        if (next === 1) setGalleryPan({ x: 0, y: 0 })
-                        return next
-                      })}
-                    >
-                      <ZoomOut className="size-4" />
-                    </button>
-                    <span className="min-w-12 text-center text-xs font-medium text-white">{Math.round(galleryZoom * 100)}%</span>
-                    <button
-                      aria-label="ขยายรูปภาพ"
-                      className="inline-flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={galleryZoom >= 3}
-                      type="button"
-                      onClick={() => setGalleryZoom((current) => Math.min(3, Number((current + 0.25).toFixed(2))))}
-                    >
-                      <ZoomIn className="size-4" />
-                    </button>
-                  </div>
                   {lineGallery.images.length > 1 ? (
                     <>
                       <button

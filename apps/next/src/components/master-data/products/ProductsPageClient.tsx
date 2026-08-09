@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
+import { scrollToFirstFormError } from '@/lib/form-dom'
 import { type MasterDataRecord } from '@/lib/master-data'
 import {
   buildProductOriginalImageStorageKey,
@@ -886,9 +887,11 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const formElement = event.currentTarget
     const parsed = productFormSchema.safeParse(form)
     if (!parsed.success) {
       setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])))
+      scrollToFirstFormError(formElement)
       return
     }
 
@@ -901,8 +904,8 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
   }
 
   return (
-    <form className="overflow-hidden rounded-md bg-white dark:bg-[#0f172a] shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
-      <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-100 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0 border-b border-slate-200 dark:border-slate-800">
+    <form noValidate className="flex flex-col w-full max-h-[85vh] sm:max-h-[90vh] overflow-hidden rounded-md bg-white dark:bg-[#0f172a] shadow-xl" onSubmit={handleSubmit}>
+      <div data-ns-dialog-header className="sticky top-0 z-10 flex flex-col gap-3 bg-slate-100 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0 border-b border-slate-200 dark:border-slate-800">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white">{form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(active) => {
@@ -918,7 +921,7 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
         </div>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
+      <div className="flex-1 min-h-0 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลสินค้า</h4>
           <div className="grid gap-3 md:grid-cols-4">

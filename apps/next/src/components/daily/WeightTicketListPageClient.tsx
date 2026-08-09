@@ -154,7 +154,7 @@ function SegmentMulti({
     : values.every((value) => current.includes(value))
   return (
     <button
-      className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+      className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700' : 'border-slate-300 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
       type="button"
       onClick={() => {
         if (values.length === 0) {

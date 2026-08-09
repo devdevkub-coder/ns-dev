@@ -684,7 +684,7 @@ export function requestLocalRowRemoval(
 const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'receiptDocs', defaultWidth: 150, minWidth: 120 },
-  { key: 'date', defaultWidth: 140, minWidth: 110 },
+  { key: 'date', defaultWidth: 175, minWidth: 145 },
   { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'transactionMode', defaultWidth: 120, minWidth: 100 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
@@ -698,7 +698,7 @@ const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumn
 const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'refNo', defaultWidth: 150, minWidth: 120 },
-  { key: 'date', defaultWidth: 120, minWidth: 100 },
+  { key: 'date', defaultWidth: 175, minWidth: 145 },
   { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'warehouse', defaultWidth: 160, minWidth: 120 },
   { key: 'transactionMode', defaultWidth: 120, minWidth: 100 },
@@ -1044,7 +1044,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const { requestDiscard: requestDiscardSalesForm } = useUnsavedChangesGuard(hasUnsavedSalesForm)
   const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(cancelingBill && cancelNote.trim()))
   const { requestConfirmation } = useActionConfirmation()
-  const columnResize = useResizableColumns(`daily.transaction-bills.${mode}.v5`, tableColumns)
+  const columnResize = useResizableColumns(`daily.transaction-bills.${mode}.v6`, tableColumns)
   const apiPath = mode === 'purchase' ? '/api/purchase/bills' : '/api/sales/bills'
   const requestPath = useMemo(() => {
     const params = new URLSearchParams({
@@ -3702,7 +3702,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่บิลขาย'} resizeProps={columnResize.getResizeHandleProps('docNo', mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่บิลขาย')} sortKey="docNo" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead align="center" label="เลขที่ใบรับของ" resizeProps={columnResize.getResizeHandleProps('receiptDocs', 'เลขที่ใบรับของ')} /> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่อ้างอิง')} sortKey="refNo" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้าง')} sortKey="date" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'วันที่รับของตาม WTI' : 'วันที่ส่งของตาม WTO'} resizeProps={columnResize.getResizeHandleProps('date', mode === 'purchase' ? 'วันที่รับของตาม WTI' : 'วันที่ส่งของตาม WTO')} sortKey="date" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="left" className="ns-table-textual-column" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="left" className="ns-table-textual-column" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
@@ -3713,7 +3713,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               {mode === 'sales' ? <ResizableTableHead align="right" className="ns-table-numeric-header" label="GP / Margin" resizeProps={columnResize.getResizeHandleProps('gp', 'GP / Margin')} /> : null}
               {mode === 'sales' ? <ResizableTableHead align="right" className="ns-table-numeric-header" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} /> : null}
               <SortHeader activeKey={sortKey} align="right" className="ns-table-numeric-header" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} />
-              {mode === 'sales' ? <ResizableTableHead align="center" label="VAT" resizeProps={columnResize.getResizeHandleProps('vat', 'VAT')} /> : null}
+              {mode === 'sales' ? <ResizableTableHead align="center" label="ใบกำกับภาษี" resizeProps={columnResize.getResizeHandleProps('vat', 'ใบกำกับภาษี')} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedBy', 'อัพเดตล่าสุด')} sortKey="updatedBy" onSort={changeSort} />
               <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
@@ -5118,7 +5118,7 @@ function PurchaseBillDetailModal({
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailItem label="เลขที่บิล" value={detail.docNo} />
-                <DetailItem label="วันที่สร้างรายการ" value={formatDateDisplay(detail.date)} />
+                <DetailItem label="วันที่รับของตาม WTI" value={formatDateDisplay(detail.date)} />
                 <DetailItem label="สาขา/คลัง" value={detail.branchName || '-'} />
                 <DetailItem label="ประเภทบิล" value={detail.transactionMode || '-'} />
                 <DetailItem label="ผู้ทำรายการ" value={detail.createdBy || '-'} />
