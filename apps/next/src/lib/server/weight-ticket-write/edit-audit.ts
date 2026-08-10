@@ -7,8 +7,18 @@ type DecimalLike = Parameters<typeof toNumber>[0]
 type TimelineFieldChange = {
   after: string
   before: string
+  comparisonAfter?: string
+  comparisonBefore?: string
   field: string
   scope: string
+}
+
+export function shouldAppendWeightTicketEditTimeline(changes: TimelineFieldChange[], hasPendingOutChanges: boolean) {
+  return changes.length > 0 || hasPendingOutChanges
+}
+
+export function weightTicketImageReferencesFingerprint(imageNames: string[]) {
+  return JSON.stringify(imageNames.map((name) => name.trim()))
 }
 
 function displayText(value: string | number | null | undefined) {
@@ -31,7 +41,7 @@ function displayDeductionMode(value: string | null | undefined) {
 }
 
 function addTimelineChange(changes: TimelineFieldChange[], input: TimelineFieldChange) {
-  if (input.before === input.after) return
+  if (input.before === input.after && (input.comparisonBefore ?? input.before) === (input.comparisonAfter ?? input.after)) return
   changes.push(input)
 }
 
@@ -59,8 +69,6 @@ export function buildWeightTicketEditChanges(input: {
   const changes: TimelineFieldChange[] = []
   const partyLabel = input.values.type === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'
   const newPartyName = input.values.type === 'WTI' ? input.supplierName : input.customerName
-  const oldLineByLineNo = new Map(input.existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
-  const newLineByLineNo = new Map(input.lineRows.map((line) => [line.line_no, line] as const))
 
   addTimelineChange(changes, {
     after: displayText(input.docNo),
@@ -95,6 +103,8 @@ export function buildWeightTicketEditChanges(input: {
   addTimelineChange(changes, {
     after: `${input.values.vehicleImageNames.length.toLocaleString('th-TH')} รูป`,
     before: `${(input.existing.vehicle_image_names?.length ?? 0).toLocaleString('th-TH')} รูป`,
+    comparisonAfter: weightTicketImageReferencesFingerprint(input.values.vehicleImageNames),
+    comparisonBefore: weightTicketImageReferencesFingerprint(input.existing.vehicle_image_names ?? []),
     field: 'รูปเอกสาร',
     scope: 'เอกสาร',
   })
@@ -123,8 +133,12 @@ export function buildWeightTicketEditChanges(input: {
     scope: 'เอกสาร',
   })
 
-  input.lineRows.forEach((newLine) => {
-    const oldLine = oldLineByLineNo.get(newLine.line_no)
+  const oldLineById = new Map(input.existing.weight_ticket_lines.map((line) => [String(line.id), line] as const))
+  const incomingPersistedLineIds = new Set<string>()
+  input.lineRows.forEach((newLine, lineIndex) => {
+    const incomingLineId = input.values.lines[lineIndex]?.id
+    const oldLine = incomingLineId == null ? undefined : oldLineById.get(incomingLineId)
+    if (oldLine) incomingPersistedLineIds.add(String(oldLine.id))
     const scope = lineScope(newLine)
     if (!oldLine) {
       changes.push({
@@ -193,6 +207,8 @@ export function buildWeightTicketEditChanges(input: {
     addTimelineChange(changes, {
       after: `${newLine.image_names.length.toLocaleString('th-TH')} รูป`,
       before: `${oldLine.image_names.length.toLocaleString('th-TH')} รูป`,
+      comparisonAfter: weightTicketImageReferencesFingerprint(newLine.image_names),
+      comparisonBefore: weightTicketImageReferencesFingerprint(oldLine.image_names),
       field: 'รูปสินค้า',
       scope,
     })
@@ -205,7 +221,7 @@ export function buildWeightTicketEditChanges(input: {
   })
 
   input.existing.weight_ticket_lines.forEach((oldLine) => {
-    if (newLineByLineNo.has(oldLine.line_no)) return
+    if (incomingPersistedLineIds.has(String(oldLine.id))) return
     changes.push({
       after: '-',
       before: `${oldLine.product_name} ${displayWeightValue(oldLine.net_weight)}`,

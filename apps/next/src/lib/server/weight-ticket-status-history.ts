@@ -17,7 +17,7 @@ export type WeightTicketStatusAction = typeof WEIGHT_TICKET_STATUS_ACTION[keyof 
 
 export type WeightTicketStatusLogEntry = {
   action: WeightTicketStatusAction
-  actor?: string | null
+  actor: string
   createdAt?: Date
   fromStatus?: string | null
   meta?: Prisma.InputJsonValue
@@ -50,7 +50,7 @@ export async function appendWeightTicketStatusLog(
     data: {
       action: entry.action,
       created_at: entry.createdAt ?? new Date(),
-      created_by: entry.actor ?? null,
+      created_by: entry.actor,
       deduct_weight_snapshot: toNumber(ticket.deduct_weight),
       doc_type: ticket.doc_type,
       event_key: eventKey,

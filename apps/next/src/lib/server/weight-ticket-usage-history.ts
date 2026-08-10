@@ -17,7 +17,7 @@ export type WeightTicketUsageAction = typeof WEIGHT_TICKET_USAGE_ACTION[keyof ty
 
 export type WeightTicketUsageLogEntry = {
   action: WeightTicketUsageAction
-  actor?: string | null
+  actor: string
   allocatedDeductWeight: number
   allocatedGrossWeight: number
   allocatedNetWeight: number
@@ -82,7 +82,7 @@ export async function appendWeightTicketUsageLogs(
       allocated_net_weight: entry.allocatedNetWeight,
       allocated_qty: entry.allocatedQty,
       created_at: entry.createdAt ?? new Date(),
-      created_by: entry.actor ?? null,
+      created_by: entry.actor,
       doc_type: summary.weight_tickets.doc_type,
       event_key: `WTUSE-${summary.weight_tickets.doc_no}-${randomUUID()}`,
       from_remaining_weight: fromRemainingWeight,

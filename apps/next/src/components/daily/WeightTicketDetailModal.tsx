@@ -494,9 +494,10 @@ export function WeightTicketDetailModal({
                 <SectionTitle title="ข้อมูลเอกสาร" />
                 <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
                   <DetailItem label="วันที่/เวลาสร้าง" value={formatDateTime(ticket.createdAt)} />
+                  <DetailItem label="ผู้สร้างเอกสาร" value={ticket.createdBy} />
                   <DetailItem label="ผู้กรอก" value={ticket.enteredBy} />
                   <DetailItem label="อัปเดตล่าสุด" value={formatDateTime(ticket.updatedAt || ticket.createdAt)} />
-                  <DetailItem label="ผู้แก้ไขล่าสุด" value={ticket.updatedBy} />
+                  <DetailItem label="ผู้แก้ไขล่าสุด" value={ticket.updatedBy ?? '-'} />
                   {ticket.type === 'WTI' ? (
                     <DetailItem label="อ้างอิงบิลซื้อ" value={`${ticket.usedInPurchaseBillCount} รายการ`} />
                   ) : (

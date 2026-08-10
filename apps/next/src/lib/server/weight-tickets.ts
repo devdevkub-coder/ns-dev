@@ -19,6 +19,16 @@ import { getBranchCodeIntersection, type AppAuthContext } from '@/lib/server/aut
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
+export class WeightTicketDataContractError extends Error {
+  readonly code = 'WEIGHT_TICKET_DATA_CONTRACT_ERROR'
+  readonly status = 422
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'WeightTicketDataContractError'
+  }
+}
+
 export type WeightTicketQuery = {
   branchId?: string
   dateFrom?: string
@@ -448,8 +458,25 @@ export function enteredByLabel(context: AppAuthContext) {
   return displayName
 }
 
-export async function resolveWeightTicketActorDisplayNames(actorValues: string[]) {
+function requireWeightTicketCreator(value: string | null, documentNo: string) {
+  const creator = value?.trim()
+  if (!creator) {
+    throw new WeightTicketDataContractError(`ใบรับ-ส่งของ ${documentNo} ไม่มีข้อมูลผู้สร้างเอกสาร`)
+  }
+  return creator
+}
+
+function requireWeightTicketEventActor(value: string | null, eventKey: string) {
+  const actor = value?.trim()
+  if (!actor) {
+    throw new WeightTicketDataContractError(`Timeline event ${eventKey} ไม่มีข้อมูลผู้ดำเนินการ`)
+  }
+  return actor
+}
+
+export async function resolveWeightTicketActorDisplayNames(actorValues: Array<string | null>) {
   const emails = [...new Set(actorValues
+    .filter((value): value is string => value != null)
     .map((value) => value.trim().toLowerCase())
     .filter((value) => value.includes('@')))]
   if (!emails.length) return new Map<string, string>()
@@ -473,7 +500,12 @@ export async function resolveWeightTicketActorDisplayNames(actorValues: string[]
 }
 
 export function weightTicketActorDisplayName(value: string, displayNames: Map<string, string>) {
-  return displayNames.get(value.trim().toLowerCase()) ?? ''
+  const actor = value.trim()
+  if (!actor) throw new WeightTicketDataContractError('Timeline event ไม่มีข้อมูลผู้ดำเนินการ')
+  if (!actor.includes('@')) return actor
+  const displayName = displayNames.get(actor.toLowerCase())
+  if (!displayName) throw new WeightTicketDataContractError(`ไม่พบชื่อผู้ดำเนินการของ ${actor}`)
+  return displayName
 }
 
 export function requireWeightTicketBranchDocumentCode(code: string | null | undefined) {
@@ -823,7 +855,7 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
       allocatedNetWeight: toNumber(row.allocated_qty),
       allocatedQty: toNumber(row.allocated_qty),
       createdAt: row.created_at?.toISOString() ?? null,
-      createdBy: row.created_by ?? '-',
+      createdBy: requireWeightTicketEventActor(row.created_by, 'downstream allocation'),
       id: `${row.target_type}:${row.target_doc_no ?? ''}:${row.target_line_no ?? 0}:${deliverySummaryId || summaryCode}`,
       productCode: row.product_code ?? '',
       productName: row.product_name ?? row.summary_product_name ?? '-',
@@ -879,7 +911,7 @@ export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | Pri
 
   const statusEvents = statusRows.map((row) => ({
     action: row.action,
-    actorName: row.created_by ?? '-',
+    actorName: requireWeightTicketEventActor(row.created_by, row.event_key),
     eventKey: row.event_key,
     id: row.event_key,
     metadata: {
@@ -895,7 +927,7 @@ export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | Pri
   }))
   const usageEvents = usageRows.map((row) => ({
     action: row.action,
-    actorName: row.created_by ?? '-',
+    actorName: requireWeightTicketEventActor(row.created_by, row.event_key),
     eventKey: row.event_key,
     id: row.event_key,
     metadata: {
@@ -953,7 +985,7 @@ export async function getWeightTicketUsageTimeline(tx: Prisma.TransactionClient 
     allocatedNetWeight: toNumber(row.allocated_net_weight),
     allocatedQty: toNumber(row.allocated_qty),
     createdAt: row.created_at.toISOString(),
-    createdBy: row.created_by ?? '-',
+    createdBy: requireWeightTicketEventActor(row.created_by, row.event_key),
     eventKey: row.event_key,
     fromRemainingWeight: row.from_remaining_weight == null ? null : toNumber(row.from_remaining_weight),
     id: row.event_key,
@@ -1140,10 +1172,11 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     cancelNote: row.cancel_note ?? '',
     cancelledAt: row.cancelled_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
+    createdBy: requireWeightTicketCreator(row.created_by, row.doc_no),
     documentDate: toDateOnly(row.document_date),
     documentNo: row.doc_no,
     downstreamAllocations: [],
-    enteredBy: row.entered_by ?? row.created_by ?? '-',
+    enteredBy: row.entered_by,
     id: row.doc_no,
     imageCount: row.image_count ?? 0,
     imageNames: [...(row.vehicle_image_names ?? []), ...lineImageNames],
@@ -1164,7 +1197,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     timeline: [],
     type: row.doc_type as WeightTicketType,
     updatedAt: row.updated_at?.toISOString() ?? null,
-    updatedBy: row.updated_by ?? row.created_by ?? row.entered_by ?? '-',
+    updatedBy: row.updated_by,
     usageTimeline: [],
     usedInPurchaseBillCount: usage.purchaseCount,
     usedInPurchaseBillDocNos: usage.purchaseDocNos,
@@ -1207,10 +1240,11 @@ export function mapWeightTicketListRow(row: WeightTicketListRow, usage: WeightTi
     cancelNote: row.cancel_note ?? '',
     cancelledAt: row.cancelled_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
+    createdBy: requireWeightTicketCreator(row.created_by, row.doc_no),
     documentDate: toDateOnly(row.document_date),
     documentNo: row.doc_no,
     downstreamAllocations: [],
-    enteredBy: row.entered_by ?? row.created_by ?? '-',
+    enteredBy: row.entered_by,
     id: row.doc_no,
     imageCount: row.image_count ?? 0,
     imageNames: [],
@@ -1231,7 +1265,7 @@ export function mapWeightTicketListRow(row: WeightTicketListRow, usage: WeightTi
     timeline: [],
     type: row.doc_type as WeightTicketType,
     updatedAt: row.updated_at?.toISOString() ?? null,
-    updatedBy: row.updated_by ?? row.created_by ?? row.entered_by ?? '-',
+    updatedBy: row.updated_by,
     usageTimeline: [],
     usedInPurchaseBillCount: usage.purchaseCount,
     usedInPurchaseBillDocNos: usage.purchaseDocNos,

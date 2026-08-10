@@ -31,6 +31,7 @@ import {
   parseWeightTicketQuery,
   requireWeightTicketBranchDocumentCode,
   resolveWeightTicketActorDisplayNames,
+  WeightTicketDataContractError,
   weightTicketActorDisplayName,
   weightTicketAuditSnapshot,
   weightTicketOrderBy,
@@ -127,10 +128,11 @@ export async function GET(request: Request) {
         ? mapWeightTicketRow(row as WeightTicketRow, usage)
         : mapWeightTicketListRow(row as WeightTicketListRow, usage)
     })
-    const actorDisplayNames = await resolveWeightTicketActorDisplayNames(mappedRows.map((row) => row.updatedBy))
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames(mappedRows.flatMap((row) => [row.createdBy, row.updatedBy]))
     const displayMappedRows = mappedRows.map((row) => ({
       ...row,
-      updatedBy: weightTicketActorDisplayName(row.updatedBy, actorDisplayNames),
+      createdBy: weightTicketActorDisplayName(row.createdBy, actorDisplayNames),
+      updatedBy: row.updatedBy == null ? null : weightTicketActorDisplayName(row.updatedBy, actorDisplayNames),
     }))
 
     if (isXlsx) {
@@ -145,6 +147,7 @@ export async function GET(request: Request) {
     }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return withAuthNoStore(authContextErrorResponse(caught))
+    if (caught instanceof WeightTicketDataContractError) return withAuthNoStore(apiErrorResponse(caught, 'ข้อมูลประวัติใบรับ-ส่งของไม่ครบ กรุณาแจ้งผู้ดูแลระบบ', caught.status))
     return withAuthNoStore(apiErrorResponse(caught, 'โหลดรายการใบรับ-ส่งของไม่ได้', 500))
   }
 }
@@ -344,10 +347,11 @@ export async function POST(request: Request) {
 
     const usage = await getWeightTicketUsageCounts(prisma, created.id)
     const mapped = mapWeightTicketRow(created, usage)
-    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.updatedBy])
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
     const displayMapped = {
       ...mapped,
-      updatedBy: weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
+      createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames),
+      updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
     }
     await recordAuditLog({
         action: 'create',
@@ -374,6 +378,7 @@ export async function POST(request: Request) {
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof WeightTicketDataContractError) return apiErrorResponse(caught, 'ข้อมูลประวัติใบรับ-ส่งของไม่ครบ กรุณาแจ้งผู้ดูแลระบบ', caught.status)
     if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }

@@ -1598,7 +1598,7 @@ function weightTicketOptionJson(
 }
 
 type WeightTicketStatusRefreshOptions = {
-  actor?: string | null
+  actor: string
   createdAt?: Date
   note?: string | null
   reason?: string
@@ -1607,7 +1607,7 @@ type WeightTicketStatusRefreshOptions = {
 async function refreshWeightTicketStatuses(
   tx: Prisma.TransactionClient,
   ticketIds: bigint[],
-  options: WeightTicketStatusRefreshOptions = {},
+  options: WeightTicketStatusRefreshOptions,
 ) {
   const uniqueTicketIds = [...new Set(ticketIds)]
   if (uniqueTicketIds.length === 0) return
@@ -1656,7 +1656,7 @@ async function refreshWeightTicketStatuses(
       data: {
         status: nextStatus,
         updated_at: changedAt,
-        updated_by: options.actor ?? undefined,
+        updated_by: options.actor,
       },
       where: { id: ticket.id },
     })

@@ -122,6 +122,7 @@ export type WeightTicketRecord = {
   cancelNote: string
   cancelledAt: string | null
   createdAt: string
+  createdBy: string
   documentDate: string
   documentNo: string
   enteredBy: string
@@ -146,7 +147,7 @@ export type WeightTicketRecord = {
   type: WeightTicketType
   timeline: WeightTicketTimelineEvent[]
   updatedAt: string | null
-  updatedBy: string
+  updatedBy: string | null
   usageTimeline: WeightTicketUsageTimelineEvent[]
   usedInPurchaseBillCount: number
   usedInPurchaseBillDocNos: string[]
@@ -623,6 +624,7 @@ export const weightTicketRecordSchema = z.object({
   cancelNote: z.string().default(''),
   cancelledAt: z.string().nullable(),
   createdAt: z.string(),
+  createdBy: z.string(),
   documentDate: z.string(),
   documentNo: z.string(),
   enteredBy: z.string(),
@@ -647,7 +649,7 @@ export const weightTicketRecordSchema = z.object({
   timeline: z.array(weightTicketTimelineSchema).default([]),
   type: typeEnum,
   updatedAt: z.string().nullable(),
-  updatedBy: z.string(),
+  updatedBy: z.string().nullable(),
   usageTimeline: z.array(weightTicketUsageTimelineSchema).default([]),
   usedInPurchaseBillCount: z.number().int().nonnegative(),
   usedInPurchaseBillDocNos: z.array(z.string()).default([]),

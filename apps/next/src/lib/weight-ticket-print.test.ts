@@ -75,6 +75,7 @@ const ticket: WeightTicketRecord = {
   cancelNote: '',
   cancelledAt: null,
   createdAt: '2026-07-19T00:00:00.000Z',
+  createdBy: 'Tester',
   documentDate: '2026-07-19',
   documentNo: 'WTI190726-0001',
   downstreamAllocations: [],

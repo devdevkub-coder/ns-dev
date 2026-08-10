@@ -11,7 +11,7 @@ import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-ref
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { appendWtoPendingOutEventsFromHolds, getWeightTicketPendingOutEvents } from '@/lib/server/weight-ticket-pending-out-events'
-import { buildWeightTicketEditChanges } from '@/lib/server/weight-ticket-write/edit-audit'
+import { buildWeightTicketEditChanges, shouldAppendWeightTicketEditTimeline } from '@/lib/server/weight-ticket-write/edit-audit'
 import { assertWeightTicketImpurityRules, assertWeightTicketPartyForType, WeightTicketWriteValidationError } from '@/lib/server/weight-ticket-write/type-guards'
 import { applyWeightTicketCreateSideEffects, applyWeightTicketEditSideEffects, resolveWeightTicketWarehousesForWrite, validateWeightTicketStockForWrite, weightTicketPartySnapshot } from '@/lib/server/weight-ticket-write/handlers'
 import { buildWtoEditTimelineNote, shouldRebuildWtoPendingOutOnEdit } from '@/lib/server/weight-ticket-write/wto'
@@ -33,6 +33,7 @@ import {
   getWeightTicketUsageCounts,
   mapWeightTicketRow,
   resolveWeightTicketActorDisplayNames,
+  WeightTicketDataContractError,
   weightTicketActorDisplayName,
   mutableTicketErrorMessage,
   nextWeightTicketDocNo,
@@ -195,6 +196,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       getWeightTicketPendingOutEvents(prisma, ticket.id),
     ])
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
+      responseMapped.createdBy,
       responseMapped.updatedBy,
       ...downstreamAllocations.map((event) => event.createdBy),
       ...timeline.map((event) => event.actorName),
@@ -202,14 +204,16 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     ])
     return withAuthNoStore(NextResponse.json({
       ...responseMapped,
+      createdBy: weightTicketActorDisplayName(responseMapped.createdBy, actorDisplayNames),
       downstreamAllocations: downstreamAllocations.map((event) => ({ ...event, createdBy: weightTicketActorDisplayName(event.createdBy, actorDisplayNames) })),
       pendingOutEvents,
       timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
-      updatedBy: weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
+      updatedBy: responseMapped.updatedBy == null ? null : weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
       usageTimeline: usageTimeline.map((event) => ({ ...event, createdBy: weightTicketActorDisplayName(event.createdBy, actorDisplayNames) })),
     }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return withAuthNoStore(authContextErrorResponse(caught))
+    if (caught instanceof WeightTicketDataContractError) return withAuthNoStore(apiErrorResponse(caught, 'ข้อมูลประวัติใบรับ-ส่งของไม่ครบ กรุณาแจ้งผู้ดูแลระบบ', caught.status))
     return withAuthNoStore(apiErrorResponse(caught, 'โหลดใบรับ-ส่งของไม่ได้', 500))
   }
 }
@@ -663,6 +667,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         values: effectiveValues,
         warehouseNameById,
       })
+      const hasDirectEditChanges = editChanges.length > 0
       const imageCount = effectiveValues.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
       await tx.weight_tickets.update({
         data: {
@@ -683,8 +688,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           remark: effectiveValues.remark || null,
           status: nextStatus,
           supplier_id: partySnapshot.supplierId,
-          updated_at: new Date(),
-          updated_by: actor,
+          updated_at: hasDirectEditChanges ? new Date() : existing.updated_at,
+          updated_by: hasDirectEditChanges ? actor : existing.updated_by,
           vehicle_image_count: effectiveValues.vehicleImageNames.length,
           vehicle_image_names: effectiveValues.vehicleImageNames,
           vehicle_no: effectiveValues.vehicleNo,
@@ -718,24 +723,28 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       if (bridgeRows.length) {
         await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
       }
-      const statusLogEventKey = await appendWeightTicketStatusLog(tx, {
-        action: WEIGHT_TICKET_STATUS_ACTION.EDITED,
-        actor,
-        fromStatus: existing.status,
-        meta: {
-          changes: editChanges,
-          previousDocumentNo: existing.doc_no,
-          reason: 'weight_ticket_edit',
-          type: effectiveValues.type,
-        },
-        note: buildWtoEditTimelineNote({
-          newLines: effectiveLineRows,
-          oldLines: existing.weight_ticket_lines,
-        }),
-        toStatus: nextStatus,
-        weightTicketId: existing.id,
-      })
-      if (shouldRebuildWtoPendingOut && (createdPendingOutHoldIds.length || releasedPendingOutHolds.length)) {
+      const hasPendingOutTimelineChanges = shouldRebuildWtoPendingOut
+        && (createdPendingOutHoldIds.length || releasedPendingOutHolds.length) > 0
+      const statusLogEventKey = shouldAppendWeightTicketEditTimeline(editChanges, hasPendingOutTimelineChanges)
+        ? await appendWeightTicketStatusLog(tx, {
+          action: WEIGHT_TICKET_STATUS_ACTION.EDITED,
+          actor,
+          fromStatus: existing.status,
+          meta: {
+            changes: editChanges,
+            previousDocumentNo: existing.doc_no,
+            reason: 'weight_ticket_edit',
+            type: effectiveValues.type,
+          },
+          note: buildWtoEditTimelineNote({
+            newLines: effectiveLineRows,
+            oldLines: existing.weight_ticket_lines,
+          }),
+          toStatus: nextStatus,
+          weightTicketId: existing.id,
+        })
+        : null
+      if (hasPendingOutTimelineChanges) {
         const releaseOccurredAt = new Date()
         if (releasedPendingOutHolds.length) await appendWtoPendingOutEventsFromHolds(tx, {
           actor,
@@ -789,13 +798,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         targetType: 'weight_ticket',
     })
     void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: mapped.lines.map((line) => line.id) })
-    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.updatedBy])
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
     return NextResponse.json({
       ...mapped,
-      updatedBy: weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
+      createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames),
+      updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof WeightTicketDataContractError) return apiErrorResponse(caught, 'ข้อมูลประวัติใบรับ-ส่งของไม่ครบ กรุณาแจ้งผู้ดูแลระบบ', caught.status)
     if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }
@@ -957,14 +968,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         getWeightTicketPendingOutEvents(prisma, updated.id),
       ])
       const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
+        responseMapped.createdBy,
         responseMapped.updatedBy,
         ...timeline.map((event) => event.actorName),
       ])
       return NextResponse.json({
         ...responseMapped,
+        createdBy: weightTicketActorDisplayName(responseMapped.createdBy, actorDisplayNames),
         pendingOutEvents,
         timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
-        updatedBy: weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
+        updatedBy: responseMapped.updatedBy == null ? null : weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
       })
     }
 
@@ -1062,17 +1075,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       getWeightTicketPendingOutEvents(prisma, updated.id),
     ])
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
+      responseMapped.createdBy,
       responseMapped.updatedBy,
       ...timeline.map((event) => event.actorName),
     ])
     return NextResponse.json({
       ...responseMapped,
+      createdBy: weightTicketActorDisplayName(responseMapped.createdBy, actorDisplayNames),
       pendingOutEvents,
       timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
-      updatedBy: weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
+      updatedBy: responseMapped.updatedBy == null ? null : weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof WeightTicketDataContractError) return apiErrorResponse(caught, 'ข้อมูลประวัติใบรับ-ส่งของไม่ครบ กรุณาแจ้งผู้ดูแลระบบ', caught.status)
     if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }
