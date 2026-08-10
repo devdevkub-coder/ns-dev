@@ -551,6 +551,60 @@ function getWeightTicketRootLine(lines: FormWeightTicketLine[], line: FormWeight
   return current
 }
 
+type WeightTicketValidationFocusTarget = {
+  lineId: string
+  productSectionId: string
+  lotId: string | null
+  impurityId: string | null
+}
+
+type WeightTicketValidationField = 'product' | 'warehouse' | 'gross' | 'container' | 'images' | 'impurity' | 'impurity-product' | 'deduction'
+
+function parseWeightTicketValidationKey(errorKey: string): { lineId: string; field: WeightTicketValidationField } | null {
+  const match = errorKey.match(/^line-(.+?)-(product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)
+  if (!match) return null
+  return { lineId: match[1], field: match[2] as WeightTicketValidationField }
+}
+
+function getWeightTicketValidationLotLine(
+  lines: FormWeightTicketLine[],
+  line: FormWeightTicketLine,
+) {
+  const lineById = new Map(lines.map((entry) => [entry.id, entry] as const))
+  const visited = new Set<string>()
+  let current: FormWeightTicketLine | undefined = line
+
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id)
+    if (current.deductionMode === 'none' && !current.impuritySourceLineId) return current
+    current = current.parentId ? lineById.get(current.parentId) : undefined
+  }
+
+  return null
+}
+
+export function getWeightTicketValidationFocusTarget(
+  lines: FormWeightTicketLine[],
+  errorKey: string,
+): WeightTicketValidationFocusTarget | null {
+  const parsed = parseWeightTicketValidationKey(errorKey)
+  if (!parsed) return null
+
+  const line = lines.find((entry) => entry.id === parsed.lineId)
+  if (!line) return null
+
+  const rootLine = getWeightTicketRootLine(lines, line)
+  const impurityLine = Boolean(line.parentId && line.deductionMode !== 'none')
+  const lot = impurityLine ? getWeightTicketValidationLotLine(lines, line) : line
+
+  return {
+    lineId: line.id,
+    productSectionId: rootLine.id,
+    lotId: lot?.id ?? null,
+    impurityId: impurityLine ? line.id : null,
+  }
+}
+
 /**
  * Removes one lot while preserving the product section's root-line contract.
  * The first lot is stored as the product root, so when it is removed the next
@@ -1502,9 +1556,9 @@ export function WeightTicketFormCore({
     if (errorKey === 'vehicleNo') return 'weight-ticket-vehicleNo'
     if (errorKey === 'lines') return 'weight-ticket-add-product'
 
-    const match = errorKey.match(/^line-(.+?)-(product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)
-    if (match) {
-      const [_, lineId, field] = match
+    const parsed = parseWeightTicketValidationKey(errorKey)
+    if (parsed) {
+      const { lineId, field } = parsed
       if (field === 'product') return `weight-product-${lineId}`
       if (field === 'warehouse') return `weight-warehouse-${lineId}`
       if (field === 'gross') return `weight-gross-${lineId}`
@@ -1515,6 +1569,30 @@ export function WeightTicketFormCore({
       if (field === 'deduction') return `weight-deduction-${lineId}`
     }
     return null
+  }
+
+  function prepareValidationFocus(errorKey: string, sourceForm: FormState = form) {
+    if (errorKey === 'lines') {
+      setMobileProductView('list')
+      setPendingFocusField(errorKey)
+      return
+    }
+
+    const target = getWeightTicketValidationFocusTarget(sourceForm.lines, errorKey)
+    if (!target) {
+      setPendingFocusField(errorKey)
+      return
+    }
+
+    setMobileProductView('editor')
+    setActiveLineId(target.productSectionId)
+    if (target.lotId) {
+      setCollapsedLotIds((current) => ({ ...current, [target.lotId as string]: false }))
+    }
+    if (target.impurityId) {
+      setCollapsedImpurityIds((current) => ({ ...current, [target.impurityId as string]: false }))
+    }
+    setPendingFocusField(errorKey)
   }
 
   useEffect(() => {
@@ -1798,13 +1876,13 @@ export function WeightTicketFormCore({
     const firstHeaderError = headerErrorKeys.find((key) => errors[key])
     if (firstHeaderError) {
       setTouched((current) => ({ ...current, [firstHeaderError]: true }))
-      setPendingFocusField(firstHeaderError)
+      prepareValidationFocus(firstHeaderError, snapshot)
       return null
     }
     const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
     if (snapshot.lines.length > 0 && firstLineError) {
       setTouched((current) => ({ ...current, [firstLineError]: true }))
-      setPendingFocusField(firstLineError)
+      prepareValidationFocus(firstLineError, snapshot)
       // Keep the product workspace usable while a blank entry is being filled.
       // A line with a selected product still must pass validation before the
       // existing draft is persisted and another product is opened.
@@ -2429,18 +2507,10 @@ export function WeightTicketFormCore({
     const errorKeys = Object.keys(errors)
     if (errorKeys.length > 0) {
       const firstErrorKey = errors.lines ? 'lines' : errorKeys[0]
-      const match = firstErrorKey.match(/^line-(.+?)-(product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)
+      const parsed = parseWeightTicketValidationKey(firstErrorKey)
       if (firstErrorKey === 'lines') setMobileProductView('list')
-      if (match) {
-        setMobileProductView('editor')
-        const targetLineId = match[1]
-        const lineInForm = form.lines.find(l => l.id === targetLineId)
-        const parentLineId = lineInForm?.parentId || targetLineId
-        if (activeLineId !== parentLineId) {
-          setActiveLineId(parentLineId)
-        }
-      }
-      setPendingFocusField(firstErrorKey)
+      if (parsed) prepareValidationFocus(firstErrorKey)
+      else setPendingFocusField(firstErrorKey)
       return
     }
 
@@ -2554,8 +2624,8 @@ export function WeightTicketFormCore({
 
     const sectionError = Object.keys(errors).find((key) => {
       if (key === 'lines') return true
-      const match = key.match(/^line-(.+?)-/)
-      return Boolean(match && sectionLineIdSet.has(match[1]))
+      const parsed = parseWeightTicketValidationKey(key)
+      return Boolean(parsed && sectionLineIdSet.has(parsed.lineId))
     })
     if (sectionError) {
       setTouched((current) => ({
@@ -2564,6 +2634,7 @@ export function WeightTicketFormCore({
           'product', 'warehouse', 'gross', 'container', 'deduction', 'images', 'impurity', 'impurity-product',
         ].flatMap((field) => sectionLines.map((line) => [`line-${line.id}-${field}`, true] as const))),
       }))
+      prepareValidationFocus(sectionError, currentForm)
       setMergeNotice('กรุณาแก้ข้อมูลใน section นี้ให้ครบก่อนบันทึก')
       return
     }

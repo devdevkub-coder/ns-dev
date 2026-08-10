@@ -31,7 +31,7 @@ vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   saveWeightTicket: mocks.saveWeightTicket,
 }))
 
-import { changeWeightTicketProduct, getProductCardImages, remapWeightTicketLineIds, remapWeightTicketLineKey, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, getProductCardImages, getWeightTicketValidationFocusTarget, remapWeightTicketLineIds, remapWeightTicketLineKey, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -85,6 +85,33 @@ describe('weight-ticket product entry start contract', () => {
     ])
     expect(remapWeightTicketLineKey('line-client-source-gross', { 'client-source': 'WTI-001:01' })).toBe('line-WTI-001:01-gross')
     expect(remapWeightTicketLineKey('branchId', { 'client-source': 'WTI-001:01' })).toBe('branchId')
+  })
+
+  it('maps validation errors to the correct lot and opens collapsed ancestors before focus', () => {
+    const lines = [
+      { deductionMode: 'none', id: 'root-1a2b', parentId: undefined },
+      { deductionMode: 'none', id: 'lot-2c3d', parentId: 'root-1a2b' },
+      { deductionMode: 'kg', id: 'impurity-3e4f', parentId: 'lot-2c3d' },
+      { deductionMode: 'kg', id: 'nested-5f6a', parentId: 'impurity-3e4f' },
+    ] as Parameters<typeof getWeightTicketValidationFocusTarget>[0]
+
+    expect(getWeightTicketValidationFocusTarget(lines, 'line-lot-2c3d-gross')).toEqual({
+      impurityId: null,
+      lineId: 'lot-2c3d',
+      lotId: 'lot-2c3d',
+      productSectionId: 'root-1a2b',
+    })
+    expect(getWeightTicketValidationFocusTarget(lines, 'line-nested-5f6a-deduction')).toEqual({
+      impurityId: 'nested-5f6a',
+      lineId: 'nested-5f6a',
+      lotId: 'lot-2c3d',
+      productSectionId: 'root-1a2b',
+    })
+  })
+
+  it('keeps section validation mapped to line IDs containing hyphens', () => {
+    expect(formSource).toContain('const parsed = parseWeightTicketValidationKey(key)')
+    expect(formSource).toContain('sectionLineIdSet.has(parsed.lineId)')
   })
 })
 
@@ -183,6 +210,9 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('{activeLine.productId || getMainParentLines(form.lines).length > 1 ? (')
     expect(formSource).toContain('aria-label="ปิดหน้ากรอกสินค้า"')
     expect(formSource).toContain('const closeMobileProductEditor = useCallback(')
+    expect(formSource).toContain('prepareValidationFocus(firstErrorKey)')
+    expect(formSource).toContain('setCollapsedLotIds((current) => ({ ...current, [target.lotId as string]: false }))')
+    expect(formSource).toContain('setCollapsedImpurityIds((current) => ({ ...current, [target.impurityId as string]: false }))')
     expect(formSource).toContain('id={`weight-ticket-line-card-${line.id}`}')
     expect(formSource).toContain("window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape'")
     expect(formSource).toContain("document.addEventListener('keydown', handleMobileProductEditorKeyDown)")
