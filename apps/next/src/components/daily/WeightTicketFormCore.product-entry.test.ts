@@ -31,7 +31,7 @@ vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   saveWeightTicket: mocks.saveWeightTicket,
 }))
 
-import { changeWeightTicketProduct, getProductCardImages, getWeightTicketValidationFocusTarget, remapWeightTicketLineIds, remapWeightTicketLineKey, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, getProductCardImages, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -44,6 +44,19 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain("if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
     expect(formSource).toContain("const firstErrorKey = errors.lines ? 'lines' : errorKeys[0]")
     expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
+  })
+
+  it('uploads the selected image without client-side resizing', () => {
+    expect(formSource).toContain("body.set('file', file)")
+    expect(formSource).not.toContain('createImageBitmap(file)')
+    expect(formSource).not.toContain('canvas.toBlob')
+  })
+
+  it('uploads up to six selected images concurrently per form without a cross-tab lock', () => {
+    expect(formSource).toContain('const MAX_ATTACHMENT_UPLOAD_CONCURRENCY = 6')
+    expect(formSource).toContain('Math.min(MAX_ATTACHMENT_UPLOAD_CONCURRENCY, files.length)')
+    expect(formSource).not.toContain('navigator.locks')
+    expect(formSource).not.toContain('BroadcastChannel')
   })
 
   it('persists a header-only draft before the first product is added for both WTI and WTO', () => {
@@ -107,6 +120,25 @@ describe('weight-ticket product entry start contract', () => {
       lotId: 'lot-2c3d',
       productSectionId: 'root-1a2b',
     })
+  })
+
+  it('maps API line errors to the local field key and keeps the product context', () => {
+    expect(mapWeightTicketServerFieldErrors({
+      'lines.2.impurityId': ['สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'],
+    }, [
+      { id: 'product-1', parentId: undefined, productId: 'SKU001', productName: 'กระปะดำ, ผัด' },
+      { id: 'lot-1', parentId: 'product-1', productId: 'SKU001', productName: 'กระปะดำ, ผัด' },
+      { id: 'product-2', parentId: undefined, productId: 'SKU002', productName: 'กระป๋องอลูมิเนียม' },
+    ])).toEqual({
+      'line-product-2-impurity': ['สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'],
+    })
+    expect(getWeightTicketServerErrorMessage({
+      'lines.2.impurityId': ['สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'],
+    }, [
+      { id: 'product-1', parentId: undefined, productId: 'SKU001', productName: 'กระปะดำ, ผัด' },
+      { id: 'lot-1', parentId: 'product-1', productId: 'SKU001', productName: 'กระปะดำ, ผัด' },
+      { id: 'product-2', parentId: undefined, productId: 'SKU002', productName: 'กระป๋องอลูมิเนียม' },
+    ], 'บันทึกไม่สำเร็จ')).toBe('สินค้า "กระป๋องอลูมิเนียม" (รายการที่ 2): สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน')
   })
 
   it('keeps section validation mapped to line IDs containing hyphens', () => {

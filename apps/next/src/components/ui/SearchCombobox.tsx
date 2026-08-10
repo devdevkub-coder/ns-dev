@@ -13,6 +13,28 @@ export type SearchComboboxOption = {
   searchText?: string
 }
 
+export function getSearchComboboxPanelPlacement(input: {
+  inputRect: Pick<DOMRect, 'bottom' | 'left' | 'top' | 'width'>
+  viewport: { height: number; top: number }
+  gutter?: number
+  maxHeight?: number
+}) {
+  const gutter = input.gutter ?? 8
+  const maxHeight = input.maxHeight ?? 256
+  const spaceBelow = Math.max(0, input.viewport.top + input.viewport.height - input.inputRect.bottom - gutter)
+  const spaceAbove = Math.max(0, input.inputRect.top - input.viewport.top - gutter)
+  const placeAbove = spaceBelow < Math.min(maxHeight, 160) && spaceAbove > spaceBelow
+  const availableSpace = placeAbove ? spaceAbove : spaceBelow
+
+  return {
+    maxHeight: Math.max(48, Math.min(maxHeight, availableSpace)),
+    placement: placeAbove ? 'above' as const : 'below' as const,
+    top: placeAbove
+      ? input.inputRect.top - Math.max(48, Math.min(maxHeight, availableSpace)) - 4
+      : input.inputRect.bottom + 4,
+  }
+}
+
 export function SearchCombobox({
   disabled = false,
   error,
@@ -55,7 +77,6 @@ export function SearchCombobox({
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const portalHostRef = useRef<HTMLElement | null>(null)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const hasMovedRef = useRef(false)
   const selectedOption = useMemo(() => options.find((option) => option.id === value) ?? null, [options, value])
@@ -63,8 +84,7 @@ export function SearchCombobox({
   const selectedLabelQuery = selectedLabel.trim().toLowerCase()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(selectedLabel)
-  const [panelRect, setPanelRect] = useState<{ left: number; top: number; width: number } | null>(null)
-  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null)
+  const [panelRect, setPanelRect] = useState<{ left: number; maxHeight: number; top: number; width: number } | null>(null)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const isSelectedValueQuery = Boolean(selectedOption) && query.trim().toLowerCase() === selectedLabelQuery
 
@@ -78,15 +98,6 @@ export function SearchCombobox({
   }, [value, selectedLabel])
 
   useEffect(() => {
-    const input = inputRef.current
-    if (!input || typeof document === 'undefined') return
-    const scopedPortalHost = input.closest('[role="dialog"]') || input.closest('[data-combobox-portal-root="true"]')
-    const resolvedPortalHost = scopedPortalHost instanceof HTMLElement ? scopedPortalHost : document.body
-    portalHostRef.current = resolvedPortalHost
-    setPortalHost(resolvedPortalHost)
-  }, [])
-
-  useEffect(() => {
     if (!open) return
 
     const updatePanelRect = () => {
@@ -96,6 +107,14 @@ export function SearchCombobox({
       const viewport = window.visualViewport
       const viewportLeft = viewport?.offsetLeft ?? 0
       const viewportWidth = viewport?.width ?? window.innerWidth
+      const viewportTop = viewport?.offsetTop ?? 0
+      const panelPlacement = getSearchComboboxPanelPlacement({
+        inputRect,
+        viewport: {
+          height: viewport?.height ?? window.innerHeight,
+          top: viewportTop,
+        },
+      })
       const gutter = 8
       const clampToViewport = (left: number, right: number, width: number) => {
         const availableWidth = Math.max(160, right - left)
@@ -106,30 +125,15 @@ export function SearchCombobox({
           width: nextWidth,
         }
       }
-      const host = portalHostRef.current
-      if (!host || host === document.body) {
-        const clamped = clampToViewport(
-          viewportLeft + gutter,
-          viewportLeft + viewportWidth - gutter,
-          inputRect.width,
-        )
-        setPanelRect({
-          left: clamped.left,
-          top: inputRect.bottom + 4,
-          width: clamped.width,
-        })
-        return
-      }
-
-      const hostRect = host.getBoundingClientRect()
       const clamped = clampToViewport(
-        Math.max(hostRect.left, viewportLeft + gutter),
-        Math.min(hostRect.right, viewportLeft + viewportWidth - gutter),
+        viewportLeft + gutter,
+        viewportLeft + viewportWidth - gutter,
         inputRect.width,
       )
       setPanelRect({
-        left: clamped.left - hostRect.left + host.scrollLeft,
-        top: inputRect.bottom - hostRect.top + host.scrollTop + 4,
+        left: clamped.left,
+        maxHeight: panelPlacement.maxHeight,
+        top: panelPlacement.top,
         width: clamped.width,
       })
     }
@@ -328,13 +332,13 @@ export function SearchCombobox({
           }
         }}
       />
-      {open && panelRect && portalHost
+      {open && panelRect
         ? createPortal(
             <div
               id={`${inputId}-options`}
-              className={`${portalHost === document.body ? 'fixed' : 'absolute'} z-[80] max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] ${optionsPanelClassName ?? ''}`.trim()}
+              className={`fixed z-[80] max-h-none overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] ${optionsPanelClassName ?? ''}`.trim()}
               role="listbox"
-              style={{ left: panelRect.left, top: panelRect.top, width: panelRect.width }}
+              style={{ left: panelRect.left, maxHeight: panelRect.maxHeight, top: panelRect.top, width: panelRect.width }}
             >
               {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
                 <button
@@ -383,7 +387,7 @@ export function SearchCombobox({
                 </button>
               )) : <div className="px-3 py-2 text-base text-slate-500 sm:text-sm dark:text-slate-400">ไม่พบข้อมูลที่ตรงกับคำค้นหา</div>}
             </div>,
-            portalHost,
+            document.body,
           )
         : null}
     </div>

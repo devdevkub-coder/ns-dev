@@ -64,7 +64,7 @@ describe('WeightTicketImageGallery', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders the combined ticket images and opens the existing gallery at the clicked image', () => {
+  it('renders only three preview images and opens the existing gallery for the remaining images', () => {
     const onOpen = vi.fn()
     const imageNames = Array.from({ length: 6 }, (_, index) => (
       storedReference(`evidence-${index + 1}.jpg`, `https://example.com/evidence-${index + 1}.jpg`)
@@ -72,25 +72,39 @@ describe('WeightTicketImageGallery', () => {
 
     act(() => root.render(<WeightTicketImageGallery imageNames={imageNames} onOpen={onOpen} />))
 
-    const buttons = container.querySelectorAll<HTMLButtonElement>('button[aria-label^="เปิดรูปภาพประกอบ"]')
+    const buttons = container.querySelectorAll<HTMLButtonElement>('button[aria-label*=" จาก "]')
     expect(container.textContent).toContain('รูปภาพประกอบ')
     expect(container.textContent).toContain('6 รูป')
-    expect(buttons).toHaveLength(6)
+    expect(buttons).toHaveLength(3)
+    const moreButton = container.querySelector<HTMLButtonElement>('button[aria-label="เปิดรูปภาพประกอบอีก 3 รูป"]')
+    expect(moreButton).not.toBeNull()
     expect(container.firstElementChild?.className).toContain('min-w-0')
     expect(container.firstElementChild?.className).toContain('overflow-hidden')
     expect(buttons[0]?.parentElement?.className.split(' ')).toContain('grid-cols-3')
     expect(buttons[0]?.parentElement?.className.split(' ')).toContain('md:grid-cols-4')
     expect(buttons[0]?.parentElement?.className.split(' ')).not.toContain('grid-cols-2')
 
-    act(() => buttons[4]?.click())
+    act(() => moreButton?.click())
 
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({
-      activeIndex: 4,
+      activeIndex: 3,
       images: expect.arrayContaining([
         expect.objectContaining({ fileName: 'evidence-5.jpg', url: 'https://example.com/evidence-5.thumb.webp' }),
       ]),
       title: 'รูปภาพประกอบ',
     }))
+  })
+
+  it('does not render a more-images tile when three or fewer previews are available', () => {
+    const onOpen = vi.fn()
+    const imageNames = Array.from({ length: 3 }, (_, index) => (
+      storedReference(`evidence-${index + 1}.jpg`, `https://example.com/evidence-${index + 1}.jpg`)
+    ))
+
+    act(() => root.render(<WeightTicketImageGallery imageNames={imageNames} onOpen={onOpen} />))
+
+    expect(container.querySelectorAll<HTMLImageElement>('img')).toHaveLength(3)
+    expect(container.querySelector('button[aria-label^="เปิดรูปภาพประกอบอีก"]')).toBeNull()
   })
 
   it('downloads all previewable images through the document ZIP endpoint', async () => {

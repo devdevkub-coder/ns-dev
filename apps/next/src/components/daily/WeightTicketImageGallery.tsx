@@ -7,6 +7,8 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { decodeStoredImageAsset, isThumbnailPreviewableStoredImageAsset } from '@/lib/weight-tickets'
 
+export const WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT = 3
+
 export type WeightTicketGalleryImage = {
   fileName: string
   originalStorageKey: string
@@ -44,6 +46,8 @@ export function WeightTicketImageGallery({
   const images = decodedImages
     .filter(isThumbnailPreviewableStoredImageAsset)
     .map(({ bucket, fileName, storageKey, thumbnailUrl }) => ({ bucket, fileName, originalStorageKey: storageKey, url: thumbnailUrl }))
+  const previewImages = images.slice(0, WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT)
+  const remainingPreviewCount = images.length - previewImages.length
   const downloadableImages = decodedDownloadImages.filter((image) => Boolean(
     image.bucket && image.storageKey,
   ))
@@ -102,10 +106,10 @@ export function WeightTicketImageGallery({
           <div className="text-sm text-slate-400" role="status">กำลังเตรียม preview รูปภาพ...</div>
         ) : images.length > 0 ? (
           <div className="grid min-w-0 grid-cols-3 gap-3 md:grid-cols-4">
-            {images.map((image, index) => (
+            {previewImages.map((image, index) => (
               <button
                 aria-label={`เปิดรูปภาพประกอบ ${index + 1} จาก ${images.length}`}
-                className="min-w-0 max-w-60 justify-self-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
+                className="min-w-0 w-full overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
                 key={`${image.url}-${index}`}
                 type="button"
                 onClick={() => onOpen({ activeIndex: index, images, title: 'รูปภาพประกอบ' })}
@@ -115,7 +119,7 @@ export function WeightTicketImageGallery({
                     alt={image.fileName}
                     className="object-cover"
                     fill
-                    sizes="(min-width: 768px) 15rem, 33vw"
+                    sizes="(min-width: 768px) 25vw, 33vw"
                     src={image.url}
                     unoptimized
                   />
@@ -123,6 +127,16 @@ export function WeightTicketImageGallery({
                 <div className="truncate px-3 py-2 text-xs text-slate-600">{image.fileName}</div>
               </button>
             ))}
+            {remainingPreviewCount > 0 ? (
+              <button
+                aria-label={`เปิดรูปภาพประกอบอีก ${remainingPreviewCount} รูป`}
+                className="flex min-h-24 w-full min-w-0 items-center justify-center rounded-md border border-slate-200 bg-slate-100 px-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-200"
+                type="button"
+                onClick={() => onOpen({ activeIndex: WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT, images, title: 'รูปภาพประกอบ' })}
+              >
+                +อีก {remainingPreviewCount} รูป
+              </button>
+            ) : null}
           </div>
         ) : imageNames.length === 0 ? (
           <div className="text-sm text-slate-400">ยังไม่มีรูปภาพประกอบ</div>
