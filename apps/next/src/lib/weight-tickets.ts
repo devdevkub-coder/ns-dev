@@ -168,6 +168,10 @@ export type WeightTicketImagePreviews = {
   vehicleImageNames: string[]
 }
 
+const weightTicketImageOriginalSchema = z.object({
+  url: z.string().url(),
+})
+
 export type OptionItem = {
   branchIds?: string[]
   category?: string
@@ -188,6 +192,8 @@ export type StoredImageAsset = {
   fileName: string
   rawValue: string
   storageKey?: string | null
+  thumbnailStorageKey?: string | null
+  thumbnailUrl?: string | null
   url: string | null
 }
 
@@ -794,13 +800,29 @@ export function encodeStoredImageAsset(fileName: string, dataUrl: string) {
   return JSON.stringify({ dataUrl, fileName })
 }
 
-export function encodeStoredImageReference(fileName: string, url: string | undefined, storageKey: string, bucket?: string) {
-  const reference: { bucket?: string; fileName: string; storageKey: string; url?: string } = {
+export function encodeStoredImageReference(
+  fileName: string,
+  url: string | undefined,
+  storageKey: string,
+  bucket?: string,
+  thumbnailStorageKey?: string,
+  thumbnailUrl?: string,
+) {
+  const reference: {
+    bucket?: string
+    fileName: string
+    storageKey: string
+    thumbnailStorageKey?: string
+    thumbnailUrl?: string
+    url?: string
+  } = {
     bucket,
     fileName,
     storageKey,
   }
   if (url?.trim()) reference.url = url
+  if (thumbnailStorageKey?.trim()) reference.thumbnailStorageKey = thumbnailStorageKey
+  if (thumbnailUrl?.trim()) reference.thumbnailUrl = thumbnailUrl
   return JSON.stringify(reference)
 }
 
@@ -833,7 +855,15 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
   }
 
   try {
-    const parsed = JSON.parse(trimmed) as { bucket?: unknown; dataUrl?: unknown; fileName?: unknown; storageKey?: unknown; url?: unknown }
+    const parsed = JSON.parse(trimmed) as {
+      bucket?: unknown
+      dataUrl?: unknown
+      fileName?: unknown
+      storageKey?: unknown
+      thumbnailStorageKey?: unknown
+      thumbnailUrl?: unknown
+      url?: unknown
+    }
     if (typeof parsed.fileName === 'string' && typeof parsed.dataUrl === 'string' && parsed.dataUrl.startsWith('data:image/')) {
       return {
         fileName: parsed.fileName,
@@ -857,6 +887,8 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
         rawValue,
         bucket: parsed.bucket.trim(),
         storageKey: parsed.storageKey.trim(),
+        thumbnailStorageKey: typeof parsed.thumbnailStorageKey === 'string' && parsed.thumbnailStorageKey.trim() ? parsed.thumbnailStorageKey.trim() : null,
+        thumbnailUrl: typeof parsed.thumbnailUrl === 'string' ? parsed.thumbnailUrl : null,
         url: typeof parsed.url === 'string' ? parsed.url : null,
       }
     }
@@ -892,6 +924,19 @@ export function isPreviewableStoredImageAsset(
 
   try {
     const url = new URL(image.url)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+export function isThumbnailPreviewableStoredImageAsset(
+  image: StoredImageAsset,
+): image is StoredImageAsset & { bucket: string; storageKey: string; thumbnailStorageKey: string; thumbnailUrl: string } {
+  if (!image.bucket || !image.storageKey || !image.thumbnailStorageKey || !image.thumbnailUrl) return false
+
+  try {
+    const url = new URL(image.thumbnailUrl)
     return url.protocol === 'http:' || url.protocol === 'https:'
   } catch {
     return false
@@ -1210,6 +1255,14 @@ export async function getWeightTicket(id: string, options: { includeImagePreview
 export async function getWeightTicketImagePreviews(id: string, options: { signal?: AbortSignal } = {}) {
   const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}/images/preview`, { cache: 'no-store', signal: options.signal })
   return readJsonResponse(response, weightTicketImagePreviewsSchema, 'โหลด preview รูปใบรับ-ส่งของไม่ได้')
+}
+
+export async function getWeightTicketImageOriginal(id: string, storageKey: string, options: { signal?: AbortSignal } = {}) {
+  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}/images/original?storageKey=${encodeURIComponent(storageKey)}`, {
+    cache: 'no-store',
+    signal: options.signal,
+  })
+  return readJsonResponse(response, weightTicketImageOriginalSchema, 'โหลดรูปต้นฉบับไม่ได้')
 }
 
 function payloadFromForm(values: WeightTicketFormValues) {

@@ -67,10 +67,14 @@ function assertCanonicalImageReference(rawValue: string, bucket: string) {
   if (!asset.storageKey || !asset.bucket) {
     throw new WeightTicketImageReferenceError('พบรูปหลักฐานรูปแบบเก่า กรุณาย้ายรูปเข้า private image bucket ก่อนบันทึกหรือส่ง LINE')
   }
+  if (!asset.thumbnailStorageKey) {
+    throw new WeightTicketImageReferenceError(`รูปหลักฐาน ${asset.fileName} ยังไม่มี thumbnail กรุณารัน backfill ก่อนบันทึก`)
+  }
   if (asset.bucket !== bucket) {
     throw new WeightTicketImageReferenceError('รูปหลักฐานอ้างอิง bucket ไม่ตรงกับ private image bucket ที่ตั้งค่าไว้')
   }
   const storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
+  const thumbnailStorageKey = assertWeightTicketImageStorageKey(asset.thumbnailStorageKey)
 
   if (rawValue.trim().startsWith('{')) {
     try {
@@ -84,7 +88,7 @@ function assertCanonicalImageReference(rawValue: string, bucket: string) {
     }
   }
 
-  return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket)
+  return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey)
 }
 
 export function normalizeWeightTicketImageReferences<T extends {
@@ -113,33 +117,40 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
   const supabase = adminClient
 
   const signedUrlByKey = new Map<string, string>()
-  async function resolve(rawValue: string): Promise<string | null> {
+  async function resolve(rawValue: string): Promise<string> {
     const asset = decodeStoredImageAsset(rawValue)
-    if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) return null
+    if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) {
+      throw new WeightTicketImageReferenceError(`รูปหลักฐาน ${asset.fileName} ไม่มี bucket หรือ storage key ที่ถูกต้อง`)
+    }
+    if (!asset.thumbnailStorageKey) {
+      throw new WeightTicketImageReferenceError(`รูปหลักฐาน ${asset.fileName} ยังไม่มี thumbnail กรุณารัน backfill ก่อนเปิดใช้งาน preview`)
+    }
     let storageKey: string
+    let thumbnailStorageKey: string
     try {
       storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
+      thumbnailStorageKey = assertWeightTicketImageStorageKey(asset.thumbnailStorageKey)
     } catch {
       throw new WeightTicketImageReferenceError(`storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
     }
-    const cacheKey = `${asset.bucket}:${storageKey}`
+    const cacheKey = `${asset.bucket}:${storageKey}:${thumbnailStorageKey}`
     const cached = signedUrlByKey.get(cacheKey)
-    if (cached) return encodeStoredImageReference(asset.fileName, cached, storageKey, bucket)
+    if (cached) return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, cached)
 
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storageKey, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS)
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(thumbnailStorageKey, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS)
     if (error || !data?.signedUrl) {
-      throw new Error(`สร้าง signed URL รูปหลักฐาน ${asset.fileName} ไม่สำเร็จ: ${error?.message ?? 'ไม่พบ signed URL'}`)
+      throw new Error(`สร้าง signed URL thumbnail รูปหลักฐาน ${asset.fileName} ไม่สำเร็จ: ${error?.message ?? 'ไม่พบ signed URL'}`)
     }
     signedUrlByKey.set(cacheKey, data.signedUrl)
-    return encodeStoredImageReference(asset.fileName, data.signedUrl, storageKey, bucket)
+    return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, data.signedUrl)
   }
 
   const [imageNames, vehicleImageNames, lines] = await Promise.all([
-    Promise.all(record.imageNames.map(resolve)).then((values) => values.filter((value): value is string => value !== null)),
-    Promise.all(record.vehicleImageNames.map(resolve)).then((values) => values.filter((value): value is string => value !== null)),
+    Promise.all(record.imageNames.map(resolve)),
+    Promise.all(record.vehicleImageNames.map(resolve)),
     Promise.all(record.lines.map(async (line) => ({
       ...line,
-      imageNames: (await Promise.all(line.imageNames.map(resolve))).filter((value): value is string => value !== null),
+      imageNames: await Promise.all(line.imageNames.map(resolve)),
     }))),
   ])
 

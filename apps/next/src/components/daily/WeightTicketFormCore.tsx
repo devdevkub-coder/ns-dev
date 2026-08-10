@@ -137,6 +137,7 @@ const ADDED_IMPURITY_NOTE = 'หักสิ่งเจือปนเพิ่
 const MAX_WEIGHT_TICKET_UPLOAD_BYTES = 4 * 1024 * 1024
 const MAX_WEIGHT_TICKET_FILE_BYTES = 10 * 1024 * 1024
 const MAX_WEIGHT_TICKET_IMAGE_DIMENSION = 2400
+const MAX_ATTACHMENT_UPLOAD_CONCURRENCY = 3
 
 export type WeightTicketDeletionLine = Pick<
   WeightTicketLine,
@@ -719,9 +720,10 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
     fileName?: string
     bucket?: string
     storageKey?: string
-    url?: string
+    thumbnailStorageKey?: string
+    thumbnailUrl?: string
   }
-  if (!response.ok || !payload.bucket || !payload.fileName || !payload.storageKey || !payload.url) {
+  if (!response.ok || !payload.bucket || !payload.fileName || !payload.storageKey || !payload.thumbnailStorageKey || !payload.thumbnailUrl) {
     const statusHint = response.status === 413
       ? 'ไฟล์มีขนาดใหญ่เกินกว่าที่ระบบรับได้'
       : `เซิร์ฟเวอร์ตอบกลับ ${response.status || 'ไม่ทราบสถานะ'}`
@@ -732,8 +734,8 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
     id: makeFileId(),
     // Keep only the durable private-bucket reference in the form payload.
     // The signed URL is preview-only and must never be persisted to the ticket.
-    rawValue: encodeStoredImageReference(payload.fileName, undefined, payload.storageKey, payload.bucket),
-    url: payload.url,
+    rawValue: encodeStoredImageReference(payload.fileName, undefined, payload.storageKey, payload.bucket, payload.thumbnailStorageKey),
+    url: payload.thumbnailUrl,
   }
 }
 
@@ -749,8 +751,6 @@ async function prepareWeightTicketImageFile(file: File): Promise<File> {
   if (!imageConfig) {
     throw new Error(`ไฟล์ ${file.name} ไม่ใช่รูปภาพที่รองรับ (JPG, PNG หรือ WebP)`)
   }
-  if (file.size <= MAX_WEIGHT_TICKET_UPLOAD_BYTES) return file
-
   let bitmap: ImageBitmap
   try {
     bitmap = await createImageBitmap(file)
@@ -759,6 +759,8 @@ async function prepareWeightTicketImageFile(file: File): Promise<File> {
   }
 
   try {
+    const imageExceedsDimensionLimit = Math.max(bitmap.width, bitmap.height) > MAX_WEIGHT_TICKET_IMAGE_DIMENSION
+    if (file.size <= MAX_WEIGHT_TICKET_UPLOAD_BYTES && !imageExceedsDimensionLimit) return file
     const scale = Math.min(1, MAX_WEIGHT_TICKET_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height))
     const width = Math.max(1, Math.round(bitmap.width * scale))
     const height = Math.max(1, Math.round(bitmap.height * scale))
@@ -1040,6 +1042,7 @@ export function WeightTicketFormCore({
   const [isLoadingTicket, setIsLoadingTicket] = useState(Boolean(editingTicketId))
   const [loadError, setLoadError] = useState('')
   const [attachmentError, setAttachmentError] = useState('')
+  const [attachmentProgress, setAttachmentProgress] = useState<{ completed: number; total: number } | null>(null)
   const [mergeNotice, setMergeNotice] = useState('')
   const [remoteChangedLineIds, setRemoteChangedLineIds] = useState<Set<string>>(new Set())
   const [previewImage, setPreviewImage] = useState<AttachmentPreview | null>(null)
@@ -1074,6 +1077,37 @@ export function WeightTicketFormCore({
     })
     pendingAttachmentUploadsRef.current.add(trackedPromise)
     return trackedPromise
+  }
+
+  async function uploadAttachmentFiles(files: File[], errorLabel: string) {
+    let nextIndex = 0
+    let completed = 0
+    const results: PromiseSettledResult<AttachmentPreview>[] = []
+    setAttachmentProgress({ completed: 0, total: files.length })
+
+    async function worker() {
+      while (nextIndex < files.length) {
+        const index = nextIndex
+        nextIndex += 1
+        try {
+          const value = await trackAttachmentUpload(createAttachmentPreviewFromFile(files[index]))
+          results[index] = { status: 'fulfilled', value }
+        } catch (reason) {
+          results[index] = { status: 'rejected', reason }
+        } finally {
+          completed += 1
+          setAttachmentProgress({ completed, total: files.length })
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(MAX_ATTACHMENT_UPLOAD_CONCURRENCY, files.length) }, () => worker()))
+    setAttachmentProgress(null)
+
+    return {
+      failures: results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, errorLabel)] : []),
+      nextFiles: results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []),
+    }
   }
 
   async function waitForPendingAttachmentUploads() {
@@ -2308,9 +2342,7 @@ export function WeightTicketFormCore({
   async function appendLineImages(lineId: string, files: FileList | null) {
     if (!files?.length) return
     setAttachmentError('')
-    const results = await Promise.allSettled(Array.from(files).map((file) => trackAttachmentUpload(createAttachmentPreviewFromFile(file))))
-    const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
-    const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปสินค้าไม่สำเร็จ')] : [])
+    const { failures, nextFiles } = await uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปสินค้าไม่สำเร็จ')
     if (nextFiles.length > 0) {
       const currentForm = formRef.current
       formRef.current = {
@@ -2334,9 +2366,7 @@ export function WeightTicketFormCore({
   async function appendVehicleImages(files: FileList | null) {
     if (!files?.length) return
     setAttachmentError('')
-    const results = await Promise.allSettled(Array.from(files).map((file) => trackAttachmentUpload(createAttachmentPreviewFromFile(file))))
-    const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
-    const failures = results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, 'อัปโหลดรูปรถไม่สำเร็จ')] : [])
+    const { failures, nextFiles } = await uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปรถไม่สำเร็จ')
     if (nextFiles.length > 0) {
       const currentForm = formRef.current
       formRef.current = {
@@ -2778,6 +2808,11 @@ export function WeightTicketFormCore({
         <div role="alert" aria-live="assertive" className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
           <span>{attachmentError}</span>
+        </div>
+      ) : null}
+      {attachmentProgress ? (
+        <div role="status" aria-live="polite" className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          กำลังอัปโหลดรูป {attachmentProgress.completed}/{attachmentProgress.total} รูป
         </div>
       ) : null}
       {mergeNotice ? (

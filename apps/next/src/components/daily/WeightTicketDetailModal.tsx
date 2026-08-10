@@ -19,7 +19,7 @@ import { WeightTicketImageGallery } from '@/components/daily/WeightTicketImageGa
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImagePreviews, isPreviewableStoredImageAsset, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketImagePreviews, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImageOriginal, getWeightTicketImagePreviews, isPreviewableStoredImageAsset, isThumbnailPreviewableStoredImageAsset, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketImagePreviews, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { useWeightTicketRealtime } from './useWeightTicketRealtime'
@@ -131,11 +131,12 @@ export function WeightTicketDetailModal({
   const [isPrinting, setIsPrinting] = useState(false)
   const [lineGallery, setLineGallery] = useState<{
     activeIndex: number
-    images: Array<{ contextTitle?: string; fileName: string; url: string }>
+    images: Array<{ bucket: string; contextTitle?: string; fileName: string; originalStorageKey: string; originalUrl?: string; url: string }>
     title: string
   } | null>(null)
   const [galleryZoom, setGalleryZoom] = useState(1)
   const [galleryPan, setGalleryPan] = useState({ x: 0, y: 0 })
+  const [originalImageError, setOriginalImageError] = useState('')
   const galleryDragRef = useRef<{
     originX: number
     originY: number
@@ -350,6 +351,7 @@ export function WeightTicketDetailModal({
   }
 
   const activeGalleryImage = lineGallery?.images[lineGallery.activeIndex] ?? null
+  const [isLoadingOriginalImage, setIsLoadingOriginalImage] = useState(false)
   const [galleryRotate, setGalleryRotate] = useState(0)
   const galleryViewportRef = useRef<HTMLDivElement | null>(null)
 
@@ -383,9 +385,33 @@ export function WeightTicketDetailModal({
     }
   }, [lineGallery?.activeIndex])
 
+  useEffect(() => {
+    if (!lineGallery || !activeGalleryImage || activeGalleryImage.originalUrl || !ticket) return
+    const controller = new AbortController()
+    setIsLoadingOriginalImage(true)
+    setOriginalImageError('')
+    void getWeightTicketImageOriginal(ticket.documentNo, activeGalleryImage.originalStorageKey, { signal: controller.signal })
+      .then(({ url }) => {
+        setLineGallery((current) => {
+          if (!current) return current
+          return {
+            ...current,
+            images: current.images.map((image) => image.originalStorageKey === activeGalleryImage.originalStorageKey ? { ...image, originalUrl: url } : image),
+          }
+        })
+      })
+      .catch((caught) => {
+        if (!controller.signal.aborted) setOriginalImageError(getErrorMessage(caught, 'โหลดรูปต้นฉบับไม่ได้'))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingOriginalImage(false)
+      })
+    return () => controller.abort()
+  }, [activeGalleryImage, lineGallery, ticket])
+
   function openImageGallery(payload: {
     activeIndex: number
-    images: Array<{ contextTitle?: string; fileName: string; url: string }>
+    images: Array<{ bucket: string; contextTitle?: string; fileName: string; originalStorageKey: string; originalUrl?: string; url: string }>
     title: string
   }) {
     setGalleryZoom(1)
@@ -956,15 +982,21 @@ export function WeightTicketDetailModal({
                   }}
                   tabIndex={0}
                 >
-                  <Image
-                    alt={activeGalleryImage.fileName}
-                    className="pointer-events-none object-contain transition-transform duration-150 ease-out"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 80vw"
-                    src={activeGalleryImage.url}
-                    style={{ transform: `translate(${galleryPan.x}px, ${galleryPan.y}px) scale(${galleryZoom}) rotate(${galleryRotate}deg)` }}
-                    unoptimized
-                  />
+                  {activeGalleryImage.originalUrl ? (
+                    <Image
+                      alt={activeGalleryImage.fileName}
+                      className="pointer-events-none object-contain transition-transform duration-150 ease-out"
+                      fill
+                      sizes="(max-width: 768px) 100vw, 80vw"
+                      src={activeGalleryImage.originalUrl}
+                      style={{ transform: `translate(${galleryPan.x}px, ${galleryPan.y}px) scale(${galleryZoom}) rotate(${galleryRotate}deg)` }}
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="px-4 text-center text-sm text-white" role={originalImageError ? 'alert' : 'status'}>
+                      {originalImageError || (isLoadingOriginalImage ? 'กำลังโหลดรูปต้นฉบับ...' : 'ไม่พบรูปต้นฉบับ')}
+                    </div>
+                  )}
                   {lineGallery.images.length > 1 ? (
                     <>
                       <button
@@ -1101,15 +1133,15 @@ function ImageGrid({
   onOpen,
 }: {
   images: StoredImageAsset[]
-  onOpen: (payload: { activeIndex: number; images: Array<{ fileName: string; url: string }>; title: string }) => void
+  onOpen: (payload: { activeIndex: number; images: Array<{ bucket: string; fileName: string; originalStorageKey: string; url: string }>; title: string }) => void
 }) {
   if (images.length === 0) {
     return <div className="text-sm text-slate-400">ยังไม่มีรูปภาพ</div>
   }
 
-  const previewable = images.filter(isPreviewableStoredImageAsset)
+  const previewable = images.filter(isThumbnailPreviewableStoredImageAsset)
   const unavailableCount = images.length - previewable.length
-  const galleryImages = previewable.map(({ fileName, url }) => ({ fileName, url }))
+  const galleryImages = previewable.map(({ bucket, fileName, storageKey, thumbnailUrl }) => ({ bucket, fileName, originalStorageKey: storageKey, url: thumbnailUrl }))
 
   return (
     <div className="space-y-3">
@@ -1123,7 +1155,7 @@ function ImageGrid({
               onClick={() => onOpen({ activeIndex: index, images: galleryImages, title: 'รูปภาพรถส่งของ' })}
             >
               <div className="relative aspect-[4/3] bg-slate-200">
-                <Image alt={image.fileName} className="object-cover" fill sizes="(max-width: 768px) 50vw, 20vw" src={image.url} unoptimized />
+                <Image alt={image.fileName} className="object-cover" fill sizes="(max-width: 768px) 50vw, 20vw" src={image.thumbnailUrl} unoptimized />
               </div>
               <div className="truncate px-3 py-2 text-xs text-slate-600">{image.fileName}</div>
             </button>

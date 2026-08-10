@@ -23,14 +23,19 @@ beforeEach(() => {
   })
 })
 
+function storedReference(overrides: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    bucket: 'weight-ticket-images',
+    fileName: 'evidence.jpg',
+    storageKey: 'attachments/pending/evidence.jpg',
+    thumbnailStorageKey: 'attachments/pending/evidence.thumb.webp',
+    ...overrides,
+  })
+}
+
 describe('WTI/WTO private image reference contract', () => {
   it('strips a preview-only signed URL before persistence', () => {
-    const signedReference = JSON.stringify({
-      bucket: 'weight-ticket-images',
-      fileName: 'evidence.jpg',
-      storageKey: 'attachments/pending/evidence.jpg',
-      url: 'https://signed.example/evidence.jpg?token=short-lived',
-    })
+    const signedReference = storedReference({ url: 'https://signed.example/evidence.jpg?token=short-lived' })
     const values = normalizeWeightTicketImageReferences({
       lines: [{ imageNames: [signedReference] }],
       vehicleImageNames: [],
@@ -40,6 +45,7 @@ describe('WTI/WTO private image reference contract', () => {
       bucket: 'weight-ticket-images',
       fileName: 'evidence.jpg',
       storageKey: 'attachments/pending/evidence.jpg',
+      thumbnailStorageKey: 'attachments/pending/evidence.thumb.webp',
     })
   })
 
@@ -56,6 +62,7 @@ describe('WTI/WTO private image reference contract', () => {
         bucket: 'weight-ticket-pdfs',
         fileName: 'evidence.jpg',
         storageKey: 'legacy/evidence.jpg',
+        thumbnailStorageKey: 'legacy/evidence.thumb.webp',
       })] }],
       vehicleImageNames: [],
     }, 'weight-ticket-images')).toThrow('bucket ไม่ตรง')
@@ -75,6 +82,7 @@ describe('WTI/WTO private image reference contract', () => {
           bucket: 'weight-ticket-images',
           fileName: 'secret.jpg',
           storageKey,
+          thumbnailStorageKey: 'attachments/pending/evidence.thumb.webp',
         })] }],
         vehicleImageNames: [],
       }, 'weight-ticket-images')).toThrow('storage key')
@@ -86,29 +94,16 @@ describe('WTI/WTO private image reference contract', () => {
       bucket: 'weight-ticket-pdfs',
       fileName: 'public-artifact.jpg',
       storageKey: 'legacy/public-artifact.jpg',
+      thumbnailStorageKey: 'legacy/public-artifact.thumb.webp',
       url: 'https://public.example/public-artifact.jpg',
     })
-    const validReference = JSON.stringify({
-      bucket: 'weight-ticket-images',
-      fileName: 'evidence.jpg',
-      storageKey: 'attachments/01/evidence.jpg',
-    })
+    const validReference = storedReference({ storageKey: 'attachments/01/evidence.jpg', thumbnailStorageKey: 'attachments/01/evidence.thumb.webp' })
 
-    const result = await attachWeightTicketImagePreviewUrls({
+    await expect(attachWeightTicketImagePreviewUrls({
       imageNames: [wrongBucketReference, 'legacy-name.jpg', validReference],
       lines: [{ imageNames: [wrongBucketReference] }],
       vehicleImageNames: [wrongBucketReference],
-    }, 'weight-ticket-images')
-
-    expect(result.imageNames).toHaveLength(1)
-    expect(JSON.parse(result.imageNames[0] ?? '{}')).toMatchObject({
-      bucket: 'weight-ticket-images',
-      storageKey: 'attachments/01/evidence.jpg',
-      url: 'https://signed.example/evidence.jpg?token=short-lived',
-    })
-    expect(result.lines[0]?.imageNames).toEqual([])
-    expect(result.vehicleImageNames).toEqual([])
-    expect(mocks.createSignedUrl).toHaveBeenCalledTimes(1)
+    }, 'weight-ticket-images')).rejects.toThrow('bucket หรือ storage key')
   })
 
   it('surfaces malformed same-bucket keys instead of silently dropping them from preview', async () => {
@@ -117,6 +112,7 @@ describe('WTI/WTO private image reference contract', () => {
         bucket: 'weight-ticket-images',
         fileName: 'broken.jpg',
         storageKey: 'attachments/%2e%2e/broken.jpg',
+        thumbnailStorageKey: 'attachments/%2e%2e/broken.thumb.webp',
       })],
       lines: [],
       vehicleImageNames: [],

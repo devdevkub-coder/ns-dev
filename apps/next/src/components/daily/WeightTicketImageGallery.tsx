@@ -5,10 +5,12 @@ import { Download } from 'lucide-react'
 import { useState } from 'react'
 
 import { Card } from '@/components/ui/Card'
-import { decodeStoredImageAsset, isPreviewableStoredImageAsset } from '@/lib/weight-tickets'
+import { decodeStoredImageAsset, isThumbnailPreviewableStoredImageAsset } from '@/lib/weight-tickets'
 
 export type WeightTicketGalleryImage = {
   fileName: string
+  originalStorageKey: string
+  bucket: string
   url: string
 }
 
@@ -40,8 +42,8 @@ export function WeightTicketImageGallery({
   const decodedImages = imageNames.map(decodeStoredImageAsset)
   const decodedDownloadImages = (downloadImageNames ?? imageNames).map(decodeStoredImageAsset)
   const images = decodedImages
-    .filter(isPreviewableStoredImageAsset)
-    .map(({ fileName, url }) => ({ fileName, url }))
+    .filter(isThumbnailPreviewableStoredImageAsset)
+    .map(({ bucket, fileName, storageKey, thumbnailUrl }) => ({ bucket, fileName, originalStorageKey: storageKey, url: thumbnailUrl }))
   const downloadableImages = decodedDownloadImages.filter((image) => Boolean(
     image.bucket && image.storageKey,
   ))
@@ -59,7 +61,7 @@ export function WeightTicketImageGallery({
       const objectUrl = URL.createObjectURL(await response.blob())
       const anchor = document.createElement('a')
       anchor.href = objectUrl
-      anchor.download = downloadFileName || 'weight-ticket-images.zip'
+      if (downloadFileName) anchor.download = downloadFileName
       document.body.appendChild(anchor)
       anchor.click()
       anchor.remove()

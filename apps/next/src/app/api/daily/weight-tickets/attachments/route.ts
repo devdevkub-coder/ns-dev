@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission } from '@/lib/server/auth-context'
@@ -8,6 +9,8 @@ import { resolveWeightTicketImageBucket, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS
 export const runtime = 'nodejs'
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const THUMBNAIL_MAX_DIMENSION = 480
+const THUMBNAIL_QUALITY = 0.78
 const ALLOWED_IMAGE_TYPES = new Map([
   ['image/jpeg', 'jpg'],
   ['image/png', 'png'],
@@ -23,7 +26,9 @@ function matchesImageSignature(bytes: Buffer, mimeType: string) {
 
 function safeFileName(value: string) {
   const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, '-')
-  return cleaned.replace(/^-+|-+$/g, '') || 'image'
+  const fileName = cleaned.replace(/^-+|-+$/g, '')
+  if (!fileName) throw new Error('ชื่อไฟล์รูปภาพไม่ถูกต้อง')
+  return fileName
 }
 
 export async function POST(request: Request) {
@@ -57,7 +62,9 @@ export async function POST(request: Request) {
     }
 
     const fileName = safeFileName(file.name)
-    const storageKey = `attachments/pending/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`
+    const storageBase = `attachments/pending/${new Date().toISOString().slice(0, 10)}/${randomUUID()}`
+    const storageKey = `${storageBase}.${extension}`
+    const thumbnailStorageKey = `${storageBase}.thumb.webp`
     const { error } = await supabase.storage.from(bucket).upload(storageKey, fileBytes, {
       cacheControl: '31536000',
       contentType: file.type,
@@ -65,11 +72,37 @@ export async function POST(request: Request) {
     })
     if (error) throw new Error(`Storage upload failed: ${error.message}`)
 
-    const { data, error: signedUrlError } = await supabase.storage.from(bucket).createSignedUrl(storageKey, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS)
-    if (signedUrlError || !data?.signedUrl) {
-      throw new Error(`Storage signed URL failed: ${signedUrlError?.message ?? 'ไม่สามารถสร้าง signed URL ได้'}`)
+    let thumbnailBytes: Buffer
+    try {
+      const image = await loadImage(fileBytes)
+      const scale = Math.min(1, THUMBNAIL_MAX_DIMENSION / Math.max(image.width, image.height))
+      const width = Math.max(1, Math.round(image.width * scale))
+      const height = Math.max(1, Math.round(image.height * scale))
+      const canvas = createCanvas(width, height)
+      const context = canvas.getContext('2d')
+      context.drawImage(image, 0, 0, width, height)
+      thumbnailBytes = canvas.toBuffer('image/webp', THUMBNAIL_QUALITY)
+    } catch (caught) {
+      await supabase.storage.from(bucket).remove([storageKey]).catch(() => undefined)
+      throw new Error(`สร้าง thumbnail รูป ${file.name} ไม่สำเร็จ: ${caught instanceof Error ? caught.message : 'ไม่สามารถอ่านรูปได้'}`)
     }
-    return NextResponse.json({ bucket, fileName, storageKey, url: data.signedUrl }, { status: 201 })
+
+    const { error: thumbnailUploadError } = await supabase.storage.from(bucket).upload(thumbnailStorageKey, thumbnailBytes, {
+      cacheControl: '31536000',
+      contentType: 'image/webp',
+      upsert: false,
+    })
+    if (thumbnailUploadError) {
+      await supabase.storage.from(bucket).remove([storageKey]).catch(() => undefined)
+      throw new Error(`Storage thumbnail upload failed: ${thumbnailUploadError.message}`)
+    }
+
+    const { data, error: signedUrlError } = await supabase.storage.from(bucket).createSignedUrl(thumbnailStorageKey, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS)
+    if (signedUrlError || !data?.signedUrl) {
+      await supabase.storage.from(bucket).remove([storageKey, thumbnailStorageKey]).catch(() => undefined)
+      throw new Error(`Storage thumbnail signed URL failed: ${signedUrlError?.message ?? 'ไม่สามารถสร้าง signed URL ได้'}`)
+    }
+    return NextResponse.json({ bucket, fileName, storageKey, thumbnailStorageKey, thumbnailUrl: data.signedUrl }, { status: 201 })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'อัปโหลดไฟล์แนบ WTI/WTO ไม่สำเร็จ', 500)

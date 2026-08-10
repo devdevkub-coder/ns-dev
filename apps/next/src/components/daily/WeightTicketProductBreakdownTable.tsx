@@ -2,9 +2,9 @@
 
 import { Fragment } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { decodeStoredImageAsset, formatWeight, isPreviewableStoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
+import { decodeStoredImageAsset, formatWeight, isThumbnailPreviewableStoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
-type PreviewImage = { contextTitle?: string; fileName: string; url: string }
+type PreviewImage = { bucket: string; contextTitle?: string; fileName: string; originalStorageKey: string; url: string }
 
 type LineGallerySource = {
   id: string
@@ -76,11 +76,13 @@ export function buildWeightTicketLineGallery(
   sources.forEach((source) => {
     const sourceImages = source.imageNames
       .map(decodeStoredImageAsset)
-      .filter(isPreviewableStoredImageAsset)
+      .filter(isThumbnailPreviewableStoredImageAsset)
       .map((image) => ({
+        bucket: image.bucket,
         contextTitle: source.title,
         fileName: image.fileName,
-        url: image.url,
+        originalStorageKey: image.storageKey,
+        url: image.thumbnailUrl,
       }))
 
     if (source.id === selectedSourceId && sourceImages.length > 0) activeIndex = images.length
@@ -105,10 +107,12 @@ function LineImagesButton({
 
   const previewableImages = line.imageNames
     .map(decodeStoredImageAsset)
-    .filter(isPreviewableStoredImageAsset)
+    .filter(isThumbnailPreviewableStoredImageAsset)
     .map((image) => ({
+      bucket: image.bucket,
       fileName: image.fileName,
-      url: image.url,
+      originalStorageKey: image.storageKey,
+      url: image.thumbnailUrl,
     }))
 
   return (

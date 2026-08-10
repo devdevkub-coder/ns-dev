@@ -16,6 +16,10 @@ vi.mock('next/image', () => ({
 const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT
 
+function storedReference(fileName: string, originalUrl: string, thumbnailUrl = originalUrl.replace(/\.jpg/, '.thumb.webp')) {
+  return encodeStoredImageReference(fileName, originalUrl, `attachments/${fileName}`, 'weight-ticket-images', `attachments/${fileName}.thumb.webp`, thumbnailUrl)
+}
+
 beforeAll(() => {
   actEnvironment.IS_REACT_ACT_ENVIRONMENT = true
 })
@@ -27,8 +31,8 @@ afterAll(() => {
 describe('stored weight ticket image URL contract', () => {
   it('accepts only parseable HTTP(S) assets for previews', () => {
     const assets = [
-      encodeStoredImageReference('http.jpg', 'http://storage.example.com/http.jpg', 'weight-ticket/http.jpg', 'weight-ticket-images'),
-      encodeStoredImageReference('https.jpg', 'https://storage.example.com/https.jpg?token=signed', 'weight-ticket/https.jpg', 'weight-ticket-images'),
+      storedReference('http.jpg', 'http://storage.example.com/http.jpg'),
+      storedReference('https.jpg', 'https://storage.example.com/https.jpg?token=signed'),
       'data:image/png;base64,AAAA',
       'legacy-pipe.jpg|data:image/jpeg;base64,BBBB',
       JSON.stringify({ dataUrl: 'data:image/webp;base64,CCCC', fileName: 'legacy-json.webp' }),
@@ -63,7 +67,7 @@ describe('WeightTicketImageGallery', () => {
   it('renders the combined ticket images and opens the existing gallery at the clicked image', () => {
     const onOpen = vi.fn()
     const imageNames = Array.from({ length: 6 }, (_, index) => (
-      encodeStoredImageReference(`evidence-${index + 1}.jpg`, `https://example.com/evidence-${index + 1}.jpg`, `weight-ticket/evidence-${index + 1}.jpg`, 'weight-ticket-images')
+      storedReference(`evidence-${index + 1}.jpg`, `https://example.com/evidence-${index + 1}.jpg`)
     ))
 
     act(() => root.render(<WeightTicketImageGallery imageNames={imageNames} onOpen={onOpen} />))
@@ -82,7 +86,7 @@ describe('WeightTicketImageGallery', () => {
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({
       activeIndex: 4,
       images: expect.arrayContaining([
-        expect.objectContaining({ fileName: 'evidence-5.jpg', url: 'https://example.com/evidence-5.jpg' }),
+        expect.objectContaining({ fileName: 'evidence-5.jpg', url: 'https://example.com/evidence-5.thumb.webp' }),
       ]),
       title: 'รูปภาพประกอบ',
     }))
@@ -97,7 +101,7 @@ describe('WeightTicketImageGallery', () => {
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
     const imageNames = [
-      encodeStoredImageReference('evidence.jpg', 'https://example.com/evidence.jpg', 'weight-ticket/evidence.jpg', 'weight-ticket-images'),
+      storedReference('evidence.jpg', 'https://example.com/evidence.jpg'),
     ]
 
     act(() => root.render(
@@ -122,7 +126,7 @@ describe('WeightTicketImageGallery', () => {
 
   it('keeps the download button enabled when only vehicle images are downloadable', () => {
     const onOpen = vi.fn()
-    const vehicleImage = encodeStoredImageReference('vehicle.jpg', 'https://example.com/vehicle.jpg', 'weight-ticket/vehicle.jpg', 'weight-ticket-images')
+    const vehicleImage = storedReference('vehicle.jpg', 'https://example.com/vehicle.jpg')
 
     act(() => root.render(
       <WeightTicketImageGallery
@@ -152,7 +156,7 @@ describe('WeightTicketImageGallery', () => {
   it('opens a single image as a one-item gallery', () => {
     const onOpen = vi.fn()
     const imageNames = [
-      encodeStoredImageReference('single.jpg', 'https://example.com/single.jpg', 'weight-ticket/single.jpg', 'weight-ticket-images'),
+      storedReference('single.jpg', 'https://example.com/single.jpg'),
     ]
 
     act(() => root.render(<WeightTicketImageGallery imageNames={imageNames} onOpen={onOpen} />))
@@ -162,7 +166,7 @@ describe('WeightTicketImageGallery', () => {
     act(() => button?.click())
     expect(onOpen).toHaveBeenCalledWith({
       activeIndex: 0,
-      images: [{ fileName: 'single.jpg', url: 'https://example.com/single.jpg' }],
+      images: [{ bucket: 'weight-ticket-images', fileName: 'single.jpg', originalStorageKey: 'attachments/single.jpg', url: 'https://example.com/single.thumb.webp' }],
       title: 'รูปภาพประกอบ',
     })
   })
@@ -170,7 +174,7 @@ describe('WeightTicketImageGallery', () => {
   it('keeps legacy filename-only evidence readable without creating a broken preview', () => {
     const onOpen = vi.fn()
     const imageNames = [
-      encodeStoredImageReference('preview.jpg', 'https://example.com/preview.jpg', 'weight-ticket/preview.jpg', 'weight-ticket-images'),
+      storedReference('preview.jpg', 'https://example.com/preview.jpg'),
       'legacy-camera-01.jpg',
     ]
 
@@ -184,7 +188,7 @@ describe('WeightTicketImageGallery', () => {
   it('previews only valid web URLs and keeps every legacy data URL format unavailable', () => {
     const onOpen = vi.fn()
     const imageNames = [
-      encodeStoredImageReference('stored.jpg', 'https://storage.example.com/stored.jpg?token=signed', 'weight-ticket/stored.jpg', 'weight-ticket-images'),
+      storedReference('stored.jpg', 'https://storage.example.com/stored.jpg?token=signed', 'https://storage.example.com/stored.thumb.webp?token=signed'),
       'data:image/png;base64,AAAA',
       'legacy-pipe.jpg|data:image/jpeg;base64,BBBB',
       JSON.stringify({ dataUrl: 'data:image/webp;base64,CCCC', fileName: 'legacy-json.webp' }),
@@ -197,7 +201,7 @@ describe('WeightTicketImageGallery', () => {
     const images = container.querySelectorAll<HTMLImageElement>('img')
     const buttons = container.querySelectorAll<HTMLButtonElement>('button[aria-label^="เปิดรูปภาพประกอบ"]')
     expect(images).toHaveLength(1)
-    expect(images[0]?.getAttribute('src')).toBe('https://storage.example.com/stored.jpg?token=signed')
+    expect(images[0]?.getAttribute('src')).toBe('https://storage.example.com/stored.thumb.webp?token=signed')
     expect(buttons).toHaveLength(1)
     expect(container.textContent).toContain('มีรูปเดิม 5 รูปที่ยังไม่มี preview ในระบบปัจจุบัน')
 
@@ -205,7 +209,7 @@ describe('WeightTicketImageGallery', () => {
 
     expect(onOpen).toHaveBeenCalledWith({
       activeIndex: 0,
-      images: [{ fileName: 'stored.jpg', url: 'https://storage.example.com/stored.jpg?token=signed' }],
+      images: [{ bucket: 'weight-ticket-images', fileName: 'stored.jpg', originalStorageKey: 'attachments/stored.jpg', url: 'https://storage.example.com/stored.thumb.webp?token=signed' }],
       title: 'รูปภาพประกอบ',
     })
   })

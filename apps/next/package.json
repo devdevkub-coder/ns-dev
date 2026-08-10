@@ -20,6 +20,7 @@
     "audit:product-image-assets": "node scripts/audit-product-image-assets.mjs",
     "audit:weight-ticket-image-assets": "node scripts/audit-weight-ticket-image-assets.mjs",
     "backfill:weight-ticket-image-assets": "node scripts/backfill-weight-ticket-image-assets.mjs",
+    "backfill:weight-ticket-image-thumbnails": "node scripts/backfill-weight-ticket-image-thumbnails.mjs",
     "migrate:weight-ticket-image-bucket": "node scripts/migrate-weight-ticket-image-bucket.mjs",
     "backfill:purchase-cost-pool": "node scripts/backfill-purchase-cost-pool.mjs",
     "backfill:profit-cost-report": "npx tsx scripts/backfill-profit-cost-report.ts",

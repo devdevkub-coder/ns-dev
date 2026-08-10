@@ -776,12 +776,20 @@ Cache ถูกทำเป็น shared infrastructure สำหรับหล
 3. ตรวจ product/account/beneficiary/remittance-purpose consumers ที่เหลือ โดยไม่รวมข้อมูลราคา ต้นทุน stock ยอดเงิน หรือ transaction fact.
 4. ตรวจ runtime hit/miss, Redis latency/error และ invalidation หลัง deploy; retire key ที่ไม่มี consumer หรือไม่มีประโยชน์.
 
-### CACHE-M5 Image Delivery Checkpoint (2026-07-18)
+### CACHE-M5 Image Delivery Checkpoint (2026-07-18, superseded for WTI/WTO by CACHE-M6)
 
 - WTI/WTO attachment load/error now emits `image_delivery` telemetry with only `assetFamily`, outcome, duration, and browser resource byte metrics. It never sends the URL, document number, filename, user id, or branch scope.
 - The LINE notification path no longer substitutes a hardcoded placeholder image when upload/configuration fails; the attachment is omitted instead of presenting unrelated imagery.
-- Product/impurity product images remain public versioned assets with original/thumbnail separation. WTI/WTO attachments remain on the existing public bucket because LINE requires externally reachable URLs. Changing that bucket to private is a separate signed-URL migration and must cover ERP preview URLs, existing stored references, and LINE delivery expiry before implementation.
+- Product/impurity product images remain public versioned assets with original/thumbnail separation. The historical WTI/WTO public-bucket statement below no longer governs the WTI/WTO ERP preview path; CACHE-M6 defines the current private-bucket original/thumbnail contract. LINE delivery and any external sharing path still require a separate signed-URL contract review.
 - Corrected `audit:weight-ticket-image-assets` on 2026-07-19 found that the previous no-data-URL result had classified JSON data URLs as filename-only. The guarded backfill then migrated 214 valid images and CAS-removed 2 exact 15-byte mock payloads in both dev and SIT with zero failures, conflicts, missing keys, or migrated-namespace orphans. Post-apply audit reports data URL/invalid/mock counts `0`, canonical storage-key counts dev `219` / SIT `218`, and 23 filename-only references in each environment that remain pending a real source decision. Runtime must not guess a storage path or add a base64/fallback image. #151 has no list/picker attachment consumer, so this detail-only L5 migration keeps original assets only; thumbnail/compression remains a separate consumer-led migration.
 - Runtime image metrics and cache telemetry still require deployed SIT/UAT traffic. No TTL or browser-cache expansion should be decided from local tests alone.
 
 ระบบถือว่าครบตามเป้าหมายเมื่อ reference consumers ที่เข้า contract ใช้ shared cache และ invalidate ครบ โดยไม่ cache runtime/business fact ทุกเมนู.
+
+### CACHE-M6 WTI/WTO Thumbnail Delivery Contract (2026-08-10)
+
+WTI/WTO รูปหลักฐานเป็นข้อมูลภายในระดับ L5 และ source of truth อยู่ที่ private Supabase Storage กับ reference ในฐานข้อมูล. Upload ใหม่ต้องสร้าง immutable original และ thumbnail ใน private bucket เดียวกัน โดยเก็บ `storageKey` และ `thumbnailStorageKey` ใน reference เดียวกัน; signed URL ของ thumbnail ใช้เฉพาะ preview response แบบ `private, no-store`, ส่วน original จะ signed แบบ on-demand เมื่อผู้ใช้เปิดรูปใหญ่/พิมพ์/ดาวน์โหลด.
+
+หน้า form ทำงานเป็นรายรายการสินค้า: แสดง local preview ได้ทันที, จำกัด concurrent upload, แสดง progress และห้ามบันทึกจน upload ที่รออยู่จบ. Gallery/list ใช้ thumbnail และ lazy loading; ห้ามเซ็นหรือโหลด original ทั้งเอกสารตั้งแต่เปิดหน้า. รูปเก่าที่ไม่มี thumbnail ต้องผ่าน `backfill:weight-ticket-image-thumbnails` และ audit ให้ครบก่อนเปิด runtime contract; runtime ไม่ fallback ไปใช้ original แทน thumbnail และไม่ hardcode path.
+
+การตรวจรับต้องแยกเวลาเลือก/เตรียมไฟล์, upload, thumbnail signing, initial thumbnail transfer และ on-demand original transfer พร้อมตรวจ missing/orphan thumbnail และ scope isolation ของ signed URL.
