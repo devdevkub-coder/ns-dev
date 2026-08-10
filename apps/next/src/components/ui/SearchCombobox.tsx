@@ -336,7 +336,7 @@ export function SearchCombobox({
         ? createPortal(
             <div
               id={`${inputId}-options`}
-              className={`fixed z-[80] max-h-none overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] ${optionsPanelClassName ?? ''}`.trim()}
+              className={`pointer-events-auto fixed z-[80] max-h-none overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] ${optionsPanelClassName ?? ''}`.trim()}
               role="listbox"
               style={{ left: panelRect.left, maxHeight: panelRect.maxHeight, top: panelRect.top, width: panelRect.width }}
             >

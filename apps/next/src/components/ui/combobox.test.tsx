@@ -90,6 +90,7 @@ describe('shared combobox behavior', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    document.body.style.pointerEvents = ''
     Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
@@ -112,7 +113,31 @@ describe('shared combobox behavior', () => {
     expect(input.getAttribute('aria-label')).toBe('เลือกสาขา')
     expect(input.getAttribute('aria-controls')).toBe('branch-filter-options')
     expect(input.getAttribute('aria-expanded')).toBe('true')
-    expect(document.getElementById('branch-filter-options')?.getAttribute('role')).toBe('listbox')
+    const listbox = document.getElementById('branch-filter-options')
+    expect(listbox?.getAttribute('role')).toBe('listbox')
+    expect(listbox?.classList.contains('pointer-events-auto')).toBe(true)
+  })
+
+  it('selects a branch from the portalled list with a mouse click while a modal disables outside pointer events', () => {
+    const onValueChange = vi.fn()
+    document.body.style.pointerEvents = 'none'
+    const input = renderHarness({ onValueChange })
+
+    act(() => input.focus())
+    const listbox = document.getElementById('branch-filter-options')
+    const option = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]'))
+      .find((button) => button.textContent?.includes('สาขา B'))
+
+    expect(listbox?.classList.contains('pointer-events-auto')).toBe(true)
+    expect(option).toBeDefined()
+
+    act(() => {
+      option?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+    })
+
+    expect(onValueChange).toHaveBeenLastCalledWith('สาขา B')
+    expect(input.value).toBe('สาขา B')
+    expect(input.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('navigates options with arrows, chooses the highlighted option with Enter, and closes with Escape', () => {

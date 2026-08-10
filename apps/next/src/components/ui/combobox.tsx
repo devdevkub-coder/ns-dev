@@ -342,7 +342,10 @@ export function ComboboxContent({ children, className }: { children: React.React
   if (!open || !panelRect || typeof document === 'undefined') return null
   return createPortal(
     <div
-      className={className ?? 'fixed z-[80] max-h-none overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)]'}
+      className={cn(
+        'pointer-events-auto',
+        className ?? 'fixed z-[80] max-h-none overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)]',
+      )}
       data-slot="combobox-content"
       id={inputId ? `${inputId}-options` : undefined}
       role="listbox"
