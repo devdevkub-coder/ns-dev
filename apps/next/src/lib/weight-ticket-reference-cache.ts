@@ -3,7 +3,7 @@
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
 import { dailyFetchJson } from '@/lib/daily'
 
-const CACHE_TTL_MS = 5 * 60 * 1000
+const CACHE_TTL_MS = 60 * 60 * 1000
 
 type CacheEntry = {
   expiresAt: number

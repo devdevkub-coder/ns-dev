@@ -98,10 +98,6 @@ function collaborationLineSnapshot(line: Pick<WeightTicketLine, 'containerDeduct
   })
 }
 
-type WeightTicketOptionsPayload = {
-  branches?: Array<{ code?: string | null; id: string; name: string }>
-}
-
 type WeightTicketPartyOptionsPayload = {
   options?: Array<{ branchIds?: string[]; code?: string | null; id: string; name: string }>
 }
@@ -1135,6 +1131,7 @@ export function WeightTicketFormCore({
   const formRef = useRef(form)
   const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(initialForm(initialType)))
   const [branches, setBranches] = useState<OptionItem[]>([])
+  const [isLoadingBranches, setIsLoadingBranches] = useState(true)
   const [suppliers, setSuppliers] = useState<OptionItem[]>([])
   const [customers, setCustomers] = useState<OptionItem[]>([])
   const [products, setProducts] = useState<OptionItem[]>([])
@@ -1464,24 +1461,40 @@ export function WeightTicketFormCore({
   }, [editingTicketId, isEmbeddedModal])
 
   useEffect(() => {
+    let cancelled = false
+
+    cachedWeightTicketReferences<{ branches?: Array<{ code?: string | null; id: string; name: string }> }>('/api/branches')
+      .then((data) => {
+        if (cancelled) return
+        setBranches((data.branches ?? []).map((branch) => ({
+          code: branch.code ?? undefined,
+          description: branch.code ? `รหัสสาขา ${branch.code}` : undefined,
+          id: branch.id,
+          label: branch.name,
+        })))
+      })
+      .catch((caught) => {
+        if (!cancelled) setLoadError(getErrorMessage(caught, 'โหลดข้อมูลสาขาไม่ได้'))
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingBranches(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
 
     async function loadOptionData() {
       setIsLoadingProducts(true)
       try {
-        const [data, productData] = await Promise.all([
-          cachedWeightTicketReferences<WeightTicketOptionsPayload>('/api/daily/weight-tickets/options'),
-          fetchFreshWeightTicketReferences<WeightTicketProductsPayload>('/api/daily/weight-tickets/products'),
-        ])
+        const productData = await fetchFreshWeightTicketReferences<WeightTicketProductsPayload>('/api/daily/weight-tickets/products')
 
         if (!cancelled && !controller.signal.aborted) {
-          setBranches((data.branches ?? []).map((branch) => ({
-            code: branch.code ?? undefined,
-            description: branch.code ? `รหัสสาขา ${branch.code}` : undefined,
-            id: branch.id,
-            label: branch.name,
-          })))
           setProducts((productData.rows ?? []).map((product) => ({
             category: product.type ?? undefined,
             code: product.code ?? undefined,
@@ -3098,10 +3111,11 @@ export function WeightTicketFormCore({
                   id: branch.id,
                   name: branch.label,
                 }))}
+                disabled={isLoadingBranches}
                 error={showError('branchId')}
                 inputId="weight-ticket-branch"
                 label="สาขา*"
-                placeholder="เลือกสาขา"
+                placeholder={isLoadingBranches ? 'กำลังโหลดสาขา...' : 'เลือกสาขา'}
                 value={form.branchId}
 	                onChange={(value) => {
 	                  markTouched('branchId')
