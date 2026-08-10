@@ -1201,6 +1201,7 @@ export function WeightTicketFormCore({
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({})
   const [activeLineId, setActiveLineId] = useState('')
+  const [mobileEntryStep, setMobileEntryStep] = useState<'header' | 'products'>('header')
   const [mobileProductView, setMobileProductView] = useState<'list' | 'editor'>('list')
   const [isMobileProductEditorVisible, setMobileProductEditorVisible] = useState(false)
   const mobileProductEditorCloseTimeoutRef = useRef<number | null>(null)
@@ -1713,6 +1714,7 @@ export function WeightTicketFormCore({
         deletedLineIdsRef.current.clear()
         dirtyHeaderFieldsRef.current.clear()
         setActiveLineId('')
+        setMobileEntryStep('products')
         setMobileProductView('list')
         setTouched({})
       } catch (caught) {
@@ -1800,6 +1802,7 @@ export function WeightTicketFormCore({
 
   function prepareValidationFocus(errorKey: string, sourceForm: FormState = form) {
     if (errorKey === 'lines') {
+      setMobileEntryStep('products')
       setMobileProductView('list')
       setPendingFocusField(errorKey)
       return
@@ -1807,10 +1810,15 @@ export function WeightTicketFormCore({
 
     const target = getWeightTicketValidationFocusTarget(sourceForm.lines, errorKey)
     if (!target) {
+      if (['branchId', 'partyId', 'vehicleNo', 'warehouseName', 'godownName'].includes(errorKey)) {
+        setMobileEntryStep('header')
+        setMobileProductView('list')
+      }
       setPendingFocusField(errorKey)
       return
     }
 
+    setMobileEntryStep('products')
     setMobileProductView('editor')
     setActiveLineId(target.productSectionId)
     if (target.lotId) {
@@ -2241,6 +2249,14 @@ export function WeightTicketFormCore({
     }
   }
 
+  async function saveHeaderAndContinue() {
+    if (isSaving || isLoadingTicket || saveInFlightRef.current) return
+    const savedForm = await saveDraftBeforeAdding(formRef.current)
+    if (!savedForm) return
+    setMobileEntryStep('products')
+    setMobileProductView('list')
+  }
+
   function changeLineProduct(lineId: string, productId: string) {
     markLinesDirty(form.lines.filter((line) => line.id === lineId || line.parentId === lineId).map((line) => line.id))
     setMergeNotice('')
@@ -2283,6 +2299,7 @@ export function WeightTicketFormCore({
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)
+    setMobileEntryStep('products')
     setMobileProductView('editor')
     void saveDraftBeforeAdding(form)
   }
@@ -2812,9 +2829,15 @@ export function WeightTicketFormCore({
     if (errorKeys.length > 0) {
       const firstErrorKey = errors.lines ? 'lines' : errorKeys[0]
       const parsed = parseWeightTicketValidationKey(firstErrorKey)
-      if (firstErrorKey === 'lines') setMobileProductView('list')
-      if (parsed) prepareValidationFocus(firstErrorKey)
-      else setPendingFocusField(firstErrorKey)
+      if (firstErrorKey === 'lines') {
+        setMobileEntryStep('products')
+        setMobileProductView('list')
+      }
+      if (parsed || ['branchId', 'partyId', 'vehicleNo', 'warehouseName', 'godownName'].includes(firstErrorKey)) {
+        prepareValidationFocus(firstErrorKey)
+      } else {
+        setPendingFocusField(firstErrorKey)
+      }
       return
     }
 
@@ -3084,6 +3107,9 @@ export function WeightTicketFormCore({
       setRemoteChangedLineIds(new Set())
       invalidatePurchaseBillOptionsCache()
       setLoadError('')
+      if (isEmbeddedModal && !sectionWasChangedDuringSave) {
+        closeMobileProductEditor(persistedRootId)
+      }
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 409) {
         setMergeNotice('ข้อมูลชนกันใน section นี้ ระบบไม่เขียนทับข้อมูลของผู้ใช้อื่น กรุณาโหลดข้อมูลล่าสุดแล้วตรวจสอบอีกครั้ง')
@@ -3111,6 +3137,9 @@ export function WeightTicketFormCore({
                   เลขที่ {persistedDocumentNo}
                 </p>
               ) : null}
+              <p className="mt-1 text-xs font-semibold text-blue-200 xl:hidden">
+                {mobileEntryStep === 'header' ? 'ขั้นตอน 1 จาก 2 · ข้อมูลหัวเอกสาร' : 'ขั้นตอน 2 จาก 2 · รายการสินค้า'}
+              </p>
             </div>
             <div className="flex max-w-[min(58vw,13rem)] shrink-0 justify-end gap-2 overflow-x-auto pb-0.5 sm:max-w-none sm:flex-wrap sm:overflow-visible sm:pb-0">
               <Button className="h-10 shrink-0 border-emerald-600 bg-emerald-600 px-4 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white disabled:opacity-60 sm:h-9" disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={saveTicket}>
@@ -3274,6 +3303,7 @@ export function WeightTicketFormCore({
       ) : (
         <div>
           <div className="space-y-5">
+            <div className={cn(isEmbeddedModal && mobileEntryStep === 'products' ? 'hidden xl:block' : '')}>
             <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="ข้อมูลหัวเอกสาร" />
             <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
@@ -3352,8 +3382,51 @@ export function WeightTicketFormCore({
             </div>
           </Card>
 
+          {isEmbeddedModal ? (
+            <div className="mt-4 flex justify-end xl:hidden">
+              <Button
+                className="h-10 w-full bg-blue-600 font-semibold text-white hover:bg-blue-700"
+                disabled={isLoadingTicket || isSaving || !form.branchId || !form.partyId || !form.vehicleNo || (form.type === 'WTO' && !form.godownName)}
+                id="weight-ticket-header-continue"
+                type="button"
+                onClick={() => void saveHeaderAndContinue()}
+              >
+                บันทึกหัวเอกสารและไปต่อ
+              </Button>
+            </div>
+          ) : null}
+            </div>
+
+          <div className={cn(isEmbeddedModal && mobileEntryStep === 'header' ? 'hidden xl:block' : '')}>
           <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
-            <SectionHeader title="สินค้าและน้ำหนัก" />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SectionHeader title="สินค้าและน้ำหนัก" />
+              {isEmbeddedModal ? (
+                <div className="flex shrink-0 items-center gap-2 xl:hidden">
+                  <Button
+                    className="h-9 px-3 text-xs font-semibold"
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setMobileEntryStep('header')
+                      setMobileProductView('list')
+                    }}
+                  >
+                    ตรวจหัวเอกสาร
+                  </Button>
+                  <Button
+                    className="h-9 border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
+                    disabled={isLoadingTicket || isSaving}
+                    size="sm"
+                    type="button"
+                    onClick={() => void saveTicket()}
+                  >
+                    บันทึกเอกสาร
+                  </Button>
+                </div>
+              ) : null}
+            </div>
 
 
 
@@ -4306,7 +4379,9 @@ export function WeightTicketFormCore({
               ) : null}
             </div>
           </Card>
+          </div>
 
+          <div className={cn(isEmbeddedModal && mobileEntryStep === 'products' ? 'hidden xl:block' : '')}>
           <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="หมายเหตุท้ายเอกสาร" />
             <textarea
@@ -4316,6 +4391,7 @@ export function WeightTicketFormCore({
               onChange={(event) => updateForm('remark', event.target.value.slice(0, 500))}
             />
           </Card>
+          </div>
         </div>
       </div>
       )}

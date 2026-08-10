@@ -301,6 +301,27 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).not.toContain('MobileFilterSheet')
   })
 
+  it('keeps the mobile header and product steps explicit', () => {
+    expect(formSource).toContain("const [mobileEntryStep, setMobileEntryStep] = useState<'header' | 'products'>('header')")
+    expect(formSource).toContain("mobileEntryStep === 'header' ? 'ขั้นตอน 1 จาก 2 · ข้อมูลหัวเอกสาร' : 'ขั้นตอน 2 จาก 2 · รายการสินค้า'")
+    expect(formSource).toContain('บันทึกหัวเอกสารและไปต่อ')
+    expect(formSource).toContain('ตรวจหัวเอกสาร')
+    expect(formSource).toContain('บันทึกเอกสาร')
+    expect(formSource).toContain("isEmbeddedModal && mobileEntryStep === 'products' ? 'hidden xl:block' : ''")
+  })
+
+  it('routes product validation to the visible mobile product step before focusing', () => {
+    const validationSource = formSource.match(/function prepareValidationFocus\(errorKey: string, sourceForm: FormState = form\) \{([\s\S]*?)\r?\n  \}/)
+
+    expect(validationSource).not.toBeNull()
+    expect(validationSource?.[1]).toContain("setMobileEntryStep('products')")
+    expect(validationSource?.[1]).toContain("setMobileProductView('editor')")
+    expect(validationSource?.[1]).toContain("setMobileEntryStep('header')")
+    expect(validationSource?.[1]).toContain("setMobileProductView('list')")
+    expect(formSource).toContain("if (firstErrorKey === 'lines') {\n        setMobileEntryStep('products')")
+    expect(formSource).toContain("if (parsed || ['branchId', 'partyId', 'vehicleNo', 'warehouseName', 'godownName'].includes(firstErrorKey)) {\n        prepareValidationFocus(firstErrorKey)")
+  })
+
   it('shows product image choices three per row on mobile', () => {
     expect(formSource).toContain('grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4')
   })
@@ -1086,7 +1107,7 @@ describe('weight-ticket product editor behavior', () => {
     await renderForm('WTI', { embeddedModal: true })
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
+      container.querySelector<HTMLButtonElement>('#weight-ticket-header-continue')?.click()
       await Promise.resolve()
       await Promise.resolve()
     })
