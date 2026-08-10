@@ -8,11 +8,12 @@ const source = readFileSync(
 ).replaceAll('\r\n', '\n')
 
 describe('weight ticket detail modal action layout', () => {
-  it('keeps draft confirmation actions visible on mobile without a horizontal scroller', () => {
-    expect(source).toContain('grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:flex sm:flex-wrap sm:justify-between')
-    expect(source).toContain('flex flex-wrap items-center justify-end gap-2')
+  it('keeps the detail header readable and actions reachable on mobile', () => {
+    expect(source).toContain('flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between')
+    expect(source).toContain('break-words text-base leading-6 text-white sm:truncate sm:text-lg')
+    expect(source).toContain('sticky top-0 z-20 shrink-0')
+    expect(source).toContain('flex min-w-0 w-full items-center justify-end gap-2 overflow-x-auto')
     expect(source).not.toContain('max-w-[min(58vw,15rem)]')
-    expect(source).not.toContain('overflow-x-auto pb-0.5')
   })
 
   it('uses an accessible icon-only confirmation action on mobile while preserving its desktop label', () => {
