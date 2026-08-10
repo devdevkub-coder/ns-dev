@@ -134,10 +134,8 @@ type WtoStockOptionsState = Record<string, {
 }>
 
 const ADDED_IMPURITY_NOTE = 'หักสิ่งเจือปนเพิ่มเติม'
-const MAX_WEIGHT_TICKET_UPLOAD_BYTES = 4 * 1024 * 1024
 const MAX_WEIGHT_TICKET_FILE_BYTES = 10 * 1024 * 1024
-const MAX_WEIGHT_TICKET_IMAGE_DIMENSION = 2400
-const MAX_ATTACHMENT_UPLOAD_CONCURRENCY = 3
+const MAX_ATTACHMENT_UPLOAD_CONCURRENCY = 6
 
 export type WeightTicketDeletionLine = Pick<
   WeightTicketLine,
@@ -765,9 +763,8 @@ function validateSelectedWeightTicketImage(file: File) {
 async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPreview> {
   const validationError = validateSelectedWeightTicketImage(file)
   if (validationError) throw new Error(validationError)
-  const uploadFile = await prepareWeightTicketImageFile(file)
   const body = new FormData()
-  body.set('file', uploadFile)
+  body.set('file', file)
   const response = await fetch('/api/daily/weight-tickets/attachments', { body, method: 'POST' })
   const payload = await response.json().catch(() => ({})) as {
     error?: string
@@ -790,49 +787,6 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
     // The signed URL is preview-only and must never be persisted to the ticket.
     rawValue: encodeStoredImageReference(payload.fileName, undefined, payload.storageKey, payload.bucket, payload.thumbnailStorageKey),
     url: payload.thumbnailUrl,
-  }
-}
-
-async function prepareWeightTicketImageFile(file: File): Promise<File> {
-  const imageType = file.type.toLowerCase()
-  const imageConfig = imageType === 'image/jpeg'
-    ? { extension: 'jpg', mimeType: 'image/jpeg', quality: 0.82 }
-    : imageType === 'image/png'
-      ? { extension: 'png', mimeType: 'image/png', quality: undefined }
-      : imageType === 'image/webp'
-        ? { extension: 'webp', mimeType: 'image/webp', quality: 0.82 }
-        : null
-  if (!imageConfig) {
-    throw new Error(`ไฟล์ ${file.name} ไม่ใช่รูปภาพที่รองรับ (JPG, PNG หรือ WebP)`)
-  }
-  let bitmap: ImageBitmap
-  try {
-    bitmap = await createImageBitmap(file)
-  } catch {
-    throw new Error(`ไม่สามารถอ่านรูป ${file.name} ได้ กรุณาเลือกรูป JPG, PNG หรือ WebP ใหม่`)
-  }
-
-  try {
-    const imageExceedsDimensionLimit = Math.max(bitmap.width, bitmap.height) > MAX_WEIGHT_TICKET_IMAGE_DIMENSION
-    if (file.size <= MAX_WEIGHT_TICKET_UPLOAD_BYTES && !imageExceedsDimensionLimit) return file
-    const scale = Math.min(1, MAX_WEIGHT_TICKET_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height))
-    const width = Math.max(1, Math.round(bitmap.width * scale))
-    const height = Math.max(1, Math.round(bitmap.height * scale))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error(`ไม่สามารถเตรียมรูป ${file.name} สำหรับอัปโหลดได้`)
-    context.drawImage(bitmap, 0, 0, width, height)
-
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, imageConfig.mimeType, imageConfig.quality))
-    if (!blob) throw new Error(`ไม่สามารถบีบอัดรูป ${file.name} สำหรับอัปโหลดได้`)
-    return new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.${imageConfig.extension}`, {
-      lastModified: file.lastModified,
-      type: imageConfig.mimeType,
-    })
-  } finally {
-    bitmap.close()
   }
 }
 

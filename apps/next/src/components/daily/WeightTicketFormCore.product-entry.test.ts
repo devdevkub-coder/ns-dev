@@ -46,6 +46,19 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
   })
 
+  it('uploads the selected image without client-side resizing', () => {
+    expect(formSource).toContain("body.set('file', file)")
+    expect(formSource).not.toContain('createImageBitmap(file)')
+    expect(formSource).not.toContain('canvas.toBlob')
+  })
+
+  it('uploads up to six selected images concurrently per form without a cross-tab lock', () => {
+    expect(formSource).toContain('const MAX_ATTACHMENT_UPLOAD_CONCURRENCY = 6')
+    expect(formSource).toContain('Math.min(MAX_ATTACHMENT_UPLOAD_CONCURRENCY, files.length)')
+    expect(formSource).not.toContain('navigator.locks')
+    expect(formSource).not.toContain('BroadcastChannel')
+  })
+
   it('persists a header-only draft before the first product is added for both WTI and WTO', () => {
     expect(shouldPersistWeightTicketBeforeAdding('WTI', 0)).toBe(true)
     expect(shouldPersistWeightTicketBeforeAdding('WTO', 0)).toBe(true)

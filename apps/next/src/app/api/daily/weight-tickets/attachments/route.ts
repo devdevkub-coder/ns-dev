@@ -9,6 +9,7 @@ import { resolveWeightTicketImageBucket, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS
 export const runtime = 'nodejs'
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const MAX_SOURCE_IMAGE_PIXELS = 40_000_000
 const THUMBNAIL_MAX_DIMENSION = 480
 const THUMBNAIL_QUALITY = 0.78
 const ALLOWED_IMAGE_TYPES = new Map([
@@ -65,26 +66,41 @@ export async function POST(request: Request) {
     const storageBase = `attachments/pending/${new Date().toISOString().slice(0, 10)}/${randomUUID()}`
     const storageKey = `${storageBase}.${extension}`
     const thumbnailStorageKey = `${storageBase}.thumb.webp`
-    const { error } = await supabase.storage.from(bucket).upload(storageKey, fileBytes, {
-      cacheControl: '31536000',
-      contentType: file.type,
-      upsert: false,
-    })
-    if (error) throw new Error(`Storage upload failed: ${error.message}`)
-
+    let originalUpload: { error: { message: string } | null }
     let thumbnailBytes: Buffer
     try {
-      const image = await loadImage(fileBytes)
-      const scale = Math.min(1, THUMBNAIL_MAX_DIMENSION / Math.max(image.width, image.height))
-      const width = Math.max(1, Math.round(image.width * scale))
-      const height = Math.max(1, Math.round(image.height * scale))
-      const canvas = createCanvas(width, height)
-      const context = canvas.getContext('2d')
-      context.drawImage(image, 0, 0, width, height)
-      thumbnailBytes = canvas.toBuffer('image/webp', THUMBNAIL_QUALITY)
+      [originalUpload, thumbnailBytes] = await Promise.all([
+        supabase.storage.from(bucket).upload(storageKey, fileBytes, {
+          cacheControl: '31536000',
+          contentType: file.type,
+          upsert: false,
+        }),
+        (async () => {
+          try {
+            const image = await loadImage(fileBytes)
+            const sourcePixels = image.width * image.height
+            if (!Number.isSafeInteger(sourcePixels) || sourcePixels > MAX_SOURCE_IMAGE_PIXELS) {
+              throw new Error(`รูปมีความละเอียดสูงเกินกว่าที่ระบบรองรับ (${MAX_SOURCE_IMAGE_PIXELS.toLocaleString('en-US')} พิกเซล)`)
+            }
+            const scale = Math.min(1, THUMBNAIL_MAX_DIMENSION / Math.max(image.width, image.height))
+            const width = Math.max(1, Math.round(image.width * scale))
+            const height = Math.max(1, Math.round(image.height * scale))
+            const canvas = createCanvas(width, height)
+            const context = canvas.getContext('2d')
+            context.drawImage(image, 0, 0, width, height)
+            return canvas.toBuffer('image/webp', THUMBNAIL_QUALITY)
+          } catch (caught) {
+            throw new Error(`สร้าง thumbnail รูป ${file.name} ไม่สำเร็จ: ${caught instanceof Error ? caught.message : 'ไม่สามารถอ่านรูปได้'}`)
+          }
+        })(),
+      ])
     } catch (caught) {
       await supabase.storage.from(bucket).remove([storageKey]).catch(() => undefined)
-      throw new Error(`สร้าง thumbnail รูป ${file.name} ไม่สำเร็จ: ${caught instanceof Error ? caught.message : 'ไม่สามารถอ่านรูปได้'}`)
+      throw caught
+    }
+    if (originalUpload.error) {
+      await supabase.storage.from(bucket).remove([storageKey]).catch(() => undefined)
+      throw new Error(`Storage upload failed: ${originalUpload.error.message}`)
     }
 
     const { error: thumbnailUploadError } = await supabase.storage.from(bucket).upload(thumbnailStorageKey, thumbnailBytes, {
@@ -93,7 +109,7 @@ export async function POST(request: Request) {
       upsert: false,
     })
     if (thumbnailUploadError) {
-      await supabase.storage.from(bucket).remove([storageKey]).catch(() => undefined)
+      await supabase.storage.from(bucket).remove([storageKey, thumbnailStorageKey]).catch(() => undefined)
       throw new Error(`Storage thumbnail upload failed: ${thumbnailUploadError.message}`)
     }
 
