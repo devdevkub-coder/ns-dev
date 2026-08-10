@@ -31,6 +31,7 @@ describe('SearchCombobox portal interaction', () => {
     document.body.style.pointerEvents = ''
     document.body.replaceChildren()
     Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
@@ -78,6 +79,48 @@ describe('SearchCombobox portal interaction', () => {
     expect(onChange).toHaveBeenLastCalledWith('supplier-b')
     expect(input?.value).toBe('ผู้ขาย B')
     expect(input?.getAttribute('aria-expanded')).toBe('false')
+
+    act(() => root.unmount())
+  })
+
+  it('keeps the mobile options sheet open while focus moves from the field to its search input', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 0
+    })
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        <SearchCombobox
+          inputId="party-search"
+          label="ผู้ขาย"
+          options={[{ id: 'supplier-a', label: 'ผู้ขาย A' }]}
+          value=""
+          onChange={vi.fn()}
+        />,
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>('[role="combobox"]')
+    expect(input).not.toBeNull()
+
+    act(() => input?.focus())
+
+    expect(document.getElementById('party-search-options')).not.toBeNull()
+    expect(document.querySelector<HTMLInputElement>('input[aria-label="ผู้ขาย"]')).not.toBeNull()
+
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+
+    expect(document.getElementById('party-search-options')).not.toBeNull()
+    expect(input?.getAttribute('aria-expanded')).toBe('true')
 
     act(() => root.unmount())
   })

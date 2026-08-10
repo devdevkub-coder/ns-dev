@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Input } from '@/components/ui/Input'
@@ -77,6 +77,7 @@ export function SearchCombobox({
   const inputRef = useRef<HTMLInputElement>(null)
   const mobileInputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const closeTimerRef = useRef<number | null>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const hasMovedRef = useRef(false)
@@ -90,6 +91,14 @@ export function SearchCombobox({
   const isSelectedValueQuery = Boolean(selectedOption) && query.trim().toLowerCase() === selectedLabelQuery
 
   const lastEmittedValueRef = useRef<string | null>(null)
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current === null) return
+    window.clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = null
+  }, [])
+
+  useEffect(() => () => clearCloseTimer(), [clearCloseTimer])
 
   useEffect(() => {
     if (lastEmittedValueRef.current === null || lastEmittedValueRef.current !== value) {
@@ -176,6 +185,7 @@ export function SearchCombobox({
       } else {
         setQuery('')
       }
+      clearCloseTimer()
       setOpen(false)
     }
 
@@ -185,7 +195,7 @@ export function SearchCombobox({
       document.removeEventListener('mousedown', handleOutsideClick)
       document.removeEventListener('touchstart', handleOutsideClick)
     }
-  }, [open, options, query, selectedOption, onChange, inputId])
+  }, [clearCloseTimer, open, options, query, selectedOption, onChange, inputId])
 
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -219,6 +229,7 @@ export function SearchCombobox({
 
   const selectOption = (option: SearchComboboxOption) => {
     if (disabled) return
+    clearCloseTimer()
     lastEmittedValueRef.current = option.id
     onChange(option.id)
     setQuery(option.label)
@@ -274,6 +285,7 @@ export function SearchCombobox({
         }}
         onFocus={() => {
           if (disabled) return
+          clearCloseTimer()
           if (openOnFocus) setOpen(true)
           if (!isSelectedValueQuery) return
           if (readOnly) return
@@ -285,7 +297,12 @@ export function SearchCombobox({
           // first) still registers. Restores the query like handleOutsideClick
           // does, and prevents multiple combobox popups stacking in forms that
           // render more than one (e.g. production order product pickers).
-          window.setTimeout(() => {
+          clearCloseTimer()
+          closeTimerRef.current = window.setTimeout(() => {
+            closeTimerRef.current = null
+            const activeElement = document.activeElement
+            const optionsPanel = document.getElementById(`${inputId}-options`)
+            if (activeElement && (containerRef.current?.contains(activeElement) || optionsPanel?.contains(activeElement))) return
             if (!open) return
             const exactMatch = options.find((option) => option.label.toLowerCase() === query.trim().toLowerCase())
             if (exactMatch) {
@@ -367,6 +384,7 @@ export function SearchCombobox({
                       onChange('')
                     }
                   }}
+                  onFocus={clearCloseTimer}
                   onKeyDown={(event) => {
                     if (event.key === 'Escape') {
                       setOpen(false)
@@ -382,7 +400,10 @@ export function SearchCombobox({
                   aria-label="ปิดรายการ"
                   className="h-11 shrink-0 rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-100"
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    clearCloseTimer()
+                    setOpen(false)
+                  }}
                 >
                   ปิด
                 </button>
