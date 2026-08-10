@@ -170,4 +170,89 @@ describe('SearchCombobox portal interaction', () => {
 
     act(() => root.unmount())
   })
+
+  it('does not select an option when the user drags the mobile list to scroll', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onChange = vi.fn()
+
+    act(() => {
+      root.render(
+        <SearchCombobox
+          inputId="product-search"
+          label="สินค้า"
+          options={[
+            { id: 'product-a', label: 'สินค้า A' },
+            { id: 'product-b', label: 'สินค้า B' },
+          ]}
+          value=""
+          onChange={onChange}
+        />,
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>('[role="combobox"]')
+    act(() => input?.focus())
+    const list = document.querySelector<HTMLElement>('#product-search-options > div:last-child')
+    const option = document.querySelector<HTMLButtonElement>('#product-search-option-0')
+    expect(list).not.toBeNull()
+    expect(option).not.toBeNull()
+
+    act(() => {
+      list?.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [{ clientX: 10, clientY: 100 } as Touch] }))
+      list?.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, touches: [{ clientX: 10, clientY: 40 } as Touch] }))
+      list?.dispatchEvent(new TouchEvent('touchend', { bubbles: true, changedTouches: [{ clientX: 10, clientY: 40 } as Touch] }))
+      option?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+
+    expect(onChange).not.toHaveBeenCalled()
+    act(() => root.unmount())
+  })
+
+  it('selects an option on the next tap when the scroll gesture emitted no click', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onChange = vi.fn()
+
+    act(() => {
+      root.render(
+        <SearchCombobox
+          inputId="product-search"
+          label="สินค้า"
+          options={[
+            { id: 'product-a', label: 'สินค้า A' },
+            { id: 'product-b', label: 'สินค้า B' },
+          ]}
+          value=""
+          onChange={onChange}
+        />,
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>('[role="combobox"]')
+    act(() => input?.focus())
+    const list = document.querySelector<HTMLElement>('#product-search-options > div:last-child')
+    const option = document.querySelector<HTMLButtonElement>('#product-search-option-0')
+    expect(list).not.toBeNull()
+    expect(option).not.toBeNull()
+
+    act(() => {
+      list?.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [{ clientX: 10, clientY: 100 } as Touch] }))
+      list?.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, touches: [{ clientX: 10, clientY: 40 } as Touch] }))
+      list?.dispatchEvent(new TouchEvent('touchend', { bubbles: true, changedTouches: [{ clientX: 10, clientY: 40 } as Touch] }))
+    })
+
+    vi.advanceTimersByTime(301)
+
+    act(() => option?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })))
+
+    expect(onChange).toHaveBeenCalledWith('product-a')
+    act(() => root.unmount())
+    vi.useRealTimers()
+  })
 })

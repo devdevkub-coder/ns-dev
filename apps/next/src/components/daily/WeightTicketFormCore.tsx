@@ -1783,6 +1783,7 @@ export function WeightTicketFormCore({
     if (errorKey === 'branchId') return 'weight-ticket-branch'
     if (errorKey === 'partyId') return 'weight-ticket-party'
     if (errorKey === 'vehicleNo') return 'weight-ticket-vehicleNo'
+    if (errorKey === 'godownName') return 'weight-ticket-godownName'
     if (errorKey === 'lines') return 'weight-ticket-add-product'
 
     const parsed = parseWeightTicketValidationKey(errorKey)
@@ -2812,6 +2813,7 @@ export function WeightTicketFormCore({
       partyId: true,
       vehicleNo: true,
       warehouseName: true,
+      godownName: true,
     }
     if (getMainParentLines(form.lines).length === 0) nextTouched.lines = true
     form.lines.forEach((line) => {
@@ -3362,7 +3364,8 @@ export function WeightTicketFormCore({
 	              <FieldBlock error={showError('godownName')} label={form.type === 'WTO' ? 'โกดัง*' : 'โกดัง'}>
 	                <Input
 	                  placeholder="เช่น โกดัง A"
-	                  value={form.godownName}
+                  id="weight-ticket-godownName"
+                  value={form.godownName}
 	                  onBlur={() => markTouched('godownName')}
 	                  onChange={(event) => updateForm('godownName', event.target.value)}
 	                />

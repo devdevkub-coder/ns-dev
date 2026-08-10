@@ -86,6 +86,9 @@ export function SearchCombobox({
   const [query, setQuery] = useState(selectedLabel)
   const [panelRect, setPanelRect] = useState<{ left: number; maxHeight: number; top: number; width: number } | null>(null)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const touchMovedRef = useRef(false)
+  const suppressTouchClickUntilRef = useRef(0)
   const isSelectedValueQuery = Boolean(selectedOption) && query.trim().toLowerCase() === selectedLabelQuery
 
   const lastEmittedValueRef = useRef<string | null>(null)
@@ -358,7 +361,7 @@ export function SearchCombobox({
               id={`${inputId}-options`}
               className={`pointer-events-auto fixed z-[80] flex max-h-none flex-col overflow-hidden rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] [@media(pointer:coarse)]:!inset-0 [@media(pointer:coarse)]:!z-[90] [@media(pointer:coarse)]:!h-[100dvh] [@media(pointer:coarse)]:!max-h-[100dvh] [@media(pointer:coarse)]:!w-full [@media(pointer:coarse)]:!rounded-none [@media(pointer:coarse)]:!border-0 [@media(pointer:coarse)]:!p-4 [@media(pointer:coarse)]:!pt-[calc(env(safe-area-inset-top)+1rem)] ${optionsPanelClassName ?? ''}`.trim()}
               role="listbox"
-              style={{ left: panelRect.left, maxHeight: panelRect.maxHeight, top: panelRect.top, width: panelRect.width }}
+              style={{ left: panelRect.left, maxHeight: panelRect.maxHeight, overscrollBehavior: 'contain', top: panelRect.top, touchAction: 'pan-y', width: panelRect.width }}
             >
               <div className="hidden [@media(pointer:coarse)]:mb-3 [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:gap-3">
                 <Input
@@ -408,7 +411,27 @@ export function SearchCombobox({
               </div>
               <div
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
-                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}
+                onTouchStartCapture={(event) => {
+                  const touch = event.touches[0]
+                  touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+                  touchMovedRef.current = false
+                }}
+                onTouchMoveCapture={(event) => {
+                  if (!touchStartRef.current) return
+                  const touch = event.touches[0]
+                  const deltaX = Math.abs(touch.clientX - touchStartRef.current.x)
+                  const deltaY = Math.abs(touch.clientY - touchStartRef.current.y)
+                  if (deltaX > 10 || deltaY > 10) touchMovedRef.current = true
+                }}
+                onTouchEndCapture={(event) => {
+                  if (touchMovedRef.current) {
+                    event.stopPropagation()
+                    suppressTouchClickUntilRef.current = Date.now() + 300
+                  }
+                  touchStartRef.current = null
+                  touchMovedRef.current = false
+                }}
               >
               {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
                 <button
@@ -428,6 +451,10 @@ export function SearchCombobox({
                   onMouseEnter={() => setHighlightedIndex(index)}
                   onClick={(event) => {
                     event.preventDefault()
+                    if (Date.now() < suppressTouchClickUntilRef.current) {
+                      suppressTouchClickUntilRef.current = 0
+                      return
+                    }
                     if (!shouldAutoSelectText()) selectOption(option)
                   }}
                 >
