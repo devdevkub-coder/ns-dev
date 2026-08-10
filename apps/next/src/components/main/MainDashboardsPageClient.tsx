@@ -194,9 +194,12 @@ const cashAccountColumns: ResizableColumnDefinition<CashAccountSortKey>[] = [
   { key: 'net', defaultWidth: 130, minWidth: 100 },
 ]
 
-function today() {
-  const date = new Date()
+function localDateInputValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function today() {
+  return localDateInputValue(new Date())
 }
 
 export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
@@ -1015,8 +1018,8 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
 function DailyReportView({ data, date, setDate }: { data: MainPayload | null; date: string; setDate: (value: string) => void }) {
   const [expandedGroup, setExpandedGroup] = useState('')
   const summary = data?.dailyReport.summary ?? {}
-  const purchaseCount = data?.dailyReport.purchaseBills.length ?? 0
-  const salesCount = data?.dailyReport.salesBills.length ?? 0
+  const purchaseCount = safeNumber(summary.purchaseCount)
+  const salesCount = safeNumber(summary.salesCount)
   const analytics = data?.dailyReport.analytics
   const isToday = date === today()
   const purchaseAmount = safeNumber(summary.purchaseAmount)
@@ -1029,7 +1032,7 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
   function shiftDate(days: number) {
     const next = new Date(`${date}T00:00:00`)
     next.setDate(next.getDate() + days)
-    setDate(next.toISOString().slice(0, 10))
+    setDate(localDateInputValue(next))
   }
   return (
     <>
