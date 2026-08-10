@@ -19,7 +19,6 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
-import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
 import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
@@ -226,7 +225,6 @@ export function WeightTicketListPageClient() {
   const [confirmingTicketId, setConfirmingTicketId] = useState<string | null>(null)
   const [printingTicketId, setPrintingTicketId] = useState<string | null>(null)
   const [shareTicket, setShareTicket] = useState<WeightTicketRecord | null>(null)
-  const [shareNote, setShareNote] = useState('')
   const [shareError, setShareError] = useState('')
   const [isSendingLine, setIsSendingLine] = useState(false)
   const [stockReturnTicket, setStockReturnTicket] = useState<WeightTicketRecord | null>(null)
@@ -477,7 +475,6 @@ export function WeightTicketListPageClient() {
   function openShareDialog(ticket: WeightTicketRecord) {
     if (!canShareWeightTicket(ticket.status)) return
     setShareTicket(ticket)
-    setShareNote('')
     setShareError('')
   }
 
@@ -486,9 +483,8 @@ export function WeightTicketListPageClient() {
     setIsSendingLine(true)
     setShareError('')
     try {
-      await notifyWeightTicketLine(shareTicket.id, { customMessage: shareNote.trim() || undefined })
+      await notifyWeightTicketLine(shareTicket.id)
       setShareTicket(null)
-      setShareNote('')
       setShareError('')
       setSuccessModalMessage('แชร์สำเร็จ')
     } catch (caught) {
@@ -496,14 +492,6 @@ export function WeightTicketListPageClient() {
     } finally {
       setIsSendingLine(false)
     }
-  }
-
-  function handleManualLineShare() {
-    if (!shareTicket || !canShareWeightTicket(shareTicket.status)) return
-    openWeightTicketLineShare(shareTicket)
-    setShareTicket(null)
-    setShareNote('')
-    setShareError('')
   }
 
   function openBillFromTicket(ticket: WeightTicketRecord) {
@@ -954,7 +942,6 @@ export function WeightTicketListPageClient() {
       <Dialog open={Boolean(shareTicket)} onOpenChange={(open) => {
         if (!open) {
           setShareTicket(null)
-          setShareNote('')
           setShareError('')
         }
       }}
@@ -968,26 +955,10 @@ export function WeightTicketListPageClient() {
               <div className="font-semibold text-slate-900">{shareTicket?.documentNo}</div>
               <div className="mt-1 text-xs text-slate-500">{shareTicket?.partyName} · {shareTicket ? `${formatWeight(shareTicket.totals.netWeight)} กก.` : ''}</div>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                ข้อความเสริมใน LINE
-              </label>
-              <textarea
-                className="block min-h-[88px] w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 sm:text-sm"
-                maxLength={500}
-                placeholder="เช่น ส่งเข้ากลุ่มคลัง / แจ้งบัญชีตรวจเอกสาร"
-                value={shareNote}
-                onChange={(event) => setShareNote(event.target.value)}
-              />
-              {shareError ? <div className="mt-1 text-xs text-red-600">{shareError}</div> : null}
-            </div>
+            {shareError ? <div className="mt-1 text-xs text-red-600">{shareError}</div> : null}
           </div>
           <DialogFooter className="flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setShareTicket(null)}>ปิด</Button>
-            <Button disabled={isSendingLine} type="button" variant="outline" onClick={handleManualLineShare}>
-              <Share2 className="mr-2 size-4" />
-              แชร์เองผ่าน LINE
-            </Button>
             <Button disabled={isSendingLine} type="button" onClick={handleSendLineNotification}>
               <Share2 className="mr-2 size-4" />
               {isSendingLine ? 'กำลังส่ง...' : 'ส่งเข้ากลุ่มหลัก'}
@@ -1102,7 +1073,7 @@ export function WeightTicketListPageClient() {
         <DialogContent
           hideClose
           mobileAppShell={false}
-          className="share-success-modal max-w-sm rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 outline-none focus:outline-none"
+          className="share-success-modal max-w-sm rounded-md !p-0 overflow-hidden flex flex-col bg-white border-0 outline-none focus:outline-none"
           onEscapeKeyDown={(event) => event.preventDefault()}
           onInteractOutside={(event) => event.preventDefault()}
         >
@@ -1114,7 +1085,7 @@ export function WeightTicketListPageClient() {
               <h3 className="text-lg font-semibold text-slate-800">{successModalMessage}</h3>
             </div>
           </div>
-          <DialogFooter className="bg-transparent border-t-0 justify-center">
+          <DialogFooter className="bg-white border-t-0 justify-center">
             <Button onClick={() => setSuccessModalMessage('')} className="min-w-[120px]">ตกลง</Button>
           </DialogFooter>
         </DialogContent>

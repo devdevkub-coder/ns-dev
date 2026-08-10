@@ -22,7 +22,6 @@ import { cn } from '@/lib/utils'
 import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImagePreviews, isPreviewableStoredImageAsset, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketImagePreviews, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
-import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
 import { useWeightTicketRealtime } from './useWeightTicketRealtime'
 
 function formatDateTime(value?: string | null) {
@@ -146,7 +145,6 @@ export function WeightTicketDetailModal({
   } | null>(null)
   const activeThumbnailRef = useRef<HTMLButtonElement | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
-  const [shareNote, setShareNote] = useState('')
   const [shareError, setShareError] = useState('')
   const [isSendingLine, setIsSendingLine] = useState(false)
   const realtimeBranchIds = useMemo(() => {
@@ -341,23 +339,14 @@ export function WeightTicketDetailModal({
     setIsSendingLine(true)
     setShareError('')
     try {
-      await notifyWeightTicketLine(ticket.id, { customMessage: shareNote.trim() || undefined })
+      await notifyWeightTicketLine(ticket.id, {})
       setShowShareDialog(false)
-      setShareNote('')
       setSuccessModalMessage('ส่ง LINE พร้อม PDF เรียบร้อยแล้ว')
     } catch (caught) {
       setShareError(getErrorMessage(caught, 'ส่ง LINE ใบรับ-ส่งของไม่สำเร็จ'))
     } finally {
       setIsSendingLine(false)
     }
-  }
-
-  function handleManualLineShare() {
-    if (!ticket || !canShareWeightTicket(ticket.status)) return
-    openWeightTicketLineShare(ticket)
-    setShowShareDialog(false)
-    setShareNote('')
-    setShareError('')
   }
 
   const activeGalleryImage = lineGallery?.images[lineGallery.activeIndex] ?? null
@@ -1030,7 +1019,6 @@ export function WeightTicketDetailModal({
         <Dialog open={showShareDialog} onOpenChange={(open) => {
           if (!open) {
             setShowShareDialog(false)
-            setShareNote('')
             setShareError('')
           }
         }}
@@ -1044,26 +1032,10 @@ export function WeightTicketDetailModal({
                 <div className="font-semibold text-slate-900">{ticket?.documentNo}</div>
                 <div className="mt-1 text-xs text-slate-500">{ticket?.partyName} · {ticket ? `${formatWeight(ticket.totals.netWeight)} กก.` : ''}</div>
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  ข้อความเสริมใน LINE
-                </label>
-                <textarea
-                  className="block min-h-[88px] w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 sm:text-sm"
-                  maxLength={500}
-                  placeholder="เช่น ส่งเข้ากลุ่มคลัง / แจ้งบัญชีตรวจเอกสาร"
-                  value={shareNote}
-                  onChange={(event) => setShareNote(event.target.value)}
-                />
-                {shareError ? <div className="mt-1 text-xs text-red-600">{shareError}</div> : null}
-              </div>
+              {shareError ? <div className="text-xs text-red-600">{shareError}</div> : null}
             </div>
             <DialogFooter className="flex-wrap gap-2">
               <Button type="button" variant="secondary" onClick={() => setShowShareDialog(false)}>ปิด</Button>
-              <Button disabled={isSendingLine} type="button" variant="outline" onClick={handleManualLineShare}>
-                <Share2 className="mr-2 size-4" />
-                แชร์เองผ่าน LINE
-              </Button>
               <Button disabled={isSendingLine} type="button" onClick={handleSendLineNotification}>
                 <Share2 className="mr-2 size-4" />
                 {isSendingLine ? 'กำลังส่ง...' : 'ส่งเข้ากลุ่มหลัก'}
@@ -1073,7 +1045,7 @@ export function WeightTicketDetailModal({
         </Dialog>
 
         <Dialog open={!!successModalMessage} onOpenChange={(open) => !open && setSuccessModalMessage('')}>
-          <DialogContent hideClose mobileAppShell={false} className="max-w-sm rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 outline-none focus:outline-none">
+          <DialogContent hideClose mobileAppShell={false} className="max-w-sm rounded-md !p-0 overflow-hidden flex flex-col bg-white border-0 outline-none focus:outline-none">
             <div className="flex flex-col items-center justify-center space-y-4 bg-white p-6">
               <div className="rounded-full bg-emerald-100 p-3">
                 <CheckCircle2 className="h-8 w-8 text-emerald-600" />
@@ -1083,7 +1055,7 @@ export function WeightTicketDetailModal({
                 <p className="text-sm text-slate-500 mt-1">{successModalMessage}</p>
               </div>
             </div>
-            <DialogFooter className="bg-transparent border-t-0 justify-center">
+            <DialogFooter className="bg-white border-t-0 justify-center">
               <Button onClick={() => setSuccessModalMessage('')} className="min-w-[120px]">ตกลง</Button>
             </DialogFooter>
           </DialogContent>

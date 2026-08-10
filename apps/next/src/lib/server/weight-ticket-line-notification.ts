@@ -410,7 +410,7 @@ function buildFlexMessage(
     docTimeStr = '--:--'
   }
 
-  const godownDisplay = ticket.godownName
+  const godownDisplay = ticket.godownName || '-'
 
   const productTypesCount = ticket.productSummaries?.length || 1
   const productDetailRows = buildProductDetailRows(ticket)
