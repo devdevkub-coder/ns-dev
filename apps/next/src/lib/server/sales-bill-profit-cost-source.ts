@@ -9,12 +9,12 @@ export async function normalizeSalesBillProfitCostSource(
 ) {
   const [bill, lines, tradingFacts, sourceAllocations, ledgerRows] = await Promise.all([
     tx.sales_bills.findUnique({
-      select: { discount_total: true },
+      select: { discount_total: true, transaction_mode: true },
       where: { id: input.salesBillId },
     }),
     tx.sales_bill_lines.findMany({
       orderBy: { line_no: 'asc' },
-      select: { id: true, line_amount: true, line_no: true },
+      select: { id: true, line_amount: true, line_no: true, meta: true },
       where: { sales_bill_id: input.salesBillId, status: 'active' },
     }),
     tx.trading_allocation_facts.findMany({
@@ -88,6 +88,14 @@ export async function normalizeSalesBillProfitCostSource(
       throw new Error(`Duplicate trading COGS for Sales Bill ${input.salesBillDocNo} line ${fact.sales_line_no}`)
     }
     costsByLineNo.set(fact.sales_line_no, fact.matched_cogs.toFixed(2))
+  }
+
+  if (bill.transaction_mode === 'TRADING') {
+    for (const line of lines) {
+      if (costsByLineNo.has(line.line_no) || stockSourceLineNumbers.has(line.line_no)) continue
+      const meta = line.meta && typeof line.meta === 'object' && !Array.isArray(line.meta) ? line.meta as Record<string, unknown> : null
+      if (!meta?.tradingCostSourceId) costsByLineNo.set(line.line_no, '0.00')
+    }
   }
 
   const headerCogs = [...costsByLineNo.values()]
