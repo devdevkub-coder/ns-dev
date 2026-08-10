@@ -15,7 +15,7 @@ import {
   WeightTicketTimelinePendingOutChanges,
   weightTicketTimelinePendingOutChangeCount,
 } from '@/components/daily/WeightTicketProductBreakdownTable'
-import { WeightTicketImageGallery } from '@/components/daily/WeightTicketImageGallery'
+import { WeightTicketImageGallery, WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT } from '@/components/daily/WeightTicketImageGallery'
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
@@ -1140,6 +1140,8 @@ function ImageGrid({
   }
 
   const previewable = images.filter(isThumbnailPreviewableStoredImageAsset)
+  const previewImages = previewable.slice(0, WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT)
+  const remainingPreviewCount = previewable.length - previewImages.length
   const unavailableCount = images.length - previewable.length
   const galleryImages = previewable.map(({ bucket, fileName, storageKey, thumbnailUrl }) => ({ bucket, fileName, originalStorageKey: storageKey, url: thumbnailUrl }))
 
@@ -1147,7 +1149,7 @@ function ImageGrid({
     <div className="space-y-3">
       {previewable.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          {previewable.map((image, index) => (
+          {previewImages.map((image, index) => (
             <button
               className="w-full overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
               key={`${image.rawValue}-${index}`}
@@ -1160,6 +1162,16 @@ function ImageGrid({
               <div className="truncate px-3 py-2 text-xs text-slate-600">{image.fileName}</div>
             </button>
           ))}
+          {remainingPreviewCount > 0 ? (
+            <button
+              aria-label={`เปิดรูปภาพรถส่งของอีก ${remainingPreviewCount} รูป`}
+              className="flex min-h-24 w-full items-center justify-center rounded-md border border-slate-200 bg-slate-100 px-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-200"
+              type="button"
+              onClick={() => onOpen({ activeIndex: WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT, images: galleryImages, title: 'รูปภาพรถส่งของ' })}
+            >
+              +อีก {remainingPreviewCount} รูป
+            </button>
+          ) : null}
         </div>
       ) : null}
       {unavailableCount > 0 ? (

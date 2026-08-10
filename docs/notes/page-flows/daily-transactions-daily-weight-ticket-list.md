@@ -144,7 +144,7 @@ Target terminology: `collaborationBase*` คือหลักฐานว่า
 - Detail modal จากรายการแสดง card `รูปภาพประกอบ` หลังกลุ่ม `รายละเอียดสินค้าและที่มา` / `สถานะ` และก่อนประวัติการใช้งานหรือ timeline เพื่อให้ตรวจหลักฐานทั้งหมดก่อนอ่านผลการนำเอกสารไปใช้
 - Header ของ card `รูปภาพประกอบ` มีปุ่ม `ดาวน์โหลดรูปทั้งหมด` เมื่อมีรูป preview ได้; ปุ่มเรียก API download ที่ตรวจสิทธิ์และ branch scope แล้วรวมรูปรถกับรูปของทุก line เป็น ZIP เดียว
 - `ticket.imageNames` คือ read model ที่รวมรูปรถและรูปของทุก line/เต๋าตามลำดับเดิม จึงไม่เพิ่ม API, query, storage field หรือการประกอบ fallback รายหน้า; ปุ่ม `ดูรูป` ของเต๋าเปิดลำดับรูปของทุกเต๋าตามตาราง โดยเริ่มจากเต๋าที่กดและเลื่อนไปเต๋าถัดไปได้ต่อเนื่อง ส่วนแถวซื้อเพิ่มจากสิ่งเจือปนยังเปิดเฉพาะรูปของแถวนั้น
-- รูปที่เปิดได้แสดงเป็น grid 3 คอลัมน์บนจอเล็ก และ 4 คอลัมน์ตั้งแต่ breakpoint กลางขึ้นไป โดยให้การ์ดภาพกว้างตามพื้นที่ของ grid และ modal ไม่กำหนด max-width ตายตัว; ที่ 390px ยังไม่สร้าง document overflow. กดรูปใดจะเปิด lightbox เดิมที่รูปนั้น และใช้ `รูปก่อนหน้า` / `รูปถัดไป` แบบวนรอบได้; 0 รูปแสดง empty state และ 1 รูปเปิดเป็น gallery หนึ่งรายการโดยไม่แสดง navigation ที่ไม่จำเป็น
+- หน้า detail ทั้ง album รูปประกอบและ grid รูปรถแสดง thumbnail สูงสุด 3 รูปก่อน; ถ้ามีมากกว่านั้นแสดง tile `+อีก N รูป` แทนการ render รูปที่เหลือ เพื่อไม่โหลด thumbnail ทั้ง album ตั้งแต่เปิด modal. กดรูปหรือ tile นี้จะเปิด gallery เต็มที่ index ที่เกี่ยวข้อง โดย grid ใน gallery ใช้ 3 คอลัมน์บนจอเล็กและ 4 คอลัมน์ตั้งแต่ breakpoint กลางขึ้นไป ให้การ์ดภาพกว้างตามพื้นที่ของ grid และ modal ไม่กำหนด max-width ตายตัว; ที่ 390px ยังไม่สร้าง document overflow. 0 รูปแสดง empty state และ 1 รูปเปิดเป็น gallery หนึ่งรายการโดยไม่แสดง navigation ที่ไม่จำเป็น
 - ค่า legacy ที่มีเพียง filename ถูกนับเป็นหลักฐานเดิมแต่ไม่สร้าง `<img>` ที่เสีย ระบบแสดงจำนวนที่ยัง preview ไม่ได้แทน ห้ามเดา URL หรือ fallback ไป legacy binary/base64 ตอน runtime
 
 Image delivery contract ของ album นี้:
@@ -152,8 +152,8 @@ Image delivery contract ของ album นี้:
 1. รูปเป็นหลักฐานเอกสารระดับ L5 และ source of truth คือ metadata ของ WTI/WTO ใน DB ร่วมกับ object URL ที่ API detail ส่งมาใน `ticket.imageNames`; detail API ยังคง `private, no-store`
 2. ใช้ URL/storage key และ cache header เดิมของ attachment โดยไม่เพิ่ม cache key, TTL, browser persistence หรือ invalidation path ใหม่ใน batch นี้
 3. ห้าม cache binary, transaction response, party data หรือเอกสารลง Redis, `localStorage` หรือ `sessionStorage` เพราะเป็นหลักฐานธุรกรรมที่ต้องตามสิทธิ์และสถานะปัจจุบัน
-4. album อยู่บน detail surface จึงใช้ attachment URL ปัจจุบันเป็นรูปหลักและ full preview; ยังไม่เพิ่ม thumbnail derivative เพราะ contract ปัจจุบันมี URL เดียว รูปยังอยู่ภายใต้ privacy policy/bucket เดิมและ batch นี้ไม่เปลี่ยน public/private policy
-5. focused tests ครอบ 0/1/6 รูป, การเปิด gallery จาก index ที่กด, previous/next wrap contract, mixed previewable + legacy filename-only, responsive grid และตำแหน่ง component บน detail ทั้งสอง surface
+4. album อยู่บน detail surface จึงใช้ thumbnail URL เป็น preview และ original storage key เป็น full preview; รูปยังอยู่ภายใต้ privacy policy/bucket เดิมและ batch นี้ไม่เปลี่ยน public/private policy
+5. focused tests ครอบ 0/1/3/6 รูป, tile `+อีก N รูป`, การเปิด gallery จาก index ที่กด, previous/next wrap contract, mixed previewable + legacy filename-only, responsive grid และตำแหน่ง component บน detail ทั้งสอง surface
 
 What is what: album เป็นภาพรวมหลักฐานทั้งเอกสาร ส่วน `ดูรูป` ในแถวเต๋าเป็นทางลัดเข้าสู่ลำดับรูปเต๋าต่อเนื่อง และ `ดูรูป` ของแถวซื้อเพิ่มจากสิ่งเจือปนยังเป็นอัลบั้มเฉพาะแถว. Why it has to be like this: ผู้ตรวจเอกสารต้องเห็นรูปรถและรูปสินค้าครบในจุดเดียว และเมื่อตรวจตามเต๋าต้องเลื่อนจากรูปสุดท้ายของเต๋าหนึ่งไปยังรูปแรกของเต๋าถัดไปได้โดยไม่ปิด gallery แต่ยังต้องแยกหลักฐานซื้อเพิ่มจากสิ่งเจือปนและอ่านเอกสารเก่าที่มีเพียงชื่อไฟล์ได้อย่างปลอดภัย
 
@@ -320,6 +320,7 @@ What is what: album เป็นภาพรวมหลักฐานทั้
 
 ## Form UI Behavior
 
+- เมื่อ API ปฏิเสธข้อมูลของรายการ ระบบต้องแปลง field error จาก index ของ payload กลับเป็น ID ของบรรทัดในฟอร์ม แสดงข้อความใต้ช่องจริง และเปิด/เลื่อน focus ไปยังเต๋าที่ผิด; ข้อความแจ้งเตือนต้องระบุชื่อสินค้าที่เกี่ยวข้อง ไม่ใช้เลขรายการอย่างเดียว เพื่อไม่ให้ผู้ใช้แก้ผิดสินค้า
 - ปุ่มเลือกสินค้าจากรูปและปุ่มเพิ่มเต๋าเป็น action ปกติ จึงใช้สีหลักของระบบ ไม่ใช้สีแดงซึ่งสงวนไว้สำหรับยกเลิกหรือลบ
 - ตัวเลือกสินค้าจากรูปใน modal `เพิ่มสินค้า` แสดง 3 ใบต่อแถวบนมือถือ, 3 ใบบนจอเล็ก และ 4 ใบบนจอ `md` ขึ้นไป เพื่อเห็นตัวเลือกมากขึ้นโดยยังคงรูปสี่เหลี่ยมและชื่อสินค้าไม่เกิน 2 บรรทัด
 - บนมือถือ รายการหักสิ่งเจือปนปกติจัดเป็น 2 แถว: เลือกสิ่งเจือปนเต็มแถวแรก แล้ววางประเภทการหักและค่าน้ำหนักในแถวที่สอง; กรณีหัก `%` ให้น้ำหนักที่คำนวณได้อยู่แถวที่สองด้วย. ปุ่มลบเต็มความกว้างอยู่ท้าย card เฉพาะขณะขยาย; กรณี `สินค้าอื่น` คงฟิลด์เรียงเต็มแถวเพื่อไม่บีบการเลือกสินค้าที่ปนมาและซื้อ/ไม่ซื้อ
