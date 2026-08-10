@@ -31,7 +31,7 @@ vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   saveWeightTicket: mocks.saveWeightTicket,
 }))
 
-import { changeWeightTicketProduct, getProductCardImages, getWeightTicketValidationFocusTarget, remapWeightTicketLineIds, remapWeightTicketLineKey, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, getProductCardImages, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -120,6 +120,25 @@ describe('weight-ticket product entry start contract', () => {
       lotId: 'lot-2c3d',
       productSectionId: 'root-1a2b',
     })
+  })
+
+  it('maps API line errors to the local field key and keeps the product context', () => {
+    expect(mapWeightTicketServerFieldErrors({
+      'lines.2.impurityId': ['สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'],
+    }, [
+      { id: 'product-1', parentId: undefined, productId: 'SKU001', productName: 'กระปะดำ, ผัด' },
+      { id: 'lot-1', parentId: 'product-1', productId: 'SKU001', productName: 'กระปะดำ, ผัด' },
+      { id: 'product-2', parentId: undefined, productId: 'SKU002', productName: 'กระป๋องอลูมิเนียม' },
+    ])).toEqual({
+      'line-product-2-impurity': ['สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'],
+    })
+    expect(getWeightTicketServerErrorMessage({
+      'lines.2.impurityId': ['สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'],
+    }, [
+      { id: 'product-1', parentId: undefined, productId: 'SKU001', productName: 'กระปะดำ, ผัด' },
+      { id: 'lot-1', parentId: 'product-1', productId: 'SKU001', productName: 'กระปะดำ, ผัด' },
+      { id: 'product-2', parentId: undefined, productId: 'SKU002', productName: 'กระป๋องอลูมิเนียม' },
+    ], 'บันทึกไม่สำเร็จ')).toBe('สินค้า "กระป๋องอลูมิเนียม" (รายการที่ 2): สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน')
   })
 
   it('keeps section validation mapped to line IDs containing hyphens', () => {

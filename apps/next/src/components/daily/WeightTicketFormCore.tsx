@@ -312,7 +312,7 @@ function WeightTicketLineCardThumbnail({ files }: { files: AttachmentPreview[] }
 }
 
 function getLineImpurityId(line: FormWeightTicketLine) {
-  return line.impurityId ?? ''
+  return line.deductionMode === 'none' ? '' : line.impurityId ?? ''
 }
 
 function hasEnteredText(value: string | null | undefined) {
@@ -557,6 +557,67 @@ type WeightTicketValidationFocusTarget = {
 }
 
 type WeightTicketValidationField = 'product' | 'warehouse' | 'gross' | 'container' | 'images' | 'impurity' | 'impurity-product' | 'deduction'
+
+type WeightTicketServerErrorLine = Pick<FormWeightTicketLine, 'id' | 'parentId' | 'productId'> & {
+  productName?: string
+}
+
+const serverFieldToLocalField: Record<string, WeightTicketValidationField> = {
+  containerDeductionWeight: 'container',
+  deductionValue: 'deduction',
+  grossWeight: 'gross',
+  imageNames: 'images',
+  impurityId: 'impurity',
+  impurityProductId: 'impurity-product',
+  productId: 'product',
+  warehouseId: 'warehouse',
+}
+
+export function mapWeightTicketServerFieldErrors(
+  fieldErrors: Record<string, string[] | undefined>,
+  lines: WeightTicketServerErrorLine[],
+) {
+  const mapped: Record<string, string[]> = {}
+  for (const [key, messages] of Object.entries(fieldErrors)) {
+    const normalizedMessages = (messages ?? []).filter((message): message is string => Boolean(message?.trim()))
+    const match = key.match(/^lines\.(\d+)\.([A-Za-z]+)$/)
+    const line = match ? lines[Number(match[1])] : undefined
+    const localField = match ? serverFieldToLocalField[match[2]] : undefined
+    const localKey = line && localField ? `line-${line.id}-${localField}` : key
+    mapped[localKey] = normalizedMessages
+  }
+  return mapped
+}
+
+export function getWeightTicketServerErrorMessage(
+  fieldErrors: Record<string, string[] | undefined>,
+  lines: WeightTicketServerErrorLine[],
+  fallback: string,
+) {
+  const firstError = Object.entries(fieldErrors).find(([, messages]) => messages?.some((message) => Boolean(message?.trim())))
+  if (!firstError) return fallback
+
+  const [key, messages] = firstError
+  const match = key.match(/^lines\.(\d+)\.(impurityId)$/)
+  const line = match ? lines[Number(match[1])] : undefined
+  if (line) {
+    const lineById = new Map(lines.map((entry) => [entry.id, entry] as const))
+    const visited = new Set<string>()
+    let rootLine = line
+    while (rootLine.parentId && !visited.has(rootLine.id)) {
+      visited.add(rootLine.id)
+      const parent = lineById.get(rootLine.parentId)
+      if (!parent) break
+      rootLine = parent
+    }
+    const productLabel = rootLine.productName?.trim() || rootLine.productId.trim() || `รายการที่ ${Number(match?.[1] ?? 0) + 1}`
+    const productIndex = lines.filter((entry) => !entry.parentId).findIndex((entry) => entry.id === rootLine.id)
+    const productReference = productIndex >= 0 ? `สินค้า "${productLabel}" (รายการที่ ${productIndex + 1})` : `สินค้า "${productLabel}"`
+    return `${productReference}: ${messages?.find((message) => Boolean(message?.trim())) ?? 'สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'}`
+  }
+
+  return messages?.find((message) => Boolean(message?.trim())) ?? fallback
+}
 
 function parseWeightTicketValidationKey(errorKey: string): { lineId: string; field: WeightTicketValidationField } | null {
   const match = errorKey.match(/^line-(.+?)-(product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)
@@ -1055,6 +1116,7 @@ export function WeightTicketFormCore({
   const [remoteChangedLineIds, setRemoteChangedLineIds] = useState<Set<string>>(new Set())
   const [previewImage, setPreviewImage] = useState<AttachmentPreview | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({})
   const [activeLineId, setActiveLineId] = useState('')
   const [mobileProductView, setMobileProductView] = useState<'list' | 'editor'>('list')
   const [isMobileProductEditorVisible, setMobileProductEditorVisible] = useState(false)
@@ -1549,6 +1611,26 @@ export function WeightTicketFormCore({
     setPendingFocusField(errorKey)
   }
 
+  function applyApiFieldErrors(caught: unknown, sourceForm: FormState, fallback: string, errorLines = sourceForm.lines) {
+    if (!(caught instanceof ApiError) || Object.keys(caught.fieldErrors).length === 0) return false
+
+    const mapped = mapWeightTicketServerFieldErrors(caught.fieldErrors, errorLines)
+    const firstErrorKey = Object.keys(mapped).find((key) => mapped[key].length > 0)
+    const nextServerErrors = Object.fromEntries(
+      Object.entries(mapped)
+        .filter(([, messages]) => messages.length > 0)
+        .map(([key, messages]) => [key, messages[0]] as const),
+    )
+    setServerFieldErrors(nextServerErrors)
+    setTouched((current) => ({
+      ...current,
+      ...Object.fromEntries(Object.keys(nextServerErrors).map((key) => [key, true] as const)),
+    }))
+    if (firstErrorKey) prepareValidationFocus(firstErrorKey, sourceForm)
+    setLoadError(getWeightTicketServerErrorMessage(caught.fieldErrors, errorLines, fallback))
+    return true
+  }
+
   useEffect(() => {
     if (!pendingFocusField) return
 
@@ -1686,7 +1768,7 @@ export function WeightTicketFormCore({
       }
 
   function showError(key: string) {
-    return touched[key] ? errors[key] : undefined
+    return touched[key] ? serverFieldErrors[key] ?? errors[key] : undefined
   }
 
   function getLineEvidenceImages(line: FormWeightTicketLine) {
@@ -1714,6 +1796,7 @@ export function WeightTicketFormCore({
     if (key === 'branchId' || key === 'partyId' || key === 'remark' || key === 'vehicleNo' || key === 'godownName') {
       dirtyHeaderFieldsRef.current.add(key)
     }
+    setServerFieldErrors({})
     setForm((current) => ({ ...current, [key]: value }))
   }
 
@@ -1765,6 +1848,7 @@ export function WeightTicketFormCore({
 
   function updateLine(lineId: string, updater: (line: FormWeightTicketLine) => FormWeightTicketLine) {
     changedLineIdsRef.current.add(lineId)
+    setServerFieldErrors({})
     setForm((current) => {
       const updatedLines = current.lines.map((line) => line.id === lineId ? updater(line) : line)
       const target = updatedLines.find((line) => line.id === lineId)
@@ -1936,7 +2020,9 @@ export function WeightTicketFormCore({
       setLoadError('')
       return nextForm
     } catch (caught) {
-      setLoadError(getErrorMessage(caught, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้'))
+      if (!applyApiFieldErrors(caught, formRef.current, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้')) {
+        setLoadError(getErrorMessage(caught, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้'))
+      }
       return null
     } finally {
       endSaveStage()
@@ -1947,6 +2033,7 @@ export function WeightTicketFormCore({
   function changeLineProduct(lineId: string, productId: string) {
     markLinesDirty(form.lines.filter((line) => line.id === lineId || line.parentId === lineId).map((line) => line.id))
     setMergeNotice('')
+    setServerFieldErrors({})
     setForm((current) => {
       const targetLine = current.lines.find((line) => line.id === lineId)
       if (!targetLine || targetLine.productId === productId) return current
@@ -2079,6 +2166,7 @@ export function WeightTicketFormCore({
     const relatedIds = getWeightTicketRelatedLineIds(form.lines, lineId)
     markLinesDirty(form.lines.filter((line) => relatedIds.has(line.id)).map((line) => line.id))
     setMergeNotice('')
+    setServerFieldErrors({})
     setForm((current) => {
       const targetLine = current.lines.find((line) => line.id === lineId)
       if (!targetLine) return current
@@ -2554,9 +2642,11 @@ export function WeightTicketFormCore({
         setMergeNotice('ข้อมูลชนกันในเต๋าที่กำลังแก้ ระบบไม่เขียนทับข้อมูลของผู้ใช้อื่น กรุณาโหลดข้อมูลล่าสุดแล้วตรวจสอบก่อนบันทึกอีกครั้ง')
       }
       if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
+        applyApiFieldErrors(caught, formRef.current, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้')
         setTouched((current) => ({ ...current, ...nextTouched }))
+      } else {
+        setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
       }
-      setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
       endSaveStage()
       saveInFlightRef.current = null
@@ -2693,7 +2783,9 @@ export function WeightTicketFormCore({
       if (caught instanceof ApiError && caught.status === 409) {
         setMergeNotice('ข้อมูลชนกันใน section นี้ ระบบไม่เขียนทับข้อมูลของผู้ใช้อื่น กรุณาโหลดข้อมูลล่าสุดแล้วตรวจสอบอีกครั้ง')
       }
-      setLoadError(getErrorMessage(caught, 'บันทึก section ไม่สำเร็จ'))
+      if (!applyApiFieldErrors(caught, formRef.current, 'บันทึก section ไม่สำเร็จ', sectionLines)) {
+        setLoadError(getErrorMessage(caught, 'บันทึก section ไม่สำเร็จ'))
+      }
     } finally {
       endSaveStage()
       saveInFlightRef.current = null
