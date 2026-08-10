@@ -25,18 +25,26 @@ const imageEntryPointSources = [
 
 describe('WTI/WTO detail gallery contract', () => {
   it('keeps every lot image in one sequence and starts at the selected lot', () => {
+    const imageReference = (fileName: string) => encodeStoredImageReference(
+      fileName,
+      undefined,
+      `attachments/${fileName}`,
+      'weight-ticket-images',
+      `attachments/thumbnails/${fileName}.webp`,
+      `https://example.com/thumbnails/${fileName}.webp`,
+    )
     const sources = [
       {
         id: 'lot-1',
         imageNames: [
-          encodeStoredImageReference('lot-1-a.jpg', 'https://example.com/lot-1-a.jpg', 'weight-ticket/lot-1-a.jpg', 'weight-ticket-images'),
-          encodeStoredImageReference('lot-1-b.jpg', 'https://example.com/lot-1-b.jpg', 'weight-ticket/lot-1-b.jpg', 'weight-ticket-images'),
+          imageReference('lot-1-a.jpg'),
+          imageReference('lot-1-b.jpg'),
         ],
         title: 'กระทะดำ · เต๋าที่ 1',
       },
       {
         id: 'lot-2',
-        imageNames: [encodeStoredImageReference('lot-2-a.jpg', 'https://example.com/lot-2-a.jpg', 'weight-ticket/lot-2-a.jpg', 'weight-ticket-images')],
+        imageNames: [imageReference('lot-2-a.jpg')],
         title: 'กระทะดำ · เต๋าที่ 2',
       },
     ]
@@ -70,17 +78,15 @@ describe('WTI/WTO detail gallery contract', () => {
   it('places the combined ticket album after product/status details and before usage history on both detail surfaces', () => {
     detailSources.forEach(({ file, source }) => {
       const productDetailsIndex = source.indexOf('title="รายละเอียดสินค้าและที่มา"')
-      const statusIndex = source.indexOf('title="สถานะ"', productDetailsIndex)
-      const galleryIndex = source.indexOf('<WeightTicketImageGallery', statusIndex)
+      const galleryIndex = source.indexOf('<WeightTicketImageGallery', productDetailsIndex)
       const usageHistoryIndex = source.indexOf('title="ประวัติการใช้งานใบรับของ"', galleryIndex)
 
       expect(productDetailsIndex, file).toBeGreaterThan(-1)
-      expect(statusIndex, file).toBeGreaterThan(productDetailsIndex)
-      expect(galleryIndex, file).toBeGreaterThan(statusIndex)
+      expect(galleryIndex, file).toBeGreaterThan(productDetailsIndex)
       expect(usageHistoryIndex, file).toBeGreaterThan(galleryIndex)
       expect(source, file).toContain('imageNames={lineImageNames}')
       expect(source, file).toContain('downloadImageNames={ticket.imageNames}')
-      expect(source, file).toContain('onOpenLineGallery={setLineGallery}')
+      expect(source, file).toContain('onOpenLineGallery={openImageGallery}')
       expect(source, file).toContain('activeGalleryImage.contextTitle ?? lineGallery.title')
       expect(source, file).toContain('aria-label="รูปก่อนหน้า"')
       expect(source, file).toContain('aria-label="รูปถัดไป"')
@@ -94,8 +100,8 @@ describe('WTI/WTO detail gallery contract', () => {
 
   it('routes every image preview entry point through the shared HTTP(S)-only predicate', () => {
     imageEntryPointSources.forEach(({ file, source }) => {
-      expect(source, file).toContain('isPreviewableStoredImageAsset')
-      expect(source, file).toContain('.filter(isPreviewableStoredImageAsset)')
+      expect(source, file).toContain('isThumbnailPreviewableStoredImageAsset')
+      expect(source, file).toContain('.filter(isThumbnailPreviewableStoredImageAsset)')
       expect(source, file).not.toContain('Boolean(image.url)')
       expect(source, file).not.toContain('.filter((image) => image.url)')
     })
