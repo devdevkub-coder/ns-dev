@@ -869,6 +869,20 @@ function mergeAttachmentPreviewUrls(currentFiles: AttachmentPreview[], imageName
   return [...nextFiles, ...localFilesNotYetPersisted]
 }
 
+function mergeFormAttachmentPreviewUrls(currentForm: FormState, nextForm: FormState): FormState {
+  const currentLinesById = new Map(currentForm.lines.map((line) => [line.id, line] as const))
+  return {
+    ...nextForm,
+    vehicleImageFiles: mergeAttachmentPreviewUrls(currentForm.vehicleImageFiles, nextForm.vehicleImageFiles.map((file) => file.rawValue)),
+    lines: nextForm.lines.map((line) => {
+      const currentLine = currentLinesById.get(line.id)
+      return currentLine
+        ? { ...line, imageFiles: mergeAttachmentPreviewUrls(currentLine.imageFiles, line.imageFiles.map((file) => file.rawValue)) }
+        : line
+    }),
+  }
+}
+
 function revokeLocalAttachmentPreview(file: AttachmentPreview | undefined) {
   if (file?.url.startsWith('blob:')) URL.revokeObjectURL(file.url)
 }
@@ -2866,7 +2880,19 @@ export function WeightTicketFormCore({
       })
       invalidatePurchaseBillOptionsCache()
       setLoadError('')
-      const nextForm = ticketToFormState(ticket)
+      let ticketWithPreviews = ticket
+      try {
+        const previews = await getWeightTicketImagePreviews(ticket.documentNo)
+        ticketWithPreviews = mergeWeightTicketImagePreviews(ticket, previews)
+        setImagePreviewRefreshMs(previews.refreshAfterMs)
+      } catch {
+        setImagePreviewRefreshMs(null)
+      }
+      const currentFormForPreview = {
+        ...formRef.current,
+        lines: remapWeightTicketLineIds(formRef.current.lines, ticket.lineIdMap),
+      }
+      const nextForm = mergeFormAttachmentPreviewUrls(currentFormForPreview, ticketToFormState(ticketWithPreviews))
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
       changedLineIdsRef.current.clear()
@@ -2999,7 +3025,19 @@ export function WeightTicketFormCore({
         vehicleNo: snapshot.vehicleNo.trim(),
         godownName: snapshot.godownName.trim(),
       })
-      const returnedForm = ticketToFormState(ticket)
+      let ticketWithPreviews = ticket
+      try {
+        const previews = await getWeightTicketImagePreviews(ticket.documentNo)
+        ticketWithPreviews = mergeWeightTicketImagePreviews(ticket, previews)
+        setImagePreviewRefreshMs(previews.refreshAfterMs)
+      } catch {
+        setImagePreviewRefreshMs(null)
+      }
+      const currentFormForPreview = {
+        ...formRef.current,
+        lines: remapWeightTicketLineIds(formRef.current.lines, ticket.lineIdMap),
+      }
+      const returnedForm = mergeFormAttachmentPreviewUrls(currentFormForPreview, ticketToFormState(ticketWithPreviews))
       const persistedRootId = requirePersistedWeightTicketLineId(ticket.lineIdMap, sectionId)
       const returnedSectionIds = new Set(getWeightTicketSectionLineIds(returnedForm.lines, persistedRootId))
       const latestForm = formRef.current
