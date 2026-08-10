@@ -66,10 +66,12 @@ describe('SearchCombobox portal interaction', () => {
     const listbox = document.getElementById('party-search-options')
     const option = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]'))
       .find((button) => button.textContent?.includes('ผู้ขาย B'))
+    const resultList = document.querySelector<HTMLElement>('#party-search-options > div:last-child')
 
     expect(listbox?.classList.contains('pointer-events-auto')).toBe(true)
-    expect(listbox?.classList.contains('touch-pan-y')).toBe(true)
-    expect(listbox?.classList.contains('overscroll-contain')).toBe(true)
+    expect(resultList?.classList.contains('overflow-y-auto')).toBe(true)
+    expect(resultList?.classList.contains('touch-pan-y')).toBe(true)
+    expect(resultList?.classList.contains('overscroll-contain')).toBe(true)
     expect(option).toBeDefined()
 
     act(() => {
@@ -115,8 +117,7 @@ describe('SearchCombobox portal interaction', () => {
     expect(document.getElementById('party-search-options')).not.toBeNull()
     expect(document.querySelector<HTMLInputElement>('input[aria-label="ผู้ขาย"]')).not.toBeNull()
     const optionsPanel = document.getElementById('party-search-options')
-    expect(optionsPanel?.classList.contains('overflow-y-auto')).toBe(true)
-    expect(optionsPanel?.className).not.toContain('!overflow-hidden')
+    expect(optionsPanel?.classList.contains('overflow-hidden')).toBe(true)
     const resultList = document.querySelector<HTMLElement>('#party-search-options > div:last-child')
     expect(resultList?.classList.contains('overflow-y-auto')).toBe(true)
     expect(resultList?.classList.contains('touch-pan-y')).toBe(true)
