@@ -1241,7 +1241,9 @@ async function validateStockDeliverySelection(
     if (productMismatchError) {
       return { error: productMismatchError }
     }
-    const buyerAcceptedWeight = Math.max(0, item.qty)
+    // The full gross weight leaves the WTO/pending_out. The deducted impurity
+    // is not waiting for customer return; only net weight becomes sales qty.
+    const buyerAcceptedWeight = Math.max(0, item.grossWeight)
     if (item.deductWeight > item.grossWeight + 0.0001) {
       return { error: `หักสิ่งเจือปนของ ${summarySource.product_name} เกินจำนวนที่ขายได้` as const }
     }

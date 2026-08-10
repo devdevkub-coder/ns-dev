@@ -63,6 +63,8 @@ describe('sales bill line-item field states', () => {
     expect(stockTableSource).toContain("updateSalesStockSaleWeight(index, 'grossWeight'")
     expect(stockTableSource).toContain("updateSalesStockSaleWeight(index, 'deductWeight'")
     expect(transactionBillsSource).toContain('const qty = calculateSalesNetWeight(next.grossWeight, next.deductWeight)')
+    expect(transactionBillsSource).toContain('current.allocatedQty += item.grossWeight')
+    expect(transactionBillsSource).toContain('allocatedQty: item.grossWeight')
     expect(stockTableSource).toContain('disabled={hasSelectedPoSell}')
 
     expect(cellContaining(stockTableSource, 'data-error-key={`items.${index}.qty`}')).toContain('bg-slate-50')

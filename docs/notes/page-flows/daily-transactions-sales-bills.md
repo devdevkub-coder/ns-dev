@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-08-05
+updated: 2026-08-10
 route: /sales/bills
 ---
 
@@ -90,7 +90,7 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - Trading SB mixed-source ที่เลือก WTO ต้อง validate WTO active/same branch/customer/not billed/fully allocated เหมือน Stock SB และ stock side effect ต้องเกิดเฉพาะ WTO-derived rows
 - Stock SB and WTO-derived Trading SB must validate that the selected WTO `customer_id` equals the Sales Bill customer. If the WTO customer was corrected before billing, only the corrected customer can consume that WTO; using the old customer must be rejected.
 - Stock SB item table ต้องไม่แสดง `Gross`; ให้แสดง `น้ำหนักสุทธิที่ส่ง` จาก WTO หลังหักภาชนะแล้ว, `จำนวนที่ขายได้` (น้ำหนักที่ลูกค้าชั่ง), `หักสิ่งเจือปน`, `น้ำหนักขายสุทธิ = จำนวนที่ขายได้ - หักสิ่งเจือปน`, และ `ราคาต้นทุนเฉลี่ย` แบบ read-only จาก WTO pending_out cost snapshot หลัง column `อ้างอิง`; ยอดขาย, PO Sell allocation และรายงานใช้ `น้ำหนักขายสุทธิ` เท่านั้น
-- เมื่อ `น้ำหนักขายสุทธิ` มากกว่าน้ำหนัก WTO ที่ยัง pending_out ให้แสดงคำเตือนแต่บันทึกบิลและยอดขายตามน้ำหนักที่ลูกค้าชั่งได้; การตัด stock/WTO จำกัดที่ pending_out จริง. เมื่อ `น้ำหนักขายสุทธิ` น้อยกว่า pending_out ให้ตัด stock ตามน้ำหนักขายสุทธิและคงส่วนต่างเป็น pending_out เพื่อเข้าสู่ flow `รับของคืนจากใบส่งของ WTO` (ผู้ใช้ระบุน้ำหนักคืนและเหตุผลของส่วนต่างใน flow นั้น)
+- การเทียบส่วนต่างเพื่อรับคืนใช้ `จำนวนที่ขายได้` (น้ำหนักรวมที่ลูกค้ารับ/ชั่ง) กับน้ำหนัก WTO ที่ยัง pending_out ไม่ใช่ `น้ำหนักขายสุทธิ`; น้ำหนักหักสิ่งเจือปนเป็นของที่ไม่ต้องรอรับคืนและยังต้องตัด stock รวมอยู่ในน้ำหนักที่ลูกค้ารับ. ถ้าน้ำหนักรวมมากกว่า pending_out ให้แสดงคำเตือนแต่จำกัดการตัด stock ที่ pending_out จริง; ถ้าน้ำหนักรวมน้อยกว่า pending_out จึงคงส่วนต่างเป็น pending_out เพื่อเข้าสู่ flow `รับของคืนจากใบส่งของ WTO` (ผู้ใช้ระบุน้ำหนักคืนและเหตุผลของส่วนต่างใน flow นั้น)
 - รายการจาก PB Trading auto จากน้ำหนักคงเหลือซื้อเข้า `น้ำหนักที่ขาย`; ผู้ใช้กรอก `หัก` เอง และระบบคำนวณ `น้ำหนักสุทธิขาย = น้ำหนักที่ขาย - หัก` เป็น read-only; column `อ้างอิง` ใช้เลือก Spot Sale หรือ PO Sell ต่อ line; `ราคาต้นทุนเฉลี่ย` แสดงเฉพาะ WTO-derived line จาก pending_out cost snapshot; `ราคาขาย/หน่วย` เริ่มว่างเมื่อเป็น Spot Sale, ถ้าเลือก PO Sell ต้อง auto ราคาจาก PO Sell และ lock ไม่ให้แก้ไข, ไม่มีหมายเหตุรายสินค้า, ไม่มีส่วนลดรายบรรทัดใน Trading item table, และยอดรายการเป็นค่าคำนวณจาก `น้ำหนักสุทธิขาย x ราคาขาย/หน่วย`
 - รายการจาก PB Trading ที่เลือก PO Sell ต้องตัด PO Sell ไม่เกิน remaining; ถ้าน้ำหนักรายการมากกว่า remaining ระบบต้องแทรกแถว Spot Sale ถัดจากแถวเดิมสำหรับน้ำหนักส่วนที่เหลือ โดยยังอ้าง source PB line เดิมเพื่อคุม cost/source allocation
 - ใน item table ถ้าหลายแถวต่อกันเป็นสินค้าเดียวกันจากบิลซื้อเดียวกัน ให้แสดงเป็นกลุ่มเดียว ไม่ใส่เส้นคั่นหนักระหว่างแถวในกลุ่ม และไม่แสดงชื่อสินค้า/แหล่งสินค้าซ้ำ; column แหล่งสินค้าต้องแสดงเลข PB, น้ำหนักจากบิลซื้อ, และ supplier ของ source นั้น; ถ้าเป็นบิลซื้อคนละใบหรือคนละสินค้าให้เริ่มกลุ่มใหม่และคั่นรายการตามปกติ

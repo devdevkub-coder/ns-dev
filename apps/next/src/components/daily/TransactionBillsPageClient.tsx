@@ -1525,13 +1525,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       const current = map.get(summaryId)
       const summary = deliverySummaryById.get(summaryId) ?? null
       if (current) {
-        current.allocatedQty += item.netWeight
+        // WTO stock is consumed by the full received/sent weight. Impurity
+        // deduction is not a customer return, so it must remain included here.
+        current.allocatedQty += item.grossWeight
         current.rowIndices.push(index)
         return
       }
       map.set(summaryId, {
-        allocatedQty: item.netWeight,
-        expectedQty: summary?.remainingWeight ?? item.netWeight ?? item.qty,
+        allocatedQty: item.grossWeight,
+        expectedQty: summary?.remainingWeight ?? item.grossWeight ?? item.qty,
         rowIndices: [index],
         summary,
       })
