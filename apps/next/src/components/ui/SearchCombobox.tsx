@@ -75,6 +75,7 @@ export function SearchCombobox({
   const hasInlineRequired = label.trim().endsWith('*')
   const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
   const inputRef = useRef<HTMLInputElement>(null)
+  const mobileInputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -99,6 +100,10 @@ export function SearchCombobox({
 
   useEffect(() => {
     if (!open) return
+
+    if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) {
+      requestAnimationFrame(() => mobileInputRef.current?.focus())
+    }
 
     const updatePanelRect = () => {
       const input = inputRef.current
@@ -336,10 +341,53 @@ export function SearchCombobox({
         ? createPortal(
             <div
               id={`${inputId}-options`}
-              className={`pointer-events-auto fixed z-[80] max-h-none overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] ${optionsPanelClassName ?? ''}`.trim()}
+              className={`pointer-events-auto fixed z-[80] max-h-none touch-pan-y overscroll-contain overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] [@media(pointer:coarse)]:!inset-0 [@media(pointer:coarse)]:!z-[90] [@media(pointer:coarse)]:!flex [@media(pointer:coarse)]:!h-[100dvh] [@media(pointer:coarse)]:!max-h-[100dvh] [@media(pointer:coarse)]:!w-full [@media(pointer:coarse)]:!flex-col [@media(pointer:coarse)]:!overflow-hidden [@media(pointer:coarse)]:!rounded-none [@media(pointer:coarse)]:!border-0 [@media(pointer:coarse)]:!p-4 [@media(pointer:coarse)]:!pt-[calc(env(safe-area-inset-top)+1rem)] ${optionsPanelClassName ?? ''}`.trim()}
               role="listbox"
               style={{ left: panelRect.left, maxHeight: panelRect.maxHeight, top: panelRect.top, width: panelRect.width }}
             >
+              <div className="hidden [@media(pointer:coarse)]:mb-3 [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:gap-3">
+                <Input
+                  ref={mobileInputRef}
+                  aria-autocomplete="list"
+                  aria-controls={`${inputId}-options`}
+                  aria-expanded={open}
+                  aria-haspopup="listbox"
+                  aria-label={labelText}
+                  className="h-11 min-w-0 flex-1 rounded-md border-slate-300 text-base dark:[border-color:var(--ns-dark-border-strong)]"
+                  placeholder={placeholder}
+                  readOnly={readOnly}
+                  type="search"
+                  value={query}
+                  onChange={(event) => {
+                    const nextQuery = event.target.value
+                    setQuery(nextQuery)
+                    setOpen(true)
+                    if (value && nextQuery !== selectedLabel) {
+                      lastEmittedValueRef.current = ''
+                      onChange('')
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      setOpen(false)
+                      return
+                    }
+                    if (event.key === 'Enter' && filteredOptions[highlightedIndex >= 0 ? highlightedIndex : 0]) {
+                      event.preventDefault()
+                      selectOption(filteredOptions[highlightedIndex >= 0 ? highlightedIndex : 0])
+                    }
+                  }}
+                />
+                <button
+                  aria-label="ปิดรายการ"
+                  className="h-11 shrink-0 rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-100"
+                  type="button"
+                  onClick={() => setOpen(false)}
+                >
+                  ปิด
+                </button>
+              </div>
+              <div className="min-h-0 [@media(pointer:coarse)]:flex-1 [@media(pointer:coarse)]:overflow-y-auto [@media(pointer:coarse)]:overscroll-contain">
               {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
                 <button
                   key={option.id}
@@ -386,6 +434,7 @@ export function SearchCombobox({
                   {option.description ? <span className="block break-words text-sm text-slate-500 sm:text-xs dark:text-slate-400">{option.description}</span> : null}
                 </button>
               )) : <div className="px-3 py-2 text-base text-slate-500 sm:text-sm dark:text-slate-400">ไม่พบข้อมูลที่ตรงกับคำค้นหา</div>}
+              </div>
             </div>,
             document.body,
           )

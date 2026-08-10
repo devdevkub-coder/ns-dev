@@ -67,6 +67,8 @@ describe('SearchCombobox portal interaction', () => {
       .find((button) => button.textContent?.includes('ผู้ขาย B'))
 
     expect(listbox?.classList.contains('pointer-events-auto')).toBe(true)
+    expect(listbox?.classList.contains('touch-pan-y')).toBe(true)
+    expect(listbox?.classList.contains('overscroll-contain')).toBe(true)
     expect(option).toBeDefined()
 
     act(() => {
