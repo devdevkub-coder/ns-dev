@@ -114,6 +114,9 @@ describe('SearchCombobox portal interaction', () => {
 
     expect(document.getElementById('party-search-options')).not.toBeNull()
     expect(document.querySelector<HTMLInputElement>('input[aria-label="ผู้ขาย"]')).not.toBeNull()
+    const optionsPanel = document.getElementById('party-search-options')
+    expect(optionsPanel?.classList.contains('overflow-y-auto')).toBe(true)
+    expect(optionsPanel?.className).not.toContain('!overflow-hidden')
     const resultList = document.querySelector<HTMLElement>('#party-search-options > div:last-child')
     expect(resultList?.classList.contains('overflow-y-auto')).toBe(true)
     expect(resultList?.classList.contains('touch-pan-y')).toBe(true)

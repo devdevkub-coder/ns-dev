@@ -356,7 +356,7 @@ export function SearchCombobox({
         ? createPortal(
             <div
               id={`${inputId}-options`}
-              className={`pointer-events-auto fixed z-[80] max-h-none touch-pan-y overscroll-contain overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] [@media(pointer:coarse)]:!inset-0 [@media(pointer:coarse)]:!z-[90] [@media(pointer:coarse)]:!flex [@media(pointer:coarse)]:!h-[100dvh] [@media(pointer:coarse)]:!max-h-[100dvh] [@media(pointer:coarse)]:!w-full [@media(pointer:coarse)]:!flex-col [@media(pointer:coarse)]:!overflow-hidden [@media(pointer:coarse)]:!rounded-none [@media(pointer:coarse)]:!border-0 [@media(pointer:coarse)]:!p-4 [@media(pointer:coarse)]:!pt-[calc(env(safe-area-inset-top)+1rem)] ${optionsPanelClassName ?? ''}`.trim()}
+              className={`pointer-events-auto fixed z-[80] max-h-none touch-pan-y overscroll-contain overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] [@media(pointer:coarse)]:!inset-0 [@media(pointer:coarse)]:!z-[90] [@media(pointer:coarse)]:!flex [@media(pointer:coarse)]:!h-[100dvh] [@media(pointer:coarse)]:!max-h-[100dvh] [@media(pointer:coarse)]:!w-full [@media(pointer:coarse)]:!flex-col [@media(pointer:coarse)]:!overflow-y-auto [@media(pointer:coarse)]:!rounded-none [@media(pointer:coarse)]:!border-0 [@media(pointer:coarse)]:!p-4 [@media(pointer:coarse)]:!pt-[calc(env(safe-area-inset-top)+1rem)] ${optionsPanelClassName ?? ''}`.trim()}
               role="listbox"
               style={{ left: panelRect.left, maxHeight: panelRect.maxHeight, top: panelRect.top, width: panelRect.width }}
             >
@@ -407,7 +407,7 @@ export function SearchCombobox({
                 </button>
               </div>
               <div
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y [@media(pointer:coarse)]:!flex-none [@media(pointer:coarse)]:!overflow-visible"
                 style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
               >
               {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
