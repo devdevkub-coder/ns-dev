@@ -3388,7 +3388,7 @@ model weight_ticket_image_assets {
   weight_tickets        weight_tickets? @relation(fields: [attached_ticket_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([bucket, original_storage_key], map: "weight_ticket_image_assets_original_key")
-  @@unique([bucket, thumbnail_storage_key], map: "weight_ticket_image_assets_thumbnail_key")
+  @@index([bucket, thumbnail_storage_key], map: "weight_ticket_image_assets_thumbnail_idx")
   @@index([attached_ticket_id], map: "weight_ticket_image_assets_ticket_idx")
   @@index([thumbnail_status, next_retry_at], map: "weight_ticket_image_assets_pending_idx")
   @@index([uploaded_by, created_at], map: "weight_ticket_image_assets_owner_idx")

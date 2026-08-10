@@ -35,11 +35,13 @@ create table public.weight_ticket_image_assets (
       and (thumbnail_height is null or thumbnail_height > 0)
     ),
   constraint weight_ticket_image_assets_original_key unique (bucket, original_storage_key),
-  constraint weight_ticket_image_assets_thumbnail_key unique (bucket, thumbnail_storage_key)
+  constraint weight_ticket_image_assets_thumbnail_key_nonempty check (thumbnail_storage_key <> '')
 );
 
 create index weight_ticket_image_assets_pending_idx
   on public.weight_ticket_image_assets (thumbnail_status, next_retry_at);
+create index weight_ticket_image_assets_thumbnail_idx
+  on public.weight_ticket_image_assets (bucket, thumbnail_storage_key);
 create index weight_ticket_image_assets_owner_idx
   on public.weight_ticket_image_assets (uploaded_by, created_at);
 create index weight_ticket_image_assets_ticket_idx
