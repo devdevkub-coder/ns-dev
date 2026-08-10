@@ -462,23 +462,18 @@ export async function resolveWeightTicketActorDisplayNames(actorValues: string[]
     const email = user.email?.trim().toLowerCase()
     if (!email) return []
     const displayName = user.display_name?.trim()
-    const firstAndLastName = [user.first_name, user.last_name]
-      .filter((part): part is string => Boolean(part?.trim()))
-      .join(' ')
-      .trim()
-    const name = displayName || firstAndLastName
     const lastName = user.last_name?.trim()
-    if (!name) return []
-    if (!lastName) return [[email, name] as const]
+    if (!displayName) return []
+    if (!lastName) return [[email, displayName] as const]
 
     const lastInitial = `${Array.from(lastName).slice(0, 2).join('')}.`
-    const nameWithoutFullLastName = name.endsWith(lastName) ? name.slice(0, -lastName.length).trimEnd() : name
+    const nameWithoutFullLastName = displayName.endsWith(lastName) ? displayName.slice(0, -lastName.length).trimEnd() : displayName
     return [[email, `${nameWithoutFullLastName} ${lastInitial}`] as const]
   }))
 }
 
 export function weightTicketActorDisplayName(value: string, displayNames: Map<string, string>) {
-  return displayNames.get(value.trim().toLowerCase()) ?? value
+  return displayNames.get(value.trim().toLowerCase()) ?? ''
 }
 
 export function requireWeightTicketBranchDocumentCode(code: string | null | undefined) {

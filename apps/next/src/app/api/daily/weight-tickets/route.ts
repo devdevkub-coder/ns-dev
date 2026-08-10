@@ -344,6 +344,11 @@ export async function POST(request: Request) {
 
     const usage = await getWeightTicketUsageCounts(prisma, created.id)
     const mapped = mapWeightTicketRow(created, usage)
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.updatedBy])
+    const displayMapped = {
+      ...mapped,
+      updatedBy: weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
+    }
     await recordAuditLog({
         action: 'create',
         afterData: weightTicketAuditSnapshot(mapped),
@@ -365,7 +370,7 @@ export async function POST(request: Request) {
     })
     void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'created', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
     return NextResponse.json({
-      ...mapped,
+      ...displayMapped,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
