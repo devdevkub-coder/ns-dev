@@ -32,6 +32,7 @@ import {
   encodeStoredImageReference,
   formatWeight,
   getWeightTicket,
+  getWeightTicketImagePreviews,
   isOtherProductImpurityId,
   isOtherProductImpurityLabel,
   normalizeDecimalInput,
@@ -40,6 +41,7 @@ import {
   OTHER_PRODUCT_IMPURITY_LABEL,
   saveWeightTicket,
   saveWeightTicketSection,
+  mergeWeightTicketImagePreviews,
   WEIGHT_TICKET_STATUS,
   WEIGHT_TICKET_TYPE,
   type DeductionMode,
@@ -830,9 +832,41 @@ function createAttachmentPreview(fileName: string): AttachmentPreview {
   return {
     fileName: parsed.fileName,
     id: makeFileId(),
-    rawValue: parsed.rawValue,
-    url: parsed.url ?? '',
+    rawValue: toDurableImageReference(parsed),
+    url: parsed.thumbnailUrl ?? parsed.url ?? '',
   }
+}
+
+function toDurableImageReference(asset: ReturnType<typeof decodeStoredImageAsset>) {
+  if (!asset.bucket || !asset.storageKey) return asset.rawValue
+  return encodeStoredImageReference(
+    asset.fileName,
+    undefined,
+    asset.storageKey,
+    asset.bucket,
+    asset.thumbnailStorageKey ?? undefined,
+  )
+}
+
+function mergeAttachmentPreviewUrls(currentFiles: AttachmentPreview[], imageNames: string[]) {
+  const nextFiles = imageNames.map((imageName) => {
+    const nextAsset = decodeStoredImageAsset(imageName)
+    const currentFile = currentFiles.find((file) => decodeStoredImageAsset(file.rawValue).storageKey === nextAsset.storageKey)
+    return currentFile
+      ? {
+          ...currentFile,
+          fileName: nextAsset.fileName,
+          rawValue: toDurableImageReference(nextAsset),
+          url: nextAsset.thumbnailUrl ?? nextAsset.url ?? currentFile.url,
+        }
+      : createAttachmentPreview(imageName)
+  })
+  const nextStorageKeys = new Set(imageNames.map((imageName) => decodeStoredImageAsset(imageName).storageKey))
+  const localFilesNotYetPersisted = currentFiles.filter((file) => {
+    const asset = decodeStoredImageAsset(file.rawValue)
+    return file.url.startsWith('blob:') && !nextStorageKeys.has(asset.storageKey)
+  })
+  return [...nextFiles, ...localFilesNotYetPersisted]
 }
 
 function revokeLocalAttachmentPreview(file: AttachmentPreview | undefined) {
@@ -853,7 +887,7 @@ function validateSelectedWeightTicketImage(file: File, maxUploadBytes: number) {
   return null
 }
 
-async function createAttachmentPreviewFromFile(file: File, maxUploadBytes: number): Promise<AttachmentPreview> {
+async function createAttachmentPreviewFromFile(file: File, maxUploadBytes: number, localPreview?: AttachmentPreview): Promise<AttachmentPreview> {
   const validationError = validateSelectedWeightTicketImage(file, maxUploadBytes)
   if (validationError) throw new Error(validationError)
   const body = new FormData()
@@ -875,11 +909,11 @@ async function createAttachmentPreviewFromFile(file: File, maxUploadBytes: numbe
   }
   return {
     fileName: payload.fileName,
-    id: makeFileId(),
+    id: localPreview?.id ?? makeFileId(),
     // Keep only the durable private-bucket reference in the form payload.
     // The signed URL is preview-only and must never be persisted to the ticket.
     rawValue: encodeStoredImageReference(payload.fileName, undefined, payload.storageKey, payload.bucket, payload.thumbnailStorageKey),
-    url: URL.createObjectURL(file),
+    url: localPreview?.url ?? URL.createObjectURL(file),
   }
 }
 
@@ -932,7 +966,7 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
       deductionValue: line.deductionValue,
       grossWeight: line.grossWeight,
       id: line.id,
-      imageNames: line.imageNames,
+      imageNames: line.imageNames.map((imageName) => toDurableImageReference(decodeStoredImageAsset(imageName))),
       imageFiles: line.imageNames.map(createAttachmentPreview),
       impurityId: line.impurityId,
       impurityName: line.impurityName,
@@ -1140,6 +1174,8 @@ export function WeightTicketFormCore({
   const [impurities, setImpurities] = useState<OptionItem[]>([])
   const [loadedTicket, setLoadedTicket] = useState<WeightTicketRecord | null>(null)
   const [savedTicket, setSavedTicket] = useState<WeightTicketRecord | null>(null)
+  const [imagePreviewRefreshMs, setImagePreviewRefreshMs] = useState<number | null>(null)
+  const [imagePreviewPollRevision, setImagePreviewPollRevision] = useState(0)
   const { begin: beginSaveStage, end: endSaveStage, isSaving, stage: saveStage } = useWeightTicketSaveProgress()
   const [isLoadingTicket, setIsLoadingTicket] = useState(Boolean(editingTicketId))
   const [loadError, setLoadError] = useState('')
@@ -1161,7 +1197,6 @@ export function WeightTicketFormCore({
   const dirtyHeaderFieldsRef = useRef<Set<CollaborationHeaderField>>(new Set())
   const remoteSyncInFlightRef = useRef(false)
   const pendingAttachmentUploadsRef = useRef<Set<Promise<unknown>>>(new Set())
-  const attachmentBatchesRef = useRef(new Map<string, { completed: number; total: number }>())
   const attachmentUploadConfigRef = useRef<Promise<AttachmentUploadConfig> | null>(null)
   const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
@@ -1217,7 +1252,12 @@ export function WeightTicketFormCore({
     return attachmentUploadConfigRef.current
   }
 
-  async function uploadAttachmentFiles(files: File[], errorLabel: string) {
+  async function uploadAttachmentFiles(
+    files: File[],
+    errorLabel: string,
+    onPreviewsReady?: (previews: AttachmentPreview[]) => void,
+    onUploadComplete?: (previewIds: string[], nextFiles: AttachmentPreview[]) => void,
+  ) {
     let uploadConfig: AttachmentUploadConfig
     try {
       uploadConfig = await loadAttachmentUploadConfig()
@@ -1225,13 +1265,19 @@ export function WeightTicketFormCore({
       return {
         failures: [getErrorMessage(caught, 'โหลดการตั้งค่าอัปโหลดรูปภาพไม่สำเร็จ')],
         nextFiles: [],
+        previewIds: [],
       }
     }
-    const batchId = makeFileId()
     let nextIndex = 0
     let completed = 0
+    const localPreviews = files.map((file) => ({
+      fileName: file.name,
+      id: makeFileId(),
+      rawValue: file.name,
+      url: URL.createObjectURL(file),
+    }))
+    onPreviewsReady?.(localPreviews)
     const results: PromiseSettledResult<AttachmentPreview>[] = []
-    attachmentBatchesRef.current.set(batchId, { completed: 0, total: files.length })
     setAttachmentProgress({ completed: 0, total: files.length })
 
     async function worker() {
@@ -1239,33 +1285,26 @@ export function WeightTicketFormCore({
         const index = nextIndex
         nextIndex += 1
         try {
-          const value = await trackAttachmentUpload(createAttachmentPreviewFromFile(files[index], uploadConfig.maxUploadBytes))
+          const value = await trackAttachmentUpload(createAttachmentPreviewFromFile(files[index], uploadConfig.maxUploadBytes, localPreviews[index]))
           results[index] = { status: 'fulfilled', value }
         } catch (reason) {
           results[index] = { status: 'rejected', reason }
         } finally {
           completed += 1
-          attachmentBatchesRef.current.set(batchId, { completed, total: files.length })
-          const aggregate = [...attachmentBatchesRef.current.values()].reduce((summary, batch) => ({
-            completed: summary.completed + batch.completed,
-            total: summary.total + batch.total,
-          }), { completed: 0, total: 0 })
-          setAttachmentProgress(aggregate)
+          setAttachmentProgress({ completed, total: files.length })
         }
       }
     }
 
     await Promise.all(Array.from({ length: Math.min(uploadConfig.uploadConcurrency, files.length) }, () => worker()))
-    attachmentBatchesRef.current.delete(batchId)
-    const remaining = [...attachmentBatchesRef.current.values()].reduce((summary, batch) => ({
-      completed: summary.completed + batch.completed,
-      total: summary.total + batch.total,
-    }), { completed: 0, total: 0 })
-    setAttachmentProgress(remaining.total > 0 ? remaining : null)
+    const nextFiles = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+    onUploadComplete?.(localPreviews.map((preview) => preview.id), nextFiles)
+    setAttachmentProgress(null)
 
     return {
       failures: results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, errorLabel)] : []),
-      nextFiles: results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []),
+      previewIds: localPreviews.map((preview) => preview.id),
+      nextFiles,
     }
   }
 
@@ -1626,6 +1665,8 @@ export function WeightTicketFormCore({
     if (!editingTicketId) {
       setIsLoadingTicket(false)
       setLoadedTicket(null)
+      setSavedTicket(null)
+      setImagePreviewRefreshMs(null)
       return
     }
 
@@ -1635,9 +1676,21 @@ export function WeightTicketFormCore({
       setIsLoadingTicket(true)
       setLoadError('')
       try {
-        const ticket = await getWeightTicket(editingTicketId)
+        const ticket = await getWeightTicket(editingTicketId, { includeImagePreviews: false })
         if (cancelled) return
-        const nextForm = ticketToFormState(ticket)
+        let ticketWithPreviews: WeightTicketRecord = ticket
+        try {
+          const previews = await getWeightTicketImagePreviews(editingTicketId)
+          if (cancelled) return
+          ticketWithPreviews = mergeWeightTicketImagePreviews(ticket, previews)
+          setImagePreviewRefreshMs(previews.refreshAfterMs)
+        } catch {
+          // The document remains editable from durable image references. The
+          // preview poll is retried on the next open if this request fails.
+          setImagePreviewRefreshMs(null)
+        }
+        if (cancelled) return
+        const nextForm = ticketToFormState(ticketWithPreviews)
         setLoadedTicket(ticket)
         setForm(nextForm)
         setFormBaseline(formSafetySnapshot(nextForm))
@@ -1660,6 +1713,44 @@ export function WeightTicketFormCore({
       cancelled = true
     }
   }, [editingTicketId])
+
+  useEffect(() => {
+    if (!editingTicketId || !imagePreviewRefreshMs || isFormDirty) return
+    const currentTicket = savedTicket ?? loadedTicket
+    if (!currentTicket) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      void getWeightTicketImagePreviews(editingTicketId, { signal: controller.signal })
+        .then((previews) => {
+          if (controller.signal.aborted) return
+          if (formSafetySnapshot(formRef.current) !== formBaseline) return
+          const nextTicket = mergeWeightTicketImagePreviews(currentTicket, previews)
+          setForm((current) => ({
+            ...current,
+            vehicleImageFiles: mergeAttachmentPreviewUrls(current.vehicleImageFiles, nextTicket.vehicleImageNames),
+            lines: current.lines.map((line) => {
+              const nextLine = nextTicket.lines.find((candidate) => candidate.id === line.id)
+              if (!nextLine) return line
+              const durableImageNames = nextLine.imageNames.map((imageName) => toDurableImageReference(decodeStoredImageAsset(imageName)))
+              return {
+                ...line,
+                imageNames: durableImageNames,
+                imageFiles: mergeAttachmentPreviewUrls(line.imageFiles, nextLine.imageNames),
+              }
+            }),
+          }))
+          setImagePreviewRefreshMs(previews.refreshAfterMs)
+          setImagePreviewPollRevision((current) => current + 1)
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setImagePreviewPollRevision((current) => current + 1)
+        })
+    }, imagePreviewRefreshMs)
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [editingTicketId, formBaseline, imagePreviewPollRevision, imagePreviewRefreshMs, isFormDirty, loadedTicket, savedTicket])
 
   useEffect(() => {
     const parentLines = getMainParentLines(form.lines)
@@ -2568,18 +2659,30 @@ export function WeightTicketFormCore({
   async function appendLineImages(lineId: string, files: FileList | null) {
     if (!files?.length) return
     setAttachmentError('')
-    const { failures, nextFiles } = await uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปสินค้าไม่สำเร็จ')
-    if (nextFiles.length > 0) {
+    const { failures, nextFiles } = await trackAttachmentUpload(uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปสินค้าไม่สำเร็จ', (previews) => {
       const currentForm = formRef.current
       formRef.current = {
         ...currentForm,
         lines: currentForm.lines.map((line) => line.id === lineId
-          ? { ...line, imageFiles: [...getLineImages(line), ...nextFiles] }
+          ? { ...line, imageFiles: [...getLineImages(line), ...previews] }
           : line),
       }
-      updateLine(lineId, (line) => ({ ...line, imageFiles: [...getLineImages(line), ...nextFiles] }))
+      updateLine(lineId, (line) => ({ ...line, imageFiles: [...getLineImages(line), ...previews] }))
+    }, (previewIds, uploadedFiles) => {
+      const uploadedIds = new Set(uploadedFiles.map((file) => file.id))
+      const currentLine = formRef.current.lines.find((line) => line.id === lineId)
+      const currentFiles = currentLine ? getLineImages(currentLine) : []
+      const activePreviewIds = new Set(currentFiles.filter((file) => previewIds.includes(file.id)).map((file) => file.id))
+      const retainedUploadedFiles = uploadedFiles.filter((file) => activePreviewIds.has(file.id))
+      uploadedFiles.filter((file) => !activePreviewIds.has(file.id)).forEach(revokeLocalAttachmentPreview)
+      currentFiles.filter((file) => previewIds.includes(file.id) && !uploadedIds.has(file.id)).forEach(revokeLocalAttachmentPreview)
+      const nextLines = formRef.current.lines.map((line) => line.id === lineId
+        ? { ...line, imageFiles: [...getLineImages(line).filter((file) => !previewIds.includes(file.id)), ...retainedUploadedFiles] }
+        : line)
+      formRef.current = { ...formRef.current, lines: nextLines }
+      setForm((current) => ({ ...current, lines: nextLines }))
       markTouched(`line-${lineId}-images`)
-    }
+    }))
     if (failures.length > 0) {
       setAttachmentError(
         nextFiles.length > 0
@@ -2592,15 +2695,28 @@ export function WeightTicketFormCore({
   async function appendVehicleImages(files: FileList | null) {
     if (!files?.length) return
     setAttachmentError('')
-    const { failures, nextFiles } = await uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปรถไม่สำเร็จ')
-    if (nextFiles.length > 0) {
+    const { failures, nextFiles } = await trackAttachmentUpload(uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปรถไม่สำเร็จ', (previews) => {
       const currentForm = formRef.current
       formRef.current = {
         ...currentForm,
-        vehicleImageFiles: [...currentForm.vehicleImageFiles, ...nextFiles],
+        vehicleImageFiles: [...currentForm.vehicleImageFiles, ...previews],
       }
-      setForm((current) => ({ ...current, vehicleImageFiles: [...current.vehicleImageFiles, ...nextFiles] }))
-    }
+      setForm((current) => ({ ...current, vehicleImageFiles: [...current.vehicleImageFiles, ...previews] }))
+    }, (previewIds, uploadedFiles) => {
+      const uploadedIds = new Set(uploadedFiles.map((file) => file.id))
+      const currentVehicleFiles = formRef.current.vehicleImageFiles
+      const activePreviewIds = new Set(currentVehicleFiles.filter((file) => previewIds.includes(file.id)).map((file) => file.id))
+      const retainedUploadedFiles = uploadedFiles.filter((file) => activePreviewIds.has(file.id))
+      uploadedFiles.filter((file) => !activePreviewIds.has(file.id)).forEach(revokeLocalAttachmentPreview)
+      currentVehicleFiles
+        .filter((file) => previewIds.includes(file.id) && !uploadedIds.has(file.id))
+        .forEach(revokeLocalAttachmentPreview)
+      const nextVehicleImages = formRef.current.vehicleImageFiles
+        .filter((file) => !previewIds.includes(file.id))
+        .concat(retainedUploadedFiles)
+      formRef.current = { ...formRef.current, vehicleImageFiles: nextVehicleImages }
+      setForm((current) => ({ ...current, vehicleImageFiles: nextVehicleImages }))
+    }))
     if (failures.length > 0) {
       setAttachmentError(
         nextFiles.length > 0
@@ -2612,8 +2728,14 @@ export function WeightTicketFormCore({
 
   function removeVehicleImage(fileId: string) {
     dirtyHeaderFieldsRef.current.add('vehicleImageNames')
+    const currentForm = formRef.current
+    const removedFile = currentForm.vehicleImageFiles.find((file) => file.id === fileId)
+    revokeLocalAttachmentPreview(removedFile)
+    formRef.current = {
+      ...currentForm,
+      vehicleImageFiles: currentForm.vehicleImageFiles.filter((file) => file.id !== fileId),
+    }
     setForm((current) => {
-      revokeLocalAttachmentPreview(current.vehicleImageFiles.find((file) => file.id === fileId))
       return {
         ...current,
         vehicleImageFiles: current.vehicleImageFiles.filter((file) => file.id !== fileId),
@@ -2622,9 +2744,18 @@ export function WeightTicketFormCore({
   }
 
   function removeLineImage(lineId: string, fileId: string) {
+    const currentForm = formRef.current
+    const currentLine = currentForm.lines.find((line) => line.id === lineId)
+    const currentImages = currentLine ? getLineImages(currentLine) : []
+    revokeLocalAttachmentPreview(currentImages.find((file) => file.id === fileId))
+    formRef.current = {
+      ...currentForm,
+      lines: currentForm.lines.map((line) => line.id === lineId
+        ? { ...line, imageFiles: currentImages.filter((file) => file.id !== fileId) }
+        : line),
+    }
     updateLine(lineId, (current) => {
       const images = getLineImages(current)
-      revokeLocalAttachmentPreview(images.find((file) => file.id === fileId))
       return { ...current, imageFiles: images.filter((entry) => entry.id !== fileId) }
     })
   }
@@ -2805,19 +2936,22 @@ export function WeightTicketFormCore({
     try {
       await waitForPendingAttachmentUploads()
       const snapshot = formRef.current
+      const savedSectionLineIds = getWeightTicketSectionLineIds(snapshot.lines, sectionId)
+      const savedSectionLineIdSet = new Set(savedSectionLineIds)
+      const savedSectionLines = snapshot.lines.filter((line) => savedSectionLineIdSet.has(line.id))
       const baselineById = new Map(baselineSectionLines.map((line) => [line.id, line] as const))
       const baselineIds = baselineSectionLines.map((line) => line.id)
       const deletedIds = new Set(
-        baselineIds.filter((lineId) => !sectionLines.some((line) => line.id === lineId)),
+        baselineIds.filter((lineId) => !savedSectionLines.some((line) => line.id === lineId)),
       )
       deletedLineIdsRef.current.forEach((lineId) => {
         if (baselineById.has(lineId)) deletedIds.add(lineId)
       })
       const changedIds = new Set(
-        sectionLines.filter((line) => changedLineIdsRef.current.has(line.id)).map((line) => line.id),
+        savedSectionLines.filter((line) => changedLineIdsRef.current.has(line.id)).map((line) => line.id),
       )
       deletedIds.forEach((lineId) => changedIds.add(lineId))
-      sectionLines.forEach((line) => {
+      savedSectionLines.forEach((line) => {
         const baseline = baselineById.get(line.id)
         if (!baseline || collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue)) !== collaborationLineSnapshot(baseline, baseline.imageNames)) {
           changedIds.add(line.id)
@@ -2841,7 +2975,7 @@ export function WeightTicketFormCore({
         collaborationChangedHeaderFields: [],
         collaborationBaseUpdatedAt: baselineTicket.updatedAt,
         id: baselineTicket.id,
-        lines: sectionLines.map((line) => ({
+        lines: savedSectionLines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
           deductionValue: Number(line.deductionValue || 0),
@@ -2859,7 +2993,7 @@ export function WeightTicketFormCore({
         })),
         partyId: snapshot.partyId,
         remark: snapshot.remark.trim(),
-        sectionLineIds: Array.from(new Set([...sectionLineIdSet, ...deletedIds])),
+        sectionLineIds: Array.from(new Set([...savedSectionLineIds, ...deletedIds])),
         type: snapshot.type,
         vehicleImageNames: snapshot.vehicleImageFiles.map((file) => file.rawValue),
         vehicleNo: snapshot.vehicleNo.trim(),
@@ -2873,13 +3007,13 @@ export function WeightTicketFormCore({
       const sectionWasChangedDuringSave = JSON.stringify(Array.from(latestSectionIds).map((id) => {
         const line = latestForm.lines.find((entry) => entry.id === id)
         return line ? [id, collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue))] : [id, null]
-      })) !== JSON.stringify(Array.from(sectionLineIdSet).map((id) => {
+      })) !== JSON.stringify(Array.from(savedSectionLineIdSet).map((id) => {
         const line = snapshot.lines.find((entry) => entry.id === id)
         return line ? [id, collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue))] : [id, null]
       }))
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
-      const remappedSectionIds = new Set(Array.from(sectionLineIdSet, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
+      const remappedSectionIds = new Set(Array.from(savedSectionLineIdSet, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
       changedLineIdsRef.current = new Set(Array.from(changedLineIdsRef.current, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
       deletedLineIdsRef.current = new Set(Array.from(deletedLineIdsRef.current, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
       setCollapsedLotIds((current) => remapWeightTicketLineState(current, ticket.lineIdMap))

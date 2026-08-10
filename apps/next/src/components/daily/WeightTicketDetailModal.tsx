@@ -19,7 +19,7 @@ import { WeightTicketImageGallery, WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT } from '@/c
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImageOriginal, getWeightTicketImagePreviews, isPreviewableStoredImageAsset, isThumbnailPreviewableStoredImageAsset, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketImagePreviews, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImageOriginal, getWeightTicketImagePreviews, isPreviewableStoredImageAsset, isThumbnailPreviewableStoredImageAsset, mergeWeightTicketImagePreviews, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { useWeightTicketRealtime } from './useWeightTicketRealtime'
@@ -92,19 +92,6 @@ function usageWeightLabel(action: string, weight: number) {
 function usageWeightClass(action: string) {
   if (action === 'released_from_purchase_bill') return 'text-emerald-700'
   return 'text-rose-700'
-}
-
-function mergeWeightTicketImagePreviews(ticket: WeightTicketRecord, previews: WeightTicketImagePreviews): WeightTicketRecord {
-  const imageNamesByLineNo = new Map(previews.lines.map((line) => [line.lineNo, line.imageNames]))
-  return {
-    ...ticket,
-    imageNames: previews.imageNames,
-    lines: ticket.lines.map((line) => ({
-      ...line,
-      imageNames: line.lineNo == null ? line.imageNames : imageNamesByLineNo.get(line.lineNo) ?? line.imageNames,
-    })),
-    vehicleImageNames: previews.vehicleImageNames,
-  }
 }
 
 export function WeightTicketDetailModal({

@@ -169,6 +169,19 @@ export type WeightTicketImagePreviews = {
   vehicleImageNames: string[]
 }
 
+export function mergeWeightTicketImagePreviews(ticket: WeightTicketRecord, previews: WeightTicketImagePreviews): WeightTicketRecord {
+  const imageNamesByLineNo = new Map(previews.lines.map((line) => [line.lineNo, line.imageNames]))
+  return {
+    ...ticket,
+    imageNames: previews.imageNames,
+    lines: ticket.lines.map((line) => ({
+      ...line,
+      imageNames: line.lineNo == null ? line.imageNames : imageNamesByLineNo.get(line.lineNo) ?? line.imageNames,
+    })),
+    vehicleImageNames: previews.vehicleImageNames,
+  }
+}
+
 const weightTicketImageOriginalSchema = z.object({
   url: z.string().url(),
 })

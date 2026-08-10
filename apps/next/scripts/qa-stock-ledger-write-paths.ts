@@ -9,6 +9,7 @@ import {
 import { toNumber } from '../src/lib/server/daily'
 import { prisma } from '../src/lib/server/prisma'
 import { buildProductionReconciliationReport } from '../src/lib/server/production-reconciliation'
+import type { Prisma } from '../generated/prisma/client'
 
 const actor = 'codex-qa'
 const qaDate = process.env.QA_DATE ?? '2026-06-12'
@@ -26,6 +27,11 @@ type ProductionQaScenario = {
   source_status: 'RM' | 'FG'
   source_warehouse_code: string
   wip_warehouse_code: string
+}
+
+type ProductionInputQaRow = {
+  id: bigint
+  qty: Prisma.Decimal
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -136,7 +142,7 @@ async function qaProductionInputOutputReverse(): Promise<QaResult> {
     date: qaDate,
     reason: 'QA void PO2',
   }, actor)
-  const inputRows = await prisma.production_inputs.findMany({ where: { doc_no: input.inputDocNo, order_id: BigInt(order.id), status: 'active' }, select: { id: true, qty: true } })
+  const inputRows: ProductionInputQaRow[] = await prisma.production_inputs.findMany({ where: { doc_no: input.inputDocNo, order_id: BigInt(order.id), status: 'active' }, select: { id: true, qty: true } })
   await returnProductionInput(order.docNo, {
     lines: inputRows.map((inputRow) => ({ inputId: inputRow.id, qty: Number(inputRow.qty) })),
     reason: 'QA return PI',
