@@ -51,7 +51,11 @@ export function WeightTicketImageGallery({
   const downloadableImages = decodedDownloadImages.filter((image) => Boolean(
     image.bucket && image.storageKey,
   ))
-  const legacyImageCount = isLoadingPreview || previewError ? 0 : decodedImages.length - images.length
+  const processingImageCount = decodedImages.filter((image) => image.thumbnailStatus === 'queued' || image.thumbnailStatus === 'processing').length
+  const failedImageCount = decodedImages.filter((image) => image.thumbnailStatus === 'failed').length
+  const legacyImageCount = isLoadingPreview || previewError ? 0 : decodedImages.filter((image) => (
+    !isThumbnailPreviewableStoredImageAsset(image) && !image.thumbnailStatus
+  )).length
 
   async function handleDownloadAll() {
     if (!downloadUrl || downloadableImages.length === 0 || isDownloading) return
@@ -140,6 +144,16 @@ export function WeightTicketImageGallery({
           </div>
         ) : imageNames.length === 0 ? (
           <div className="text-sm text-slate-400">ยังไม่มีรูปภาพประกอบ</div>
+        ) : null}
+        {processingImageCount > 0 ? (
+          <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700" role="status">
+            กำลังสร้างภาพตัวอย่าง {processingImageCount} รูป รูปที่เสร็จแล้วจะแสดงอัตโนมัติ
+          </div>
+        ) : null}
+        {failedImageCount > 0 ? (
+          <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700" role="alert">
+            สร้างภาพตัวอย่างไม่สำเร็จ {failedImageCount} รูป โดยรูปต้นฉบับยังถูกเก็บไว้
+          </div>
         ) : null}
         {!isLoadingPreview && !previewError && legacyImageCount > 0 ? (
           <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">

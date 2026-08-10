@@ -200,6 +200,25 @@ describe('WeightTicketImageGallery', () => {
     expect(container.textContent).toContain('มีรูปเดิม 1 รูปที่ยังไม่มี preview ในระบบปัจจุบัน')
   })
 
+  it('shows each unfinished thumbnail as processing without loading the original as fallback', () => {
+    const onOpen = vi.fn()
+    const pending = encodeStoredImageReference(
+      'pending.jpg',
+      undefined,
+      'attachments/pending/pending.jpg',
+      'weight-ticket-images',
+      'attachments/pending/pending.thumb.webp',
+      undefined,
+      'processing',
+    )
+
+    act(() => root.render(<WeightTicketImageGallery imageNames={[pending]} onOpen={onOpen} />))
+
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.textContent).toContain('กำลังสร้างภาพตัวอย่าง 1 รูป')
+    expect(container.textContent).not.toContain('รูปเดิม')
+  })
+
   it('previews only valid web URLs and keeps every legacy data URL format unavailable', () => {
     const onOpen = vi.fn()
     const imageNames = [

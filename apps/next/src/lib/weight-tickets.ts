@@ -165,6 +165,7 @@ export type WeightTicketImagePreviews = {
     imageNames: string[]
     lineNo: number
   }>
+  refreshAfterMs: number | null
   vehicleImageNames: string[]
 }
 
@@ -193,6 +194,7 @@ export type StoredImageAsset = {
   rawValue: string
   storageKey?: string | null
   thumbnailStorageKey?: string | null
+  thumbnailStatus?: 'failed' | 'processing' | 'queued' | 'ready' | null
   thumbnailUrl?: string | null
   url: string | null
 }
@@ -684,6 +686,7 @@ const weightTicketImagePreviewsSchema = z.object({
     imageNames: z.array(z.string()),
     lineNo: z.number().int(),
   })),
+  refreshAfterMs: z.number().int().positive().nullable(),
   vehicleImageNames: z.array(z.string()),
 })
 
@@ -811,6 +814,7 @@ export function encodeStoredImageReference(
   bucket?: string,
   thumbnailStorageKey?: string,
   thumbnailUrl?: string,
+  thumbnailStatus?: 'failed' | 'processing' | 'queued' | 'ready',
 ) {
   const reference: {
     bucket?: string
@@ -818,6 +822,7 @@ export function encodeStoredImageReference(
     storageKey: string
     thumbnailStorageKey?: string
     thumbnailUrl?: string
+    thumbnailStatus?: 'failed' | 'processing' | 'queued' | 'ready'
     url?: string
   } = {
     bucket,
@@ -827,6 +832,7 @@ export function encodeStoredImageReference(
   if (url?.trim()) reference.url = url
   if (thumbnailStorageKey?.trim()) reference.thumbnailStorageKey = thumbnailStorageKey
   if (thumbnailUrl?.trim()) reference.thumbnailUrl = thumbnailUrl
+  if (thumbnailStatus) reference.thumbnailStatus = thumbnailStatus
   return JSON.stringify(reference)
 }
 
@@ -866,6 +872,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
       storageKey?: unknown
       thumbnailStorageKey?: unknown
       thumbnailUrl?: unknown
+      thumbnailStatus?: unknown
       url?: unknown
     }
     if (typeof parsed.fileName === 'string' && typeof parsed.dataUrl === 'string' && parsed.dataUrl.startsWith('data:image/')) {
@@ -892,6 +899,12 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
         bucket: parsed.bucket.trim(),
         storageKey: parsed.storageKey.trim(),
         thumbnailStorageKey: typeof parsed.thumbnailStorageKey === 'string' && parsed.thumbnailStorageKey.trim() ? parsed.thumbnailStorageKey.trim() : null,
+        thumbnailStatus: parsed.thumbnailStatus === 'queued'
+          || parsed.thumbnailStatus === 'processing'
+          || parsed.thumbnailStatus === 'ready'
+          || parsed.thumbnailStatus === 'failed'
+          ? parsed.thumbnailStatus
+          : null,
         thumbnailUrl: typeof parsed.thumbnailUrl === 'string' ? parsed.thumbnailUrl : null,
         url: typeof parsed.url === 'string' ? parsed.url : null,
       }

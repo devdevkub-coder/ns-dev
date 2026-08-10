@@ -43,7 +43,7 @@ import {
   type WeightTicketRow,
   weightTicketAuditSnapshot,
 } from '@/lib/server/weight-tickets'
-import { attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { assertWeightTicketImageAssetOwnership, attachWeightTicketImageAssets, attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { publishWeightTicketChange } from '@/lib/server/weight-ticket-realtime'
 import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
 
@@ -232,6 +232,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const scopedBranchIds = branchScopeIds(auth)
     const existing = await findScopedTicket(id, scopedBranchIds)
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของที่ต้องการแก้ไข' }, { status: 404 })
+    const imageStorageKeys = await assertWeightTicketImageAssetOwnership({
+      authUserId: auth.authUser.id,
+      bucket: imageBucket,
+      record: values,
+      ticketId: existing.id,
+    })
 
     const usage = await getWeightTicketUsageCounts(prisma, existing.id)
     if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, usage)) {
@@ -712,6 +718,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           vehicle_no: effectiveValues.vehicleNo,
         },
         where: { id: existing.id },
+      })
+      await attachWeightTicketImageAssets(tx, {
+        authUserId: auth.authUser.id,
+        bucket: imageBucket,
+        storageKeys: imageStorageKeys,
+        ticketId: existing.id,
       })
       const createdPendingOutHoldIds = shouldRebuildWtoPendingOut
         ? await applyWeightTicketEditSideEffects(tx, {

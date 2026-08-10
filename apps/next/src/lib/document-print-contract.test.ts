@@ -102,6 +102,7 @@ function makeSalesBill(itemCount: number): SalesBillDetail {
     dueDate: '2026-08-14',
     exportOrderNo: '',
     hasVat: true,
+    licensePlate: '1กก 1234',
     items: Array.from({ length: itemCount }, (_, index) => ({
       amount: 100,
       deliveryLineId: `delivery-line-${index + 1}`,

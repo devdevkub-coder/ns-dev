@@ -72,15 +72,17 @@ async function main() {
     const supabase = createClient(supabaseUrl, requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { autoRefreshToken: false, persistSession: false },
     })
-    const [bucketResult, ticketResult, lineResult, objects] = await Promise.all([
+    const [bucketResult, ticketResult, lineResult, assetResult, objects] = await Promise.all([
       pool.query(`select public, file_size_limit, allowed_mime_types from storage.buckets where id = $1`, [bucket.name]),
       pool.query(`select id, vehicle_image_names from public.weight_tickets order by id asc`),
       pool.query(`select id, image_names from public.weight_ticket_lines order by id asc`),
+      pool.query(`select id, bucket, original_storage_key, thumbnail_storage_key, thumbnail_status, attached_ticket_id from public.weight_ticket_image_assets order by id asc`),
       listObjectsRecursively(supabase, bucket.name),
     ])
 
     const objectSet = new Set(objects)
     const referencedStorageKeys = new Set()
+    const referenceCounts = new Map()
     const report = {
       projectRef,
       bucket: {
@@ -109,9 +111,17 @@ async function main() {
         vehicle: 0,
       },
       storage: {
+        duplicateReferenceCount: 0,
         migratedOrphanCount: 0,
         missingStorageKeyCount: 0,
         objectCount: objects.length,
+      },
+      ledger: {
+        attachedWithoutReferenceCount: 0,
+        missingOriginalObjectCount: 0,
+        missingThumbnailObjectCount: 0,
+        readyWithoutThumbnailCount: 0,
+        rowCount: assetResult.rows.length,
       },
       errorSamples: [],
     }
@@ -124,6 +134,9 @@ async function main() {
         report.references[`${parsed.source}DataUrl`] += 1
       } else if (parsed.kind === 'storageKey') {
         report.references.storageKey += 1
+        const referenceCount = (referenceCounts.get(parsed.storageKey) ?? 0) + 1
+        referenceCounts.set(parsed.storageKey, referenceCount)
+        if (referenceCount === 2) report.storage.duplicateReferenceCount += 1
         referencedStorageKeys.add(parsed.storageKey)
         if (!objectSet.has(parsed.storageKey)) report.storage.missingStorageKeyCount += 1
       } else if (parsed.kind === 'invalid') {
@@ -151,6 +164,15 @@ async function main() {
       }
     }
 
+    for (const asset of assetResult.rows) {
+      const originalExists = objectSet.has(asset.original_storage_key)
+      const thumbnailExists = objectSet.has(asset.thumbnail_storage_key)
+      if (!originalExists) report.ledger.missingOriginalObjectCount += 1
+      if (!thumbnailExists) report.ledger.missingThumbnailObjectCount += 1
+      if (asset.thumbnail_status === 'ready' && !thumbnailExists) report.ledger.readyWithoutThumbnailCount += 1
+      if (asset.attached_ticket_id && !referencedStorageKeys.has(asset.original_storage_key)) report.ledger.attachedWithoutReferenceCount += 1
+    }
+
     report.storage.migratedOrphanCount = objects.filter((key) =>
       key.startsWith('attachments/migrated/') && !referencedStorageKeys.has(key)).length
 
@@ -162,6 +184,10 @@ async function main() {
       || report.references.invalid
       || report.storage.missingStorageKeyCount
       || report.storage.migratedOrphanCount
+      || report.storage.duplicateReferenceCount
+      || report.ledger.missingOriginalObjectCount
+      || report.ledger.readyWithoutThumbnailCount
+      || report.ledger.attachedWithoutReferenceCount
     ) process.exitCode = 2
   } finally {
     await pool.end()

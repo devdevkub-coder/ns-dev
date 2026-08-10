@@ -1,15 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  after: vi.fn(),
   attachWeightTicketImagePreviewUrls: vi.fn(),
   branchScopeIds: vi.fn(),
   findFirst: vi.fn(),
   getCurrentAuthContext: vi.fn(),
   requirePermission: vi.fn(),
   resolveWeightTicketImageBucket: vi.fn(),
+  resolveWeightTicketImageProcessingConfig: vi.fn(),
+  drainWeightTicketThumbnailJobs: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
+vi.mock('next/server', async (importOriginal) => ({
+  ...await importOriginal<typeof import('next/server')>(),
+  after: mocks.after,
+}))
 vi.mock('@/lib/server/api-error', () => ({
   apiErrorResponse: vi.fn((_error: unknown, message: string, status: number) => Response.json({ error: message }, { status })),
 }))
@@ -25,7 +32,9 @@ vi.mock('@/lib/server/prisma', () => ({ prisma: { weight_tickets: { findFirst: m
 vi.mock('@/lib/server/weight-ticket-storage', () => ({
   attachWeightTicketImagePreviewUrls: mocks.attachWeightTicketImagePreviewUrls,
   resolveWeightTicketImageBucket: mocks.resolveWeightTicketImageBucket,
+  resolveWeightTicketImageProcessingConfig: mocks.resolveWeightTicketImageProcessingConfig,
 }))
+vi.mock('@/lib/server/weight-ticket-thumbnail-jobs', () => ({ drainWeightTicketThumbnailJobs: mocks.drainWeightTicketThumbnailJobs }))
 vi.mock('@/lib/server/weight-tickets', () => ({ branchScopeIds: mocks.branchScopeIds }))
 
 import { GET } from './route'
@@ -38,7 +47,9 @@ beforeEach(() => {
   mocks.branchScopeIds.mockReturnValue(['01'])
   mocks.findFirst.mockResolvedValue({ vehicle_image_names: [], weight_ticket_lines: [] })
   mocks.resolveWeightTicketImageBucket.mockResolvedValue('weight-ticket-images')
+  mocks.resolveWeightTicketImageProcessingConfig.mockResolvedValue({ previewPollSeconds: 2 })
   mocks.attachWeightTicketImagePreviewUrls.mockImplementation(async (value) => value)
+  mocks.after.mockImplementation((callback: () => Promise<unknown>) => void callback())
 })
 
 describe('WTI/WTO image preview route boundary', () => {
@@ -63,5 +74,30 @@ describe('WTI/WTO image preview route boundary', () => {
     expect(response.status).toBe(404)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mocks.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('drains queued and stale processing images only for the displayed ticket', async () => {
+    const reference = JSON.stringify({
+      bucket: 'weight-ticket-images',
+      fileName: 'evidence.jpg',
+      storageKey: 'attachments/pending/evidence.jpg',
+      thumbnailStorageKey: 'attachments/pending/evidence.thumb.webp',
+      thumbnailStatus: 'queued',
+    })
+    mocks.findFirst.mockResolvedValue({ id: 77n, vehicle_image_names: [reference], weight_ticket_lines: [] })
+    mocks.attachWeightTicketImagePreviewUrls.mockResolvedValue({
+      imageNames: [reference],
+      lines: [],
+      vehicleImageNames: [reference],
+    })
+
+    await GET(new Request('https://sit.example/api/daily/weight-tickets/WTO-1/images/preview'), {
+      params: Promise.resolve({ id: 'WTO-1' }),
+    })
+
+    expect(mocks.drainWeightTicketThumbnailJobs).toHaveBeenCalledWith({
+      attachedTicketId: 77n,
+      bucket: 'weight-ticket-images',
+    })
   })
 })

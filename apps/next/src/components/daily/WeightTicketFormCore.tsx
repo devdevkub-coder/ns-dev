@@ -134,8 +134,11 @@ type WtoStockOptionsState = Record<string, {
 }>
 
 const ADDED_IMPURITY_NOTE = 'หักสิ่งเจือปนเพิ่มเติม'
-const MAX_WEIGHT_TICKET_FILE_BYTES = 10 * 1024 * 1024
-const MAX_ATTACHMENT_UPLOAD_CONCURRENCY = 6
+
+type AttachmentUploadConfig = {
+  maxUploadBytes: number
+  uploadConcurrency: number
+}
 
 export type WeightTicketDeletionLine = Pick<
   WeightTicketLine,
@@ -836,22 +839,26 @@ function createAttachmentPreview(fileName: string): AttachmentPreview {
   }
 }
 
+function revokeLocalAttachmentPreview(file: AttachmentPreview | undefined) {
+  if (file?.url.startsWith('blob:')) URL.revokeObjectURL(file.url)
+}
+
 function formatAttachmentFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function validateSelectedWeightTicketImage(file: File) {
+function validateSelectedWeightTicketImage(file: File, maxUploadBytes: number) {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type.toLowerCase())) {
     return `ไฟล์ ${file.name} ไม่รองรับ รองรับเฉพาะ JPG, PNG และ WebP`
   }
-  if (file.size > MAX_WEIGHT_TICKET_FILE_BYTES) {
-    return `ไฟล์ ${file.name} มีขนาด ${formatAttachmentFileSize(file.size)} เกิน 10 MB กรุณาเลือกรูปใหม่`
+  if (file.size > maxUploadBytes) {
+    return `ไฟล์ ${file.name} มีขนาด ${formatAttachmentFileSize(file.size)} เกินขนาดที่ระบบกำหนด ${formatAttachmentFileSize(maxUploadBytes)} กรุณาเลือกรูปใหม่`
   }
   return null
 }
 
-async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPreview> {
-  const validationError = validateSelectedWeightTicketImage(file)
+async function createAttachmentPreviewFromFile(file: File, maxUploadBytes: number): Promise<AttachmentPreview> {
+  const validationError = validateSelectedWeightTicketImage(file, maxUploadBytes)
   if (validationError) throw new Error(validationError)
   const body = new FormData()
   body.set('file', file)
@@ -862,9 +869,9 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
     bucket?: string
     storageKey?: string
     thumbnailStorageKey?: string
-    thumbnailUrl?: string
+    thumbnailStatus?: string
   }
-  if (!response.ok || !payload.bucket || !payload.fileName || !payload.storageKey || !payload.thumbnailStorageKey || !payload.thumbnailUrl) {
+  if (!response.ok || !payload.bucket || !payload.fileName || !payload.storageKey || !payload.thumbnailStorageKey || payload.thumbnailStatus !== 'queued') {
     const statusHint = response.status === 413
       ? 'ไฟล์มีขนาดใหญ่เกินกว่าที่ระบบรับได้'
       : `เซิร์ฟเวอร์ตอบกลับ ${response.status || 'ไม่ทราบสถานะ'}`
@@ -876,7 +883,7 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
     // Keep only the durable private-bucket reference in the form payload.
     // The signed URL is preview-only and must never be persisted to the ticket.
     rawValue: encodeStoredImageReference(payload.fileName, undefined, payload.storageKey, payload.bucket, payload.thumbnailStorageKey),
-    url: payload.thumbnailUrl,
+    url: URL.createObjectURL(file),
   }
 }
 
@@ -1157,6 +1164,8 @@ export function WeightTicketFormCore({
   const dirtyHeaderFieldsRef = useRef<Set<CollaborationHeaderField>>(new Set())
   const remoteSyncInFlightRef = useRef(false)
   const pendingAttachmentUploadsRef = useRef<Set<Promise<unknown>>>(new Set())
+  const attachmentBatchesRef = useRef(new Map<string, { completed: number; total: number }>())
+  const attachmentUploadConfigRef = useRef<Promise<AttachmentUploadConfig> | null>(null)
   const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
   const [collapsedImpurityIds, setCollapsedImpurityIds] = useState<Record<string, boolean>>({})
@@ -1169,6 +1178,12 @@ export function WeightTicketFormCore({
     formRef.current = form
   }, [form])
 
+  useEffect(() => () => {
+    const current = formRef.current
+    current.vehicleImageFiles.forEach(revokeLocalAttachmentPreview)
+    current.lines.flatMap(getLineImages).forEach(revokeLocalAttachmentPreview)
+  }, [])
+
   function trackAttachmentUpload<T>(promise: Promise<T>) {
     let trackedPromise!: Promise<T>
     trackedPromise = promise.finally(() => {
@@ -1178,10 +1193,48 @@ export function WeightTicketFormCore({
     return trackedPromise
   }
 
+  async function loadAttachmentUploadConfig() {
+    if (!attachmentUploadConfigRef.current) {
+      attachmentUploadConfigRef.current = fetch('/api/daily/weight-tickets/attachments', { method: 'GET' })
+        .then(async (response) => {
+          const payload = await response.json().catch(() => ({})) as Partial<AttachmentUploadConfig> & { error?: string }
+          if (
+            !response.ok
+            || !Number.isSafeInteger(payload.maxUploadBytes)
+            || Number(payload.maxUploadBytes) <= 0
+            || !Number.isSafeInteger(payload.uploadConcurrency)
+            || Number(payload.uploadConcurrency) <= 0
+          ) {
+            throw new Error(payload.error || 'การตั้งค่าอัปโหลดรูปภาพไม่ถูกต้อง')
+          }
+          return {
+            maxUploadBytes: Number(payload.maxUploadBytes),
+            uploadConcurrency: Number(payload.uploadConcurrency),
+          }
+        })
+        .catch((caught) => {
+          attachmentUploadConfigRef.current = null
+          throw caught
+        })
+    }
+    return attachmentUploadConfigRef.current
+  }
+
   async function uploadAttachmentFiles(files: File[], errorLabel: string) {
+    let uploadConfig: AttachmentUploadConfig
+    try {
+      uploadConfig = await loadAttachmentUploadConfig()
+    } catch (caught) {
+      return {
+        failures: [getErrorMessage(caught, 'โหลดการตั้งค่าอัปโหลดรูปภาพไม่สำเร็จ')],
+        nextFiles: [],
+      }
+    }
+    const batchId = makeFileId()
     let nextIndex = 0
     let completed = 0
     const results: PromiseSettledResult<AttachmentPreview>[] = []
+    attachmentBatchesRef.current.set(batchId, { completed: 0, total: files.length })
     setAttachmentProgress({ completed: 0, total: files.length })
 
     async function worker() {
@@ -1189,19 +1242,29 @@ export function WeightTicketFormCore({
         const index = nextIndex
         nextIndex += 1
         try {
-          const value = await trackAttachmentUpload(createAttachmentPreviewFromFile(files[index]))
+          const value = await trackAttachmentUpload(createAttachmentPreviewFromFile(files[index], uploadConfig.maxUploadBytes))
           results[index] = { status: 'fulfilled', value }
         } catch (reason) {
           results[index] = { status: 'rejected', reason }
         } finally {
           completed += 1
-          setAttachmentProgress({ completed, total: files.length })
+          attachmentBatchesRef.current.set(batchId, { completed, total: files.length })
+          const aggregate = [...attachmentBatchesRef.current.values()].reduce((summary, batch) => ({
+            completed: summary.completed + batch.completed,
+            total: summary.total + batch.total,
+          }), { completed: 0, total: 0 })
+          setAttachmentProgress(aggregate)
         }
       }
     }
 
-    await Promise.all(Array.from({ length: Math.min(MAX_ATTACHMENT_UPLOAD_CONCURRENCY, files.length) }, () => worker()))
-    setAttachmentProgress(null)
+    await Promise.all(Array.from({ length: Math.min(uploadConfig.uploadConcurrency, files.length) }, () => worker()))
+    attachmentBatchesRef.current.delete(batchId)
+    const remaining = [...attachmentBatchesRef.current.values()].reduce((summary, batch) => ({
+      completed: summary.completed + batch.completed,
+      total: summary.total + batch.total,
+    }), { completed: 0, total: 0 })
+    setAttachmentProgress(remaining.total > 0 ? remaining : null)
 
     return {
       failures: results.flatMap((result) => result.status === 'rejected' ? [getErrorMessage(result.reason, errorLabel)] : []),
@@ -2536,10 +2599,21 @@ export function WeightTicketFormCore({
 
   function removeVehicleImage(fileId: string) {
     dirtyHeaderFieldsRef.current.add('vehicleImageNames')
-    setForm((current) => ({
-      ...current,
-      vehicleImageFiles: current.vehicleImageFiles.filter((file) => file.id !== fileId),
-    }))
+    setForm((current) => {
+      revokeLocalAttachmentPreview(current.vehicleImageFiles.find((file) => file.id === fileId))
+      return {
+        ...current,
+        vehicleImageFiles: current.vehicleImageFiles.filter((file) => file.id !== fileId),
+      }
+    })
+  }
+
+  function removeLineImage(lineId: string, fileId: string) {
+    updateLine(lineId, (current) => {
+      const images = getLineImages(current)
+      revokeLocalAttachmentPreview(images.find((file) => file.id === fileId))
+      return { ...current, imageFiles: images.filter((entry) => entry.id !== fileId) }
+    })
   }
 
   const backToList = useCallback(() => {
@@ -3478,10 +3552,7 @@ export function WeightTicketFormCore({
                                           disabled={!hasSelectedProduct}
                                           onAppend={(files) => void appendLineImages(lot.id, files)}
                                           onPreview={setPreviewImage}
-                                          onRemove={(fileId) => updateLine(lot.id, (current) => ({
-                                            ...current,
-                                            imageFiles: getLineImages(current).filter((entry) => entry.id !== fileId),
-                                          }))}
+                                          onRemove={(fileId) => removeLineImage(lot.id, fileId)}
                                           noWrapper
                                         />
                                       </FieldBlock>
@@ -3952,10 +4023,7 @@ export function WeightTicketFormCore({
                                             disabled={!hasSelectedProduct}
                                             onAppend={(files) => void appendLineImages(child.id, files)}
                                             onPreview={setPreviewImage}
-                                            onRemove={(fileId) => updateLine(child.id, (current) => ({
-                                              ...current,
-                                              imageFiles: getLineImages(current).filter((entry) => entry.id !== fileId),
-                                            }))}
+                                            onRemove={(fileId) => removeLineImage(child.id, fileId)}
                                             noWrapper
                                           />
                                         </FieldBlock>

@@ -1,10 +1,12 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { withAuthNoStore } from '@/lib/server/auth-response'
 import { prisma } from '@/lib/server/prisma'
-import { attachWeightTicketImagePreviewUrls, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { attachWeightTicketImagePreviewUrls, resolveWeightTicketImageBucket, resolveWeightTicketImageProcessingConfig } from '@/lib/server/weight-ticket-storage'
+import { drainWeightTicketThumbnailJobs } from '@/lib/server/weight-ticket-thumbnail-jobs'
 import { branchScopeIds } from '@/lib/server/weight-tickets'
+import { decodeStoredImageAsset } from '@/lib/weight-tickets'
 
 export const runtime = 'nodejs'
 
@@ -21,6 +23,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const ticket = await prisma.weight_tickets.findFirst({
       select: {
+        id: true,
         vehicle_image_names: true,
         weight_ticket_lines: {
           select: {
@@ -42,15 +45,27 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       imageNames: line.image_names ?? [],
       lineNo: line.line_no,
     }))
+    const bucket = await resolveWeightTicketImageBucket()
     const signed = await attachWeightTicketImagePreviewUrls({
       imageNames: [...vehicleImageNames, ...lines.flatMap((line) => line.imageNames)],
       lines,
       vehicleImageNames,
-    }, await resolveWeightTicketImageBucket())
+    }, bucket)
+    const unfinishedImages = signed.imageNames
+      .map(decodeStoredImageAsset)
+      .filter((image) => (image.thumbnailStatus === 'queued' || image.thumbnailStatus === 'processing') && image.storageKey)
+    if (unfinishedImages.length > 0) {
+      after(() => drainWeightTicketThumbnailJobs({
+        attachedTicketId: ticket.id,
+        bucket,
+      }))
+    }
+    const processingConfig = await resolveWeightTicketImageProcessingConfig()
 
     return withAuthNoStore(NextResponse.json({
       imageNames: signed.imageNames,
       lines: signed.lines,
+      refreshAfterMs: unfinishedImages.length > 0 ? processingConfig.previewPollSeconds * 1000 : null,
       vehicleImageNames: signed.vehicleImageNames,
     }))
   } catch (caught) {

@@ -124,6 +124,7 @@ export function WeightTicketDetailModal({
   const [loadError, setLoadError] = useState('')
   const [isLoadingImagePreview, setIsLoadingImagePreview] = useState(false)
   const [imagePreviewError, setImagePreviewError] = useState('')
+  const [imagePreviewRefreshMs, setImagePreviewRefreshMs] = useState<number | null>(null)
   const [cancelNote, setCancelNote] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [isCanceling, setIsCanceling] = useState(false)
@@ -147,6 +148,7 @@ export function WeightTicketDetailModal({
   const activeThumbnailRef = useRef<HTMLButtonElement | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [shareError, setShareError] = useState('')
+  const [imagePreviewPollRevision, setImagePreviewPollRevision] = useState(0)
   const [isSendingLine, setIsSendingLine] = useState(false)
   const realtimeBranchIds = useMemo(() => {
     const branchId = ticket?.branchId ?? initialTicket?.branchId
@@ -178,6 +180,7 @@ export function WeightTicketDetailModal({
       setIsLoading(true)
       setLoadError('')
       setImagePreviewError('')
+      setImagePreviewRefreshMs(null)
       setIsLoadingImagePreview(false)
       try {
         const nextTicket = await getWeightTicket(ticketId, { includeImagePreviews: false, signal: controller.signal })
@@ -190,6 +193,7 @@ export function WeightTicketDetailModal({
           const previews = await getWeightTicketImagePreviews(ticketId, { signal: controller.signal })
           if (controller.signal.aborted) return
           setTicket((current) => current ? mergeWeightTicketImagePreviews(current, previews) : current)
+          setImagePreviewRefreshMs(previews.refreshAfterMs)
         } catch {
           if (!controller.signal.aborted) setImagePreviewError('ยังโหลด preview รูปภาพไม่สำเร็จ แต่ข้อมูลเอกสารยังใช้งานได้')
         } finally {
@@ -208,6 +212,31 @@ export function WeightTicketDetailModal({
       controller.abort()
     }
   }, [initialTicket, ticketId])
+
+  useEffect(() => {
+    if (!imagePreviewRefreshMs || isLoadingImagePreview) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      void getWeightTicketImagePreviews(ticketId, { signal: controller.signal })
+        .then((previews) => {
+          if (controller.signal.aborted) return
+          setTicket((current) => current ? mergeWeightTicketImagePreviews(current, previews) : current)
+          setImagePreviewRefreshMs(previews.refreshAfterMs)
+          setImagePreviewError('')
+          setImagePreviewPollRevision((current) => current + 1)
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setImagePreviewError('ยังโหลด preview รูปภาพไม่สำเร็จ แต่ข้อมูลเอกสารยังใช้งานได้')
+            setImagePreviewPollRevision((current) => current + 1)
+          }
+        })
+    }, imagePreviewRefreshMs)
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [imagePreviewPollRevision, imagePreviewRefreshMs, isLoadingImagePreview, ticketId])
 
   useEffect(() => {
     if (isLoading || ticket?.type !== 'WTO' || ticket.status !== 'partially_billed') {
@@ -312,10 +341,12 @@ export function WeightTicketDetailModal({
     setTicket(nextTicket)
     setCancelNote(nextTicket.cancelNote ?? '')
     setImagePreviewError('')
+    setImagePreviewRefreshMs(null)
     setIsLoadingImagePreview(true)
     try {
       const previews = await getWeightTicketImagePreviews(ticketId)
       setTicket((current) => current ? mergeWeightTicketImagePreviews(current, previews) : current)
+      setImagePreviewRefreshMs(previews.refreshAfterMs)
     } catch {
       setImagePreviewError('ยังโหลด preview รูปภาพไม่สำเร็จ แต่ข้อมูลเอกสารยังใช้งานได้')
     } finally {
@@ -1142,7 +1173,9 @@ function ImageGrid({
   const previewable = images.filter(isThumbnailPreviewableStoredImageAsset)
   const previewImages = previewable.slice(0, WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT)
   const remainingPreviewCount = previewable.length - previewImages.length
-  const unavailableCount = images.length - previewable.length
+  const processingCount = images.filter((image) => image.thumbnailStatus === 'queued' || image.thumbnailStatus === 'processing').length
+  const failedCount = images.filter((image) => image.thumbnailStatus === 'failed').length
+  const unavailableCount = images.filter((image) => !isThumbnailPreviewableStoredImageAsset(image) && !image.thumbnailStatus).length
   const galleryImages = previewable.map(({ bucket, fileName, storageKey, thumbnailUrl }) => ({ bucket, fileName, originalStorageKey: storageKey, url: thumbnailUrl }))
 
   return (
@@ -1172,6 +1205,16 @@ function ImageGrid({
               +อีก {remainingPreviewCount} รูป
             </button>
           ) : null}
+        </div>
+      ) : null}
+      {processingCount > 0 ? (
+        <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700" role="status">
+          กำลังสร้างภาพตัวอย่าง {processingCount} รูป รูปที่เสร็จแล้วจะแสดงอัตโนมัติ
+        </div>
+      ) : null}
+      {failedCount > 0 ? (
+        <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700" role="alert">
+          สร้างภาพตัวอย่างไม่สำเร็จ {failedCount} รูป โดยรูปต้นฉบับยังถูกเก็บไว้
         </div>
       ) : null}
       {unavailableCount > 0 ? (

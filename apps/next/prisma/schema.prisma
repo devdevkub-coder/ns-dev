@@ -547,14 +547,14 @@ model accounts {
 }
 
 model account_currency_balances {
-  account_id      BigInt
-  currency_code   String
-  active          Boolean    @default(true)
-  created_at      DateTime   @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime   @default(now()) @db.Timestamptz(6)
-  id              BigInt     @id @default(autoincrement())
-  accounts        accounts   @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  currencies      currencies @relation(fields: [currency_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  account_id    BigInt
+  currency_code String
+  active        Boolean    @default(true)
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime   @default(now()) @db.Timestamptz(6)
+  id            BigInt     @id @default(autoincrement())
+  accounts      accounts   @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  currencies    currencies @relation(fields: [currency_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([account_id, currency_code], map: "uq_account_currency_balances_account_currency")
   @@index([currency_code], map: "idx_account_currency_balances_currency")
@@ -3340,6 +3340,7 @@ model weight_tickets {
   stock_holds                       stock_holds[]
   weight_ticket_lines               weight_ticket_lines[]
   weight_ticket_notification_logs   weight_ticket_notification_logs[]
+  weight_ticket_image_assets        weight_ticket_image_assets[]
   weight_ticket_product_summaries   weight_ticket_product_summaries[]
   weight_ticket_status_logs         weight_ticket_status_logs[]
   weight_ticket_usage_logs          weight_ticket_usage_logs[]
@@ -3356,6 +3357,41 @@ model weight_tickets {
   @@index([document_date(sort: Desc), doc_no(sort: Desc)], map: "idx_weight_tickets_wti_bill_options", where: raw("((cancelled_at IS NULL) AND (doc_type = 'WTI'::text) AND (status = ANY (ARRAY['received'::text, 'partially_billed'::text])))"))
   @@index([status], map: "idx_weight_tickets_status")
   @@index([supplier_id], map: "idx_weight_tickets_supplier")
+  @@schema("public")
+}
+
+/// Durable ownership and background-processing state for private WTI/WTO evidence images.
+/// This model contains row level security and requires additional setup for migrations.
+model weight_ticket_image_assets {
+  id                    BigInt          @id @default(autoincrement())
+  bucket                String
+  original_storage_key  String
+  thumbnail_storage_key String
+  file_name             String
+  mime_type             String?
+  byte_size             BigInt?
+  thumbnail_status      String          @default("queued")
+  attempt_count         Int             @default(0)
+  next_retry_at         DateTime        @default(now()) @db.Timestamptz(6)
+  locked_at             DateTime?       @db.Timestamptz(6)
+  locked_by             String?
+  source_width          Int?
+  source_height         Int?
+  thumbnail_width       Int?
+  thumbnail_height      Int?
+  last_error            String?
+  uploaded_by           String?
+  attached_ticket_id    BigInt?
+  attached_at           DateTime?       @db.Timestamptz(6)
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime        @default(now()) @db.Timestamptz(6)
+  weight_tickets        weight_tickets? @relation(fields: [attached_ticket_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([bucket, original_storage_key], map: "weight_ticket_image_assets_original_key")
+  @@unique([bucket, thumbnail_storage_key], map: "weight_ticket_image_assets_thumbnail_key")
+  @@index([attached_ticket_id], map: "weight_ticket_image_assets_ticket_idx")
+  @@index([thumbnail_status, next_retry_at], map: "weight_ticket_image_assets_pending_idx")
+  @@index([uploaded_by, created_at], map: "weight_ticket_image_assets_owner_idx")
   @@schema("public")
 }
 
@@ -4541,45 +4577,45 @@ model app_auth_events {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model trading_allocation_facts {
-  id                     BigInt                @id @default(autoincrement())
-  allocation_no          String                @unique(map: "uq_trading_allocation_facts_allocation_no")
-  date                   DateTime              @db.Date
-  trading_deal_id        BigInt?
-  purchase_bill_id       BigInt?
-  sales_bill_id          BigInt?
-  supplier_id            BigInt?
-  customer_id            BigInt?
-  product_id             BigInt?
-  source_type            String                @default("TRADING_PURCHASE_BILL")
-  source_doc_no          String?
-  source_line_no         Int?
-  sales_doc_no           String?
-  sales_line_no          Int?
-  product_code_snapshot  String?
-  product_name_snapshot  String?
-  supplier_name_snapshot String?
-  customer_name_snapshot String?
-  qty                    Decimal               @default(0) @db.Decimal
-  sales_amount           Decimal               @default(0) @db.Decimal
-  matched_cogs           Decimal               @default(0) @db.Decimal
-  allocation_method      String                @default("RECORDED_LINE")
-  status                 String                @default("active")
-  notes                  String?
-  created_at             DateTime              @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime              @default(now()) @db.Timestamptz(6)
-  created_by             String?
-  updated_by             String?
-  trading_cost_source_id BigInt?
-  cost_pool_entry_id     BigInt?
-  target_ref_id          String?
-  customers              customers?            @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
+  id                      BigInt                   @id @default(autoincrement())
+  allocation_no           String                   @unique(map: "uq_trading_allocation_facts_allocation_no")
+  date                    DateTime                 @db.Date
+  trading_deal_id         BigInt?
+  purchase_bill_id        BigInt?
+  sales_bill_id           BigInt?
+  supplier_id             BigInt?
+  customer_id             BigInt?
+  product_id              BigInt?
+  source_type             String                   @default("TRADING_PURCHASE_BILL")
+  source_doc_no           String?
+  source_line_no          Int?
+  sales_doc_no            String?
+  sales_line_no           Int?
+  product_code_snapshot   String?
+  product_name_snapshot   String?
+  supplier_name_snapshot  String?
+  customer_name_snapshot  String?
+  qty                     Decimal                  @default(0) @db.Decimal
+  sales_amount            Decimal                  @default(0) @db.Decimal
+  matched_cogs            Decimal                  @default(0) @db.Decimal
+  allocation_method       String                   @default("RECORDED_LINE")
+  status                  String                   @default("active")
+  notes                   String?
+  created_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  created_by              String?
+  updated_by              String?
+  trading_cost_source_id  BigInt?
+  cost_pool_entry_id      BigInt?
+  target_ref_id           String?
+  customers               customers?               @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
   stock_cost_pool_entries stock_cost_pool_entries? @relation(fields: [cost_pool_entry_id], references: [id], onUpdate: NoAction, onDelete: Restrict)
-  products               products?             @relation(fields: [product_id], references: [id], onUpdate: NoAction)
-  purchase_bills         purchase_bills?       @relation(fields: [purchase_bill_id], references: [id], onUpdate: NoAction)
-  sales_bills            sales_bills?          @relation(fields: [sales_bill_id], references: [id], onUpdate: NoAction)
-  suppliers              suppliers?            @relation(fields: [supplier_id], references: [id], onUpdate: NoAction)
-  trading_cost_sources   trading_cost_sources? @relation(fields: [trading_cost_source_id], references: [id], onUpdate: NoAction)
-  trading_deals          trading_deals?        @relation(fields: [trading_deal_id], references: [id], onUpdate: NoAction)
+  products                products?                @relation(fields: [product_id], references: [id], onUpdate: NoAction)
+  purchase_bills          purchase_bills?          @relation(fields: [purchase_bill_id], references: [id], onUpdate: NoAction)
+  sales_bills             sales_bills?             @relation(fields: [sales_bill_id], references: [id], onUpdate: NoAction)
+  suppliers               suppliers?               @relation(fields: [supplier_id], references: [id], onUpdate: NoAction)
+  trading_cost_sources    trading_cost_sources?    @relation(fields: [trading_cost_source_id], references: [id], onUpdate: NoAction)
+  trading_deals           trading_deals?           @relation(fields: [trading_deal_id], references: [id], onUpdate: NoAction)
 
   @@index([trading_cost_source_id, product_id], map: "idx_trading_allocation_facts_cost_source")
   @@index([customer_id, date(sort: Desc), id(sort: Desc)], map: "idx_trading_allocation_facts_customer_date", where: raw("((status = 'active'::text) AND (customer_id IS NOT NULL))"))

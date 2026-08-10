@@ -42,7 +42,7 @@ import {
   type WeightTicketListRow,
   type WeightTicketRow,
 } from '@/lib/server/weight-tickets'
-import { normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { assertWeightTicketImageAssetOwnership, attachWeightTicketImageAssets, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { publishWeightTicketChange } from '@/lib/server/weight-ticket-realtime'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
@@ -161,6 +161,11 @@ export async function POST(request: Request) {
     const parsedValues = weightTicketFormSchema.parse(await request.json())
     const imageBucket = await resolveWeightTicketImageBucket()
     const values = normalizeWeightTicketImageReferences(parsedValues, imageBucket)
+    const imageStorageKeys = await assertWeightTicketImageAssetOwnership({
+      authUserId: context.authUser.id,
+      bucket: imageBucket,
+      record: values,
+    })
     const scopedBranchIds = branchScopeIds(context)
     const parsedImpurityIds = values.lines.map((line) => parseInternalBigIntId(line.impurityId))
     const productCodes = [...new Set(values.lines.flatMap((line) => [
@@ -328,6 +333,12 @@ export async function POST(request: Request) {
           image_count: imageCount,
         },
         where: { id: createdTicket.id },
+      })
+      await attachWeightTicketImageAssets(tx, {
+        authUserId: context.authUser.id,
+        bucket: imageBucket,
+        storageKeys: imageStorageKeys,
+        ticketId: createdTicket.id,
       })
       await appendWeightTicketStatusLog(tx, {
         action: WEIGHT_TICKET_STATUS_ACTION.CREATED,

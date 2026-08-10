@@ -4,7 +4,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { withAuthNoStore } from '@/lib/server/auth-response'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
 import { branchScopeIds, findScopedWeightTicket } from '@/lib/server/weight-tickets'
-import { assertWeightTicketImageStorageKey, resolveWeightTicketImageBucket, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS } from '@/lib/server/weight-ticket-storage'
+import { assertWeightTicketImageStorageKey, resolveWeightTicketImageBucket, resolveWeightTicketImageProcessingConfig } from '@/lib/server/weight-ticket-storage'
 import { decodeStoredImageAsset } from '@/lib/weight-tickets'
 
 export const runtime = 'nodejs'
@@ -40,7 +40,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     const supabase = getSupabaseAdminClient()
     if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับโหลดรูปต้นฉบับ')
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(requestedKey, WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS)
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(requestedKey, (await resolveWeightTicketImageProcessingConfig()).previewTtlSeconds)
     if (error || !data?.signedUrl) throw new Error(`สร้าง signed URL รูปต้นฉบับไม่สำเร็จ: ${error?.message ?? 'ไม่พบ signed URL'}`)
 
     return withAuthNoStore(NextResponse.json({ url: data.signedUrl }))

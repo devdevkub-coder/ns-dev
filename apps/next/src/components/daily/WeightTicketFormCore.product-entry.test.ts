@@ -64,8 +64,8 @@ describe('weight-ticket product entry start contract', () => {
   })
 
   it('uploads up to six selected images concurrently per form without a cross-tab lock', () => {
-    expect(formSource).toContain('const MAX_ATTACHMENT_UPLOAD_CONCURRENCY = 6')
-    expect(formSource).toContain('Math.min(MAX_ATTACHMENT_UPLOAD_CONCURRENCY, files.length)')
+    expect(formSource).toContain("fetch('/api/daily/weight-tickets/attachments', { method: 'GET' })")
+    expect(formSource).toContain('Math.min(uploadConfig.uploadConcurrency, files.length)')
     expect(formSource).not.toContain('navigator.locks')
     expect(formSource).not.toContain('BroadcastChannel')
   })
