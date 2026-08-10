@@ -36,6 +36,7 @@ import { normalizePurchaseBillPrintText, normalizePurchaseBillPrintUnit, openPur
 import { parsePurchaseBillRemark } from '@/lib/purchase-bill-print-layout'
 import { calculateSalesNetWeight, normalizeSalesBillWeights, salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
 import { openSalesBillPrint, openSalesBillPrintWindow } from '@/lib/sales-bill-print'
+import { resolveSalesChannelIdForMarketScope } from '@/lib/sales-channel-resolution'
 import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 
 type BillRow = {
@@ -1209,9 +1210,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const activeSalesChannels = useMemo(() => options.salesChannels.filter((option) => option.active !== false), [options.salesChannels])
   const defaultSalesChannelForCustomer = useCallback((customerId: string) => {
     const customer = options.customers.find((option) => option.id === customerId)
-    const targetScope = customer?.marketScope === 'ต่างประเทศ' ? 'ต่างประเทศ' : customer?.marketScope === 'ในประเทศ' ? 'ในประเทศ' : null
-    if (!targetScope) return null
-    return activeSalesChannels.find((channel) => [channel.name, channel.code, channel.id].some((value) => String(value ?? '').trim() === targetScope))?.id ?? null
+    return resolveSalesChannelIdForMarketScope(customer?.marketScope, activeSalesChannels)
   }, [activeSalesChannels, options.customers])
   const matchingCustomerAdvancePayments = (options.customerAdvancePayments ?? []).filter((option) => {
     if (!salesForm.customerId || option.customer_id !== salesForm.customerId) return false
@@ -2231,16 +2230,21 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return [...optionsByKey.values()]
   }
 
-  function salesFormFromDetail(detail: SalesBillDetail, row: BillRow): SalesBillFormValues {
+  function salesFormFromDetail(detail: SalesBillDetail, row: BillRow, loadedOptions: SalesPayload | null = null): SalesBillFormValues {
+    const sourceOptions = loadedOptions ?? options
     const transactionMode = detail.transactionMode === 'TRADING' ? 'TRADING' : 'STOCK'
-    const channelId = options.salesChannels.find((channel) => (
+    const customerId = detail.customerCode === '-' ? '' : detail.customerCode
+    const channelId = sourceOptions.salesChannels.find((channel) => (
       channel.name === detail.channelName ||
       channel.code === detail.channelName
-    ))?.id ?? ''
-    const warehouseId = options.warehouses.find((warehouse) => warehouse.name === detail.warehouseName)?.id ?? null
+    ))?.id ?? resolveSalesChannelIdForMarketScope(
+      sourceOptions.customers.find((customer) => customer.id === customerId)?.marketScope,
+      sourceOptions.salesChannels,
+    ) ?? ''
+    const warehouseId = sourceOptions.warehouses.find((warehouse) => warehouse.name === detail.warehouseName)?.id ?? null
     const deliveryDocNo = detail.deliveryDocNos[0] ?? detail.items.find((item) => item.deliveryTicketDocNo)?.deliveryTicketDocNo ?? null
     const tradingSourceByDocLine = new Map(
-      options.tradingCostSources.map((source) => {
+      sourceOptions.tradingCostSources.map((source) => {
         const parts = source.id.split(':')
         const sourceDocNo = parts[1] ?? ''
         const parsedLineNo = parts[2] ? Number(parts[2]) : null
@@ -2253,7 +2257,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       branchId: detail.branchId,
       channelId,
       customerAdvanceId: detail.customerAdvanceDocNo || null,
-      customerId: detail.customerCode === '-' ? '' : detail.customerCode,
+      customerId,
       deliveryTicketId: transactionMode === 'STOCK' ? deliveryDocNo : null,
       discountTotal: detail.discount,
       exportOrderNo: detail.exportOrderNo || null,
@@ -2278,7 +2282,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           ? tradingSourceByDocLine.get(`${item.tradingSourceDocNo}:${item.tradingSourceLineNo ?? ''}`) ?? null
           : null,
       })),
-      licensePlate: detail.items.find((item) => item.deliveryVehicleNo)?.deliveryVehicleNo || null,
+      licensePlate: detail.licensePlate || detail.items.find((item) => item.deliveryVehicleNo)?.deliveryVehicleNo || null,
       note: detail.note || null,
       poSellId: null,
       refNo: row.refNo || null,
@@ -2300,11 +2304,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setIsDetailLoading(true)
     setError(null)
     try {
-      const [detail] = await Promise.all([
+      const [detail, loadedOptions] = await Promise.all([
         dailyFetchJson<SalesBillDetail>(`/api/sales/bills/${encodeURIComponent(docNo)}`),
         loadSalesOptions(),
       ])
-      const nextForm = salesFormFromDetail(detail, row)
+      const nextForm = salesFormFromDetail(detail, row, loadedOptions)
       setEditingSalesBillId(docNo)
       setLockedDeliverySnapshot(salesDeliverySnapshotFromDetail(detail))
       setLockedPoSellOptions(salesPoSellOptionsFromDetail(detail))

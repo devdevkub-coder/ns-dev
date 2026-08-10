@@ -1994,10 +1994,8 @@ export async function POST(request: Request) {
     const tradingMatchedCogsByLineIndex = new Map<number, number>()
     if (values.transactionMode === 'TRADING') {
       const tradingSourceIds = values.items.map((item) => item.deliveryTicketId ? '' : item.tradingCostSourceId?.trim() ?? '')
-      const invalidSourceIndex = values.items.findIndex((item, index) => !item.deliveryTicketId && (!tradingSourceIds[index] || !parseTradingCostSourceId(tradingSourceIds[index])))
-      if (invalidSourceIndex >= 0) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: `เลือก Trading Cost Source ให้รายการที่ ${invalidSourceIndex + 1}` }, { status: 400 })
-      }
+      // A rollover Trading bill may be recorded before its purchase bill exists.
+      // Lines without a source remain unmatched until a later allocation correction.
       const parsedSourcesByIndex = tradingSourceIds.map((sourceId) => sourceId ? parseTradingCostSourceId(sourceId) : null)
       const parsedSources = parsedSourcesByIndex.filter((source): source is NonNullable<typeof source> => source != null)
       const sourceDocNos = [...new Set(parsedSources.filter((source) => source.sourceType === 'PB').map((source) => source.docNo))]
@@ -2596,7 +2594,11 @@ export async function POST(request: Request) {
 
       const normalizedLineCosts = requireSalesLineCosts({
         headerCogsAmount: normalizedHeaderCogsAmount,
-        lines: [...lineCogsByLineNo.entries()].map(([lineNo, cogsAmount]) => ({ cogsAmount, lineNo })),
+        lines: items.flatMap((item) => {
+          const cogsAmount = lineCogsByLineNo.get(item.lineNo)
+            ?? (values.transactionMode === 'TRADING' && !item.deliveryTicketId && !item.tradingCostSourceId ? '0.00' : null)
+          return cogsAmount == null ? [] : [{ cogsAmount, lineNo: item.lineNo }]
+        }),
         salesLineNumbers: items.map((item) => item.lineNo),
       })
       for (const line of createdLines) {
@@ -3544,12 +3546,14 @@ export async function PATCH(request: Request) {
         const updatedTotalCost = roundMoney(totalCost + stockCostDelta - oldManualStockCost + newManualStockCost)
         await tx.sales_bills.update({
           data: {
+            channel_id: channel.id,
             discount: values.discountTotal,
             discount_total: values.discountTotal,
             export_order_no: values.exportOrderNo,
             gross_profit: roundMoney(totals.grossProfitBase - updatedTotalCost),
             has_vat: values.hasVat,
             items: items as Prisma.InputJsonValue,
+            license_plate: values.licensePlate,
             note: values.note,
             notes: values.note,
             paid_amount: 0,

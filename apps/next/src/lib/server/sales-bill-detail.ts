@@ -57,6 +57,7 @@ export type SalesBillDetail = {
     unitCostSnapshot: number | null
     unit: string
   }>
+  licensePlate: string
   note: string
   paidAmount: number
   receivableBalance: number
@@ -728,6 +729,7 @@ export async function getSalesBillDetail(
     exportOrderNo: bill.export_order_no ?? '',
     hasVat: Boolean(bill.has_vat),
     items,
+    licensePlate: bill.license_plate ?? '',
     note: bill.note ?? bill.notes ?? '',
     paidAmount: toNumber(bill.paid_amount),
     receivableBalance: toNumber(bill.receivable_balance),

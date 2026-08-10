@@ -110,9 +110,6 @@ export const salesBillFormSchema = z.object({
   }).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId), {
     message: 'เลือกใบส่งของ WTO',
     path: ['deliveryTicketId'],
-  }).refine((value) => value.transactionMode !== 'TRADING' || value.items.every((item) => Boolean(item.deliveryTicketId) || Boolean(item.tradingCostSourceId)), {
-    message: 'บิลขาย Trading ต้องเลือกบิลซื้อ Trading/Cost Source ให้ครบทุกแถวที่ไม่ใช่ WTO',
-    path: ['items'],
   })
 
 export const salesBillCancelSchema = z.object({
