@@ -79,8 +79,6 @@ export function SearchCombobox({
   const containerRef = useRef<HTMLDivElement>(null)
   const closeTimerRef = useRef<number | null>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
-  const hasMovedRef = useRef(false)
   const selectedOption = useMemo(() => options.find((option) => option.id === value) ?? null, [options, value])
   const selectedLabel = selectedOption?.label ?? ''
   const selectedLabelQuery = selectedLabel.trim().toLowerCase()
@@ -408,7 +406,10 @@ export function SearchCombobox({
                   ปิด
                 </button>
               </div>
-              <div className="min-h-0 [@media(pointer:coarse)]:flex-1 [@media(pointer:coarse)]:overflow-y-auto [@media(pointer:coarse)]:overscroll-contain">
+              <div
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+              >
               {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
                 <button
                   key={option.id}
@@ -422,33 +423,12 @@ export function SearchCombobox({
                   type="button"
                   onMouseDownCapture={(event) => {
                     event.stopPropagation()
-                    selectOption(option)
+                    if (shouldAutoSelectText()) selectOption(option)
                   }}
                   onMouseEnter={() => setHighlightedIndex(index)}
-                  onTouchStartCapture={(event) => {
-                    const touch = event.touches[0]
-                    touchStartRef.current = { x: touch.clientX, y: touch.clientY }
-                    hasMovedRef.current = false
-                  }}
-                  onTouchMoveCapture={(event) => {
-                    if (!touchStartRef.current) return
-                    const touch = event.touches[0]
-                    const deltaX = Math.abs(touch.clientX - touchStartRef.current.x)
-                    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y)
-                    if (deltaX > 10 || deltaY > 10) {
-                      hasMovedRef.current = true
-                    }
-                  }}
-                  onTouchEndCapture={(event) => {
-                    event.stopPropagation()
-                    if (!hasMovedRef.current) {
-                      event.preventDefault()
-                      selectOption(option)
-                    }
-                    touchStartRef.current = null
-                  }}
                   onClick={(event) => {
                     event.preventDefault()
+                    if (!shouldAutoSelectText()) selectOption(option)
                   }}
                 >
                   <span className="block break-words font-medium">{option.label}</span>

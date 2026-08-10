@@ -114,6 +114,9 @@ describe('SearchCombobox portal interaction', () => {
 
     expect(document.getElementById('party-search-options')).not.toBeNull()
     expect(document.querySelector<HTMLInputElement>('input[aria-label="ผู้ขาย"]')).not.toBeNull()
+    const resultList = document.querySelector<HTMLElement>('#party-search-options > div:last-child')
+    expect(resultList?.classList.contains('overflow-y-auto')).toBe(true)
+    expect(resultList?.classList.contains('touch-pan-y')).toBe(true)
 
     act(() => {
       vi.advanceTimersByTime(200)
@@ -121,6 +124,45 @@ describe('SearchCombobox portal interaction', () => {
 
     expect(document.getElementById('party-search-options')).not.toBeNull()
     expect(input?.getAttribute('aria-expanded')).toBe('true')
+
+    act(() => root.unmount())
+  })
+
+  it('selects a mobile option after a tap without using touch handlers that block scrolling', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 0
+    })
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onChange = vi.fn()
+
+    act(() => {
+      root.render(
+        <SearchCombobox
+          inputId="party-search"
+          label="ผู้ขาย"
+          options={[{ id: 'supplier-a', label: 'ผู้ขาย A' }]}
+          value=""
+          onChange={onChange}
+        />,
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>('[role="combobox"]')
+    act(() => input?.focus())
+    const option = document.querySelector<HTMLButtonElement>('[role="option"]')
+    expect(option).not.toBeNull()
+
+    act(() => {
+      option?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+
+    expect(onChange).toHaveBeenLastCalledWith('supplier-a')
+    expect(input?.value).toBe('ผู้ขาย A')
 
     act(() => root.unmount())
   })
