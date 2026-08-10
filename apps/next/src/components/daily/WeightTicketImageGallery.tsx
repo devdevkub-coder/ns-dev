@@ -101,11 +101,11 @@ export function WeightTicketImageGallery({
         {isLoadingPreview && imageNames.length > 0 ? (
           <div className="text-sm text-slate-400" role="status">กำลังเตรียม preview รูปภาพ...</div>
         ) : images.length > 0 ? (
-          <div className="grid min-w-0 grid-cols-3 gap-3">
+          <div className="grid min-w-0 grid-cols-3 gap-3 md:grid-cols-4">
             {images.map((image, index) => (
               <button
                 aria-label={`เปิดรูปภาพประกอบ ${index + 1} จาก ${images.length}`}
-                className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
+                className="min-w-0 max-w-60 justify-self-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
                 key={`${image.url}-${index}`}
                 type="button"
                 onClick={() => onOpen({ activeIndex: index, images, title: 'รูปภาพประกอบ' })}
@@ -115,7 +115,7 @@ export function WeightTicketImageGallery({
                     alt={image.fileName}
                     className="object-cover"
                     fill
-                    sizes="33vw"
+                    sizes="(min-width: 768px) 15rem, 33vw"
                     src={image.url}
                     unoptimized
                   />

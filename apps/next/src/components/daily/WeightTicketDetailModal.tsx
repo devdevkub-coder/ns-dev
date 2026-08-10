@@ -1146,10 +1146,10 @@ function ImageGrid({
   return (
     <div className="space-y-3">
       {previewable.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {previewable.map((image, index) => (
             <button
-              className="overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
+              className="max-w-60 justify-self-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
               key={`${image.rawValue}-${index}`}
               type="button"
               onClick={() => onOpen({ activeIndex: index, images: galleryImages, title: 'รูปภาพรถส่งของ' })}

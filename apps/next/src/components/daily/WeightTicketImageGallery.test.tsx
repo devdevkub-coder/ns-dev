@@ -79,6 +79,7 @@ describe('WeightTicketImageGallery', () => {
     expect(container.firstElementChild?.className).toContain('min-w-0')
     expect(container.firstElementChild?.className).toContain('overflow-hidden')
     expect(buttons[0]?.parentElement?.className.split(' ')).toContain('grid-cols-3')
+    expect(buttons[0]?.parentElement?.className.split(' ')).toContain('md:grid-cols-4')
     expect(buttons[0]?.parentElement?.className.split(' ')).not.toContain('grid-cols-2')
 
     act(() => buttons[4]?.click())
