@@ -1205,6 +1205,11 @@ business rule ถูกทำสำเนาแล้วเปลี่ยนไ
 ถ้ากดยืนยันจึงเรียก mutation เดิมเพียงครั้งเดียว. กติกานี้ป้องกัน draft สูญหายโดยไม่เปลี่ยน
 payload, permission, timeline หรือ ledger ของ WTI/WTO.
 
+ตัวเลือกสาขาของทั้ง WTI และ WTO ใช้ shared dropdown แบบ read-only ภายใน modal. รายการ
+ตัวเลือกที่ render ผ่าน portal ต้องรับทั้ง mouse และ mobile tap ก่อน event ถูกตีความว่าเป็น
+interaction นอก dialog; การลากเพื่อเลื่อนรายการต้องไม่เลือกสาขาโดยไม่ตั้งใจ. เมื่อเลือกสำเร็จ
+จึงเรียก `changeBranch` และใช้ confirmation contract ด้านบนตามข้อมูลย่อยที่มีอยู่.
+
 ภายใน product source ยังแยก presentation เป็น `WeightTicketWtiFormSection` และ
 `WeightTicketWtoFormSection`; WTO section เพิ่ม warehouse และ stock availability
 ส่วน WTI ไม่มี stock-out source การสลับ tab จะ mount form คนละตัว และถ้ามีข้อมูลที่ยัง
@@ -1259,6 +1264,16 @@ transaction และ guard เดิม ไม่ใช้ realtime เป็�
 เดิมครบก่อน merge ใน transaction. รายการของผู้ใช้อื่นที่อยู่นอก section จะถูกเก็บไว้และ
 สรุปน้ำหนัก/stock ของเอกสารยังคำนวณจากข้อมูลทั้งใบ. จึงให้คนหนึ่ง submit เต๋าสินค้า A
 ขณะที่อีกคนแก้เต๋าสินค้า B ได้ โดยไม่ใช้ response ของ section A มาแทนที่ draft ของ B.
+
+สำหรับเอกสารใหม่ response ของ header-only save ต้องคืน `id`/`documentNo` และ UI แสดง
+เลขเอกสารทันที. ค่า ticket ที่ server คืนนี้เป็น identity สำหรับ section save ถัดไป แม้
+หน้าเดิมจะเปิดมาโดยยังไม่มี `ticketId`. เมื่อ section มี line ID ชั่วคราว server ต้องคืน
+`lineIdMap` ที่ระบุ client line ID ไปยัง persisted DB line ID โดยตรง แล้ว client remap
+line, parent/impurity relation, validation state และ dirty state ก่อน merge response.
+ทั้ง server และ client ต้องแทน section ณ ตำแหน่งเดิมของเอกสาร ห้ามย้ายสินค้าที่บันทึกไป
+ต้นหรือท้ายรายการ และ section save ห้ามลบ line ของสินค้าอื่นที่ไม่ได้อยู่ใน request.
+เหตุผลคืออีกอุปกรณ์ต้อง GET แล้วเห็นสินค้าได้ทันทีหลัง `บันทึกสินค้านี้` และการตอบกลับของ
+server ต้องไม่ทำให้ line ที่กำลังแก้หายหรือถูกสร้างซ้ำ.
 
 ปุ่มบันทึกทั้งเอกสารยังคงไว้สำหรับ final save และ header เพราะใช้เป็น safety net สำหรับ
 การตรวจข้อมูลรวมทั้งใบ; section save เป็นทางเลือกสำหรับการทำงานร่วมกันระหว่างกรอก draft.

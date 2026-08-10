@@ -32,7 +32,9 @@ import {
   getWeightTicketUsageTimeline,
   getWeightTicketUsageCounts,
   mapWeightTicketRow,
+  mergeWeightTicketSectionLines,
   resolveWeightTicketActorDisplayNames,
+  selectWeightTicketRemovedLineIds,
   WeightTicketDataContractError,
   weightTicketActorDisplayName,
   mutableTicketErrorMessage,
@@ -363,7 +365,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const collaborationChangedLineIds = new Set(values.collaborationChangedLineIds ?? values.lines.map((line) => line.id))
     const collaborationDeletedLineIds = new Set(values.collaborationDeletedLineIds ?? [])
     const ticketId = existing.id
-    const updated = await prisma.$transaction(async (tx) => {
+    const updateResult = await prisma.$transaction(async (tx) => {
       // Every ticket mutation uses the same lock and then re-reads lifecycle
       // state. PUT must not continue from a draft snapshot after confirm,
       // cancel, or downstream usage has already changed the ticket.
@@ -373,6 +375,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, lockedUsage)) {
         throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
       }
+      const sectionExistingLineIds = new Set<string>()
       if (values.saveScope === 'section') {
         const sectionLineIds = new Set(values.sectionLineIds ?? [])
         const lineById = new Map(existing.weight_ticket_lines.map((line) => [String(line.id), line] as const))
@@ -405,6 +408,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           const expectedSectionIds = existing.weight_ticket_lines
             .filter((line) => rootId(String(line.id)) === sectionRoot)
             .map((line) => String(line.id))
+          expectedSectionIds.forEach((lineId) => sectionExistingLineIds.add(lineId))
           const submittedSectionIds = new Set([
             ...values.lines.map((line) => line.id),
             ...(values.collaborationDeletedLineIds ?? []),
@@ -427,7 +431,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           },
         },
       })
-      let createdLines
+      let createdLines: Awaited<ReturnType<typeof prisma.weight_ticket_lines.findMany>>
+      let lineIdMap: Record<string, string> = {}
       let effectiveValues = values
       let effectiveTotals = totals
       // Collaboration-aware saves must keep immutable line IDs even when this
@@ -555,13 +560,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           `${existing.doc_no}:${line.line_no}`,
           values.collaborationBaseDocumentNo ? `${values.collaborationBaseDocumentNo}:${line.line_no}` : '',
         ].some((key) => key && collaborationBaseLineIds.has(key))
+        const submittedLines = values.lines.map(mergeLine).filter((line): line is (typeof values.lines)[number] => line != null)
+        const persistedLines = latestLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo))
         const remoteOnlyLines = latestLines.filter((line) => !incomingExistingIds.has(line.id) && !wasInBase(line))
         effectiveValues = {
           ...effectiveValues,
-          lines: [
-            ...values.lines.map(mergeLine).filter((line): line is (typeof values.lines)[number] => line != null),
-            ...remoteOnlyLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo)),
-          ],
+          lines: values.saveScope === 'section'
+            ? mergeWeightTicketSectionLines(persistedLines, submittedLines, sectionExistingLineIds)
+            : [
+                ...submittedLines,
+                ...remoteOnlyLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo)),
+              ],
         }
         const effectiveProductCodes = [...new Set(effectiveValues.lines.flatMap((line) => [
           line.productId.trim().toUpperCase(),
@@ -600,13 +609,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           parentId: line.parentId,
           productId: line.productId,
         })))
-        const removedLineIds = latestLines
-          .filter((line) => collaborationDeletedLineIds.size > 0
-            ? collaborationDeletedLineIds.has(String(line.id))
-            : wasInBase(line) && !incomingExistingIds.has(line.id))
-          .map((line) => line.id)
+        const removedLineIds = selectWeightTicketRemovedLineIds(latestLines, {
+          explicitlyDeletedLineIds: collaborationDeletedLineIds,
+          incomingExistingIds,
+          saveScope: values.saveScope,
+          wasInBase,
+        })
         if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
-        await Promise.all(effectiveLineRows.map(async (data, index) => {
+        const persistedLinePairs = await Promise.all(effectiveLineRows.map(async (data, index) => {
           const valueLine = effectiveValues.lines[index]
           const currentLine = latestLineByClientId.get(valueLine.id)
           if (currentLine) {
@@ -617,15 +627,18 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
                 : data,
               where: { id: currentLine.id },
             })
+            return [valueLine.id, String(currentLine.id)] as const
           } else {
-            await tx.weight_ticket_lines.create({ data })
+            const createdLine = await tx.weight_ticket_lines.create({ data })
+            return [valueLine.id, String(createdLine.id)] as const
           }
         }))
+        lineIdMap = Object.fromEntries(persistedLinePairs)
         createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
       } else if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
         const existingLineByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
         const retainedLineNos = new Set(lineRows.map((line) => line.line_no))
-        await Promise.all(lineRows.map(async (data) => {
+        const persistedLinePairs = await Promise.all(lineRows.map(async (data, index) => {
           const existingLine = existingLineByLineNo.get(data.line_no)
           if (existingLine) {
             const lineChanged = weightTicketLineWriteFingerprint(existingLine) !== weightTicketLineWriteFingerprint(data)
@@ -635,10 +648,13 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
                 : data,
               where: { id: existingLine.id },
             })
+            return [effectiveValues.lines[index].id, String(existingLine.id)] as const
           } else {
-            await tx.weight_ticket_lines.create({ data })
+            const createdLine = await tx.weight_ticket_lines.create({ data })
+            return [effectiveValues.lines[index].id, String(createdLine.id)] as const
           }
         }))
+        lineIdMap = Object.fromEntries(persistedLinePairs)
         const removedLineIds = existing.weight_ticket_lines
           .filter((line) => !retainedLineNos.has(line.line_no))
           .map((line) => line.id)
@@ -647,6 +663,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       } else {
         await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
         createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
+        lineIdMap = Object.fromEntries(effectiveValues.lines.map((line, index) => [line.id, String(createdLines[index].id)]))
       }
       if (effectiveValues.type === 'WTO' && effectiveValues.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, {
@@ -769,12 +786,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         })
       }
 
-      return tx.weight_tickets.findUniqueOrThrow({
+      const ticket = await tx.weight_tickets.findUniqueOrThrow({
         include: ticketInclude,
         where: { id: existing.id },
       })
+      return { lineIdMap, ticket }
     })
 
+    const updated = updateResult.ticket
     const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
     await recordAuditLog({
@@ -802,6 +821,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({
       ...mapped,
       createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames),
+      lineIdMap: updateResult.lineIdMap,
       updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
     })
   } catch (caught) {

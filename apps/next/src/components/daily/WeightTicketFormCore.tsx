@@ -199,6 +199,35 @@ export function remapWeightTicketLineKey(key: string, idMap: Record<string, stri
   return `line-${idMap[match[1]] ?? match[1]}-${match[2]}`
 }
 
+export function requirePersistedWeightTicketLineId(idMap: Record<string, string>, submittedLineId: string) {
+  const persistedLineId = idMap[submittedLineId]
+  if (!persistedLineId) {
+    throw new Error(`ผลการบันทึกไม่คืน ID ของรายการ ${submittedLineId}`)
+  }
+  return persistedLineId
+}
+
+export function replaceWeightTicketSectionLines<T extends { id: string }>(
+  currentLines: T[],
+  replacementLines: T[],
+  sectionLineIds: ReadonlySet<string>,
+) {
+  const nextLines: T[] = []
+  let insertedSection = false
+  currentLines.forEach((line) => {
+    if (!sectionLineIds.has(line.id)) {
+      nextLines.push(line)
+      return
+    }
+    if (!insertedSection) {
+      nextLines.push(...replacementLines)
+      insertedSection = true
+    }
+  })
+  if (!insertedSection) nextLines.push(...replacementLines)
+  return nextLines
+}
+
 function remapWeightTicketLineState(
   state: Record<string, boolean>,
   idMap: Record<string, string>,
@@ -1343,6 +1372,7 @@ export function WeightTicketFormCore({
     : form.type === 'WTI'
       ? 'สร้างใบรับของ WTI'
       : 'สร้างใบส่งของ WTO'
+  const persistedDocumentNo = savedTicket?.documentNo ?? loadedTicket?.documentNo ?? editingTicketId
   const isWeightTicketIn = form.type === WEIGHT_TICKET_TYPE.WTI
   const canShowWeightTicketTimer = isWeightTicketIn && (!editingTicketId || Boolean(loadedTicket))
   const timerStartAt = editingTicketId ? loadedTicket?.createdAt ?? null : draftStartedAt
@@ -2656,7 +2686,7 @@ export function WeightTicketFormCore({
   async function saveSection(sectionId: string) {
     if (isSaving || saveInFlightRef.current) return
     const baselineTicket = savedTicket ?? loadedTicket
-    if (!baselineTicket || !editingTicketId) {
+    if (!baselineTicket) {
       setMergeNotice('บันทึกหัวเอกสารก่อน จึงจะแยกบันทึก section ได้')
       return
     }
@@ -2749,7 +2779,7 @@ export function WeightTicketFormCore({
         godownName: snapshot.godownName.trim(),
       })
       const returnedForm = ticketToFormState(ticket)
-      const persistedRootId = baselineSectionLines.find((line) => line.id === sectionId)?.id ?? sectionId
+      const persistedRootId = requirePersistedWeightTicketLineId(ticket.lineIdMap, sectionId)
       const returnedSectionIds = new Set(getWeightTicketSectionLineIds(returnedForm.lines, persistedRootId))
       const latestForm = formRef.current
       const latestSectionIds = new Set(getWeightTicketSectionLineIds(latestForm.lines, sectionId))
@@ -2762,18 +2792,34 @@ export function WeightTicketFormCore({
       }))
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
+      const remappedSectionIds = new Set(Array.from(sectionLineIdSet, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
+      changedLineIdsRef.current = new Set(Array.from(changedLineIdsRef.current, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
+      deletedLineIdsRef.current = new Set(Array.from(deletedLineIdsRef.current, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
+      setCollapsedLotIds((current) => remapWeightTicketLineState(current, ticket.lineIdMap))
+      setCollapsedImpurityIds((current) => remapWeightTicketLineState(current, ticket.lineIdMap))
+      setTouched((current) => remapWeightTicketLineState(current, ticket.lineIdMap))
+      setPendingFocusField((current) => current ? remapWeightTicketLineKey(current, ticket.lineIdMap) : current)
+      setActiveLineId((current) => current ? (ticket.lineIdMap[current] ?? current) : current)
       if (!sectionWasChangedDuringSave) {
-        setForm((current) => ({
-          ...current,
-          lines: [
-            ...current.lines.filter((line) => !sectionLineIdSet.has(line.id)),
-            ...returnedForm.lines.filter((line) => returnedSectionIds.has(line.id)),
-          ],
-        }))
-        sectionLineIdSet.forEach((lineId) => changedLineIdsRef.current.delete(lineId))
-        deletedIds.forEach((lineId) => deletedLineIdsRef.current.delete(lineId))
+        setForm((current) => {
+          const remappedCurrentLines = remapWeightTicketLineIds(current.lines, ticket.lineIdMap)
+          return {
+            ...current,
+            lines: replaceWeightTicketSectionLines(
+              remappedCurrentLines,
+              returnedForm.lines.filter((line) => returnedSectionIds.has(line.id)),
+              remappedSectionIds,
+            ),
+          }
+        })
+        remappedSectionIds.forEach((lineId) => changedLineIdsRef.current.delete(lineId))
+        deletedIds.forEach((lineId) => deletedLineIdsRef.current.delete(ticket.lineIdMap[lineId] ?? lineId))
         setMergeNotice('บันทึกสินค้านี้แล้ว รายการสินค้าอื่นยังคงแก้ไขต่อได้')
       } else {
+        setForm((current) => ({
+          ...current,
+          lines: remapWeightTicketLineIds(current.lines, ticket.lineIdMap),
+        }))
         setMergeNotice('บันทึก section เดิมแล้ว แต่มีการแก้ไขเพิ่มระหว่างบันทึก จึงคงข้อมูลใหม่ไว้ให้ตรวจสอบ')
       }
       setRemoteChangedLineIds(new Set())
@@ -2801,6 +2847,11 @@ export function WeightTicketFormCore({
               <DialogTitle id="weight-ticket-form-title" className="truncate text-base font-bold text-white">
                 {embeddedModalTitle}
               </DialogTitle>
+              {persistedDocumentNo ? (
+                <p className="mt-1 truncate text-xs font-medium text-slate-300">
+                  เลขที่ {persistedDocumentNo}
+                </p>
+              ) : null}
             </div>
             <div className="flex max-w-[min(58vw,13rem)] shrink-0 justify-end gap-2 overflow-x-auto pb-0.5 sm:max-w-none sm:flex-wrap sm:overflow-visible sm:pb-0">
               <Button className="h-10 shrink-0 border-emerald-600 bg-emerald-600 px-4 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white disabled:opacity-60 sm:h-9" disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={saveTicket}>

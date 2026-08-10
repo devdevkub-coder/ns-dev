@@ -140,6 +140,29 @@ describe('shared combobox behavior', () => {
     expect(input.getAttribute('aria-expanded')).toBe('false')
     expect(document.getElementById('branch-filter-options')).toBeNull()
   })
+
+  it('selects a branch from the portalled list with a mobile tap', () => {
+    const onValueChange = vi.fn()
+    const input = renderHarness({ onValueChange })
+
+    act(() => input.focus())
+    const option = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]'))
+      .find((button) => button.textContent?.includes('สาขา B'))
+    expect(option).toBeDefined()
+
+    act(() => {
+      const touchStart = new Event('touchstart', { bubbles: true, cancelable: true })
+      Object.defineProperty(touchStart, 'touches', { value: [{ clientX: 20, clientY: 20 }] })
+      option?.dispatchEvent(touchStart)
+      const touchEnd = new Event('touchend', { bubbles: true, cancelable: true })
+      Object.defineProperty(touchEnd, 'changedTouches', { value: [{ clientX: 20, clientY: 20 }] })
+      option?.dispatchEvent(touchEnd)
+    })
+
+    expect(onValueChange).toHaveBeenLastCalledWith('สาขา B')
+    expect(input.value).toBe('สาขา B')
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+  })
 })
 
 describe('shared dropdown height contract', () => {

@@ -621,6 +621,60 @@ export function buildWeightTicketLineRows(
   })
 }
 
+export function buildWeightTicketLineIdMap(
+  submittedLines: Array<{ clientId: string; lineNo: number }>,
+  persistedLines: Array<{ id: bigint; line_no: number }>,
+) {
+  const persistedLineIdByLineNo = new Map(persistedLines.map((line) => [line.line_no, String(line.id)] as const))
+  return Object.fromEntries(submittedLines.map(({ clientId, lineNo }) => {
+    const persistedLineId = persistedLineIdByLineNo.get(lineNo)
+    if (!persistedLineId) throw new Error(`ไม่พบ persisted line สำหรับรายการที่ ${lineNo}`)
+    return [clientId, persistedLineId]
+  }))
+}
+
+export function mergeWeightTicketSectionLines<T extends { id: string }>(
+  persistedLines: T[],
+  submittedSectionLines: T[],
+  replacedPersistedLineIds: ReadonlySet<string>,
+) {
+  const mergedLines: T[] = []
+  let insertedSection = false
+
+  persistedLines.forEach((line) => {
+    if (!replacedPersistedLineIds.has(line.id)) {
+      mergedLines.push(line)
+      return
+    }
+    if (!insertedSection) {
+      mergedLines.push(...submittedSectionLines)
+      insertedSection = true
+    }
+  })
+
+  if (!insertedSection) mergedLines.push(...submittedSectionLines)
+  return mergedLines
+}
+
+export function selectWeightTicketRemovedLineIds<T extends { id: bigint }>(
+  latestLines: T[],
+  options: {
+    explicitlyDeletedLineIds: ReadonlySet<string>
+    incomingExistingIds: ReadonlySet<bigint>
+    saveScope: WeightTicketFormValues['saveScope']
+    wasInBase: (line: T) => boolean
+  },
+) {
+  return latestLines
+    .filter((line) => {
+      const explicitlyDeleted = options.explicitlyDeletedLineIds.has(String(line.id))
+      if (options.saveScope === 'section') return explicitlyDeleted
+      if (options.explicitlyDeletedLineIds.size > 0) return explicitlyDeleted
+      return options.wasInBase(line) && !options.incomingExistingIds.has(line.id)
+    })
+    .map((line) => line.id)
+}
+
 export function buildWeightTicketProductSummaryRows(
   ticketId: bigint,
   lineRows: Array<{

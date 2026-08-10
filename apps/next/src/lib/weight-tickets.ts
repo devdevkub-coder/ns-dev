@@ -667,6 +667,10 @@ export const weightTicketRecordSchema = z.object({
   godownName: z.string(),
 })
 
+const weightTicketSaveResultSchema = weightTicketRecordSchema.extend({
+  lineIdMap: z.record(z.string(), z.string()),
+})
+
 const weightTicketListResultSchema = z.object({
   canOpenPurchaseBill: z.boolean(),
   canOpenSalesBill: z.boolean(),
@@ -1286,7 +1290,7 @@ export async function saveWeightTicket(values: WeightTicketFormValues) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payloadFromForm(parsed)),
   })
-  return readJsonResponse(response, weightTicketRecordSchema, parsed.id ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้')
+  return readJsonResponse(response, weightTicketSaveResultSchema, parsed.id ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้')
 }
 
 export async function saveWeightTicketSection(values: WeightTicketFormValues) {

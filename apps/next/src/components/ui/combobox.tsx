@@ -375,6 +375,8 @@ export function ComboboxItem({
 }) {
   const { filteredItems, highlightedIndex, inputId, selectValue, selectedValue, setHighlightedIndex } = useComboboxContext('ComboboxItem')
   const itemRef = React.useRef<HTMLButtonElement>(null)
+  const touchStartRef = React.useRef<{ x: number; y: number } | null>(null)
+  const hasMovedRef = React.useRef(false)
   const item = filteredItems.find((entry) => entry.value === value)
   const itemIndex = filteredItems.findIndex((entry) => entry.value === value)
   const active = selectedValue === value
@@ -392,11 +394,33 @@ export function ComboboxItem({
       id={inputId && itemIndex >= 0 ? `${inputId}-option-${itemIndex}` : undefined}
       role="option"
       type="button"
-      onMouseDown={(event) => {
+      onMouseDownCapture={(event) => {
         event.preventDefault()
+        event.stopPropagation()
         selectValue(value)
       }}
       onMouseEnter={() => setHighlightedIndex(itemIndex)}
+      onTouchStartCapture={(event) => {
+        const touch = event.touches[0]
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+        hasMovedRef.current = false
+      }}
+      onTouchMoveCapture={(event) => {
+        if (!touchStartRef.current) return
+        const touch = event.touches[0]
+        const deltaX = Math.abs(touch.clientX - touchStartRef.current.x)
+        const deltaY = Math.abs(touch.clientY - touchStartRef.current.y)
+        if (deltaX > 10 || deltaY > 10) hasMovedRef.current = true
+      }}
+      onTouchEndCapture={(event) => {
+        event.stopPropagation()
+        if (!hasMovedRef.current) {
+          event.preventDefault()
+          selectValue(value)
+        }
+        touchStartRef.current = null
+      }}
+      onClick={(event) => event.preventDefault()}
     >
       <span className="block font-medium">{children}</span>
       {item?.description ? <span className="block text-xs text-slate-500 dark:text-slate-400">{item.description}</span> : null}

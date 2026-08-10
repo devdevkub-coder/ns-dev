@@ -19,6 +19,7 @@ import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/
 import {
   bangkokDateInput,
   branchScopeIds,
+  buildWeightTicketLineIdMap,
   buildWeightTicketLineRows,
   buildWeightTicketProductSummaryRows,
   defaultTicketStatus,
@@ -264,7 +265,7 @@ export async function POST(request: Request) {
       productId: line.productId,
     })))
 
-    const created = await prisma.$transaction(async (tx) => {
+    const createResult = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('weight_tickets.doc_no'))`
       const branchCode = requireWeightTicketBranchDocumentCode(branch.code)
       const docNo = await nextWeightTicketDocNo(tx, values.type, branchCode, documentDate)
@@ -339,12 +340,18 @@ export async function POST(request: Request) {
         weightTicketId: createdTicket.id,
       })
 
-      return tx.weight_tickets.findUniqueOrThrow({
+      const lineIdMap = buildWeightTicketLineIdMap(
+        values.lines.map((line, index) => ({ clientId: line.id, lineNo: index + 1 })),
+        createdLines,
+      )
+      const ticket = await tx.weight_tickets.findUniqueOrThrow({
         include: weightTicketInclude,
         where: { id: createdTicket.id },
       })
+      return { lineIdMap, ticket }
     })
 
+    const created = createResult.ticket
     const usage = await getWeightTicketUsageCounts(prisma, created.id)
     const mapped = mapWeightTicketRow(created, usage)
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
@@ -375,6 +382,7 @@ export async function POST(request: Request) {
     void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'created', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
     return NextResponse.json({
       ...displayMapped,
+      lineIdMap: createResult.lineIdMap,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
