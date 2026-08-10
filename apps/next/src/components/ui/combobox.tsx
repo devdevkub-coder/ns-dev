@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 
 import { Input } from '@/components/ui/Input'
@@ -26,7 +27,10 @@ type ComboboxContextValue = {
   filteredItems: NormalizedItem[]
   highlightedIndex: number
   inputId?: string
+  inputElement: HTMLInputElement | null
+  setInputElement: React.Dispatch<React.SetStateAction<HTMLInputElement | null>>
   open: boolean
+  panelRect: { left: number; maxHeight: number; top: number; width: number } | null
   query: string
   selectValue: (value: string) => void
   selectedValue?: string
@@ -84,6 +88,8 @@ export function Combobox({
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState(selectedLabel)
   const [highlightedIndex, setHighlightedIndex] = React.useState(-1)
+  const [inputElement, setInputElement] = React.useState<HTMLInputElement | null>(null)
+  const [panelRect, setPanelRect] = React.useState<ComboboxContextValue['panelRect']>(null)
   const isSelectedValueQuery = Boolean(selectedItem) && query.trim().toLowerCase() === selectedLabelQuery
 
   React.useEffect(() => {
@@ -117,19 +123,61 @@ export function Combobox({
     setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
   }, [filteredItems, open, value])
 
+  React.useEffect(() => {
+    if (!open || !inputElement) {
+      setPanelRect(null)
+      return
+    }
+
+    const updatePanelRect = () => {
+      const inputRect = inputElement.getBoundingClientRect()
+      const viewport = window.visualViewport
+      const viewportTop = viewport?.offsetTop ?? 0
+      const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight)
+      const gutter = 8
+      const maxHeight = 256
+      const spaceBelow = Math.max(0, viewportBottom - inputRect.bottom - gutter)
+      const spaceAbove = Math.max(0, inputRect.top - viewportTop - gutter)
+      const placeAbove = spaceBelow < Math.min(maxHeight, 160) && spaceAbove > spaceBelow
+      const availableSpace = placeAbove ? spaceAbove : spaceBelow
+      const panelMaxHeight = Math.max(48, Math.min(maxHeight, availableSpace))
+      setPanelRect({
+        left: inputRect.left,
+        maxHeight: panelMaxHeight,
+        top: placeAbove ? inputRect.top - panelMaxHeight - 4 : inputRect.bottom + 4,
+        width: inputRect.width,
+      })
+    }
+
+    updatePanelRect()
+    window.addEventListener('resize', updatePanelRect)
+    window.addEventListener('scroll', updatePanelRect, true)
+    window.visualViewport?.addEventListener('resize', updatePanelRect)
+    window.visualViewport?.addEventListener('scroll', updatePanelRect)
+    return () => {
+      window.removeEventListener('resize', updatePanelRect)
+      window.removeEventListener('scroll', updatePanelRect, true)
+      window.visualViewport?.removeEventListener('resize', updatePanelRect)
+      window.visualViewport?.removeEventListener('scroll', updatePanelRect)
+    }
+  }, [inputElement, open])
+
   const contextValue = React.useMemo<ComboboxContextValue>(() => ({
     disabled,
     filteredItems,
     highlightedIndex,
     inputId,
+    inputElement,
+    setInputElement,
     open,
+    panelRect,
     query,
     selectValue,
     selectedValue: value,
     setHighlightedIndex,
     setOpen,
     setQuery,
-  }), [disabled, filteredItems, highlightedIndex, inputId, open, query, selectValue, value])
+  }), [disabled, filteredItems, highlightedIndex, inputElement, inputId, open, panelRect, query, selectValue, setInputElement, value])
 
   return <ComboboxContext.Provider value={contextValue}>{children}</ComboboxContext.Provider>
 }
@@ -146,7 +194,7 @@ export function ComboboxInput({
   inputGroupClassName?: string
   withDropdownButton?: boolean
 }) {
-  const { disabled, filteredItems, highlightedIndex, inputId, open, query, selectValue, selectedValue, setHighlightedIndex, setOpen, setQuery } = useComboboxContext('ComboboxInput')
+  const { disabled, filteredItems, highlightedIndex, inputId, open, query, selectValue, selectedValue, setHighlightedIndex, setInputElement, setOpen, setQuery } = useComboboxContext('ComboboxInput')
   const inputRef = React.useRef<HTMLInputElement>(null)
   const selectedItem = React.useMemo(() => filteredItems.find((item) => item.value === selectedValue) ?? null, [filteredItems, selectedValue])
   const selectedLabel = selectedItem?.label ?? query
@@ -154,7 +202,10 @@ export function ComboboxInput({
 
   const inputNode = (
     <Input
-      ref={inputRef}
+      ref={(element) => {
+        inputRef.current = element
+        setInputElement(element)
+      }}
       aria-autocomplete="list"
       aria-activedescendant={open && highlightedIndex >= 0 && inputId ? `${inputId}-option-${highlightedIndex}` : undefined}
       aria-controls={inputId ? `${inputId}-options` : undefined}
@@ -287,9 +338,20 @@ function onValueChangeFallback(selectValue: (value: string) => void) {
 }
 
 export function ComboboxContent({ children, className }: { children: React.ReactNode; className?: string }) {
-  const { inputId, open } = useComboboxContext('ComboboxContent')
-  if (!open) return null
-  return <div className={className ?? 'absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)]'} data-slot="combobox-content" id={inputId ? `${inputId}-options` : undefined} role="listbox">{children}</div>
+  const { inputId, open, panelRect } = useComboboxContext('ComboboxContent')
+  if (!open || !panelRect || typeof document === 'undefined') return null
+  return createPortal(
+    <div
+      className={className ?? 'fixed z-[80] max-h-none overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)]'}
+      data-slot="combobox-content"
+      id={inputId ? `${inputId}-options` : undefined}
+      role="listbox"
+      style={panelRect}
+    >
+      {children}
+    </div>,
+    document.body,
+  )
 }
 
 export function ComboboxEmpty({ children }: { children: React.ReactNode }) {
