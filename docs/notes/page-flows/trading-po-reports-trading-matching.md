@@ -5,7 +5,7 @@ tags:
   - menu
   - trading
 status: accepted-baseline
-updated: 2026-06-13
+updated: 2026-08-10
 route: /trading/matching
 ---
 
@@ -91,7 +91,10 @@ Source tables:
 
 - `purchase_bills` where `transaction_mode = 'TRADING'` and not `cancelled`
 - `sales_bills` where `transaction_mode = 'TRADING'` and not `cancelled`
-- `trading_allocation_facts` where `status = active`
+- `trading_allocation_facts` where `status = active`, `sales_bill_id` is present,
+  and `cost_pool_entry_id` is null. Cost Pool allocations are owned by Cost
+  Allocator / Allocation Ledger and must not appear on this Trading Matching
+  read surface, even when their target references a Sales Bill.
 
 Response:
 
@@ -153,7 +156,10 @@ Export:
 
 ## Current Gap
 
-- Current API reads `trading_allocation_facts` as the normalized read model, with current legacy/current `trading_deals` backfilled by migration.
+- Current API reads Trading Sales Bill facts from `trading_allocation_facts` as the
+  normalized read model, with current legacy/current `trading_deals` backfilled by
+  migration. Cost Pool-backed facts are excluded by their exact
+  `cost_pool_entry_id` source identity.
 - Trading SB create now writes allocation facts directly for row-level Trading PB cost sources, and Trading SB cancel marks active facts cancelled.
 - Source edit/correction flow still needs to update/cancel/recreate allocation facts without hard delete, and first-class non-PB Cost Pool sources still need a normalized source model.
 - Current UI has no source Sales Bill/Purchase Bill edit drilldown.

@@ -7,6 +7,7 @@ import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
+import { isTradingMatchingAllocationFact } from '@/lib/server/trading-matching'
 
 export const runtime = 'nodejs'
 
@@ -73,15 +74,21 @@ export async function GET(request: Request) {
         },
         orderBy: [{ date: 'desc' }, { id: 'desc' }],
         take: 5000,
-        where: { status: 'active' },
+        where: {
+          cost_pool_entry_id: null,
+          sales_bill_id: { not: null },
+          status: 'active',
+        },
       }),
     ])
+
+    const tradingMatchingFacts = allocationFacts.filter(isTradingMatchingAllocationFact)
 
     const matchedPurchaseMap = new Map<bigint, number>()
     const matchedPurchaseDocMap = new Map<string, number>()
     const matchedSalesMap = new Map<bigint, number>()
     const matchedSalesDocMap = new Map<string, number>()
-    allocationFacts.forEach((fact) => {
+    tradingMatchingFacts.forEach((fact) => {
       if (isCancelled(fact.status)) return
       const matchedCost = toNumber(fact.matched_cogs)
       const matchedSales = toNumber(fact.sales_amount)
@@ -125,7 +132,7 @@ export async function GET(request: Request) {
       .filter((row) => !to || row.date <= to)
       .filter((row) => !q || `${row.docNo} ${row.customerName}`.toLowerCase().includes(q))
 
-    const dealRows = allocationFacts.map((fact, index) => {
+    const dealRows = tradingMatchingFacts.map((fact, index) => {
       const salesAmount = toNumber(fact.sales_amount)
       const purchaseAmount = toNumber(fact.matched_cogs)
       const grossProfit = salesAmount - purchaseAmount
@@ -180,7 +187,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       deals: dealRows,
       filters: {
-        statuses: Array.from(new Set(allocationFacts.map((fact) => fact.status ?? 'active'))).sort(),
+        statuses: Array.from(new Set(tradingMatchingFacts.map((fact) => fact.status ?? 'active'))).sort(),
       },
       purchases: purchaseRows,
       sales: salesRows,
