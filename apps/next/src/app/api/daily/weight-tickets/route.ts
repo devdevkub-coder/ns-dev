@@ -30,6 +30,8 @@ import {
   nextWeightTicketDocNo,
   parseWeightTicketQuery,
   requireWeightTicketBranchDocumentCode,
+  resolveWeightTicketActorDisplayNames,
+  weightTicketActorDisplayName,
   weightTicketAuditSnapshot,
   weightTicketOrderBy,
   weightTicketInclude,
@@ -125,15 +127,20 @@ export async function GET(request: Request) {
         ? mapWeightTicketRow(row as WeightTicketRow, usage)
         : mapWeightTicketListRow(row as WeightTicketListRow, usage)
     })
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames(mappedRows.map((row) => row.updatedBy))
+    const displayMappedRows = mappedRows.map((row) => ({
+      ...row,
+      updatedBy: weightTicketActorDisplayName(row.updatedBy, actorDisplayNames),
+    }))
 
     if (isXlsx) {
-      return withAuthNoStore(xlsxResponse(await buildWeightTicketWorkbook(mappedRows), `weight_tickets_${new Date().toISOString().slice(0, 10)}.xlsx`))
+      return withAuthNoStore(xlsxResponse(await buildWeightTicketWorkbook(displayMappedRows), `weight_tickets_${new Date().toISOString().slice(0, 10)}.xlsx`))
     }
 
     return withAuthNoStore(NextResponse.json({
       canOpenPurchaseBill: hasPermission(context, 'daily.weight_tickets.open_bill'),
       canOpenSalesBill: hasPermission(context, 'daily.weight_tickets.open_bill'),
-      rows: mappedRows,
+      rows: displayMappedRows,
       totalRows,
     }))
   } catch (caught) {

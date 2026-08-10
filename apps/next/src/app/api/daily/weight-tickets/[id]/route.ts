@@ -32,6 +32,8 @@ import {
   getWeightTicketUsageTimeline,
   getWeightTicketUsageCounts,
   mapWeightTicketRow,
+  resolveWeightTicketActorDisplayNames,
+  weightTicketActorDisplayName,
   mutableTicketErrorMessage,
   nextWeightTicketDocNo,
   requireWeightTicketBranchDocumentCode,
@@ -192,12 +194,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       getWeightTicketDownstreamAllocations(prisma, ticket.id),
       getWeightTicketPendingOutEvents(prisma, ticket.id),
     ])
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
+      responseMapped.updatedBy,
+      ...downstreamAllocations.map((event) => event.createdBy),
+      ...timeline.map((event) => event.actorName),
+      ...usageTimeline.map((event) => event.createdBy),
+    ])
     return withAuthNoStore(NextResponse.json({
       ...responseMapped,
-      downstreamAllocations,
+      downstreamAllocations: downstreamAllocations.map((event) => ({ ...event, createdBy: weightTicketActorDisplayName(event.createdBy, actorDisplayNames) })),
       pendingOutEvents,
-      timeline,
-      usageTimeline,
+      timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
+      updatedBy: weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
+      usageTimeline: usageTimeline.map((event) => ({ ...event, createdBy: weightTicketActorDisplayName(event.createdBy, actorDisplayNames) })),
     }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return withAuthNoStore(authContextErrorResponse(caught))
@@ -780,8 +789,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         targetType: 'weight_ticket',
     })
     void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: mapped.lines.map((line) => line.id) })
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.updatedBy])
     return NextResponse.json({
       ...mapped,
+      updatedBy: weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -945,10 +956,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         getWeightTicketTimeline(prisma, updated.id),
         getWeightTicketPendingOutEvents(prisma, updated.id),
       ])
+      const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
+        responseMapped.updatedBy,
+        ...timeline.map((event) => event.actorName),
+      ])
       return NextResponse.json({
         ...responseMapped,
         pendingOutEvents,
-        timeline,
+        timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
+        updatedBy: weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
       })
     }
 
@@ -1045,10 +1061,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       getWeightTicketTimeline(prisma, updated.id),
       getWeightTicketPendingOutEvents(prisma, updated.id),
     ])
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
+      responseMapped.updatedBy,
+      ...timeline.map((event) => event.actorName),
+    ])
     return NextResponse.json({
       ...responseMapped,
       pendingOutEvents,
-      timeline,
+      timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
+      updatedBy: weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

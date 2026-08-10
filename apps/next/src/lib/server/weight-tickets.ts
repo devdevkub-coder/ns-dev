@@ -448,6 +448,39 @@ export function enteredByLabel(context: AppAuthContext) {
   return displayName
 }
 
+export async function resolveWeightTicketActorDisplayNames(actorValues: string[]) {
+  const emails = [...new Set(actorValues
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.includes('@')))]
+  if (!emails.length) return new Map<string, string>()
+
+  const users = await prisma.app_users.findMany({
+    select: { display_name: true, email: true, first_name: true, last_name: true },
+    where: { email: { in: emails, mode: 'insensitive' } },
+  })
+  return new Map(users.flatMap((user) => {
+    const email = user.email?.trim().toLowerCase()
+    if (!email) return []
+    const displayName = user.display_name?.trim()
+    const firstAndLastName = [user.first_name, user.last_name]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .join(' ')
+      .trim()
+    const name = displayName || firstAndLastName
+    const lastName = user.last_name?.trim()
+    if (!name) return []
+    if (!lastName) return [[email, name] as const]
+
+    const lastInitial = `${Array.from(lastName).slice(0, 2).join('')}.`
+    const nameWithoutFullLastName = name.endsWith(lastName) ? name.slice(0, -lastName.length).trimEnd() : name
+    return [[email, `${nameWithoutFullLastName} ${lastInitial}`] as const]
+  }))
+}
+
+export function weightTicketActorDisplayName(value: string, displayNames: Map<string, string>) {
+  return displayNames.get(value.trim().toLowerCase()) ?? value
+}
+
 export function requireWeightTicketBranchDocumentCode(code: string | null | undefined) {
   const value = code?.trim()
   if (!value || !/^\d{2}$/.test(value)) {
