@@ -12,7 +12,7 @@ import {
   resolveWeightTicketImageProcessingConfig,
   resolveWeightTicketImageUploadConfig,
 } from '@/lib/server/weight-ticket-storage'
-import { processWeightTicketThumbnailAsset } from '@/lib/server/weight-ticket-thumbnail-jobs'
+import { cleanupWeightTicketImageAssets, processWeightTicketThumbnailAsset } from '@/lib/server/weight-ticket-thumbnail-jobs'
 
 export const runtime = 'nodejs'
 
@@ -132,6 +132,13 @@ export async function POST(request: Request) {
           assetId: String(asset.id),
           error: caught instanceof Error ? caught.message : String(caught),
           storageKey,
+        })
+      }
+      try {
+        await cleanupWeightTicketImageAssets()
+      } catch (caught) {
+        console.error('[weight_ticket_image_cleanup] cleanup crashed', {
+          error: caught instanceof Error ? caught.message : String(caught),
         })
       }
     })
