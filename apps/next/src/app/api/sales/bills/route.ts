@@ -170,7 +170,7 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
     pageSize: includePaging ? Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? 10) || 10)) : 10000,
     search: url.searchParams.get('search')?.trim() || undefined,
     sortDirection: url.searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc',
-    sortKey: url.searchParams.get('sortKey') || 'date',
+    sortKey: url.searchParams.get('sortKey') || 'docNo',
     statuses: url.searchParams.get('status')
       ?.split(',')
       .map((value) => value.trim())

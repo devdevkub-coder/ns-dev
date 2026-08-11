@@ -11,7 +11,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-10
-updated: 2026-06-25
+updated: 2026-08-11
 ---
 
 # Sales Bills Page Flow / Flow หน้า `/sales/bills`
@@ -35,6 +35,8 @@ updated: 2026-06-25
 - การสร้าง `WTO`; ใช้ `ชั่งสินค้า / รับ-ส่งของ` และรายการที่ `/daily/weight-ticket-list`
 - การรับเงิน Customer; ใช้ `/sales/receipts`
 - การแก้ `WTO` หลังถูกใช้แล้ว; ต้องใช้ reversal/status/usage policy ของเอกสารต้นทาง
+
+การเรียงรายการเริ่มต้นของตารางบิลขายใช้เลขที่เอกสารจากมากไปน้อย เพื่อให้บิลล่าสุดอยู่บนสุด เช่น `SB...0012` อยู่เหนือ `SB...0009`; เป็นลำดับการแสดงผลเท่านั้น ไม่เปลี่ยนข้อมูลเอกสารหรือเลขที่ที่ออกแล้ว
 
 ## Current Runtime Assessment
 

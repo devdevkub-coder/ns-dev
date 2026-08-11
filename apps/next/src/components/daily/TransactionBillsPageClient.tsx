@@ -1020,7 +1020,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [showForm, setShowForm] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortKey, setSortKey] = useState<SortKey>(mode === 'sales' ? 'docNo' : 'date')
   const [statusFilter, setStatusFilter] = useState<string[]>([])
   const [supplierSwapMode, setSupplierSwapMode] = useState(false)
   const [supplierSwapSupplierId, setSupplierSwapSupplierId] = useState('')
@@ -1923,7 +1923,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       return
     }
     setSortKey(nextKey)
-    setSortDirection(nextKey === 'date' || nextKey === 'totalAmount' || nextKey === 'outstanding' ? 'desc' : 'asc')
+    setSortDirection(nextKey === 'date' || nextKey === 'totalAmount' || nextKey === 'outstanding' || (mode === 'sales' && nextKey === 'docNo') ? 'desc' : 'asc')
   }
 
   async function openRow(row: BillRow) {
