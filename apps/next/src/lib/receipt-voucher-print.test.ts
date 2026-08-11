@@ -114,6 +114,28 @@ describe('receipt voucher print layout', () => {
     expect(html).toContain("@font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700; font-display: swap; }")
   })
 
+  it('keeps preview and print on the same A4 content contract with print colors preserved', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      profile: { address: '99 กรุงเทพ', logoUrl: null, name: longCompanyName, phone: '021234567', taxId: '0105559999999' },
+      profileConfigured: true,
+      selectedBranchName: null,
+    }), { headers: { 'content-type': 'application/json' }, status: 200 })))
+
+    let html = ''
+    const printWindow = {
+      document: { close: vi.fn(), open: vi.fn(), write: vi.fn((value: string) => { html = value }) },
+      focus: vi.fn(),
+    } as unknown as Window
+
+    await openReceiptVoucherPrint(document, printWindow)
+
+    expect(html).toMatch(/\.page\s*\{[^}]*width:\s*210mm;[^}]*height:\s*297mm;[^}]*min-height:\s*297mm;[^}]*max-height:\s*297mm;[^}]*padding:\s*8mm;/)
+    expect(html).toMatch(/\.accent\s*\{[^}]*height:\s*4px;[^}]*flex:\s*0\s+0\s+auto;/)
+    expect(html).toMatch(/@media print\s*\{[\s\S]*?-webkit-print-color-adjust:\s*exact;[\s\S]*?print-color-adjust:\s*exact;/)
+    expect(html).toMatch(/@media print\s*\{[\s\S]*?\.page\s*\{[^}]*width:\s*194mm;[^}]*height:\s*281mm;[^}]*min-height:\s*281mm;[^}]*max-height:\s*281mm;[^}]*overflow:\s*hidden;/)
+    expect(html).toMatch(/@media print\s*\{[\s\S]*?\.page\s*\{[^}]*padding:\s*0;/)
+  })
+
   it('gives the long Company Payer name a full row without leaving gaps in the two-column grid', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       profile: {

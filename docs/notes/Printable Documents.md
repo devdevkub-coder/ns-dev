@@ -126,6 +126,10 @@ Each placeholder panel contains `-` as the explicit empty value. The contract ap
 - Checked and aligned the active print-table templates for WTI/WTO, RV, PB, SB, PO Buy, PO Sell, Advance Payment allocation history, Payment Approval summary, Expense, and Money Movement PMT/RCP daily/customer receipt prints.
 - Browser page/dashboard print actions that print the current screen are not treated as corporate business-document templates unless the flow later promotes them to formal printable documents.
 
+## 2026-08-11 Preview/Print A4 Contract
+
+- `RV` Preview and browser Print now use the same A4 `border-box` page contract: `210 × 297 mm` on screen with `8 mm` page padding, and `194 × 281 mm` print content inside the `@page` `8 mm` margin. The shared corporate layout also preserves document background colors during print. What is what: the preview is the same document page shown on a slate work surface, while Print removes only the work-surface chrome and shadow. Why it has to be like this: changing the page geometry or dropping table/summary colors in `@media print` makes the signed receipt look like a different document and can move content relative to the signature area.
+
 ## 2026-07-03 WTI/WTO PDF Blank-Page Fix
 
 - WTI/WTO PDF share output must keep the first page as a true A4 print form and place photo evidence on page 2+ without an empty page between them.

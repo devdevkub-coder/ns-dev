@@ -331,6 +331,10 @@ function normalizePrintPages(document: Document, pages: readonly PrintPageElemen
     ${pageSelector}:last-of-type { break-after: auto !important; page-break-after: auto !important; }
     @page { size: A4 ${orientation}; margin: 8mm; }
     @media print {
+      ${pageSelector}, ${pageSelector} * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
       ${pageSelector} {
         width: ${isLandscape ? '281mm' : '194mm'} !important;
         height: ${isLandscape ? '194mm' : '281mm'} !important;

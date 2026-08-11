@@ -101,6 +101,7 @@ describe('paginateMeasuredCorporateRows', () => {
     await prepareCorporatePrintLayout(document)
 
     const pages = [...document.querySelectorAll<HTMLElement>('[data-corporate-print-page="true"]')]
+    expect(document.head.querySelector('style[data-corporate-print-layout]')?.textContent).toContain('print-color-adjust: exact')
     expect(pages).toHaveLength(2)
     expect(pages[0]?.querySelector('[data-page-totals="final"]')).toBeNull()
     expect(pages[0]?.querySelector('[data-page-totals="placeholder"]')).not.toBeNull()

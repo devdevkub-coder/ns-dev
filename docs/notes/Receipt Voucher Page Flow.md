@@ -453,6 +453,11 @@ Status ณ 2026-06-12:
 - Push: not done in this checkpoint because worktree contains unrelated dirty files; push should stage only the RV migration/schema/API/UI/doc/prisma guard files
 - Data note: RV/PB rows created before PB supplier snapshot may legitimately show blank supplier fields under the no-fallback rule; do not add runtime fallback for old rows
 
+## 2026-08-11 Preview/Print verification checkpoint
+
+- The RV print window now keeps the same A4 page geometry in Preview and browser Print, and the shared corporate print layer preserves the table and summary background colors. This changes presentation only; the RV snapshot, signer fields, payment-method boundary, and no-posting side-effect contract remain unchanged.
+- The RV top accent bar uses a non-shrinking flex basis so it remains visible when the fixed-height page is reflowed; this is presentation-only and does not alter RV data or posting behavior.
+
 ## Related Notes
 
 - [[Printable Documents]]

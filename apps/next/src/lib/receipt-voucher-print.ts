@@ -436,10 +436,10 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #059669; color: white; font: inherit; cursor: pointer; font-weight: bold; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; height: 277mm; min-height: 277mm; margin: 0 auto 16px; padding: 5mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2); border-radius: 4px; }
+      .page { box-sizing: border-box; width: 210mm; height: 297mm; min-height: 297mm; max-height: 297mm; margin: 0 auto 16px; padding: 8mm; overflow: hidden; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2); border-radius: 4px; }
       .page-break-before { page-break-before: always !important; break-before: page !important; }
       .print-footer { display: none; }
-      .accent { height: 4px; background: linear-gradient(90deg, #065f46, #84cc16, #cbd5e1); border-radius: 99px; margin-bottom: 8px; }
+      .accent { height: 4px; flex: 0 0 auto; background: linear-gradient(90deg, #065f46, #84cc16, #cbd5e1); border-radius: 99px; margin-bottom: 8px; }
       .header { display: grid; grid-template-columns: 1.2fr .8fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }
       .company { display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: start; min-width: 0; }
       .logo { width: 60px; height: 60px; object-fit: contain; }
@@ -503,7 +503,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .legal-note { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 6px; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; break-inside: avoid; page-break-inside: avoid; }
 
       /* Auto Dense Sizing */
-      .page.is-dense { padding: 4.5mm; }
+      .page.is-dense { padding: 8mm; }
       .page.is-dense .company-name { font-size: 14px; }
       .page.is-dense .company-info { font-size: 11px; margin-top: 2px; }
       .page.is-dense .doc-title { font-size: 20px; }
@@ -525,9 +525,11 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
+        *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { background: white; margin: 0; padding: 0; }
         .toolbar { display: none !important; }
-        .page { border: 0; box-shadow: none; margin: 0; padding: 0; width: 100%; min-height: 0; border-radius: 0; }
+        .page { border: 0; box-shadow: none; margin: 0; padding: 0; width: 194mm; height: 281mm; min-height: 281mm; max-height: 281mm; overflow: hidden; border-radius: 0; break-after: page; page-break-after: always; }
+        .page:last-of-type { break-after: auto; page-break-after: auto; }
         .page.page-break-before { page-break-before: always !important; break-before: page !important; }
       }
     </style>
