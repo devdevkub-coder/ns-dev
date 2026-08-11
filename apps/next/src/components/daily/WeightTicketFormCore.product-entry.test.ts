@@ -54,7 +54,8 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toMatch(/function initialForm[\s\S]*?lines:\s*\[\],/)
     expect(formSource).toContain("if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
     expect(formSource).toContain("const firstErrorKey = errors.lines ? 'lines' : errorKeys[0]")
-    expect(formSource).toContain('ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;')
+    expect(formSource).toContain('ยังไม่มีสินค้า')
+    expect(formSource).toContain('id="weight-ticket-add-product"')
   })
 
   it('uploads the selected image without client-side resizing', () => {
@@ -281,7 +282,13 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).not.toContain("isMobileProductEditorVisible ? 'opacity-100' : 'opacity-0'")
     expect(formSource).not.toContain("window.matchMedia('(prefers-reduced-motion: reduce)').matches")
     expect(formSource).not.toContain('motion-reduce:transition-none')
-    expect(formSource).toContain("activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'")
+    expect(formSource).toContain("isMobileLotDetailMode ? 'รายละเอียดเต๋า' : activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'")
+    expect(formSource).toContain("const [mobileLotDetailId, setMobileLotDetailId] = useState<string | null>(null)")
+    expect(formSource).toContain('const isMobileLotDetailMode = Boolean(')
+    expect(formSource).toContain("lots.filter((entry) => entry.id === mobileLotDetailId)")
+    expect(formSource).toContain('กรอกข้อมูลเต๋า แล้วกลับไปบันทึกสินค้านี้')
+    expect(formSource).toContain('กลับไปสินค้า')
+    expect(formSource).toContain('setMobileLotDetailId((current) => current ? (ticket.lineIdMap[current] ?? current) : current)')
     expect(formSource).toContain('mt-1 flex min-w-0 items-center gap-2')
     expect(formSource).toContain('{hasSelectedProduct ? (')
     expect(formSource).toContain('{activeLine.productId || getMainParentLines(form.lines).length > 1 ? (')
@@ -289,6 +296,7 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('const closeMobileProductEditor = useCallback(')
     expect(formSource).toContain('prepareValidationFocus(firstErrorKey)')
     expect(formSource).toContain('setCollapsedLotIds((current) => ({ ...current, [target.lotId as string]: false }))')
+    expect(formSource).toContain('setMobileLotDetailId(target.lotId)')
     expect(formSource).toContain('setCollapsedImpurityIds((current) => ({ ...current, [target.impurityId as string]: false }))')
     expect(formSource).toContain('id={`weight-ticket-line-card-${line.id}`}')
     expect(formSource).toContain("window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape'")
@@ -305,8 +313,9 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain("const [mobileEntryStep, setMobileEntryStep] = useState<'header' | 'products'>('header')")
     expect(formSource).toContain("mobileEntryStep === 'header' ? 'ขั้นตอน 1 จาก 2 · ข้อมูลหัวเอกสาร' : 'ขั้นตอน 2 จาก 2 · รายการสินค้า'")
     expect(formSource).toContain('บันทึกหัวเอกสารและไปต่อ')
-    expect(formSource).toContain('ตรวจหัวเอกสาร')
-    expect(formSource).toContain('บันทึกเอกสาร')
+    expect(formSource).toContain('แก้ไขหัวเอกสาร')
+    expect(formSource).not.toContain('ตรวจหัวเอกสาร')
+    expect(formSource).not.toContain('บันทึกเอกสาร')
     expect(formSource).toContain("isEmbeddedModal && mobileEntryStep === 'products' ? 'hidden xl:block' : ''")
   })
 
@@ -694,9 +703,7 @@ describe('weight-ticket product editor behavior', () => {
       await Promise.resolve()
     })
 
-    expect(Array.from(container.querySelectorAll('button')).filter((button) => (
-      button.textContent?.trim() === 'เพิ่มสินค้า' && button.id !== 'weight-ticket-add-product'
-    ))).toHaveLength(0)
+    expect(container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')).not.toBeNull()
 
     const productInput = container.querySelector<HTMLInputElement>('[id^="weight-product-"]')
     expect(productInput).not.toBeNull()
@@ -961,7 +968,7 @@ describe('weight-ticket product editor behavior', () => {
       await Promise.resolve()
     })
 
-    expect(document.activeElement).toBe(addProductButton)
+    expect(document.activeElement).toBe(document.body)
 
     vi.useFakeTimers()
     const escapeEvent = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' })
@@ -1024,7 +1031,7 @@ describe('weight-ticket product editor behavior', () => {
 
     now += 400
     await act(async () => {
-      addProductButton?.click()
+      container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
       await Promise.resolve()
     })
 
@@ -1073,7 +1080,7 @@ describe('weight-ticket product editor behavior', () => {
 
     now += 400
     await act(async () => {
-      addProductButton?.click()
+      container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
       await Promise.resolve()
     })
 

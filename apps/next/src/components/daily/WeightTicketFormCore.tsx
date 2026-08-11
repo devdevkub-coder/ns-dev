@@ -1203,6 +1203,8 @@ export function WeightTicketFormCore({
   const [activeLineId, setActiveLineId] = useState('')
   const [mobileEntryStep, setMobileEntryStep] = useState<'header' | 'products'>('header')
   const [mobileProductView, setMobileProductView] = useState<'list' | 'editor'>('list')
+  const [mobileLotDetailId, setMobileLotDetailId] = useState<string | null>(null)
+  const [isDesktopViewport, setIsDesktopViewport] = useState(false)
   const [isMobileProductEditorVisible, setMobileProductEditorVisible] = useState(false)
   const mobileProductEditorCloseTimeoutRef = useRef<number | null>(null)
   const mobileProductEditorOpenAnimationFrameRef = useRef<number | null>(null)
@@ -1503,6 +1505,16 @@ export function WeightTicketFormCore({
     },
     [activeLineId, form.lines],
   )
+  const mobileLotDetailLine = mobileLotDetailId
+    ? form.lines.find((entry) => entry.id === mobileLotDetailId) ?? null
+    : null
+  const isMobileLotDetailMode = Boolean(
+    mobileLotDetailLine
+      && isEmbeddedModal
+      && !isDesktopViewport
+      && activeLine
+      && (mobileLotDetailLine.id === activeLine.id || mobileLotDetailLine.parentId === activeLine.id),
+  )
 
   useEffect(() => {
     if (!isEmbeddedModal || !isWeightTicketIn || !canShowWeightTicketTimer || timerStopMs !== null) return
@@ -1716,6 +1728,7 @@ export function WeightTicketFormCore({
         setActiveLineId('')
         setMobileEntryStep('products')
         setMobileProductView('list')
+        setMobileLotDetailId(null)
         setTouched({})
       } catch (caught) {
         if (!cancelled) setLoadError(getErrorMessage(caught, 'โหลดใบรับ-ส่งของที่ต้องการแก้ไขไม่ได้'))
@@ -1779,6 +1792,23 @@ export function WeightTicketFormCore({
     }
   }, [activeLineId, form.lines])
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1280px)')
+    const updateViewport = () => {
+      setIsDesktopViewport(mediaQuery.matches)
+      if (mediaQuery.matches) setMobileLotDetailId(null)
+    }
+    updateViewport()
+    mediaQuery.addEventListener('change', updateViewport)
+    return () => mediaQuery.removeEventListener('change', updateViewport)
+  }, [])
+
+  useEffect(() => {
+    if (mobileLotDetailId && !form.lines.some((line) => line.id === mobileLotDetailId)) {
+      setMobileLotDetailId(null)
+    }
+  }, [form.lines, mobileLotDetailId])
+
   function getElementId(errorKey: string): string | null {
     if (errorKey === 'branchId') return 'weight-ticket-branch'
     if (errorKey === 'partyId') return 'weight-ticket-party'
@@ -1824,6 +1854,9 @@ export function WeightTicketFormCore({
     setActiveLineId(target.productSectionId)
     if (target.lotId) {
       setCollapsedLotIds((current) => ({ ...current, [target.lotId as string]: false }))
+      if (isEmbeddedModal && typeof window !== 'undefined' && !window.matchMedia('(min-width: 1280px)').matches) {
+        setMobileLotDetailId(target.lotId)
+      }
     }
     if (target.impurityId) {
       setCollapsedImpurityIds((current) => ({ ...current, [target.impurityId as string]: false }))
@@ -2300,6 +2333,7 @@ export function WeightTicketFormCore({
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)
+    setMobileLotDetailId(null)
     setMobileEntryStep('products')
     setMobileProductView('editor')
     void saveDraftBeforeAdding(form)
@@ -2311,6 +2345,7 @@ export function WeightTicketFormCore({
     cancelMobileProductEditorOpenAnimation()
     const finishClose = () => {
       mobileProductEditorCloseTimeoutRef.current = null
+      setMobileLotDetailId(null)
       setMobileProductView('list')
       onClosed?.()
       window.requestAnimationFrame(() => {
@@ -2368,6 +2403,9 @@ export function WeightTicketFormCore({
       [nextLine.id]: false,
     }))
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
+    if (!window.matchMedia('(min-width: 1280px)').matches) {
+      setMobileLotDetailId(nextLine.id)
+    }
     setPendingFocusField(`line-${nextLine.id}-gross`)
 
     if (!firstLineError) {
@@ -2387,6 +2425,7 @@ export function WeightTicketFormCore({
         setTouched((current) => remapWeightTicketLineState(current, lineIdMap))
         setPendingFocusField((current) => current ? remapWeightTicketLineKey(current, lineIdMap) : current)
         setActiveLineId((current) => current === sourceLine.id ? persistedSourceLine.id : current)
+        setMobileLotDetailId((current) => current === sourceLine.id ? persistedSourceLine.id : current)
       })
     }
   }
@@ -2433,6 +2472,7 @@ export function WeightTicketFormCore({
           markLinesDirty([duplicateParent.id])
           nextLines = nextLines.map((line) => line.id === lineId ? { ...line, parentId: duplicateParent.id } : line)
           setActiveLineId(duplicateParent.id)
+          setMobileLotDetailId(null)
           setMergeNotice('สินค้านี้อยู่ในคลังนี้แล้ว ระบบรวมเป็นเต๋าใหม่ในรายการเดิม')
         }
       }
@@ -2460,6 +2500,7 @@ export function WeightTicketFormCore({
           ? { ...line, impurityPurchaseAction: 'none' as const }
           : line)
       markLinesDeleted([...removedIds])
+      setMobileLotDetailId((current) => current && removedIds.has(current) ? null : current)
       return {
         ...current,
         lines: nextLines,
@@ -2546,8 +2587,12 @@ export function WeightTicketFormCore({
           && line.productId === removedLine.productId
           && !isImpurityPurchaseLine(line)
         ))
-        if (promotedLine) setActiveLineId(promotedLine.id)
+        if (promotedLine) {
+          setActiveLineId(promotedLine.id)
+          setMobileLotDetailId(null)
+        }
       }
+      if (removedIds.includes(lotId)) setMobileLotDetailId(null)
 
       return nextLines.length === current.lines.length && nextLines.every((line, index) => line === current.lines[index])
         ? current
@@ -3084,6 +3129,7 @@ export function WeightTicketFormCore({
       setTouched((current) => remapWeightTicketLineState(current, ticket.lineIdMap))
       setPendingFocusField((current) => current ? remapWeightTicketLineKey(current, ticket.lineIdMap) : current)
       setActiveLineId((current) => current ? (ticket.lineIdMap[current] ?? current) : current)
+      setMobileLotDetailId((current) => current ? (ticket.lineIdMap[current] ?? current) : current)
       if (!sectionWasChangedDuringSave) {
         setForm((current) => {
           const remappedCurrentLines = remapWeightTicketLineIds(current.lines, ticket.lineIdMap)
@@ -3405,29 +3451,19 @@ export function WeightTicketFormCore({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <SectionHeader title="สินค้าและน้ำหนัก" />
               {isEmbeddedModal ? (
-                <div className="flex shrink-0 items-center gap-2 xl:hidden">
-                  <Button
-                    className="h-9 px-3 text-xs font-semibold"
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setMobileEntryStep('header')
-                      setMobileProductView('list')
-                    }}
-                  >
-                    ตรวจหัวเอกสาร
-                  </Button>
-                  <Button
-                    className="h-9 border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
-                    disabled={isLoadingTicket || isSaving}
-                    size="sm"
-                    type="button"
-                    onClick={() => void saveTicket()}
-                  >
-                    บันทึกเอกสาร
-                  </Button>
-                </div>
+                <Button
+                  className="h-9 px-3 text-xs font-semibold xl:hidden"
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setMobileEntryStep('header')
+                    setMobileProductView('list')
+                    setMobileLotDetailId(null)
+                  }}
+                >
+                  แก้ไขหัวเอกสาร
+                </Button>
               ) : null}
             </div>
 
@@ -3441,17 +3477,18 @@ export function WeightTicketFormCore({
               <div className="min-w-0 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-medium text-slate-700">รายการทั้งหมด {getMainParentLines(form.lines).length} รายการ</div>
-                  <Button
-                    aria-describedby={showError('lines') ? 'weight-ticket-lines-error' : undefined}
-                    className="h-9 border-emerald-600 bg-emerald-600 px-3 font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
-                    id="weight-ticket-add-product"
-                    size="xs"
-                    type="button"
-                    onClick={addLine}
-                  >
-                    <Plus className="mr-1 size-3" />
-                    เพิ่มสินค้า
-                  </Button>
+                  {getMainParentLines(form.lines).length > 0 ? (
+                    <Button
+                      className="h-9 border-emerald-600 bg-emerald-600 px-3 font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
+                      id="weight-ticket-add-product"
+                      size="xs"
+                      type="button"
+                      onClick={addLine}
+                    >
+                      <Plus className="mr-1 size-3" />
+                      เพิ่มสินค้า
+                    </Button>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   {(() => {
@@ -3459,8 +3496,18 @@ export function WeightTicketFormCore({
                     if (parentLines.length === 0) {
                       return (
                         <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
-                          <p className="text-sm font-medium text-slate-600">ยังไม่มีสินค้า — กด &quot;+ เพิ่มสินค้า&quot;</p>
+                          <p className="text-sm font-medium text-slate-600">ยังไม่มีสินค้า</p>
                           <p className="mt-1 text-xs text-slate-500">เพิ่มรายการสินค้าแล้วจึงเลือกสินค้าและกรอกน้ำหนัก</p>
+                          <Button
+                            aria-describedby={showError('lines') ? 'weight-ticket-lines-error' : undefined}
+                            className="mt-4 h-10 border-emerald-600 bg-emerald-600 px-4 font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
+                            id="weight-ticket-add-product"
+                            type="button"
+                            onClick={addLine}
+                          >
+                            <Plus className="mr-1.5 size-4" />
+                            เพิ่มสินค้า
+                          </Button>
                           {showError('lines') ? (
                             <p id="weight-ticket-lines-error" role="alert" className="mt-2 text-xs font-medium text-rose-700">
                               {showError('lines')}
@@ -3498,6 +3545,7 @@ export function WeightTicketFormCore({
                           type="button"
                           onClick={() => {
                             setActiveLineId(line.id)
+                            setMobileLotDetailId(null)
                             setMobileProductView('editor')
                           }}
                         >
@@ -3561,49 +3609,66 @@ export function WeightTicketFormCore({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 text-base font-bold text-slate-900">
                             <Pencil className="size-4 shrink-0 text-blue-600" />
-                            <h3>{activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
+                            <h3>{isMobileLotDetailMode ? 'รายละเอียดเต๋า' : activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
                           </div>
                           <div className="mt-1 flex min-w-0 items-center gap-2">
                             <p className="shrink-0 text-xs font-medium text-slate-500">รายการ {getMainParentLines(form.lines).findIndex((entry) => entry.id === getWeightTicketRootLine(form.lines, activeLine).id) + 1}</p>
                             <span aria-hidden="true" className="shrink-0 text-xs text-slate-300">·</span>
                             <div className="min-w-0 truncate text-sm font-semibold text-slate-700">
-                              {products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
+                              {isMobileLotDetailMode ? 'กรอกข้อมูลเต๋า แล้วกลับไปบันทึกสินค้านี้' : products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
                             </div>
                           </div>
                         </div>
-                        <Button
-                          aria-label="ปิดหน้ากรอกสินค้า"
-                          className="size-9 shrink-0 p-0 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                          size="sm"
-                          type="button"
-                          variant="ghost"
-                          onClick={() => closeMobileProductEditor()}
-                        >
-                          <X className="size-5" />
-                        </Button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {isMobileLotDetailMode ? (
+                            <Button
+                              className="h-9 px-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                              onClick={() => setMobileLotDetailId(null)}
+                            >
+                              กลับไปสินค้า
+                            </Button>
+                          ) : null}
+                          <Button
+                            aria-label="ปิดหน้ากรอกสินค้า"
+                            className="size-9 shrink-0 p-0 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                            onClick={() => closeMobileProductEditor()}
+                          >
+                            <X className="size-5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-3 py-3 xl:contents">
                       {(() => {
                 const line = activeLine
+                const impurityOwnerLine = isMobileLotDetailMode && mobileLotDetailLine
+                  ? mobileLotDetailLine
+                  : line
                 const parentLines = getMainParentLines(form.lines)
                 const rootLine = getWeightTicketRootLine(form.lines, line)
                 const index = parentLines.findIndex((entry) => entry.id === rootLine.id)
                 const lineTotals = calculateAdjustedLineTotals(line, lineCalculation)
                 const hasSelectedProduct = Boolean(line.productId)
-                const isPurchaseOnlyLine = isImpurityPurchaseLine(line)
+                const isPurchaseOnlyLine = isImpurityPurchaseLine(impurityOwnerLine)
                 const realLotSummary = calculateRealLotSummary(line, form.lines)
                 const purchaseSourceWeight = Math.max(
                   0,
-                  Number(line.grossWeight || 0) - Number(line.containerDeductionWeight || 0),
+                  Number(impurityOwnerLine.grossWeight || 0) - Number(impurityOwnerLine.containerDeductionWeight || 0),
                 )
-                const canAddImpurityLine = hasSelectedProduct && (isPurchaseOnlyLine
+                const impurityOwnerHasSelectedProduct = Boolean(impurityOwnerLine.productId)
+                const canAddImpurityLine = impurityOwnerHasSelectedProduct && (isPurchaseOnlyLine
                   ? purchaseSourceWeight > 0
-                  : realLotSummary.lotCount > 0)
-                const impurityChildLines = getImpurityChildLines(line, form.lines)
-                const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(line, form.lines)
+                  : calculateRealLotSummary(impurityOwnerLine, form.lines).lotCount > 0)
+                const impurityChildLines = getImpurityChildLines(impurityOwnerLine, form.lines)
+                const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(impurityOwnerLine, form.lines)
                 const purchaseSourceLine = isPurchaseOnlyLine
-                  ? form.lines.find((entry) => entry.id === line.impuritySourceLineId)
+                  ? form.lines.find((entry) => entry.id === impurityOwnerLine.impuritySourceLineId)
                   : undefined
                 const purchaseOnlyNote = purchaseSourceLine
                   ? `ซื้อเพิ่มจากสิ่งเจือปน 1 รายการ รวม ${formatWeight(calculateAdjustedLineTotals(purchaseSourceLine, lineCalculation).deductionWeight)} กก.`
@@ -3690,7 +3755,14 @@ export function WeightTicketFormCore({
 
                     {/* ส่วนที่ 1: ข้อมูลสินค้าและคลังสินค้า */}
                     <div className="space-y-4">
-                      {form.type === 'WTI' ? (
+                      {isMobileLotDetailMode ? (
+                        <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-sm">
+                          <div className="text-xs font-semibold text-blue-700">สินค้า</div>
+                          <div className="mt-0.5 font-semibold text-slate-800">
+                            {selectedProduct?.name || 'ไม่พบสินค้าที่เลือก'}
+                          </div>
+                        </div>
+                      ) : form.type === 'WTI' ? (
                         <WeightTicketWtiFormSection product={productSectionProps} />
                       ) : (
                         <WeightTicketWtoFormSection product={productSectionProps} warehouse={warehouseSectionProps} />
@@ -3707,14 +3779,18 @@ export function WeightTicketFormCore({
                           {(() => {
                             const secondaryLots = form.lines.filter((l) => l.parentId === line.id && !isImpurityPurchaseLine(l) && l.deductionMode === 'none')
                             const lots = isPurchaseOnlyLine ? secondaryLots : [line, ...secondaryLots]
-                            if (lots.length === 0) {
+                            const visibleLots = isMobileLotDetailMode
+                              ? lots.filter((entry) => entry.id === mobileLotDetailId)
+                              : lots
+                            if (visibleLots.length === 0) {
                               return (
                                 <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-400">
                                   รายการนี้มาจากการซื้อเพิ่มจากสิ่งเจือปน ยังไม่มีเต๋าสินค้าหลัก
                                 </div>
                               )
                             }
-                            return lots.map((lot, lotIndex) => {
+                            return visibleLots.map((lot) => {
+                              const lotIndex = lots.findIndex((entry) => entry.id === lot.id)
                               const isParent = !lot.parentId
                               const isCollapsed = Boolean(collapsedLotIds[lot.id])
                               const lotGrossWeight = Math.max(0, Number(lot.grossWeight || 0))
@@ -3733,7 +3809,18 @@ export function WeightTicketFormCore({
                                       type="button"
                                       className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none"
                                       aria-expanded={!isCollapsed}
-                                      onClick={() => toggleLotCollapsed(lot.id)}
+                                      onClick={() => {
+                                        if (isMobileLotDetailMode) return
+                                        if (isEmbeddedModal && !window.matchMedia('(min-width: 1280px)').matches) {
+                                          setMobileLotDetailId(lot.id)
+                                          setCollapsedLotIds((current) => ({
+                                            ...current,
+                                            ...Object.fromEntries(lots.map((entry) => [entry.id, entry.id !== lot.id])),
+                                          }))
+                                        } else {
+                                          toggleLotCollapsed(lot.id)
+                                        }
+                                      }}
                                     >
                                       <ChevronDown className={cn("size-4 shrink-0 text-slate-500 transition-transform", isCollapsed ? "-rotate-90" : "rotate-0")} />
                                       <div className="min-w-0">
@@ -3750,15 +3837,25 @@ export function WeightTicketFormCore({
                                       </div>
                                     </button>
                                     <div className="flex items-center gap-1">
-                                      <Button
+                                      {!isMobileLotDetailMode ? <Button
                                         size="xs"
                                         type="button"
                                         variant="ghost"
                                         className="h-9 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 outline-none"
-                                        onClick={() => toggleLotCollapsed(lot.id)}
+                                        onClick={() => {
+                                          if (isEmbeddedModal && !window.matchMedia('(min-width: 1280px)').matches) {
+                                            setMobileLotDetailId(lot.id)
+                                            setCollapsedLotIds((current) => ({
+                                              ...current,
+                                              ...Object.fromEntries(lots.map((entry) => [entry.id, entry.id !== lot.id])),
+                                            }))
+                                          } else {
+                                            toggleLotCollapsed(lot.id)
+                                          }
+                                        }}
                                       >
                                         {isCollapsed ? 'ขยาย' : 'ยุบ'}
-                                      </Button>
+                                      </Button> : null}
                                       {(!isParent || lots.length > 1) && (
                                       <Button
                                         size="xs"
@@ -3826,7 +3923,7 @@ export function WeightTicketFormCore({
                           })()}
                         </div>
 
-                        {!isPurchaseOnlyLine ? (
+                        {!isMobileLotDetailMode && !isPurchaseOnlyLine ? (
                           <div className="mt-3 flex justify-end">
                             <Button
                               data-testid={`weight-ticket-add-lot-${line.id}`}
@@ -3843,7 +3940,7 @@ export function WeightTicketFormCore({
                           </div>
                         ) : null}
 
-                        <div className="mt-3 flex justify-end">
+                        {!isMobileLotDetailMode ? <div className="mt-3 flex justify-end">
                           <div className="flex flex-wrap justify-end gap-2">
                             <Button
                               type="button"
@@ -3856,8 +3953,8 @@ export function WeightTicketFormCore({
                               บันทึกสินค้านี้
                             </Button>
                           </div>
-                        </div>
-                        {(() => {
+                        </div> : null}
+                        {!isMobileLotDetailMode ? (() => {
                           const lotSummary = calculateRealLotSummary(line, form.lines)
                           return (
                             <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
@@ -3878,7 +3975,7 @@ export function WeightTicketFormCore({
                               )}
                             </div>
                           )
-                        })()}
+                        })() : null}
                       </div>
 
 	                      {/* ซื้อเพิ่มจากสิ่งเจือปน */}
@@ -3921,8 +4018,9 @@ export function WeightTicketFormCore({
 	                                            type="button"
 	                                            variant="ghost"
 	                                            onClick={() => {
-	                                              setActiveLineId(purchaseLine.id)
-	                                              setMobileProductView('editor')
+                                              setActiveLineId(purchaseLine.id)
+                                              setMobileLotDetailId(null)
+                                              setMobileProductView('editor')
 	                                            }}
 	                                          >
 	                                            เพิ่มสิ่งเจือปน{form.lines.filter((entry) => entry.parentId === purchaseLine.id && entry.deductionMode !== 'none').length > 0 ? 'ต่อ' : ''}
@@ -3953,7 +4051,7 @@ export function WeightTicketFormCore({
                               type="button"
                               variant="default"
                               disabled={!canAddImpurityLine}
-                              onClick={() => addImpurityLine(line)}
+                              onClick={() => addImpurityLine(impurityOwnerLine)}
                               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-sm font-semibold text-white outline-none hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400"
                             >
                               <Plus className="h-4 w-4" />
@@ -3977,7 +4075,7 @@ export function WeightTicketFormCore({
                                   type="button"
                                   variant="default"
                                   disabled={!canAddImpurityLine}
-                                  onClick={() => addImpurityLine(line)}
+                                  onClick={() => addImpurityLine(impurityOwnerLine)}
                                   className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-sm font-semibold text-white outline-none hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400"
                                 >
                                   <Plus className="size-4" />
@@ -4023,7 +4121,7 @@ export function WeightTicketFormCore({
                                 const showImpurityImageField = form.type === 'WTI' || isOtherProductImpurity
                                 const impurityOptionsForChild = optionsWithCurrentValue(impurityOptions, selectedImpurityId, child.impurityName)
                                 const impurityPurchaseProducts = optionsWithCurrentValue(
-                                  normalProducts.filter((product) => product.id !== line.productId),
+                                  normalProducts.filter((product) => product.id !== impurityOwnerLine.productId),
                                   child.impurityProductId,
                                   child.impurityProductName || child.impurityProductId,
                                 )
@@ -4053,7 +4151,7 @@ export function WeightTicketFormCore({
                                     key={child.id}
                                     className={cn(
                                       'bg-white p-2 rounded-xl border border-slate-200/60',
-                                      child.parentId !== line.id && 'ml-4 border-l-4 border-l-red-200 bg-red-50/30 md:ml-8',
+                                      child.parentId !== impurityOwnerLine.id && 'ml-4 border-l-4 border-l-red-200 bg-red-50/30 md:ml-8',
                                     )}
                                   >
                                     <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
@@ -4366,6 +4464,7 @@ export function WeightTicketFormCore({
                               if (!nextLineId) return
                               closeMobileProductEditor(nextLineId, () => {
                                 setActiveLineId(nextLineId)
+                                setMobileLotDetailId(null)
                                 requestProductRemoval(activeLine.id)
                               })
                             }}
