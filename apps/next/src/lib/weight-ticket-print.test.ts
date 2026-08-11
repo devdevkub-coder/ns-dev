@@ -4,19 +4,23 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { Children, createElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
+// @ts-expect-error jsdom is available as a workspace test dependency but does not ship declarations here.
+import { JSDOM } from 'jsdom'
 
 import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTicketProductBreakdownTable'
 import type { CompanyProfilePrintValues } from './company-profile'
 import { ensurePdfFontsRegistered } from './server/pdf/fonts'
 import { WeightTicketDocument } from './server/pdf/weight-ticket-document'
+import { prepareCorporatePrintLayout } from './corporate-print-layout'
 import {
   buildPrintWeightRows,
   buildReceiptPrintHtml,
   buildWeightTicketAttachmentImages,
-  CONTINUATION_PAGE_ITEM_ROWS,
-  FIRST_PAGE_ITEM_ROWS,
+  estimatePrintWeightRowHeight,
+  NO_IMPURITY_SUMMARY_DETAIL,
   paginatePrintWeightRows,
   WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE,
+  WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
 } from './weight-ticket-print'
 import { encodeStoredImageReference, type WeightTicketRecord } from './weight-tickets'
 
@@ -38,6 +42,7 @@ const profile: CompanyProfilePrintValues = {
 }
 
 const weightTicketPrintSource = readFileSync(new URL('./weight-ticket-print.ts', import.meta.url), 'utf8')
+const weightTicketPdfSource = readFileSync(new URL('./server/pdf/weight-ticket-document.tsx', import.meta.url), 'utf8')
 
 function line(
   overrides: Partial<WeightTicketRecord['lines'][number]>,
@@ -311,40 +316,194 @@ function ticketWithPrintRowCount(count: number, type: 'WTI' | 'WTO' = 'WTI'): We
 }
 
 describe('weight ticket print HTML', () => {
-  it('fills each WTI/WTO table page to its form capacity with blank rows', () => {
-    for (const type of ['WTI', 'WTO'] as const) {
-      const singleRowHtml = buildReceiptPrintHtml(ticketWithPrintRowCount(1, type), profile)
-      const singlePageBody = singleRowHtml.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || ''
+  it('keeps 0, 1, 15, 16, 20, 21, 30, and 31 short rows ordered within the WTI/WTO limits', () => {
+    for (const isReceipt of [true, false]) {
+      for (const count of [0, 1, 15, 16, 20, 21, 30, 31]) {
+        const rows = Array.from({ length: count }, (_, index) => ({
+          containerDeductionWeight: 0,
+          deductionWeight: 0,
+          detail: '',
+          grossWeight: 1,
+          label: '',
+          netWeight: 1,
+          productName: `Row ${index + 1}`,
+        }))
+        const pages = paginatePrintWeightRows(rows, isReceipt)
 
-      expect(singlePageBody.match(/<tr class="item-row/g)).toHaveLength(FIRST_PAGE_ITEM_ROWS)
-      expect(singlePageBody.match(/class="item-row empty(?:\s|\")/g)).toHaveLength(FIRST_PAGE_ITEM_ROWS - 1)
-
-      const continuationHtml = buildReceiptPrintHtml(ticketWithPrintRowCount(13, type), profile)
-      const bodies = [...continuationHtml.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)].map((match) => match[1])
-
-      expect(bodies).toHaveLength(2)
-      expect(bodies[0].match(/<tr class="item-row/g)).toHaveLength(FIRST_PAGE_ITEM_ROWS)
-      expect(bodies[1].match(/<tr class="item-row/g)).toHaveLength(type === 'WTI' ? FIRST_PAGE_ITEM_ROWS : CONTINUATION_PAGE_ITEM_ROWS)
+        expect(pages.flatMap((page) => page.items)).toEqual(rows)
+        expect(pages.every((page) => page.items.length <= WEIGHT_TICKET_MAX_ROWS_PER_PAGE)).toBe(true)
+        expect(pages.every((page) => page.capacity === WEIGHT_TICKET_MAX_ROWS_PER_PAGE)).toBe(true)
+        expect(pages.at(-1)?.items.length).toBeLessThanOrEqual(WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+      }
     }
   })
 
-  it('reserves the WTI final-page height so PDF page labels stay truthful', async () => {
-    await ensurePdfFontsRegistered()
-
-    for (const count of [24, 25, 26, 38, 39, 40]) {
-      const ticketWithRows = ticketWithPrintRowCount(count, 'WTI')
+  it('fills every WTI/WTO page with the full 20-row form table', () => {
+    for (const type of ['WTI', 'WTO'] as const) {
+      const ticketWithRows = ticketWithPrintRowCount(21, type)
+      const rows = buildPrintWeightRows(ticketWithRows, type === 'WTI')
+      const pages = paginatePrintWeightRows(rows, type === 'WTI')
       const html = buildReceiptPrintHtml(ticketWithRows, profile)
-      const htmlPages = [...html.matchAll(/<main class="page" data-print-page="\d+"[\s\S]*?<\/main>/g)]
-      const expectedPageCount = count === 24 ? 2 : count <= 38 ? 3 : 4
-      expect(htmlPages).toHaveLength(expectedPageCount)
-      expect(htmlPages.at(-1)?.[0]).toContain(`หน้า ${expectedPageCount} / ${expectedPageCount}`)
-      expect(htmlPages.at(-1)?.[0]).toContain('data-signatures="final"')
+      const bodies = [...html.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)].map((match) => match[1])
 
-      const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithRows }))
-      expect(countPdfPages(Buffer.from(pdf))).toBe(expectedPageCount)
+      expect(pages.flatMap((page) => page.items)).toEqual(rows)
+      expect(Math.max(...pages.map((page) => page.items.length))).toBeLessThanOrEqual(WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+      expect(pages[0]?.items).toHaveLength(WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+      expect(pages.at(-1)?.items.length).toBeLessThanOrEqual(WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+      for (const body of bodies) {
+        expect(body.match(/<tr class="item-row/g)).toHaveLength(WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+      }
+    }
+  })
+
+  it('keeps the explicit no-impurity detail for a WTI product total', () => {
+    const rows = buildPrintWeightRows(ticketWithPrintRowCount(1, 'WTI'), true)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.detail).toContain('ไม่มีหักสิ่งเจือปน')
+  })
+
+  it('keeps the no-impurity detail visible when a WTI table uses dense 20-row styling', () => {
+    const html = buildReceiptPrintHtml(ticketWithPrintRowCount(21, 'WTI'), profile)
+
+    expect(html).toContain('class="muted dense-inline"> · ไม่มีหักสิ่งเจือปน</span>')
+  })
+
+  it('budgets a dense no-impurity label together with a near-limit WTI product name', async () => {
+    await ensurePdfFontsRegistered()
+    const ticketWithRows = ticketWithPrintRowCount(20, 'WTI')
+    const longProductName = 'A'.repeat(30)
+    ticketWithRows.lines[18] = { ...ticketWithRows.lines[18], productName: longProductName }
+    ticketWithRows.productSummaries[18] = { ...ticketWithRows.productSummaries[18], productName: longProductName }
+
+    const rows = buildPrintWeightRows(ticketWithRows, true)
+    const pages = paginatePrintWeightRows(rows, true)
+    const html = buildReceiptPrintHtml(ticketWithRows, profile)
+    const htmlPages = [...html.matchAll(/<main class="page(?: dense-page)?" data-document-type="WTI" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
+    const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithRows }))
+
+    expect(rows[18]?.detail).toBe(NO_IMPURITY_SUMMARY_DETAIL)
+    expect(estimatePrintWeightRowHeight(rows[18]!, true, true)).toBe(2)
+    expect(pages.map((page) => page.items.length)).toEqual([19, 1])
+    expect(htmlPages).toHaveLength(pages.length)
+    expect(htmlPages[0]).toContain(longProductName)
+    expect(htmlPages.at(-1)).toContain('data-page-totals="final"')
+    expect(htmlPages.at(-1)).toContain('data-signatures="final"')
+    expect(countPdfPages(Buffer.from(pdf))).toBe(pages.length)
+  }, 30_000)
+
+  it('keeps a tall wrapped WTI row on the single 20-cell final form', () => {
+    const row = {
+      containerDeductionWeight: 0,
+      deductionWeight: 0,
+      detail: 'x'.repeat(613),
+      grossWeight: 1,
+      label: '',
+      netWeight: 1,
+      productName: 'X',
     }
 
-    expect(paginatePrintWeightRows(buildPrintWeightRows(ticketWithPrintRowCount(25, 'WTI'), true), true).map((page) => page.items.length)).toEqual([12, 12, 1])
+    expect(estimatePrintWeightRowHeight(row, true)).toBe(19)
+    const pages = paginatePrintWeightRows([row], true)
+
+    expect(pages.map((page) => page.items.length)).toEqual([1])
+    expect(pages.flatMap((page) => page.items)).toEqual([row])
+    expect(pages[0]?.capacity).toBe(WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+  })
+
+  it('moves a wrapped WTI row to the next page as a complete row', () => {
+    const shortRows = Array.from({ length: 18 }, (_, index) => ({
+      containerDeductionWeight: 0,
+      deductionWeight: 0,
+      detail: '',
+      grossWeight: 1,
+      label: '',
+      netWeight: 1,
+      productName: `Short ${index + 1}`,
+    }))
+    const wrappedRow = {
+      ...shortRows[0],
+      detail: 'รายละเอียดที่ยาวมาก '.repeat(12),
+      productName: 'Wrapped row',
+    }
+    const pages = paginatePrintWeightRows([...shortRows, wrappedRow, { ...shortRows[0], productName: 'After wrapped' }], true)
+
+    expect(estimatePrintWeightRowHeight(wrappedRow, true)).toBeGreaterThan(1)
+    expect(pages[0]?.items.map((row) => row.productName)).toEqual(shortRows.map((row) => row.productName))
+    expect(pages.slice(1).flatMap((page) => page.items).map((row) => row.productName)).toEqual([
+      'Wrapped row',
+      'After wrapped',
+    ])
+  })
+
+  it('keeps twelve rows with wrapped detail on the single WTI form page', () => {
+    const rows = Array.from({ length: 12 }, (_, index) => ({
+      containerDeductionWeight: 0,
+      deductionWeight: 0,
+      detail: index === 5 ? 'รายละเอียดที่ยาวมาก '.repeat(3) : '',
+      grossWeight: 1,
+      label: '',
+      netWeight: 1,
+      productName: `Row ${index + 1}`,
+    }))
+
+    const pages = paginatePrintWeightRows(rows, true)
+
+    expect(pages).toHaveLength(1)
+    expect(pages.flatMap((page) => page.items)).toEqual(rows)
+    expect(pages[0]?.capacity).toBe(WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+    expect(pages[0]?.estimatedHeight).toBe(13)
+  })
+
+  it('rejects a row taller than one A4 form instead of emitting an invalid page plan', () => {
+    const oversizedRow = {
+      containerDeductionWeight: 0,
+      deductionWeight: 0,
+      detail: 'รายละเอียดที่ยาวมาก '.repeat(80),
+      grossWeight: 1,
+      label: '',
+      netWeight: 1,
+      productName: 'Oversized row',
+    }
+
+    expect(() => paginatePrintWeightRows([oversizedRow], true)).toThrow('รายการ WTI/WTO ยาวเกินพื้นที่หนึ่งหน้า A4')
+  })
+
+  it('keeps WTI/WTO HTML and React-PDF page plans aligned without losing rows', async () => {
+    await ensurePdfFontsRegistered()
+
+    for (const type of ['WTI', 'WTO'] as const) {
+      const ticketWithRows = ticketWithPrintRowCount(31, type)
+      const rows = buildPrintWeightRows(ticketWithRows, type === 'WTI')
+      const pages = paginatePrintWeightRows(rows, type === 'WTI')
+      const html = buildReceiptPrintHtml(ticketWithRows, profile)
+      const htmlPages = [...html.matchAll(/<main class="page(?: dense-page)?" data-document-type="(?:WTI|WTO)" data-print-page="\d+"[\s\S]*?<\/main>/g)]
+      const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithRows }))
+
+      expect(pages.flatMap((page) => page.items)).toEqual(rows)
+      expect(pages.every((page) => page.items.length <= WEIGHT_TICKET_MAX_ROWS_PER_PAGE)).toBe(true)
+      expect(htmlPages).toHaveLength(pages.length)
+      expect(htmlPages.at(-1)?.[0]).toContain(`หน้า ${pages.length} / ${pages.length}`)
+      expect(htmlPages.at(-1)?.[0]).toContain('data-signatures="final"')
+      expect(countPdfPages(Buffer.from(pdf))).toBe(pages.length)
+    }
+  }, 30_000)
+
+  it('keeps a fitting long WTI row intact within the rendered PDF page plan', async () => {
+    await ensurePdfFontsRegistered()
+    const longTicket = ticketWithPrintRowCount(20, 'WTI')
+    const longLineIndex = 16
+    longTicket.lines[longLineIndex] = {
+      ...longTicket.lines[longLineIndex],
+      note: 'รายละเอียดที่ยาวมาก '.repeat(10),
+    }
+    const rows = buildPrintWeightRows(longTicket, true)
+    const pages = paginatePrintWeightRows(rows, true)
+    const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: longTicket }))
+
+    expect(weightTicketPdfSource).toMatch(/function ItemRow[\s\S]*?<View style=\{\[styles\.tableRow, bgStyle\]\} wrap=\{false\}/)
+    expect(pages.flatMap((page) => page.items)).toEqual(rows)
+    expect(countPdfPages(Buffer.from(pdf))).toBe(pages.length)
   }, 30_000)
 
   it('uses the corporate preview contrast and keeps the legal company name on one line', () => {
@@ -359,20 +518,72 @@ describe('weight ticket print HTML', () => {
     expect(html).toMatch(/body\s*\{[^}]*background:\s*#334155/)
     expect(html).toMatch(/\.page\s*\{[^}]*box-shadow:/)
     expect(html).toMatch(/\.company-name\s*\{[^}]*white-space:\s*nowrap/)
-    expect(html).toMatch(/\.signatures\s*\{[^}]*margin-top:\s*auto/)
-    expect(html).toMatch(/\.items \.final-empty td\s*\{[^}]*height:\s*28px/)
+    expect(html).toMatch(/\.bottom-zone\s*\{[^}]*margin-top:\s*auto/)
+  })
+
+  it('assigns every WTI/WTO form row the same table slot instead of letting populated rows consume blank-row space', () => {
+    const html = buildReceiptPrintHtml(ticketWithPrintRowCount(1), profile)
+    const document = new JSDOM(html).window.document
+    const table = document.querySelector<HTMLTableElement>('table.items')
+    const style = document.querySelector('style')?.textContent ?? ''
+
+    expect(table).not.toBeNull()
+    expect(table?.style.getPropertyValue('--item-row-slots')).toBe('20')
+    expect(table?.tBodies.item(0)?.rows).toHaveLength(20)
+    expect(style).toContain('.items tbody > tr { height: calc(100% / var(--item-row-slots)); }')
+    expect(style).not.toMatch(/\.items \.empty td\s*\{[^}]*height:/)
+    expect(style).not.toMatch(/\.items \.final-empty td\s*\{[^}]*height:/)
   })
 
   it('keeps WTI/WTO form pagination owned by the dedicated paginator', () => {
-    expect(weightTicketPrintSource).toContain(
-      "prepareCorporatePrintLayout(printWindow.document, { reflowRows: false })",
-    )
+    expect(weightTicketPrintSource).toContain('maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE')
+    expect(weightTicketPrintSource).toContain('reflowRows: true')
+  })
+
+  it('turns an initially single WTI form into a three-panel continuation without copying totals or signatures', async () => {
+    const dom = new JSDOM(buildReceiptPrintHtml(ticketWithPrintRowCount(12), profile))
+    const document = dom.window.document
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: {
+        load: async () => [{ status: 'loaded' }],
+        ready: Promise.resolve(),
+      },
+    })
+    Object.defineProperties(dom.window.HTMLElement.prototype, {
+      clientHeight: { configurable: true, get: () => 150 },
+      clientWidth: { configurable: true, get: () => 800 },
+      scrollHeight: {
+        configurable: true,
+        get(this: HTMLElement) {
+          const realRows = this.querySelectorAll('tr[data-row-slot]:not([data-row-slot^="empty-"])').length
+          return realRows > 8 ? 200 : 100
+        },
+      },
+      scrollWidth: { configurable: true, get: () => 800 },
+    })
+
+    await prepareCorporatePrintLayout(document, {
+      maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
+      reflowRows: true,
+    })
+
+    const pages = [...document.querySelectorAll<HTMLElement>('[data-corporate-print-page="true"]')]
+    expect(pages).toHaveLength(2)
+    expect(pages[0]?.querySelector('[data-page-totals="final"]')).toBeNull()
+    expect(pages[0]?.querySelector('[data-page-totals="placeholder"]')).not.toBeNull()
+    expect(pages[0]?.querySelector('[data-signatures="final"]')).toBeNull()
+    expect(pages[0]?.querySelector('section.bottom-grid.continuation-summary[data-continuation-panels="placeholder"]')).not.toBeNull()
+    expect(pages[0]?.querySelectorAll('[data-continuation-panels="placeholder"] .continuation-summary-panel')).toHaveLength(3)
+    expect(pages[0]?.textContent).toContain('ข้อมูลน้ำหนัก / Weight Info')
+    expect(pages[1]?.querySelector('[data-page-totals="final"]')).not.toBeNull()
+    expect(pages[1]?.querySelector('[data-signatures="final"]')).not.toBeNull()
   })
 
   it('shows titled placeholder summary panels and replaces signatures with a continuation marker on non-final HTML/PDF pages', async () => {
-    const multiPageTicket = ticketWithPrintRowCount(13)
+    const multiPageTicket = ticketWithPrintRowCount(21)
     const html = buildReceiptPrintHtml(multiPageTicket, profile)
-    const pages = [...html.matchAll(/<main class="page" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
+    const pages = [...html.matchAll(/<main class="page(?: dense-page)?" data-document-type="(?:WTI|WTO)" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
 
     expect(pages).toHaveLength(2)
     expect(pages[0]).toContain('data-continuation-panels="placeholder"')
@@ -395,19 +606,6 @@ describe('weight ticket print HTML', () => {
     expect(pdfText.match(/หมายเหตุ/g)).toHaveLength(2)
     expect(pdfText.match(/Weight Info/g)).toHaveLength(2)
     expect(countPdfPages(Buffer.from(await renderToBuffer(pdfDocument)))).toBe(2)
-  }, 30_000)
-
-  it('keeps detailed multi-page WTI/WTO forms from pushing continuation panels onto an extra PDF page', async () => {
-    await ensurePdfFontsRegistered()
-
-    for (const type of ['WTI', 'WTO'] as const) {
-      const buffer = await renderToBuffer(WeightTicketDocument({
-        profile,
-        ticket: ticketWithPrintRowCount(31, type),
-      }))
-
-      expect(countPdfPages(Buffer.from(buffer))).toBe(3)
-    }
   }, 30_000)
 
   it('loads the existing local Thai fonts without external stylesheets', () => {

@@ -462,7 +462,19 @@ export function WeightTicketListPageClient() {
     let printWindow: Window | null = null
     try {
       printWindow = openWeightTicketPrintWindow(ticket)
-      const detailTicket = await getWeightTicket(ticket.id)
+      // The print album renders each photo from its signed URL, so it normally
+      // fetches the ticket with image previews. Tickets whose photos were never
+      // thumbnail-processed cannot build preview URLs (the API throws), so fall
+      // back to the raw record: the form still prints and any photo without a
+      // URL is simply omitted from the album instead of blocking the whole
+      // document with a 500.
+      let detailTicket: WeightTicketRecord
+      try {
+        detailTicket = await getWeightTicket(ticket.id)
+      } catch (caught) {
+        console.warn('[weight-ticket-print] image preview URLs unavailable, printing without photo previews', caught)
+        detailTicket = await getWeightTicket(ticket.id, { includeImagePreviews: false })
+      }
       await openWeightTicketReceiptPrint(detailTicket, printWindow)
     } catch (caught) {
       printWindow?.close()

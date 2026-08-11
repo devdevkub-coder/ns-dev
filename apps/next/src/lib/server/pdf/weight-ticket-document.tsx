@@ -8,6 +8,7 @@ import {
   paginatePrintWeightRows,
   buildWeightTicketAttachmentImages,
   formatPrintableNumber,
+  NO_IMPURITY_SUMMARY_DETAIL,
   WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE,
   type PrintWeightRow,
 } from '@/lib/weight-ticket-print'
@@ -21,7 +22,7 @@ import { normalizeThai } from './thai-text'
  * เพื่อกำจัด dependency Chromium binary ออกจาก Docker image
  *
  * หลักการ:
- * - ใช้ business logic เดิม (buildPrintWeightRows, pagination 12/14 with final WTI reservation) — pure data transform
+ * - ใช้ business logic เดิม (buildPrintWeightRows, measured 20-row WTI/WTO ceiling) — pure data transform
  * - ทุก string ผ่าน normalizeThai ก่อนเข้า <Text> (แก้ Sara Am truncation, Issue #3295)
  * - CSS Grid → flex rows (react-pdf ไม่มี grid)
  * - <table> → fixed-width flex rows (ความกว้างตาม HTML เดิม)
@@ -168,8 +169,12 @@ const styles = StyleSheet.create({
   fieldValue: { fontSize: 9, fontWeight: 600, color: TEXT_DARK, marginTop: 0.5 },
   fieldValueStrong: { fontSize: 9.5, color: FINAL_WEIGHT_GREEN, fontWeight: 700, marginTop: 0.5 },
 
-  // Items table (flex rows)
-  tableContainer: { marginTop: 5 },
+  // Items table (flex rows). The container grows (flexGrow) to fill the page
+  // space left after the fixed header/cards, so the summary panels and
+  // signatures follow it to the bottom edge. Empty rows inside the container
+  // grow equally, mirroring the HTML equal-slot rows.
+  tableContainer: { marginTop: 5, flexGrow: 1 },
+  tableContainerDense: { marginTop: 3, flexGrow: 1 },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: BG_HEADER,
@@ -195,6 +200,13 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: 700,
     color: '#1e293b',
+  },
+  tableHeaderCellDense: {
+    paddingTop: 1,
+    paddingBottom: 1,
+    paddingLeft: 2,
+    paddingRight: 2,
+    fontSize: 8,
   },
   tableRow: {
     flexDirection: 'row',
@@ -258,8 +270,17 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     color: FINAL_WEIGHT_GREEN,
   },
+  tableCellDense: {
+    paddingTop: 1,
+    paddingBottom: 1,
+    paddingLeft: 2,
+    paddingRight: 2,
+    fontSize: 8,
+  },
   itemName: { fontWeight: 700, color: TEXT_DARK, fontSize: 9 },
+  itemNameDense: { fontSize: 8 },
   muted: { color: TEXT_MUTED, fontSize: 6.4, marginTop: 0.5 },
+  mutedDense: { fontSize: 5.8, marginTop: 0 },
 
   // Row backgrounds (by className)
   bgProductHeading: { backgroundColor: BG_PRODUCT_HEADING },
@@ -274,15 +295,46 @@ const styles = StyleSheet.create({
     borderColor: BORDER_LIGHT,
     backgroundColor: '#ffffff',
   },
+  denseTablePlaceholderFooter: { height: 12 },
+  // Every page renders the full 20-row form. Empty rows start tiny and grow
+  // equally (flexGrow) with the stretched table container, mirroring the HTML
+  // equal-slot rows, so twenty cells always fit on one A4 page.
   emptyTableRow: {
-    minHeight: 18,
+    minHeight: 2,
+    flexGrow: 1,
     backgroundColor: '#ffffff',
   },
   finalEmptyTableRow: {
-    minHeight: 28,
+    minHeight: 2,
+    flexGrow: 1,
+  },
+  // The inherited page lineHeight resolves once (12.4pt) and would make every
+  // tiny cell 12.4pt tall; an explicit unitless lineHeight here re-resolves
+  // against the cell's own fontSize so empty slots start nearly zero-height
+  // and only the flexGrow distribution gives them equal heights.
+  emptyTableCell: {
+    paddingTop: 0.1,
+    paddingBottom: 0.1,
+    paddingLeft: 3,
+    paddingRight: 3,
+    fontSize: 2,
+    lineHeight: 1.24,
+    borderRightWidth: 1,
+    borderRightColor: BORDER_LIGHT,
+  },
+  emptyTableCellLast: {
+    paddingTop: 0.1,
+    paddingBottom: 0.1,
+    paddingLeft: 3,
+    paddingRight: 3,
+    fontSize: 2,
+    lineHeight: 1.24,
   },
 
-  // Bottom section
+  // Bottom section (summary panels + signatures). The growing table above
+  // fills the remaining page space, so this block lands flush at the bottom
+  // of the A4 form like the HTML .bottom-zone.
+  bottomZone: {},
   bottomGrid: { flexDirection: 'row', gap: 7, marginTop: 6 },
   bottomPanelBody: { padding: 4, flexDirection: 'row', flexWrap: 'wrap' },
   bottomField: { width: '50%', marginBottom: 1, paddingRight: 5 },
@@ -300,17 +352,23 @@ const styles = StyleSheet.create({
     minHeight: 70,
     backgroundColor: '#ffffff',
   },
+  continuationPanelDense: { minHeight: 48 },
   continuationPanelBody: {
     minHeight: 45,
     padding: 4,
+  },
+  continuationPanelBodyDense: {
+    minHeight: 26,
+    padding: 3,
   },
   continuationPlaceholder: {
     fontSize: 9,
     color: TEXT_MUTED,
   },
 
-  // Signatures
-  signatures: { flexDirection: 'row', gap: 12, marginTop: 'auto', marginBottom: 14 },
+  // Signatures. The marginTop mirrors the HTML print contract (24px ≈ 18pt)
+  // between the bottom grid and the signature lines.
+  signatures: { flexDirection: 'row', gap: 12, marginTop: 18, marginBottom: 14 },
   sig: { flex: 1 },
   sigLine: {
     borderTopWidth: 1,
@@ -336,6 +394,11 @@ const styles = StyleSheet.create({
     color: DOC_TITLE_GREEN,
     paddingTop: 8,
     paddingBottom: 8,
+  },
+  continuedDense: {
+    fontSize: 8,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
   albumHeader: {
     flexDirection: 'row',
@@ -427,9 +490,7 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     color: '#ffffff',
   },
-  spacer: {
-    flexGrow: 1,
-  },
+
 })
 
 // Column widths (mm → pt approx: 1mm ≈ 2.83pt)
@@ -449,8 +510,12 @@ const COL_NET_WTO = '26%'
 // Sub-components
 // ============================================================
 
-function ItemRow({ row, isReceipt }: { row: PrintWeightRow; isReceipt: boolean }) {
+function ItemRow({ row, isReceipt, dense = false }: { row: PrintWeightRow; isReceipt: boolean; dense?: boolean }) {
   const afterContainerWeight = Math.max(0, row.grossWeight - row.containerDeductionWeight)
+  const inlineNoImpurityDetail = dense && row.detail === NO_IMPURITY_SUMMARY_DETAIL
+  const cellDensity = dense ? styles.tableCellDense : {}
+  const itemNameDensity = dense ? styles.itemNameDense : {}
+  const mutedDensity = dense ? styles.mutedDense : {}
   const bgStyle =
     row.className === 'product-heading' ? styles.bgProductHeading
       : row.className === 'lot-row' ? styles.bgLotRow
@@ -461,71 +526,78 @@ function ItemRow({ row, isReceipt }: { row: PrintWeightRow; isReceipt: boolean }
 
   if (row.className === 'product-heading') {
     return (
-      <View style={[styles.tableRow, bgStyle]}>
-        <View style={[styles.tableCell, { width: COL_RANK, textAlign: 'center' }]}>
+      <View style={[styles.tableRow, bgStyle]} wrap={false}>
+        <View style={[styles.tableCell, cellDensity, { width: COL_RANK, textAlign: 'center' }]}>
           <Text>{nt(row.rank || '')}</Text>
         </View>
-        <View style={[styles.tableCellLast, { width: isReceipt ? `${100 - 4}%` : `${100 - 4 - 12 - 12 - 26}%` }]}>
-          <Text style={styles.itemName}>{nt(row.productName)}</Text>
-          <Text style={styles.muted}>{nt(row.detail)}</Text>
+        <View style={[styles.tableCellLast, cellDensity, { width: isReceipt ? `${100 - 4}%` : `${100 - 4 - 12 - 12 - 26}%` }]}>
+          <Text style={[styles.itemName, itemNameDensity]}>
+            {nt(row.productName)}
+            {inlineNoImpurityDetail ? <Text style={[styles.muted, mutedDensity]}>{nt(` · ${row.detail}`)}</Text> : null}
+          </Text>
+          {!inlineNoImpurityDetail ? <Text style={[styles.muted, mutedDensity]}>{nt(row.detail)}</Text> : null}
         </View>
       </View>
     )
   }
 
   return (
-    <View style={[styles.tableRow, bgStyle]}>
-      <View style={[styles.tableCell, { width: COL_RANK, textAlign: 'center' }]}>
+    <View style={[styles.tableRow, bgStyle]} wrap={false}>
+      <View style={[styles.tableCell, cellDensity, { width: COL_RANK, textAlign: 'center' }]}>
         <Text>{nt(row.rank || '')}</Text>
       </View>
-      <View style={[styles.tableCell, { width: isReceipt ? COL_ITEM : `${100 - 4 - 12 - 12 - 26}%` }]}>
-        <Text style={styles.itemName}>{nt(row.productName)}</Text>
-        {row.label ? <Text style={styles.muted}>{nt(row.label)}</Text> : null}
-        {row.detail ? <Text style={styles.muted}>{nt(row.detail)}</Text> : null}
+      <View style={[styles.tableCell, cellDensity, { width: isReceipt ? COL_ITEM : `${100 - 4 - 12 - 12 - 26}%` }]}>
+        <Text style={[styles.itemName, itemNameDensity]}>
+          {nt(row.productName)}
+          {inlineNoImpurityDetail ? <Text style={[styles.muted, mutedDensity]}>{nt(` · ${row.detail}`)}</Text> : null}
+        </Text>
+        {row.label ? <Text style={[styles.muted, mutedDensity]}>{nt(row.label)}</Text> : null}
+        {row.detail && !inlineNoImpurityDetail ? <Text style={[styles.muted, mutedDensity]}>{nt(row.detail)}</Text> : null}
       </View>
-      <View style={[styles.tableCellRight, { width: COL_GROSS }]}>
+      <View style={[styles.tableCellRight, cellDensity, { width: COL_GROSS }]}>
         <Text>{formatPrintableNumber(row.grossWeight)}</Text>
       </View>
-      <View style={[styles.tableCellRight, { width: COL_CONTAINER }]}>
+      <View style={[styles.tableCellRight, cellDensity, { width: COL_CONTAINER }]}>
         <Text>{formatPrintableNumber(row.containerDeductionWeight)}</Text>
       </View>
       {isReceipt ? (
         <>
-          <View style={[styles.tableCellRight, { width: COL_AFTER_CONTAINER }]}>
+          <View style={[styles.tableCellRight, cellDensity, { width: COL_AFTER_CONTAINER }]}>
             <Text>{formatPrintableNumber(afterContainerWeight)}</Text>
           </View>
-          <View style={[styles.tableCellRight, { width: COL_DEDUCTION }]}>
+          <View style={[styles.tableCellRight, cellDensity, { width: COL_DEDUCTION }]}>
             <Text>{formatPrintableNumber(row.deductionWeight)}</Text>
           </View>
         </>
       ) : null}
-      <View style={[styles.tableCellStrongLast, { width: isReceipt ? COL_NET : COL_NET_WTO }]}>
+      <View style={[styles.tableCellStrongLast, cellDensity, { width: isReceipt ? COL_NET : COL_NET_WTO }]}>
         <Text>{formatPrintableNumber(row.netWeight)}</Text>
       </View>
     </View>
   )
 }
 
-function TableHeader({ isReceipt }: { isReceipt: boolean }) {
+function TableHeader({ isReceipt, dense = false }: { isReceipt: boolean; dense?: boolean }) {
+  const density = dense ? styles.tableHeaderCellDense : {}
   return (
     <View style={styles.tableHeader}>
-      <Text style={[styles.tableHeaderCell, { width: COL_RANK, textAlign: 'center' }]}>#</Text>
-      <Text style={[styles.tableHeaderCell, { width: isReceipt ? COL_ITEM : `${100 - 4 - 12 - 12 - 26}%` }]}>
+      <Text style={[styles.tableHeaderCell, density, { width: COL_RANK, textAlign: 'center' }]}>#</Text>
+      <Text style={[styles.tableHeaderCell, density, { width: isReceipt ? COL_ITEM : `${100 - 4 - 12 - 12 - 26}%` }]}>
         {nt('รายการสินค้า')}
       </Text>
-      <Text style={[styles.tableHeaderCell, { width: COL_GROSS, textAlign: 'right' }]}>{nt('น้ำหนักรวม')}</Text>
-      <Text style={[styles.tableHeaderCell, { width: COL_CONTAINER, textAlign: 'right' }]}>{nt('หักภาชนะ')}</Text>
+      <Text style={[styles.tableHeaderCell, density, { width: COL_GROSS, textAlign: 'right' }]}>{nt('น้ำหนักรวม')}</Text>
+      <Text style={[styles.tableHeaderCell, density, { width: COL_CONTAINER, textAlign: 'right' }]}>{nt('หักภาชนะ')}</Text>
       {isReceipt ? (
         <>
-          <Text style={[styles.tableHeaderCell, { width: COL_AFTER_CONTAINER, textAlign: 'right' }]}>
+          <Text style={[styles.tableHeaderCell, density, { width: COL_AFTER_CONTAINER, textAlign: 'right' }]}>
             {nt('น้ำหนักหลังหักภาชนะ')}
           </Text>
-          <Text style={[styles.tableHeaderCell, { width: COL_DEDUCTION, textAlign: 'right' }]}>
+          <Text style={[styles.tableHeaderCell, density, { width: COL_DEDUCTION, textAlign: 'right' }]}>
             {nt('หักสิ่งเจือปน')}
           </Text>
         </>
       ) : null}
-      <Text style={[styles.tableHeaderCellLast, { width: isReceipt ? COL_NET : COL_NET_WTO, textAlign: 'right' }]}>
+      <Text style={[styles.tableHeaderCellLast, density, { width: isReceipt ? COL_NET : COL_NET_WTO, textAlign: 'right' }]}>
         {nt('น้ำหนักสุทธิ')}
       </Text>
     </View>
@@ -563,9 +635,9 @@ function TableFooter({ ticket, isReceipt }: { ticket: WeightTicketRecord; isRece
   )
 }
 
-function EmptyTableFooter() {
+function EmptyTableFooter({ dense = false }: { dense?: boolean }) {
   return (
-    <View style={styles.tablePlaceholderFooter}>
+    <View style={[styles.tablePlaceholderFooter, dense ? styles.denseTablePlaceholderFooter : {}]}>
       <Text>{' '}</Text>
     </View>
   )
@@ -581,7 +653,7 @@ function EmptyTableRow({ isReceipt, isFinalPage }: { isReceipt: boolean; isFinal
       {widths.map((width, index) => (
         <View
           key={`empty-cell-${index}`}
-          style={[index === widths.length - 1 ? styles.tableCellLast : styles.tableCell, { width }]}
+          style={[index === widths.length - 1 ? styles.emptyTableCellLast : styles.emptyTableCell, { width }]}
         >
           <Text>{' '}</Text>
         </View>
@@ -661,6 +733,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
     <Document>
       {pages.map((page, pageIndex) => {
         const isLastPage = pageIndex === totalPages - 1
+        const denseTable = page.items.length > 14
         return (
           <Page key={pageIndex} size="A4" style={[styles.page, styles.mainPage]}>
             {/* Accent */}
@@ -738,22 +811,21 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
             </View>
 
             {/* Items table */}
-            <View style={styles.tableContainer}>
-              <TableHeader isReceipt={isReceipt} />
+            <View style={[styles.tableContainer, denseTable ? styles.tableContainerDense : {}]}>
+              <TableHeader isReceipt={isReceipt} dense={denseTable} />
               {page.items.map((row, idx) => (
-                <ItemRow key={idx} row={row} isReceipt={isReceipt} />
+                <ItemRow key={idx} row={row} isReceipt={isReceipt} dense={denseTable} />
               ))}
               {Array.from({ length: Math.max(0, page.capacity - page.items.length) }, (_, idx) => (
                 <EmptyTableRow key={`empty-row-${idx}`} isReceipt={isReceipt} isFinalPage={isLastPage} />
               ))}
-              {isLastPage ? <TableFooter ticket={ticket} isReceipt={isReceipt} /> : <EmptyTableFooter />}
+              {isLastPage ? <TableFooter ticket={ticket} isReceipt={isReceipt} /> : <EmptyTableFooter dense={denseTable} />}
             </View>
 
-            {!isLastPage ? <View style={styles.spacer} /> : null}
-
-            {/* Bottom section (last page only) */}
+            {/* Bottom section (last page only); the table container above
+                flexes to fill the page, so the bottom sections stay pinned. */}
             {isLastPage ? (
-              <>
+              <View style={styles.bottomZone}>
                 <View style={styles.bottomGrid}>
                   <View style={[styles.panel, { flex: 1.15 }]}>
                     <Text style={styles.panelTitle}>{nt('สรุปตามหมวดสินค้า')}</Text>
@@ -822,25 +894,25 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                     <Text style={styles.sigDate}>{nt('วันที่ ____ / ____ / ______')}</Text>
                   </View>
                 </View>
-              </>
+              </View>
             ) : (
-              <>
+              <View style={styles.bottomZone}>
                 <View style={styles.bottomGrid} wrap={false}>
-                  <View style={[styles.panel, styles.continuationPanel, { flex: 1.15 }]}>
+                  <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 1.15 }]}>
                     <Text style={styles.panelTitle}>{nt('สรุปตามหมวดสินค้า')}</Text>
-                    <View style={styles.continuationPanelBody}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
                   </View>
-                  <View style={[styles.panel, styles.continuationPanel, { flex: 0.8 }]}>
+                  <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 0.8 }]}>
                     <Text style={styles.panelTitle}>{nt('หมายเหตุ')}</Text>
-                    <View style={styles.continuationPanelBody}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
                   </View>
-                  <View style={[styles.panel, styles.continuationPanel, { flex: 1.05 }]}>
+                  <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 1.05 }]}>
                     <Text style={styles.panelTitle}>{nt('ข้อมูลน้ำหนัก / Weight Info')}</Text>
-                    <View style={styles.continuationPanelBody}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
                   </View>
                 </View>
-                <Text style={styles.continued}>{nt(`( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )`)}</Text>
-              </>
+                <Text style={[styles.continued, denseTable ? styles.continuedDense : {}]}>{nt(`( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )`)}</Text>
+              </View>
             )}
 
           </Page>

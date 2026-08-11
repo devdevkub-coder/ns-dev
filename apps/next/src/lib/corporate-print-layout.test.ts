@@ -38,6 +38,20 @@ describe('paginateMeasuredCorporateRows', () => {
     expect(pages.flatMap((page) => page.items)).toEqual(rows)
   })
 
+  it('creates an empty final page when a row fits only the continuation template', () => {
+    const pages = paginateMeasuredCorporateRows(
+      [1],
+      (candidate) => candidate.length <= 1,
+      (candidate) => candidate.length === 0,
+      20,
+    )
+
+    expect(pages).toEqual([
+      { isFinalPage: false, items: [1], pageNo: 1 },
+      { isFinalPage: true, items: [], pageNo: 2 },
+    ])
+  })
+
   it('moves a long row as a whole to the next page', () => {
     const rows = [
       { id: 1, height: 20 },

@@ -11,7 +11,7 @@ tags:
   - business-flow
 status: draft
 created: 2026-06-09
-updated: 2026-08-08
+updated: 2026-08-11
 ---
 
 # Printable Documents / เอกสารที่ต้องพิมพ์
@@ -53,13 +53,13 @@ updated: 2026-08-08
 - หน้า `N` เท่านั้นที่แสดงยอดจริง หมายเหตุ และช่องลงนาม โดยยังคง Company Profile, document snapshot, cancelled watermark, table header และข้อมูลเอกสารบนทุกหน้า
 - คำว่า `หมายเหตุ` ในกติกา final-page-only หมายถึงหมายเหตุธุรกิจของรายการ; หมายเหตุทางกฎหมาย/ข้อความบังคับของแบบฟอร์มยังคงแสดงทุกหน้าตาม `docs/design.md`
 - การพิมพ์ยังเป็น read-only: การแบ่งหน้าไม่สร้างหรือแก้เอกสาร, payment, stock, allocation, cache, API, DB หรือ Storage
-- `WTI/WTO` ใช้ความจุเฉพาะของแบบฟอร์มชั่ง (12 รายการในหน้าหลักแรก, หน้าต่อเนื่องที่ยังไม่ใช่หน้าสุดท้ายใช้ได้สูงสุด 14 รายการ, และหน้าสุดท้ายของ WTI สงวนไว้ 12 รายการเพื่อให้ยอดรวม/กรอบสรุป/ลายเซ็นอยู่หน้าเดียว): ต้องเติมแถวว่างให้ครบความจุของแต่ละหน้า แม้ข้อมูลจริงจะมีน้อย เพื่อให้เส้นตารางและพื้นที่แบบฟอร์มต่อเนื่องกัน; หน้าหลัก `1..N-1` มี footer ตารางว่าง กรอบสรุป 3 กรอบพร้อมหัวข้อ `สรุปตามหมวดสินค้า`, `หมายเหตุ`, `ข้อมูลน้ำหนัก / Weight Info` และค่า `-` เป็น placeholder พร้อมข้อความมีต่อหน้า; หน้าหลัก `N` เท่านั้นมีสรุป/หมายเหตุ/ลายเซ็นจริง จากนั้นจึงต่ออัลบั้มหลักฐาน 6 รูปต่อหน้า
+- `WTI/WTO` ใช้แบบฟอร์มชั่งแบบตาราง 20 ช่องทุกหน้า รวมหน้าสุดท้ายที่มียอดรวม/กรอบสรุป/ลายเซ็น: ต้องเติมแถวว่างให้ครบ 20 ช่องเสมอ แม้ข้อมูลจริงจะมีน้อย เพื่อให้เส้นตารางและพื้นที่แบบฟอร์มต่อเนื่องกัน (ข้อมูลจริงสูงตามเนื้อหา แถวว่างแบ่งพื้นที่ที่เหลือของตารางอย่างเท่ากัน); หน้าหลัก `1..N-1` มี footer ตารางว่าง กรอบสรุป 3 กรอบพร้อมหัวข้อ `สรุปตามหมวดสินค้า`, `หมายเหตุ`, `ข้อมูลน้ำหนัก / Weight Info` และค่า `-` เป็น placeholder พร้อมข้อความมีต่อหน้า; หน้าหลัก `N` เท่านั้นมีสรุป/หมายเหตุ/ลายเซ็นจริง จากนั้นจึงต่ออัลบั้มหลักฐาน 6 รูปต่อหน้า
 - รายงานรวม เช่น Payment/Receipt daily report ยังคงเป็น report-style print และใช้การแบ่งหน้าตามตารางรายงาน ไม่บังคับกรอบสรุป/ลายเซ็นแบบ transaction pagination ข้างต้น โดยหน้าแรกจองพื้นที่หัวรายงานและ summary cards จึงใช้ไม่เกิน 8 แถว ส่วนหน้าต่อเนื่องใช้ 15 แถว เพื่อไม่ให้ตารางล้นไปเป็นหน้ากระดาษที่ไม่มี template
 - Receipt Voucher Queue เป็น operational queue preview, Company Profile เป็น configuration sample preview และ dashboard/report ที่พิมพ์หน้าจอเป็น report-style print; ทั้งสามประเภทไม่ใช่ corporate transaction snapshot ใน inventory นี้
 
 ## 2026-08-08 Continuation Placeholder Panel Contract
 
-WTI/WTO final-page empty rows use a taller 28px form row to consume unused paper without changing the signature block position; signatures remain anchored at the bottom of the A4 form.
+WTI/WTO tables always render the full 20-row form on every page; empty rows fill the remaining slots so a short ticket still shows a complete 20-cell grid, without changing the signature block position; signatures remain anchored at the bottom of the A4 form.
 
 Every formal multi-page document keeps its real totals, business notes and signatures on the final page only. Pages `1..N-1` keep the continuation marker and titled placeholder panels instead of blank frames:
 
@@ -129,6 +129,22 @@ Each placeholder panel contains `-` as the explicit empty value. The contract ap
 ## 2026-08-11 Preview/Print A4 Contract
 
 - `RV` Preview and browser Print now use the same A4 `border-box` page contract: `210 × 297 mm` on screen with `8 mm` page padding, and `194 × 281 mm` print content inside the `@page` `8 mm` margin. The shared corporate layout also preserves document background colors during print. What is what: the preview is the same document page shown on a slate work surface, while Print removes only the work-surface chrome and shadow. Why it has to be like this: changing the page geometry or dropping table/summary colors in `@media print` makes the signed receipt look like a different document and can move content relative to the signature area.
+
+## 2026-08-11 WTI/WTO 20-Row Form Capacity
+
+- WTI/WTO form pages use a dedicated 20-row logical ceiling. The browser remeasures the actual DOM after the Thai font and logo are ready, while server PDF uses the same ordered source-row plan with conservative height budgeting. A long row moves as a complete row; it is never truncated, silently dropped, or split across pages.
+- The final form page intentionally reserves the summary, totals, and signature area, so it may contain fewer than 20 rows. Intermediate form pages retain the three titled placeholder panels and `Continued on Page X`; attachment-album pages are separate from the form-row capacity. This is presentation-only and preserves the WTI/WTO snapshot, totals, API, DB, Storage, and notification contracts.
+- Final-page geometry is a fixed visual contract: `bottom-zone` anchors the `bottom-grid` three-panel summary directly above the four-column `signatures` row. Keep the approved 28px Preview / 24px Print separation (and the existing 16px / 12px signature-line inset); the table must reflow or paginate before this footer is widened, narrowed, or moved.
+- Browser Preview/Print table rows share the page's row slots equally: data rows and empty filler rows use the same height allocation. Do not shrink blank rows into spacers that make one populated row visually absorb the entire remaining table height; long content still expands its own row and is reflowed to the next A4 form page when necessary.
+
+## 2026-08-11 WTI/WTO PDF (React-PDF) Form Contract
+
+- The server PDF (`weight-ticket-document.tsx`) must render the same 20-row form as the browser on every page, including the final page that carries totals, the three summary panels and signatures: the table container gets `flexGrow: 1` so it fills the full A4 content height, and the empty filler rows inside share the leftover space equally (mirroring the browser `gridTemplateRows: repeat(capacity, 1fr)`). Short tickets therefore still show the complete 20-cell grid and the signature block stays anchored at the bottom.
+- React-PDF quirk (must be preserved): a unitless `lineHeight` on the `Page` is resolved once to a fixed point value (12.4pt) and inherited by every `Text`, so a filler cell with tiny `fontSize` is still 12.4pt tall unless it sets its own `lineHeight`. Every filler row must declare its own small `lineHeight`; otherwise twenty empty rows overflow A4.
+- Do not reserve the bottom-zone space with `marginBottom` on the growing table container: Yoga grows that container first and consumes the whole page, pushing the bottom-zone off the page edge. The flex growth must live inside the rows, and the bottom-zone must be a sibling pinned to the bottom.
+- Final-page spacing matches the browser contract: `signatures` keeps `marginTop: 18pt` (≈ 24px print) so the `bottom-grid` three-panel summary never touches the four-column signature row; the table must reflow or paginate before this footer is widened, narrowed, or moved.
+- Pagination parity with HTML: the PDF uses the same ordered source-row plan, so 20 short rows render as one A4 form page and 21+ rows spill to a continuation page with the three titled placeholder panels; a row that does not fit moves whole. Dense styling applies only above 14 items; the former WTI 12 / WTO 14 final-page reserve is removed.
+- Enforced by `weight-ticket-print.test.ts`: HTML/React-PDF page-count alignment for 0/1/15/16/20/21/30/31 rows, long-row movement, dense-height parity, the continuation-to-final handoff, and final-page 20-cell geometry; the focused suite passes 41/41.
 
 ## 2026-07-03 WTI/WTO PDF Blank-Page Fix
 

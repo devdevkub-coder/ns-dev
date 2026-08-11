@@ -30,12 +30,12 @@ export function paginateMeasuredCorporateRows<T>(
   while (finalCount > 0 && !fitsFinalPage(rows.slice(rows.length - finalCount))) {
     finalCount -= 1
   }
-  if (finalCount === 0) {
+  if (finalCount === 0 && !fitsFinalPage([])) {
     throw new Error(`Corporate print row ${rows.length} is taller than the available A4 page area`)
   }
 
   const pages: MeasuredCorporatePage<T>[] = []
-  const continuationRows = rows.slice(0, rows.length - finalCount)
+  const continuationRows = finalCount === 0 ? rows : rows.slice(0, rows.length - finalCount)
   let cursor = 0
   while (cursor < continuationRows.length) {
     let continuationCount = Math.min(continuationRows.length - cursor, maxRowsPerPage)
@@ -58,7 +58,7 @@ export function paginateMeasuredCorporateRows<T>(
 
   pages.push({
     isFinalPage: true,
-    items: [...rows.slice(rows.length - finalCount)],
+    items: finalCount === 0 ? [] : [...rows.slice(rows.length - finalCount)],
     pageNo: pages.length + 1,
   })
   return pages
@@ -210,14 +210,17 @@ function itemTable(page: PrintPageElement) {
 
 function continuationPanelTitle(document: Document, title: string) {
   const panel = document.createElement('div')
-  panel.className = 'continuation-summary-panel'
+  panel.className = 'panel continuation-summary-panel'
   const heading = document.createElement('div')
-  heading.className = 'continuation-panel-title'
+  heading.className = 'panel-title continuation-panel-title'
   heading.textContent = title
+  const body = document.createElement('div')
+  body.className = 'panel-body continuation-panel-body'
   const placeholder = document.createElement('div')
   placeholder.className = 'continuation-placeholder'
   placeholder.textContent = '-'
-  panel.append(heading, placeholder)
+  body.append(placeholder)
+  panel.append(heading, body)
   return panel
 }
 
@@ -261,7 +264,10 @@ function createContinuationTemplate(finalTemplate: PrintPageElement) {
   if (tableHostIndex < 0) return null
 
   const continuationWrapper = ['.bottom-grid', '.summary-grid', '.continuation-summary']
-    .map((selector) => Array.from(parent.children).find((child) => child.matches(selector)))
+    .map((selector) => (
+      Array.from(parent.children).find((child) => child.matches(selector))
+      ?? parent.querySelector<HTMLElement>(selector)
+    ))
     .find((child): child is Element => Boolean(child))
   const continuationClasses = new Set(continuationWrapper?.className.split(/\s+/).filter(Boolean) ?? [])
   continuationClasses.add('continuation-summary')
@@ -282,6 +288,7 @@ function createContinuationTemplate(finalTemplate: PrintPageElement) {
   const continuation = parent.ownerDocument.createElement('section')
   continuation.className = Array.from(continuationClasses).join(' ')
   continuation.dataset.continuationSummary = 'placeholder'
+  continuation.dataset.continuationPanels = 'placeholder'
   continuation.setAttribute('aria-label', 'Continuation page summary placeholders')
   const documentType = finalTemplate.dataset.documentType
   const documentTitle = finalTemplate.querySelector<HTMLElement>('.doc-title, h1')?.textContent?.trim().toLowerCase() ?? ''
@@ -296,10 +303,11 @@ function createContinuationTemplate(finalTemplate: PrintPageElement) {
           : /ค่าใช้จ่าย|expense/.test(documentTitle)
             ? 'สรุปค่าใช้จ่าย'
             : 'สรุปตามหมวดสินค้า'
-  continuation.append(
-    continuationPanelTitle(parent.ownerDocument, title),
-    continuationPanelTitle(parent.ownerDocument, 'หมายเหตุ'),
-  )
+  const panelTitles = [title, 'หมายเหตุ']
+  if (documentType === 'WTI' || documentType === 'WTO') {
+    panelTitles.push('ข้อมูลน้ำหนัก / Weight Info')
+  }
+  continuation.append(...panelTitles.map((panelTitle) => continuationPanelTitle(parent.ownerDocument, panelTitle)))
 
   const marker = parent.ownerDocument.createElement('div')
   marker.className = 'continuation-signature continued'

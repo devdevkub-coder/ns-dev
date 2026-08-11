@@ -9,21 +9,32 @@ const companyProfilePayloadSchema = z.object({
   selectedBranchName: z.string().nullable().default(null),
 })
 
-const FIRST_PAGE_ITEM_ROWS = 12
-// WTI rows include product detail lines, so 14 is the largest continuation
-// capacity that keeps the three placeholder panels and continuation marker on
-// the same A4 page in both browser print and React-PDF.
-const CONTINUATION_PAGE_ITEM_ROWS = 14
-// The final page also contains totals, three summary panels, and signatures.
-// Give the form a taller table so short tickets use the available paper instead
-// of leaving a large empty block above the signatures. The signatures still
-// stay anchored at the bottom of the form.
-const WTI_FINAL_PAGE_ITEM_ROWS = FIRST_PAGE_ITEM_ROWS
-const WTO_FINAL_PAGE_ITEM_ROWS = CONTINUATION_PAGE_ITEM_ROWS
+/**
+ * WTI/WTO are the only printable forms whose table always renders the full
+ * twenty-cell form on every page, including the final page that also carries
+ * totals, summary panels and signatures. Short tickets fill the unused slots
+ * with empty rows so the form keeps its fixed 20-row grid. The browser print
+ * path performs a second, DOM-backed fit after the HTML is written; these
+ * values are the deterministic ceiling used by React-PDF and the LINE
+ * notification renderers.
+ */
+export const WEIGHT_TICKET_MAX_ROWS_PER_PAGE = 20
+const FIRST_PAGE_ITEM_ROWS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
+const CONTINUATION_PAGE_ITEM_ROWS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
+// Wrapped text spends more than one visual row, so the height budget is
+// expressed in text-line units rather than row counts. Keeping the final page
+// on the same 20-unit budget means up to twenty short rows (or fewer wrapped
+// rows) fit on one A4 form without pushing totals, panels or signatures off
+// the page; a row that does not fit moves to the next page as a whole row.
+const WTI_FINAL_PAGE_HEIGHT_UNITS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
+const WTO_FINAL_PAGE_HEIGHT_UNITS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
 export const WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE = 6
 
 /** exported เพื่อให้ react-pdf template ใช้ค่าเดียวกันกับ HTML template */
 export { FIRST_PAGE_ITEM_ROWS, CONTINUATION_PAGE_ITEM_ROWS }
+
+/** Short neutral detail that remains visible inline only in 20-row dense tables. */
+export const NO_IMPURITY_SUMMARY_DETAIL = 'ไม่มีหักสิ่งเจือปน'
 
 export type PrintWeightRow = {
   className?: string
@@ -35,6 +46,12 @@ export type PrintWeightRow = {
   netWeight: number
   productName: string
   rank?: string
+}
+
+export type WeightTicketPrintPage = {
+  capacity: number
+  estimatedHeight: number
+  items: PrintWeightRow[]
 }
 
 function escapeHtml(value: unknown) {
@@ -171,7 +188,7 @@ function formatImpuritySummaryDetail(
   impurityLines: WeightTicketRecord['lines'],
   purchaseLines: WeightTicketRecord['lines'],
 ) {
-  if (impurityLines.length === 0) return 'ไม่มีหักสิ่งเจือปน'
+  if (impurityLines.length === 0) return NO_IMPURITY_SUMMARY_DETAIL
 
   const details = impurityLines.map((line, index) => {
     const purchaseLine = findPurchaseLineForImpurity(line, purchaseLines)
@@ -315,33 +332,170 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
   return rows
 }
 
-export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: boolean) {
-  const pages: Array<{ capacity: number; items: PrintWeightRow[] }> = []
-  let cursor = 0
-  while (cursor < printRows.length || pages.length === 0) {
-    const capacity = pages.length === 0 ? FIRST_PAGE_ITEM_ROWS : CONTINUATION_PAGE_ITEM_ROWS
-    pages.push({ capacity, items: printRows.slice(cursor, cursor + capacity) })
-    cursor += capacity
+function estimateWrappedLineCount(value: string, maxCharacters: number) {
+  const lines = value.replace(/\r\n?/g, '\n').split('\n')
+  return lines.reduce((total, line) => {
+    const characterCount = Array.from(line).length
+    return total + Math.max(1, Math.ceil(characterCount / maxCharacters))
+  }, 0)
+}
+
+/**
+ * Estimate the height of one table row without a browser. This is deliberately
+ * expressed in text-line units so the same deterministic plan can be reused
+ * by React-PDF and server-generated LINE HTML. The browser print window still
+ * performs a final CSS/font measurement after rendering.
+ */
+export function estimatePrintWeightRowHeight(row: PrintWeightRow, isReceipt: boolean, dense = false) {
+  // The WTI item column is narrower than WTO's five-column table. These values
+  // are conservative enough to move a wrapped row early rather than risk
+  // allowing text to collide with the numeric cells.
+  const itemColumnCharacters = isReceipt ? 34 : 58
+  const inlineNoImpurityDetail = dense && row.detail === NO_IMPURITY_SUMMARY_DETAIL
+  const productName = inlineNoImpurityDetail
+    ? `${row.productName} · ${row.detail}`
+    : row.productName
+  const lines = [
+    estimateWrappedLineCount(productName, itemColumnCharacters),
+    row.label ? estimateWrappedLineCount(row.label, itemColumnCharacters) : 0,
+    inlineNoImpurityDetail ? 0 : row.detail ? estimateWrappedLineCount(row.detail, itemColumnCharacters) : 0,
+  ]
+  if (inlineNoImpurityDetail) return Math.max(1, lines[0] + lines[1])
+  // One product line plus one optional detail/label line is the normal row
+  // shape and counts as one logical row. Only additional wrapped lines spend
+  // extra height budget.
+  return Math.max(1, lines.reduce((total, count) => total + count, 0) - 1)
+}
+
+function estimateRowsHeight(rows: readonly PrintWeightRow[], isReceipt: boolean) {
+  const dense = rows.length > 14
+  return rows.reduce((total, row) => total + estimatePrintWeightRowHeight(row, isReceipt, dense), 0)
+}
+
+function makePrintPage(
+  items: readonly PrintWeightRow[],
+  budget: number,
+  isReceipt: boolean,
+  maxRows = WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
+): WeightTicketPrintPage {
+  const estimatedHeight = estimateRowsHeight(items, isReceipt)
+  if (items.length > maxRows || estimatedHeight > budget) {
+    throw new Error('รายการ WTI/WTO ยาวเกินพื้นที่หนึ่งหน้า A4')
   }
 
-  if (pages.length > 1) {
-    const finalCapacity = isReceipt ? WTI_FINAL_PAGE_ITEM_ROWS : WTO_FINAL_PAGE_ITEM_ROWS
-    const lastIndex = pages.length - 1
-    const lastPage = pages[lastIndex]
-    if (lastPage.items.length > finalCapacity) {
-      pages[lastIndex] = {
-        capacity: CONTINUATION_PAGE_ITEM_ROWS,
-        items: lastPage.items.slice(0, finalCapacity),
-      }
-      pages.push({
-        capacity: finalCapacity,
-        items: lastPage.items.slice(finalCapacity),
-      })
-    } else {
-      pages[lastIndex] = { capacity: finalCapacity, items: lastPage.items }
+  // The form always fills its full row grid: the browser distributes the
+  // fixed table height across all slots, so extra empty rows never add height.
+  return {
+    capacity: maxRows,
+    estimatedHeight,
+    items: [...items],
+  }
+}
+
+function takeRowsForBudget(
+  rows: readonly PrintWeightRow[],
+  start: number,
+  budget: number,
+  isReceipt: boolean,
+  maxRows = WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
+) {
+  const items: PrintWeightRow[] = []
+
+  while (start + items.length < rows.length && items.length < maxRows) {
+    const row = rows[start + items.length]
+    const candidate = [...items, row]
+    const candidateHeight = estimateRowsHeight(candidate, isReceipt)
+    if (items.length === 0 && candidateHeight > budget) {
+      throw new Error('รายการ WTI/WTO ยาวเกินพื้นที่หนึ่งหน้า A4')
+    }
+    if (items.length > 0 && candidateHeight > budget) break
+    items.push(row)
+  }
+
+  return items
+}
+
+function largestFittingSuffix(
+  items: readonly PrintWeightRow[],
+  budget: number,
+  isReceipt: boolean,
+  maxRows: number,
+) {
+  for (let count = Math.min(items.length, maxRows); count > 0; count -= 1) {
+    const suffix = items.slice(items.length - count)
+    if (estimateRowsHeight(suffix, isReceipt) <= budget) return items.length - count
+  }
+  return -1
+}
+
+/**
+ * Keep WTI/WTO ordering intact while using a 20-row ceiling and moving a
+ * complete long row to the next page. The final page is reserved after the
+ * first greedy pass so totals/signatures never get pushed out by the table.
+ */
+export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: boolean): WeightTicketPrintPage[] {
+  const continuationBudget = CONTINUATION_PAGE_ITEM_ROWS
+  const finalMaxRows = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
+  const finalBudget = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
+  const pages: WeightTicketPrintPage[] = []
+  let cursor = 0
+
+  while (cursor < printRows.length) {
+    const items = takeRowsForBudget(printRows, cursor, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+    if (items.length === 0) {
+      throw new Error('Unable to paginate WTI/WTO print rows without losing data')
+    }
+    pages.push(makePrintPage(items, continuationBudget, isReceipt))
+    cursor += items.length
+  }
+
+  if (pages.length === 0) {
+    return [makePrintPage([], finalBudget, isReceipt, finalMaxRows)]
+  }
+
+  const lastIndex = pages.length - 1
+  const lastPage = pages[lastIndex]
+  // A final table that reaches its row ceiling needs an entirely short set of
+  // rows. Move one complete row forward when a wrapped row would otherwise
+  // consume the fixed footer/signature reserve.
+  const finalRowLimit = lastPage.items.length === finalMaxRows
+    && lastPage.items.some((row) => estimatePrintWeightRowHeight(row, isReceipt) > 1)
+    ? finalMaxRows - 1
+    : finalMaxRows
+  if (lastPage.items.length <= finalRowLimit && lastPage.estimatedHeight <= finalBudget) {
+    pages[lastIndex] = makePrintPage(lastPage.items, finalBudget, isReceipt, finalMaxRows)
+    return pages
+  }
+
+  // Move the largest fitting suffix to a new final page. If the current page
+  // is not the first, try to append its prefix to the preceding page before
+  // creating an extra continuation page.
+  const splitAt = largestFittingSuffix(lastPage.items, finalBudget, isReceipt, finalRowLimit)
+  if (splitAt <= 0) {
+    // The row still fits a continuation form, but cannot coexist with the
+    // final totals/signature reserve. Keep it intact and emit a final page
+    // containing only the reserved final sections.
+    pages.push(makePrintPage([], finalBudget, isReceipt, finalMaxRows))
+    return pages
+  }
+
+  const prefix = lastPage.items.slice(0, splitAt)
+  const suffix = lastPage.items.slice(splitAt)
+  const previousPage = pages[lastIndex - 1]
+  if (previousPage) {
+    const merged = [...previousPage.items, ...prefix]
+    if (
+      merged.length <= WEIGHT_TICKET_MAX_ROWS_PER_PAGE
+      && estimateRowsHeight(merged, isReceipt) <= continuationBudget
+    ) {
+      pages.splice(lastIndex - 1, 2, makePrintPage(merged, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE))
+      pages.push(makePrintPage(suffix, finalBudget, isReceipt, finalMaxRows))
+      return pages
     }
   }
 
+  pages[lastIndex] = makePrintPage(prefix, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+  pages.push(makePrintPage(suffix, finalBudget, isReceipt, finalMaxRows))
   return pages
 }
 
@@ -377,15 +531,19 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   const lotLines = ticket.lines.filter(isLotLine)
   const lotCount = lotLines.length
 
-  function rowHtml(row: PrintWeightRow, rowSlot: number) {
+  function rowHtml(row: PrintWeightRow, rowSlot: number, dense: boolean) {
+    const inlineNoImpurityDetail = dense && row.detail === NO_IMPURITY_SUMMARY_DETAIL
+    const inlineNoImpurity = inlineNoImpurityDetail
+      ? `<span class="muted dense-inline"> · ${escapeHtml(row.detail)}</span>`
+      : ''
     if (row.className === 'product-heading') {
       const colSpan = isReceipt ? 7 : 5
       return `
         <tr class="item-row product-heading" data-row-slot="${rowSlot}">
           <td class="c rank-cell">${escapeHtml(row.rank || '')}</td>
           <td colspan="${colSpan - 1}">
-            <div class="item-name">${escapeHtml(row.productName)}</div>
-            <div class="muted">${detailHtml(row.detail)}</div>
+            <div class="item-name">${escapeHtml(row.productName)}${inlineNoImpurity}</div>
+            ${inlineNoImpurityDetail ? '' : `<div class="muted">${detailHtml(row.detail)}</div>`}
           </td>
         </tr>
       `
@@ -397,9 +555,9 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       <tr class="item-row ${escapeHtml(row.className || '')}" data-row-slot="${rowSlot}">
         <td class="c rank-cell">${escapeHtml(row.rank || '')}</td>
         <td>
-          <div class="item-name">${escapeHtml(row.productName)}</div>
+          <div class="item-name">${escapeHtml(row.productName)}${inlineNoImpurity}</div>
           ${row.label ? `<div class="muted">${escapeHtml(row.label)}</div>` : ''}
-          <div class="muted">${detailHtml(row.detail)}</div>
+          ${inlineNoImpurityDetail ? '' : `<div class="muted">${detailHtml(row.detail)}</div>`}
         </td>
         <td class="r">${formatPrintableNumber(row.grossWeight)}</td>
         ${isReceipt ? `
@@ -421,7 +579,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   let rowSlot = 0
   const pageHtml = pages.map((page, pageIndex) => {
     const isLastPage = pageIndex === totalPages - 1
-    const rows = page.items.map((row) => rowHtml(row, ++rowSlot)).join('')
+    const denseTable = page.items.length > 14
+    const rows = page.items.map((row) => rowHtml(row, ++rowSlot, denseTable)).join('')
     const emptyRows = Array.from({ length: Math.max(0, page.capacity - page.items.length) }, (_, emptyIndex) => `
       <tr class="item-row empty${isLastPage ? ' final-empty' : ''}" data-row-slot="empty-${pageIndex + 1}-${emptyIndex + 1}" aria-hidden="true">
         ${Array.from({ length: isReceipt ? 7 : 5 }, () => '<td>&nbsp;</td>').join('')}
@@ -430,7 +589,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     const totalAfterContainer = Math.max(0, ticket.totals.grossWeight - ticket.totals.containerDeductionWeight)
 
     return `
-      <main class="page" data-print-page="${pageIndex + 1}" data-final-page="${isLastPage}">
+      <main class="page${denseTable ? ' dense-page' : ''}" data-document-type="${ticket.type}" data-print-page="${pageIndex + 1}" data-final-page="${isLastPage}">
         <div class="accent"></div>
         <section class="header">
           <div class="company">
@@ -470,7 +629,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         </section>
 
         <div class="items-frame">
-        <table class="items">
+        <table class="items${denseTable ? ' dense' : ''}" style="--item-row-slots: ${page.capacity}">
           <thead>
             <tr>
               <th class="c rank-cell" style="width:7mm">#</th>
@@ -491,7 +650,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             ${emptyRows}
           </tbody>
           ${isLastPage ? `
-            <tfoot>
+            <tfoot data-page-totals="final">
               <tr>
                 <td colspan="2" class="r">รวมทั้งสิ้น</td>
                 <td class="r">${formatPrintableNumber(ticket.totals.grossWeight)}</td>
@@ -647,10 +806,14 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .items { margin-top: 0; font-size: 10.5px; table-layout: fixed; flex: 1 1 auto; height: 100%; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 4px 3px; text-align: left; font-weight: 700; overflow-wrap: anywhere; word-break: break-word; }
       .items td { border: 1px solid #dbe3ea; padding: 4px 3px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-      .items .empty td { height: auto; color: transparent; }
-      .items .final-empty td { height: auto; }
+      .items.dense { font-size: 9px; line-height: 1.15; }
+      .items.dense th, .items.dense td { padding: 2px; }
+      .items.dense .muted { margin-top: 0; font-size: 8px; line-height: 1.15; }
+      .items.dense .dense-inline { display: inline; white-space: nowrap; }
+      .items.dense .detail-line { margin-top: 0; }
       .items tbody { height: 100%; }
-      .items tbody > tr.empty > td { height: 1px; }
+      .items tbody > tr { height: calc(100% / var(--item-row-slots)); }
+      .items .empty td { color: transparent; }
       .items .product-heading td { background: #f1f5f9; }
       .items .lot-row td { background: #ffffff; }
       .items .source-row td { background: #f8fafc; }
@@ -719,8 +882,10 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .items-frame { margin-top: 6px; }
         .items { font-size: 10px; }
         .items th, .items td { padding: 2.5px; }
-        .items .empty td { height: 18px; }
-        .items .final-empty td { height: 28px; }
+        .items.dense { font-size: 8.5px; line-height: 1.12; }
+        .items.dense th, .items.dense td { padding: 1.5px 2px; }
+        .items.dense .muted { font-size: 7.5px; line-height: 1.12; }
+        .items.dense .dense-inline { display: inline; white-space: nowrap; }
         .muted { font-size: 9px; }
         .detail-line { margin-top: 0; line-height: 1.25; }
         .bottom-grid { gap: 8px; margin-top: 7px; }
@@ -771,8 +936,13 @@ export async function openWeightTicketReceiptPrint(ticket: WeightTicketRecord, t
   printWindow.document.open()
   printWindow.document.write(buildReceiptPrintHtml(ticket, profile))
   printWindow.document.close()
-  // WTI/WTO already paginate their form rows with receipt/delivery-specific
-  // capacities; the shared layer only applies the measured A4 overflow gate.
-  await prepareCorporatePrintLayout(printWindow.document, { reflowRows: false })
+  // The pure paginator gives PDF/LINE a deterministic 20-row ceiling. For the
+  // browser print window, re-run the same pages through the shared DOM fitter
+  // so loaded fonts, logo dimensions, wrapped remarks, summary panels and
+  // signatures decide the final row boundary without splitting a row.
+  await prepareCorporatePrintLayout(printWindow.document, {
+    maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
+    reflowRows: true,
+  })
   printWindow.focus()
 }
