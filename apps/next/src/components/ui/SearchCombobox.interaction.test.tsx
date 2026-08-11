@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SearchCombobox } from './SearchCombobox'
+import { Dialog, DialogContent } from './Dialog'
 
 const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT
@@ -52,6 +53,7 @@ describe('SearchCombobox portal interaction', () => {
             { id: 'supplier-a', label: 'ผู้ขาย A' },
             { id: 'supplier-b', label: 'ผู้ขาย B' },
           ]}
+          pickerMode="auto"
           value=""
           onChange={onChange}
         />,
@@ -255,5 +257,110 @@ describe('SearchCombobox portal interaction', () => {
     expect(onChange).toHaveBeenCalledWith('product-a')
     act(() => root.unmount())
     vi.useRealTimers()
+  })
+
+  it('opens a scrollable picker dialog inside an existing modal without using the body dropdown', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onChange = vi.fn()
+
+    act(() => {
+      root.render(
+        <Dialog open>
+          <DialogContent hideClose>
+            <SearchCombobox
+              inputId="party-dialog-search"
+              label="ผู้ขาย"
+              options={Array.from({ length: 30 }, (_, index) => ({
+                id: `supplier-${index + 1}`,
+                label: `ผู้ขาย ${index + 1}`,
+              }))}
+              pickerMode="auto"
+              value=""
+              onChange={onChange}
+            />
+          </DialogContent>
+        </Dialog>,
+      )
+    })
+
+    const input = container.querySelector<HTMLInputElement>('[role="combobox"]')
+      ?? document.querySelector<HTMLInputElement>('#party-dialog-search')
+    expect(input).not.toBeNull()
+
+    act(() => input?.focus())
+
+    const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]')
+    const pickerDialog = dialogs.item(dialogs.length - 1)
+    const listbox = pickerDialog.querySelector<HTMLElement>('#party-dialog-search-options')
+
+    expect(dialogs).toHaveLength(2)
+    expect(listbox).not.toBeNull()
+    expect(listbox?.dataset.slot).toBe('option-picker-list')
+    expect(listbox?.classList.contains('overflow-y-auto')).toBe(true)
+
+    const pickerSearch = pickerDialog.querySelector<HTMLInputElement>('input[aria-label="ค้นหาผู้ขาย"]')
+    act(() => {
+      pickerSearch?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+      pickerSearch?.focus()
+    })
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2)
+
+    const option = Array.from(listbox?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])
+      .find((button) => button.textContent?.includes('ผู้ขาย 20'))
+    act(() => option?.click())
+
+    expect(onChange).toHaveBeenLastCalledWith('supplier-20')
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1)
+    expect(input?.getAttribute('aria-expanded')).toBe('false')
+
+    act(() => root.unmount())
+  })
+
+  it('keeps the current value when dialog search is closed without selecting another option', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onChange = vi.fn()
+
+    act(() => {
+      root.render(
+        <SearchCombobox
+          inputId="party-dialog-cancel"
+          label="ผู้ขาย"
+          options={[
+            { id: 'supplier-1', label: 'ผู้ขาย 1' },
+            { id: 'supplier-2', label: 'ผู้ขาย 2' },
+            { id: 'supplier-3', label: 'ผู้ขาย 3' },
+            { id: 'supplier-4', label: 'ผู้ขาย 4' },
+            { id: 'supplier-5', label: 'ผู้ขาย 5' },
+          ]}
+          pickerMode="auto"
+          value="supplier-1"
+          onChange={onChange}
+        />,
+      )
+    })
+
+    const sourceInput = container.querySelector<HTMLInputElement>('#party-dialog-cancel')
+    act(() => sourceInput?.focus())
+
+    const pickerSearch = document.querySelector<HTMLInputElement>('input[aria-label="ค้นหาผู้ขาย"]')
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      valueSetter?.call(pickerSearch, 'คำค้นที่ไม่เลือก')
+      pickerSearch?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    const closeButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === 'ปิด')
+    act(() => closeButton?.click())
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(sourceInput?.value).toBe('ผู้ขาย 1')
+    expect(sourceInput?.getAttribute('aria-expanded')).toBe('false')
+
+    act(() => root.unmount())
   })
 })

@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Input } from '@/components/ui/Input'
+import { OptionPickerDialog, resolveOptionPickerMode, type OptionPickerMode } from '@/components/ui/OptionPickerDialog'
 import { cn } from '@/lib/utils'
 
 export type SearchComboboxOption = {
@@ -47,6 +48,7 @@ export function SearchCombobox({
   options,
   optionsPanelClassName,
   openOnFocus = true,
+  pickerMode = 'dropdown',
   placeholder,
   readOnly = false,
   value,
@@ -63,6 +65,7 @@ export function SearchCombobox({
   options: SearchComboboxOption[]
   optionsPanelClassName?: string
   openOnFocus?: boolean
+  pickerMode?: OptionPickerMode
   placeholder?: string
   readOnly?: boolean
   value: string
@@ -90,6 +93,8 @@ export function SearchCombobox({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const touchMovedRef = useRef(false)
   const suppressTouchClickUntilRef = useRef(0)
+  const suppressOpenOnFocusRef = useRef(false)
+  const resolvedPickerMode = resolveOptionPickerMode(pickerMode, options.length)
   const isSelectedValueQuery = Boolean(selectedOption) && query.trim().toLowerCase() === selectedLabelQuery
 
   const lastEmittedValueRef = useRef<string | null>(null)
@@ -110,7 +115,7 @@ export function SearchCombobox({
   }, [value, selectedLabel])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || resolvedPickerMode === 'dialog') return
 
     const coarsePointer = window.matchMedia('(pointer: coarse)')
     setIsCoarsePointer(coarsePointer.matches)
@@ -168,7 +173,7 @@ export function SearchCombobox({
       window.visualViewport?.removeEventListener('resize', updatePanelRect)
       window.visualViewport?.removeEventListener('scroll', updatePanelRect)
     }
-  }, [open])
+  }, [open, resolvedPickerMode])
 
   useEffect(() => {
     if (open) return
@@ -176,7 +181,7 @@ export function SearchCombobox({
   }, [open])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || resolvedPickerMode === 'dialog') return
 
     const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
       const target = event.target as HTMLElement
@@ -205,7 +210,7 @@ export function SearchCombobox({
       document.removeEventListener('mousedown', handleOutsideClick)
       document.removeEventListener('touchstart', handleOutsideClick)
     }
-  }, [clearCloseTimer, open, options, query, selectedOption, onChange, inputId])
+  }, [clearCloseTimer, open, options, query, resolvedPickerMode, selectedOption, onChange, inputId])
 
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -244,10 +249,51 @@ export function SearchCombobox({
     onChange(option.id)
     setQuery(option.label)
     setOpen(false)
-    if (shouldAutoSelectText()) inputRef.current?.focus()
+    if (resolvedPickerMode !== 'dialog' && shouldAutoSelectText()) {
+      inputRef.current?.focus()
+    }
   }
 
   const fieldInvalid = Boolean(error && !disabled)
+
+  const closePicker = () => {
+    const exactMatch = options.find((option) => option.label.toLowerCase() === query.trim().toLowerCase())
+    if (exactMatch) {
+      lastEmittedValueRef.current = exactMatch.id
+      onChange(exactMatch.id)
+      setQuery(exactMatch.label)
+    } else if (selectedOption) {
+      setQuery(selectedOption.label)
+    } else {
+      setQuery('')
+    }
+    clearCloseTimer()
+    setOpen(false)
+  }
+
+  const handlePickerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closePicker()
+      return
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (filteredOptions.length === 0) return
+      setHighlightedIndex((current) => current < 0 ? 0 : Math.min(current + 1, filteredOptions.length - 1))
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (filteredOptions.length === 0) return
+      setHighlightedIndex((current) => current < 0 ? filteredOptions.length - 1 : Math.max(current - 1, 0))
+      return
+    }
+    if (event.key === 'Enter' && filteredOptions[highlightedIndex >= 0 ? highlightedIndex : 0]) {
+      event.preventDefault()
+      selectOption(filteredOptions[highlightedIndex >= 0 ? highlightedIndex : 0])
+    }
+  }
 
   return (
     <div ref={containerRef} className="relative" data-error-key={errorKey} data-manual-required={hasInlineRequired ? 'true' : undefined}>
@@ -288,13 +334,14 @@ export function SearchCombobox({
           const nextQuery = event.target.value
           setQuery(nextQuery)
           setOpen(true)
-          if (value && nextQuery !== selectedLabel) {
+          if (resolvedPickerMode !== 'dialog' && value && nextQuery !== selectedLabel) {
             lastEmittedValueRef.current = ''
             onChange('')
           }
         }}
         onFocus={() => {
           if (disabled) return
+          if (suppressOpenOnFocusRef.current) return
           clearCloseTimer()
           if (openOnFocus) setOpen(true)
           if (!isSelectedValueQuery) return
@@ -303,6 +350,7 @@ export function SearchCombobox({
           requestAnimationFrame(() => inputRef.current?.select())
         }}
         onBlur={() => {
+          if (resolvedPickerMode === 'dialog') return
           // Delay close so a click on a portal option (which blurs the input
           // first) still registers. Restores the query like handleOutsideClick
           // does, and prevents multiple combobox popups stacking in forms that
@@ -364,7 +412,68 @@ export function SearchCombobox({
           }
         }}
       />
-      {open && panelRect
+      {resolvedPickerMode === 'dialog' ? (
+        <OptionPickerDialog
+          listboxId={`${inputId}-options`}
+          open={open}
+          title={`เลือก${labelText}`}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            suppressOpenOnFocusRef.current = true
+            inputRef.current?.focus({ preventScroll: true })
+            suppressOpenOnFocusRef.current = false
+          }}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            mobileInputRef.current?.focus({ preventScroll: true })
+          }}
+          onOpenChange={(nextOpen) => {
+            if (nextOpen) {
+              setOpen(true)
+              return
+            }
+            closePicker()
+          }}
+          search={(
+            <Input
+              ref={mobileInputRef}
+              aria-autocomplete="list"
+              aria-controls={`${inputId}-options`}
+              aria-expanded={open}
+              aria-haspopup="listbox"
+              aria-label={`ค้นหา${labelText}`}
+              className="h-11 w-full rounded-md border-slate-300 text-base dark:[border-color:var(--ns-dark-border-strong)]"
+              placeholder={placeholder}
+              readOnly={readOnly}
+              type="search"
+              value={query}
+              onChange={(event) => {
+                const nextQuery = event.target.value
+                setQuery(nextQuery)
+              }}
+              onKeyDown={handlePickerKeyDown}
+            />
+          )}
+        >
+          {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
+            <button
+              key={option.id}
+              ref={(element) => { optionRefs.current[index] = element }}
+              id={`${inputId}-option-${index}`}
+              aria-selected={option.id === value}
+              className={`block w-full overflow-hidden rounded-sm px-3 py-3 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:[background-color:var(--ns-dropdown-selected)] ${option.id === value || highlightedIndex === index ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dropdown-selected)] dark:![color:var(--ns-dark-text)]' : ''}`}
+              role="option"
+              type="button"
+              onClick={() => selectOption(option)}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              <span className="block break-words font-medium">{option.label}</span>
+              {option.description ? <span className="block break-words text-sm text-slate-500 dark:text-slate-400">{option.description}</span> : null}
+            </button>
+          )) : <div className="px-3 py-3 text-base text-slate-500 dark:text-slate-400">ไม่พบข้อมูลที่ตรงกับคำค้นหา</div>}
+        </OptionPickerDialog>
+      ) : null}
+      {resolvedPickerMode === 'dropdown' && open && panelRect
         ? createPortal(
             <div
               id={`${inputId}-options`}

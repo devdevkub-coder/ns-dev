@@ -1210,10 +1210,16 @@ business rule ถูกทำสำเนาแล้วเปลี่ยนไ
 ถ้ากดยืนยันจึงเรียก mutation เดิมเพียงครั้งเดียว. กติกานี้ป้องกัน draft สูญหายโดยไม่เปลี่ยน
 payload, permission, timeline หรือ ledger ของ WTI/WTO.
 
-ตัวเลือกสาขาของทั้ง WTI และ WTO ใช้ shared dropdown แบบ read-only ภายใน modal. รายการ
-ตัวเลือกที่ render ผ่าน portal ต้องรับทั้ง mouse และ mobile tap ก่อน event ถูกตีความว่าเป็น
-interaction นอก dialog; การลากเพื่อเลื่อนรายการต้องไม่เลือกสาขาโดยไม่ตั้งใจ. เมื่อเลือกสำเร็จ
-จึงเรียก `changeBranch` และใช้ confirmation contract ด้านบนตามข้อมูลย่อยที่มีอยู่.
+ตัวเลือกของ WTI/WTO ใช้ presentation ตามจำนวนข้อมูลจริง: ถ้ามีไม่เกิน 4 รายการให้คง
+dropdown รูปแบบเดิม แต่ถ้ามากกว่า 4 รายการให้เปิด option-picker dialog ซ้อนอยู่ใน form
+dialog. กติกานี้ใช้กับสาขา ผู้ขาย/ลูกค้า สินค้า คลัง สิ่งเจือปน สินค้าที่ปนมา และประเภท
+การหัก โดยไม่ผูกกับชื่อ field หรือจำนวนข้อมูลที่ hardcode ไว้ล่วงหน้า.
+
+บนมือถือ picker เป็น bottom sheet สูงไม่เกิน viewport และบน desktop เป็น modal กึ่งกลาง
+ขนาดจำกัด; พื้นที่รายการเป็น scroll container ของ picker โดยตรง จึงใช้ wheel, trackpad และ
+touch drag ได้โดยไม่ชน scroll lock ของ form dialog. เมื่อเลือกหรือปิด picker ต้องคืน focus
+ไปยัง field เดิมโดยไม่เปิด picker ซ้ำ. การเปลี่ยนนี้ไม่เปลี่ยน options API, payload,
+permission, save scope หรือ source of truth ของข้อมูล.
 
 ภายใน product source ยังแยก presentation เป็น `WeightTicketWtiFormSection` และ
 `WeightTicketWtoFormSection`; WTO section เพิ่ม warehouse และ stock availability

@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { BranchSelectCombobox } from './BranchSelectCombobox'
 import { Combobox, ComboboxContent, ComboboxInput, ComboboxItem, ComboboxList } from './combobox'
+import type { OptionPickerMode } from './OptionPickerDialog'
 
 const branchNames = ['ทุกสาขา', 'สาขา A', 'สาขา B']
 const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -23,19 +24,24 @@ afterAll(() => {
 
 function ComboboxHarness({
   className = 'h-9',
+  items = branchNames,
+  pickerMode = 'dropdown',
   readOnly = true,
   onValueChange = () => undefined,
 }: {
   className?: string
+  items?: string[]
+  pickerMode?: OptionPickerMode
   readOnly?: boolean
   onValueChange?: (value: string) => void
 }) {
-  const [value, setValue] = React.useState(branchNames[0])
+  const [value, setValue] = React.useState(items[0])
 
   return (
     <Combobox
       inputId="branch-filter"
-      items={branchNames}
+      items={items}
+      pickerMode={pickerMode}
       value={value}
       onValueChange={(nextValue) => {
         setValue(nextValue)
@@ -188,6 +194,31 @@ describe('shared combobox behavior', () => {
     expect(input.value).toBe('สาขา B')
     expect(input.getAttribute('aria-expanded')).toBe('false')
   })
+
+  it('keeps auto mode as the original dropdown when there are at most four options', () => {
+    const input = renderHarness({ pickerMode: 'auto' })
+
+    act(() => input.focus())
+
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.getElementById('branch-filter-options')?.classList.contains('pointer-events-auto')).toBe(true)
+  })
+
+  it('uses a scrollable picker dialog in auto mode when there are more than four options', () => {
+    const input = renderHarness({
+      items: ['รายการ 1', 'รายการ 2', 'รายการ 3', 'รายการ 4', 'รายการ 5'],
+      pickerMode: 'auto',
+    })
+
+    act(() => input.focus())
+
+    const pickerDialog = document.querySelector<HTMLElement>('[role="dialog"]')
+    const listbox = pickerDialog?.querySelector<HTMLElement>('#branch-filter-options')
+    expect(pickerDialog).not.toBeNull()
+    expect(listbox?.dataset.slot).toBe('option-picker-list')
+    expect(listbox?.classList.contains('overflow-y-auto')).toBe(true)
+  })
+
 })
 
 describe('shared dropdown height contract', () => {

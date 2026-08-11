@@ -1,6 +1,7 @@
 'use client'
 
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from '@/components/ui/combobox'
+import type { OptionPickerMode } from '@/components/ui/OptionPickerDialog'
 
 type BranchOption = {
   id: string
@@ -19,6 +20,7 @@ export function BranchSelectCombobox({
   inputId,
   label,
   placeholder,
+  pickerMode = 'dropdown',
   value,
   widthClassName,
   onChange,
@@ -34,6 +36,7 @@ export function BranchSelectCombobox({
   inputId: string
   label?: string
   placeholder: string
+  pickerMode?: OptionPickerMode
   value: string | null | undefined
   widthClassName?: string
   onChange: (branchId: string | null) => void
@@ -56,6 +59,8 @@ export function BranchSelectCombobox({
           disabled={disabled}
           inputId={inputId}
           items={options.map((branch) => branch.name)}
+          pickerMode={pickerMode}
+          pickerTitle={safeLabel ? `เลือก${labelText}` : placeholder}
           value={selectedName}
           onValueChange={(branchName) => {
             if (includeAllOption && branchName === allOptionLabel) {

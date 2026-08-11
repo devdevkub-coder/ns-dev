@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 
 import { Input } from '@/components/ui/Input'
+import { OptionPickerDialog, resolveOptionPickerMode, type OptionPickerMode } from '@/components/ui/OptionPickerDialog'
 import { cn } from '@/lib/utils'
 
 type PrimitiveItem = string | {
@@ -30,6 +31,8 @@ type ComboboxContextValue = {
   inputElement: HTMLInputElement | null
   setInputElement: React.Dispatch<React.SetStateAction<HTMLInputElement | null>>
   open: boolean
+  pickerMode: 'dialog' | 'dropdown'
+  pickerTitle: string
   panelRect: { left: number; maxHeight: number; top: number; width: number } | null
   query: string
   selectValue: (value: string) => void
@@ -37,6 +40,7 @@ type ComboboxContextValue = {
   setHighlightedIndex: React.Dispatch<React.SetStateAction<number>>
   setOpen: (open: boolean) => void
   setQuery: (query: string) => void
+  suppressOpenOnFocusRef: React.MutableRefObject<boolean>
 }
 
 const ComboboxContext = React.createContext<ComboboxContextValue | null>(null)
@@ -71,6 +75,8 @@ export function Combobox({
   disabled = false,
   inputId,
   items,
+  pickerMode = 'dropdown',
+  pickerTitle = 'เลือกรายการ',
   value,
   onValueChange,
 }: {
@@ -78,6 +84,8 @@ export function Combobox({
   disabled?: boolean
   inputId?: string
   items: PrimitiveItem[]
+  pickerMode?: OptionPickerMode
+  pickerTitle?: string
   onValueChange?: (value: string) => void
   value?: string
 }) {
@@ -90,6 +98,8 @@ export function Combobox({
   const [highlightedIndex, setHighlightedIndex] = React.useState(-1)
   const [inputElement, setInputElement] = React.useState<HTMLInputElement | null>(null)
   const [panelRect, setPanelRect] = React.useState<ComboboxContextValue['panelRect']>(null)
+  const suppressOpenOnFocusRef = React.useRef(false)
+  const resolvedPickerMode = resolveOptionPickerMode(pickerMode, normalizedItems.length)
   const isSelectedValueQuery = Boolean(selectedItem) && query.trim().toLowerCase() === selectedLabelQuery
 
   React.useEffect(() => {
@@ -170,6 +180,8 @@ export function Combobox({
     inputElement,
     setInputElement,
     open,
+    pickerMode: resolvedPickerMode,
+    pickerTitle,
     panelRect,
     query,
     selectValue,
@@ -177,7 +189,8 @@ export function Combobox({
     setHighlightedIndex,
     setOpen,
     setQuery,
-  }), [disabled, filteredItems, highlightedIndex, inputElement, inputId, open, panelRect, query, selectValue, setInputElement, value])
+    suppressOpenOnFocusRef,
+  }), [disabled, filteredItems, highlightedIndex, inputElement, inputId, open, panelRect, pickerTitle, query, resolvedPickerMode, selectValue, setInputElement, value])
 
   return <ComboboxContext.Provider value={contextValue}>{children}</ComboboxContext.Provider>
 }
@@ -194,7 +207,7 @@ export function ComboboxInput({
   inputGroupClassName?: string
   withDropdownButton?: boolean
 }) {
-  const { disabled, filteredItems, highlightedIndex, inputId, open, query, selectValue, selectedValue, setHighlightedIndex, setInputElement, setOpen, setQuery } = useComboboxContext('ComboboxInput')
+  const { disabled, filteredItems, highlightedIndex, inputId, open, pickerMode, query, selectValue, selectedValue, setHighlightedIndex, setInputElement, setOpen, setQuery, suppressOpenOnFocusRef } = useComboboxContext('ComboboxInput')
   const inputRef = React.useRef<HTMLInputElement>(null)
   const selectedItem = React.useMemo(() => filteredItems.find((item) => item.value === selectedValue) ?? null, [filteredItems, selectedValue])
   const selectedLabel = selectedItem?.label ?? query
@@ -225,6 +238,7 @@ export function ComboboxInput({
       {...props}
       onBlur={() => {
         if (disabled) return
+        if (pickerMode === 'dialog') return
         window.setTimeout(() => {
           const exactMatch = filteredItems.find((item) => item.label.toLowerCase() === query.trim().toLowerCase())
           if (exactMatch) {
@@ -253,6 +267,7 @@ export function ComboboxInput({
       }}
       onFocus={() => {
         if (disabled) return
+        if (suppressOpenOnFocusRef.current) return
         setOpen(true)
         if (props.readOnly) return
         if (!isSelectedValueQuery) return
@@ -338,8 +353,27 @@ function onValueChangeFallback(selectValue: (value: string) => void) {
 }
 
 export function ComboboxContent({ children, className }: { children: React.ReactNode; className?: string }) {
-  const { inputId, open, panelRect } = useComboboxContext('ComboboxContent')
-  if (!open || !panelRect || typeof document === 'undefined') return null
+  const { inputElement, inputId, open, panelRect, pickerMode, pickerTitle, setOpen, suppressOpenOnFocusRef } = useComboboxContext('ComboboxContent')
+  if (!open || typeof document === 'undefined') return null
+  if (pickerMode === 'dialog') {
+    return (
+      <OptionPickerDialog
+        listboxId={inputId ? `${inputId}-options` : undefined}
+        open={open}
+        title={pickerTitle}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          suppressOpenOnFocusRef.current = true
+          inputElement?.focus({ preventScroll: true })
+          suppressOpenOnFocusRef.current = false
+        }}
+        onOpenChange={setOpen}
+      >
+        {children}
+      </OptionPickerDialog>
+    )
+  }
+  if (!panelRect) return null
   return createPortal(
     <div
       className={cn(
@@ -376,7 +410,7 @@ export function ComboboxItem({
   children: React.ReactNode
   value: string
 }) {
-  const { filteredItems, highlightedIndex, inputId, selectValue, selectedValue, setHighlightedIndex } = useComboboxContext('ComboboxItem')
+  const { filteredItems, highlightedIndex, inputId, pickerMode, selectValue, selectedValue, setHighlightedIndex } = useComboboxContext('ComboboxItem')
   const itemRef = React.useRef<HTMLButtonElement>(null)
   const touchStartRef = React.useRef<{ x: number; y: number } | null>(null)
   const hasMovedRef = React.useRef(false)
@@ -398,17 +432,20 @@ export function ComboboxItem({
       role="option"
       type="button"
       onMouseDownCapture={(event) => {
+        if (pickerMode === 'dialog') return
         event.preventDefault()
         event.stopPropagation()
         selectValue(value)
       }}
       onMouseEnter={() => setHighlightedIndex(itemIndex)}
       onTouchStartCapture={(event) => {
+        if (pickerMode === 'dialog') return
         const touch = event.touches[0]
         touchStartRef.current = { x: touch.clientX, y: touch.clientY }
         hasMovedRef.current = false
       }}
       onTouchMoveCapture={(event) => {
+        if (pickerMode === 'dialog') return
         if (!touchStartRef.current) return
         const touch = event.touches[0]
         const deltaX = Math.abs(touch.clientX - touchStartRef.current.x)
@@ -416,6 +453,7 @@ export function ComboboxItem({
         if (deltaX > 10 || deltaY > 10) hasMovedRef.current = true
       }}
       onTouchEndCapture={(event) => {
+        if (pickerMode === 'dialog') return
         event.stopPropagation()
         if (!hasMovedRef.current) {
           event.preventDefault()
@@ -423,7 +461,10 @@ export function ComboboxItem({
         }
         touchStartRef.current = null
       }}
-      onClick={(event) => event.preventDefault()}
+      onClick={(event) => {
+        event.preventDefault()
+        if (pickerMode === 'dialog') selectValue(value)
+      }}
     >
       <span className="block font-medium">{children}</span>
       {item?.description ? <span className="block text-xs text-slate-500 dark:text-slate-400">{item.description}</span> : null}

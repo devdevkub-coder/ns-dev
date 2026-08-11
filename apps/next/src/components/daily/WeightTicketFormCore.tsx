@@ -3366,6 +3366,7 @@ export function WeightTicketFormCore({
                 inputId="weight-ticket-branch"
                 label="สาขา*"
                 placeholder={isLoadingBranches ? 'กำลังโหลดสาขา...' : 'เลือกสาขา'}
+                pickerMode="auto"
                 value={form.branchId}
 	                onChange={(value) => {
 	                  markTouched('branchId')
@@ -3383,6 +3384,7 @@ export function WeightTicketFormCore({
                     inputId="weight-ticket-party"
                     label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}
                     options={displayPartyOptions}
+                    pickerMode="auto"
                     placeholder={!form.branchId ? 'เลือกสาขาก่อน' : form.type === 'WTI' ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'ค้นหารหัสหรือชื่อลูกค้า'}
                     value={form.partyId}
                     onChange={(value) => {
@@ -4219,6 +4221,7 @@ export function WeightTicketFormCore({
                                           hideLabel
                                           label="สิ่งเจือปน*"
                                           options={impurityOptionsForChild}
+                                          pickerMode="auto"
                                           placeholder={impurityOptions.length > 0 ? 'เลือกสิ่งเจือปน' : 'ยังไม่มีสิ่งเจือปนที่ใช้งาน'}
                                           value={selectedImpurityId}
                                           onChange={(value) => {
@@ -4247,6 +4250,7 @@ export function WeightTicketFormCore({
                                             inputId={`weight-impurity-product-${child.id}`}
                                             label="สินค้าที่ปนมา"
                                             options={impurityPurchaseProducts}
+                                            pickerMode="auto"
                                             placeholder="เลือกเมื่อต้องซื้อเพิ่ม"
                                             value={child.impurityProductId ?? ''}
                                             onChange={(value) => {
@@ -4592,6 +4596,7 @@ function SimpleDropdown({
       <Combobox
         disabled={disabled}
         items={options.map((option) => ({ label: option.label, value: option.value }))}
+        pickerMode="auto"
         value={value}
         onValueChange={onChange}
       >

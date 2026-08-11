@@ -89,6 +89,7 @@ function ProductField({
             inputId={inputId}
             label="สินค้า*"
             options={options}
+            pickerMode="auto"
             placeholder={placeholder}
             value={value}
             onChange={onChange}
@@ -155,6 +156,7 @@ function WarehouseField({
         inputId={inputId}
         label="คลัง*"
         options={options}
+        pickerMode="auto"
         placeholder={placeholder}
         value={value}
         onChange={onChange}
