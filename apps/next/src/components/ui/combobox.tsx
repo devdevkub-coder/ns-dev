@@ -349,7 +349,7 @@ export function ComboboxContent({ children, className }: { children: React.React
       data-slot="combobox-content"
       id={inputId ? `${inputId}-options` : undefined}
       role="listbox"
-      style={panelRect}
+      style={{ ...panelRect, WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}
     >
       {children}
     </div>,

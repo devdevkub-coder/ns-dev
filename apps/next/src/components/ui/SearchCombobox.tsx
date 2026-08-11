@@ -86,6 +86,7 @@ export function SearchCombobox({
   const [query, setQuery] = useState(selectedLabel)
   const [panelRect, setPanelRect] = useState<{ left: number; maxHeight: number; top: number; width: number } | null>(null)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const touchMovedRef = useRef(false)
   const suppressTouchClickUntilRef = useRef(0)
@@ -111,7 +112,10 @@ export function SearchCombobox({
   useEffect(() => {
     if (!open) return
 
-    if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) {
+    const coarsePointer = window.matchMedia('(pointer: coarse)')
+    setIsCoarsePointer(coarsePointer.matches)
+
+    if (coarsePointer.matches) {
       requestAnimationFrame(() => mobileInputRef.current?.focus())
     }
 
@@ -164,6 +168,11 @@ export function SearchCombobox({
       window.visualViewport?.removeEventListener('resize', updatePanelRect)
       window.visualViewport?.removeEventListener('scroll', updatePanelRect)
     }
+  }, [open])
+
+  useEffect(() => {
+    if (open) return
+    setIsCoarsePointer(false)
   }, [open])
 
   useEffect(() => {
@@ -359,11 +368,19 @@ export function SearchCombobox({
         ? createPortal(
             <div
               id={`${inputId}-options`}
-              className={`pointer-events-auto fixed z-[80] flex max-h-none flex-col overflow-hidden rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] [@media(pointer:coarse)]:!inset-0 [@media(pointer:coarse)]:!z-[90] [@media(pointer:coarse)]:!h-[100dvh] [@media(pointer:coarse)]:!max-h-[100dvh] [@media(pointer:coarse)]:!w-full [@media(pointer:coarse)]:!rounded-none [@media(pointer:coarse)]:!border-0 [@media(pointer:coarse)]:!p-4 [@media(pointer:coarse)]:!pt-[calc(env(safe-area-inset-top)+1rem)] ${optionsPanelClassName ?? ''}`.trim()}
+              className={cn(
+                'pointer-events-auto fixed z-[80] flex flex-col border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)]',
+                isCoarsePointer
+                  ? 'z-[90] h-[100dvh] max-h-[100dvh] w-full overflow-hidden rounded-none border-0 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]'
+                  : 'max-h-none overflow-hidden rounded-md border',
+                optionsPanelClassName,
+              )}
               role="listbox"
-              style={{ left: panelRect.left, maxHeight: panelRect.maxHeight, overscrollBehavior: 'contain', top: panelRect.top, touchAction: 'pan-y', width: panelRect.width }}
+              style={isCoarsePointer
+                ? { height: '100dvh', inset: 0, maxHeight: '100dvh', overscrollBehavior: 'contain', touchAction: 'pan-y', width: '100%' }
+                : { left: panelRect.left, maxHeight: panelRect.maxHeight, overscrollBehavior: 'contain', top: panelRect.top, touchAction: 'pan-y', width: panelRect.width }}
             >
-              <div className="hidden [@media(pointer:coarse)]:mb-3 [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:gap-3">
+              <div className={cn('mb-3 items-center gap-3', isCoarsePointer ? 'flex' : 'hidden')}>
                 <Input
                   ref={mobileInputRef}
                   aria-autocomplete="list"
@@ -410,7 +427,10 @@ export function SearchCombobox({
                 </button>
               </div>
               <div
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
+                className={cn(
+                  'overscroll-contain touch-pan-y',
+                  'min-h-0 flex-1 overflow-y-auto',
+                )}
                 style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}
                 onTouchStartCapture={(event) => {
                   const touch = event.touches[0]
