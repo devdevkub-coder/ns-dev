@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { calculateTicketTotals, isOtherProductImpurityLabel, OTHER_PRODUCT_IMPURITY_ID, parseImpurityProductMeta, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketFormSchema, type WeightTicketFormValues } from '@/lib/weight-tickets'
+import { calculateTicketTotals, isOtherProductImpurityLabel, isWeightTicketDraftLotSkeleton, OTHER_PRODUCT_IMPURITY_ID, parseImpurityProductMeta, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketFormSchema, weightTicketIncrementalPatchSchema, type WeightTicketFormValues, type WeightTicketIncrementalPatch } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -176,6 +176,56 @@ async function findScopedTicket(documentNo: string, scopedBranchIds: string[] | 
   })
 }
 
+function buildIncrementalFormValues(
+  existing: Awaited<ReturnType<typeof findScopedTicket>>,
+  patch: WeightTicketIncrementalPatch,
+): WeightTicketFormValues {
+  if (!existing) throw new Error('ไม่พบใบรับ-ส่งของ')
+  const lineIdByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, String(line.id)] as const))
+  const currentLines = existing.weight_ticket_lines.map((line) => persistedLineToFormLine(line, lineIdByLineNo))
+  const deletedIds = new Set(patch.deletedLineIds)
+  const changedById = new Map(patch.lines.map((line) => [line.id, line] as const))
+  const mergedLines = currentLines
+    .filter((line) => !deletedIds.has(line.id))
+    .map((line) => changedById.get(line.id) ?? line)
+  patch.lines.forEach((line) => {
+    if (!currentLines.some((current) => current.id === line.id) && !deletedIds.has(line.id)) mergedLines.push(line)
+  })
+
+  const partyId = existing.doc_type === 'WTI' ? existing.suppliers?.code : existing.customers?.code
+  if (!partyId) throw new Error('ข้อมูลคู่ค้าในเอกสารไม่ครบ')
+  const header = patch.header
+  const baseLineIds = patch.collaborationBaseLineIds ?? currentLines.map((line) => line.id)
+  const changedLineIds = patch.collaborationChangedLineIds ?? patch.lines.map((line) => line.id)
+  const scopedLines = patch.scope === 'section'
+    ? mergedLines.filter((line) => new Set(patch.sectionLineIds ?? []).has(line.id))
+    : patch.scope === 'header'
+      ? []
+      : mergedLines
+  return {
+    branchId: header.branchId ?? existing.branches.code,
+    collaborationBaseDocumentNo: patch.collaborationBaseDocumentNo ?? existing.doc_no,
+    collaborationBaseLineIds: baseLineIds,
+    collaborationBaseLineVersions: patch.collaborationBaseLineVersions,
+    collaborationChangedLineIds: changedLineIds,
+    collaborationDeletedLineIds: patch.deletedLineIds,
+    collaborationBaseUpdatedAt: patch.collaborationBaseUpdatedAt ?? existing.updated_at.toISOString(),
+    draftLineIds: patch.draftLineIds,
+    collaborationBaseHeader: patch.collaborationBaseHeader,
+    collaborationChangedHeaderFields: Object.keys(header) as Array<'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'>,
+    id: String(existing.id),
+    lines: scopedLines,
+    partyId: header.partyId ?? partyId,
+    remark: header.remark ?? existing.remark ?? '',
+    saveScope: patch.scope,
+    sectionLineIds: patch.scope === 'section' ? patch.sectionLineIds : undefined,
+    type: existing.doc_type as 'WTI' | 'WTO',
+    vehicleImageNames: header.vehicleImageNames ?? existing.vehicle_image_names ?? [],
+    vehicleNo: header.vehicleNo ?? existing.vehicle_no,
+    godownName: header.godownName ?? existing.godown_name,
+  }
+}
+
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
@@ -220,13 +270,30 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 }
 
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+async function updateWeightTicket(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+  auditRequest: Request = request,
+) {
   try {
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'daily.weight_tickets.update')
 
     const { id } = await context.params
     const parsedValues = weightTicketFormSchema.parse(await request.json())
+    const draftLineIds = new Set(parsedValues.draftLineIds ?? [])
+    const unmarkedDraftLot = parsedValues.lines.find((line) => (
+      isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)
+    ))
+    if (unmarkedDraftLot) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'เต๋าใหม่ต้องกรอกน้ำหนักและแนบรูปภาพก่อนบันทึก',
+        fieldErrors: {
+          [`lines.${parsedValues.lines.findIndex((line) => line.id === unmarkedDraftLot.id)}.grossWeight`]: ['กรอกน้ำหนักรวม'],
+        },
+      }, { status: 400 })
+    }
     const imageBucket = await resolveWeightTicketImageBucket()
     const values = normalizeWeightTicketImageReferences(parsedValues, imageBucket)
     const scopedBranchIds = branchScopeIds(auth)
@@ -823,7 +890,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           documentNo: mapped.documentNo,
           type: mapped.type,
         },
-        request,
+        request: auditRequest,
         targetId: String(updated.id),
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
@@ -849,6 +916,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   }
 }
 
+export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+  return updateWeightTicket(request, context)
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
@@ -858,6 +929,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const rawValues = await request.json()
     const existing = await findScopedTicket(id, branchScopeIds(auth))
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของที่ต้องการยกเลิก' }, { status: 404 })
+
+    const incrementalPatch = weightTicketIncrementalPatchSchema.safeParse(rawValues)
+    if (incrementalPatch.success) {
+      const values = buildIncrementalFormValues(existing, incrementalPatch.data)
+      const delegatedRequest = new Request(request.url, {
+        body: JSON.stringify(values),
+        headers: new Headers(request.headers),
+        method: 'PUT',
+      })
+      delegatedRequest.headers.set('content-type', 'application/json')
+      return updateWeightTicket(delegatedRequest, context, request)
+    }
+    if (rawValues && typeof rawValues === 'object' && rawValues.operation === 'save_changes') {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'รูปแบบข้อมูลบันทึกการเปลี่ยนแปลงไม่ถูกต้อง' }, { status: 400 })
+    }
 
     const usage = await getWeightTicketUsageCounts(prisma, existing.id)
     if (!canMutateWeightTicket(existing, usage)) {

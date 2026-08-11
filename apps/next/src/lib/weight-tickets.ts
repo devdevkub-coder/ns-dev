@@ -291,6 +291,13 @@ const weightTicketLinePayloadSchema = z.object({
       ? value.deductionValue
       : 0
 
+  const isDraftLotSkeleton = value.grossWeight === 0
+    && value.deductionMode === 'none'
+    && Boolean(value.parentId)
+    && !value.impurityId
+    && !value.impuritySourceLineId
+  if (isDraftLotSkeleton) return
+
   const isImpurityOnly = value.grossWeight === 0
   const isImpurityPurchase = Boolean(value.impuritySourceLineId)
 
@@ -349,6 +356,16 @@ const weightTicketLinePayloadSchema = z.object({
   }
 })
 
+export type WeightTicketLinePayload = z.infer<typeof weightTicketLinePayloadSchema>
+
+export function isWeightTicketDraftLotSkeleton(line: Pick<WeightTicketLinePayload, 'deductionMode' | 'grossWeight' | 'impurityId' | 'impuritySourceLineId' | 'parentId'>) {
+  return line.grossWeight === 0
+    && line.deductionMode === 'none'
+    && Boolean(line.parentId)
+    && !line.impurityId
+    && !line.impuritySourceLineId
+}
+
 export const weightTicketFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
   collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
@@ -366,6 +383,7 @@ export const weightTicketFormSchema = z.object({
   }).optional(),
   collaborationChangedHeaderFields: z.array(z.enum(['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'])).optional(),
   collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
+  draftLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   id: z.string().trim().max(80).optional(),
   lines: z.array(weightTicketLinePayloadSchema),
@@ -465,7 +483,7 @@ export const weightTicketFormSchema = z.object({
 
   const calculation = calculateWeightTicketLineTotals(value.lines)
   value.lines.forEach((line, index) => {
-    if (calculation.invalidChildProductLineIds.has(line.id)) {
+  if (calculation.invalidChildProductLineIds.has(line.id)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'สินค้าของรายการย่อยต้องตรงกับสินค้าของรายการหลัก',
@@ -478,8 +496,8 @@ export const weightTicketFormSchema = z.object({
         message: 'ยอดหักรวมต้องไม่เกินน้ำหนักรวม',
         path: ['lines', index, 'deductionValue'],
       })
-    }
-  })
+  }
+})
   if (value.type !== 'WTO') return
   const parentBucketByKey = new Map<string, number>()
   value.lines.forEach((line, index) => {
@@ -517,6 +535,38 @@ export const weightTicketFormSchema = z.object({
     }
   })
 })
+
+export const weightTicketIncrementalPatchSchema = z.object({
+  operation: z.literal('save_changes'),
+  scope: z.enum(['header', 'section', 'document']),
+  collaborationBaseHeader: z.object({
+    branchId: z.string().trim().min(1).max(80),
+    partyId: z.string().trim().min(1).max(80),
+    remark: z.string().max(500),
+    vehicleImageNames: z.array(attachmentValueSchema),
+    vehicleNo: z.string().max(24),
+    godownName: z.string().max(100),
+  }),
+  header: z.object({
+    branchId: z.string().trim().min(1).optional(),
+    partyId: z.string().trim().min(1).optional(),
+    remark: z.string().max(500).optional(),
+    vehicleImageNames: z.array(attachmentValueSchema).optional(),
+    vehicleNo: z.string().trim().min(2).max(24).optional(),
+    godownName: z.string().max(100).optional(),
+  }).default({}),
+  lines: z.array(weightTicketLinePayloadSchema).default([]),
+  deletedLineIds: z.array(z.string().trim().min(1).max(80)).default([]),
+  sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
+  collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
+  collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
+  collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()).optional(),
+  collaborationChangedLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
+  collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
+  draftLineIds: z.array(z.string().trim().min(1).max(80)).default([]),
+})
+
+export type WeightTicketIncrementalPatch = z.infer<typeof weightTicketIncrementalPatchSchema>
 
 const weightTicketRecordLineSchema = z.object({
   containerDeductionWeight: z.string().default(''),
@@ -1321,6 +1371,42 @@ export async function saveWeightTicket(values: WeightTicketFormValues) {
 
 export async function saveWeightTicketSection(values: WeightTicketFormValues) {
   return saveWeightTicket({ ...values, saveScope: 'section' })
+}
+
+export async function patchWeightTicketChanges(
+  id: string,
+  values: WeightTicketFormValues,
+) {
+  const changedLineIds = new Set(values.collaborationChangedLineIds ?? values.lines.map((line) => line.id))
+  const changedHeaderFields = new Set(values.collaborationChangedHeaderFields ?? [])
+  const parsed = weightTicketIncrementalPatchSchema.parse({
+    operation: 'save_changes',
+    scope: values.saveScope === 'section' ? 'section' : values.saveScope === 'header' ? 'header' : 'document',
+    collaborationBaseHeader: values.collaborationBaseHeader,
+    header: {
+      ...(changedHeaderFields.has('branchId') ? { branchId: values.branchId } : {}),
+      ...(changedHeaderFields.has('partyId') ? { partyId: values.partyId } : {}),
+      ...(changedHeaderFields.has('remark') ? { remark: values.remark } : {}),
+      ...(changedHeaderFields.has('vehicleImageNames') ? { vehicleImageNames: values.vehicleImageNames } : {}),
+      ...(changedHeaderFields.has('vehicleNo') ? { vehicleNo: values.vehicleNo } : {}),
+      ...(changedHeaderFields.has('godownName') ? { godownName: values.godownName } : {}),
+    },
+    lines: values.lines.filter((line) => changedLineIds.has(line.id)),
+    deletedLineIds: values.collaborationDeletedLineIds ?? [],
+    sectionLineIds: values.sectionLineIds,
+    collaborationBaseDocumentNo: values.collaborationBaseDocumentNo,
+    collaborationBaseLineIds: values.collaborationBaseLineIds,
+    collaborationBaseLineVersions: values.collaborationBaseLineVersions,
+    collaborationChangedLineIds: values.collaborationChangedLineIds,
+    collaborationBaseUpdatedAt: values.collaborationBaseUpdatedAt,
+    draftLineIds: values.draftLineIds,
+  })
+  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(parsed),
+  })
+  return readJsonResponse(response, weightTicketSaveResultSchema, 'บันทึกการเปลี่ยนแปลงใบรับ-ส่งของไม่ได้')
 }
 
 export async function cancelWeightTicket(id: string, note: string) {

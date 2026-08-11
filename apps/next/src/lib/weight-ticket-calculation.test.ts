@@ -4,6 +4,7 @@ import { buildPrintWeightRows } from './weight-ticket-print'
 import {
   calculateTicketTotals,
   calculateWeightTicketLineTotals,
+  isWeightTicketDraftLotSkeleton,
   type WeightTicketFormValues,
   type WeightTicketRecord,
   weightTicketFormSchema,
@@ -43,6 +44,25 @@ const validWtiPayload = (lines: TestWeightTicketLine[]) => ({
 })
 
 describe('weight ticket totals', () => {
+  it('recognizes the blank child lot shape used by incremental add drafts', () => {
+    const blankChildLot = {
+      ...validWtiLine('draft-lot', 'source-lot'),
+      grossWeight: 0,
+      imageNames: [],
+    }
+
+    expect(isWeightTicketDraftLotSkeleton(blankChildLot)).toBe(true)
+    expect(weightTicketFormSchema.safeParse({
+      ...validWtiPayload([validWtiLine('source-lot'), blankChildLot]),
+      draftLineIds: ['draft-lot'],
+    }).success).toBe(true)
+    // The shared schema validates the line shape. POST/PUT enforce the
+    // explicit draftLineIds contract before persistence.
+    expect(weightTicketFormSchema.safeParse({
+      ...validWtiPayload([validWtiLine('source-lot'), blankChildLot]),
+    }).success).toBe(true)
+  })
+
   it('allows header-only drafts for WTI and WTO while a normal WTO save still requires lines and a godown', () => {
     expect(weightTicketFormSchema.safeParse({
       ...validWtiPayload([]),

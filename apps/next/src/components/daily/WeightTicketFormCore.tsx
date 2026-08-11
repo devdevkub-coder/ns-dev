@@ -37,10 +37,10 @@ import {
   isOtherProductImpurityLabel,
   normalizeDecimalInput,
   normalizeVehicleNo,
+  patchWeightTicketChanges,
   OTHER_PRODUCT_IMPURITY_ID,
   OTHER_PRODUCT_IMPURITY_LABEL,
   saveWeightTicket,
-  saveWeightTicketSection,
   mergeWeightTicketImagePreviews,
   WEIGHT_TICKET_STATUS,
   WEIGHT_TICKET_TYPE,
@@ -48,6 +48,7 @@ import {
   type OptionItem,
   type WeightTicketRecord,
   type WeightTicketLine,
+  type WeightTicketFormValues,
   type WeightTicketType,
 } from '@/lib/weight-tickets'
 
@@ -1209,6 +1210,7 @@ export function WeightTicketFormCore({
   const mobileProductEditorCloseTimeoutRef = useRef<number | null>(null)
   const mobileProductEditorOpenAnimationFrameRef = useRef<number | null>(null)
   const saveInFlightRef = useRef<'auto_save' | 'save' | null>(null)
+  const lastBackgroundLineIdMapRef = useRef<Record<string, string>>({})
   const changedLineIdsRef = useRef<Set<string>>(new Set())
   const deletedLineIdsRef = useRef<Set<string>>(new Set())
   const dirtyHeaderFieldsRef = useRef<Set<CollaborationHeaderField>>(new Set())
@@ -2159,7 +2161,11 @@ export function WeightTicketFormCore({
     return false
   }
 
-  async function saveDraftBeforeAdding(snapshot: FormState = form): Promise<FormState | null> {
+  async function saveDraftBeforeAdding(
+    snapshot: FormState = form,
+    persistLineIds: ReadonlySet<string> = new Set(),
+    draftLineIds: ReadonlySet<string> = new Set(),
+  ): Promise<FormState | null> {
     // Save the current document before opening another product entry so the
     // draft has a stable ticket identity and existing data is not lost.
     if (isSaving || isLoadingTicket || saveInFlightRef.current) return null
@@ -2200,30 +2206,37 @@ export function WeightTicketFormCore({
         // form may contain a new temporary line that is still being edited;
         // the explicit save will persist it later without ID reconciliation
         // deleting the server line created by this background save.
-        lines: snapshot.lines.filter((line) => line.version != null || baselineLines.has(line.id)).map((line) => ({
+        lines: snapshot.lines.filter((line) => line.version != null || baselineLines.has(line.id) || persistLineIds.has(line.id)).map((line) => ({
           ...line,
           imageFiles: latestLinesById.get(line.id)?.imageFiles ?? line.imageFiles,
         })),
         vehicleImageFiles: latestForm.vehicleImageFiles,
       }
       const baselineLineIds = Array.from(baselineLines.keys())
-      const deletedLineIds = new Set(deletedLineIdsRef.current)
-      baselineLineIds.filter((lineId) => !snapshotToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
-      const changedLineIds = new Set(changedLineIdsRef.current)
-      deletedLineIds.forEach((lineId) => changedLineIds.add(lineId))
-      snapshotToSave.lines.forEach((line) => {
+      const isScopedAdd = persistLineIds.size > 0
+      const deletedLineIds = isScopedAdd ? new Set<string>() : new Set(deletedLineIdsRef.current)
+      if (!isScopedAdd) {
+        baselineLineIds.filter((lineId) => !snapshotToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
+      }
+      const changedLineIds = isScopedAdd ? new Set(persistLineIds) : new Set(changedLineIdsRef.current)
+      if (!isScopedAdd) deletedLineIds.forEach((lineId) => changedLineIds.add(lineId))
+      const linesForFingerprint = isScopedAdd
+        ? snapshotToSave.lines.filter((line) => persistLineIds.has(line.id))
+        : snapshotToSave.lines
+      linesForFingerprint.forEach((line) => {
         const baseline = baselineLines.get(line.id)
         const currentFingerprint = collaborationLineSnapshot(line, getLineEvidenceImagesForState(snapshotToSave, line).map((file) => file.rawValue))
         const baselineFingerprint = baseline ? collaborationLineSnapshot(baseline, baseline.imageNames) : null
         if (!baseline || currentFingerprint !== baselineFingerprint) changedLineIds.add(line.id)
       })
-      const ticket = await saveWeightTicket({
+      const saveValues: WeightTicketFormValues = {
         branchId: snapshotToSave.branchId,
         collaborationBaseDocumentNo: (savedTicket ?? loadedTicket)?.documentNo,
         collaborationBaseLineIds: baselineLineIds,
         collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
         collaborationChangedLineIds: Array.from(changedLineIds),
         collaborationDeletedLineIds: Array.from(deletedLineIds),
+        draftLineIds: Array.from(draftLineIds),
         collaborationBaseHeader: baselineTicket ? {
           branchId: baselineTicket.branchId,
           partyId: baselineTicket.partyId,
@@ -2258,9 +2271,14 @@ export function WeightTicketFormCore({
         vehicleImageNames: snapshotToSave.vehicleImageFiles.map((file) => file.rawValue),
         vehicleNo: snapshotToSave.vehicleNo.trim(),
         godownName: snapshotToSave.godownName.trim(),
-      })
+      }
+      const existingTicketId = savedTicket?.id ?? editingTicketId
+      const ticket = existingTicketId
+        ? await patchWeightTicketChanges(existingTicketId, saveValues)
+        : await saveWeightTicket(saveValues)
       invalidatePurchaseBillOptionsCache()
       const nextForm = ticketToFormState(ticket)
+      lastBackgroundLineIdMapRef.current = ticket.lineIdMap
       setLoadedTicket(ticket)
       // Keep the returned ticket as the collaboration baseline even when
       // the live form contains a temporary line excluded from this save.
@@ -2373,7 +2391,6 @@ export function WeightTicketFormCore({
 
   function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
-    const sourceLineIndex = form.lines.findIndex((line) => line.id === sourceLine.id)
     const firstHeaderError = ['branchId', 'partyId', 'vehicleNo', 'godownName'].find((key) => errors[key])
     const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
     // Auto-save must not block the local lot editor. Only the explicit final
@@ -2409,12 +2426,14 @@ export function WeightTicketFormCore({
     setPendingFocusField(`line-${nextLine.id}-gross`)
 
     if (!firstLineError) {
-      const draftSave = saveDraftBeforeAdding(draftSnapshot)
+      const draftSave = saveDraftBeforeAdding({
+        ...draftSnapshot,
+        lines: [...draftSnapshot.lines, nextLine],
+      }, new Set([sourceLine.id, nextLine.id]), new Set([nextLine.id]))
       void draftSave.then((savedForm) => {
         if (!savedForm) return
-        const persistedSourceLine = resolvePersistedWeightTicketLotSource(sourceLine, savedForm.lines, sourceLineIndex)
-        if (!persistedSourceLine || persistedSourceLine.id === sourceLine.id) return
-        const lineIdMap = { [sourceLine.id]: persistedSourceLine.id }
+        const lineIdMap = lastBackgroundLineIdMapRef.current
+        if (!lineIdMap[nextLine.id]) return
 
         setForm((current) => ({
           ...current,
@@ -2424,8 +2443,8 @@ export function WeightTicketFormCore({
         setCollapsedImpurityIds((current) => remapWeightTicketLineState(current, lineIdMap))
         setTouched((current) => remapWeightTicketLineState(current, lineIdMap))
         setPendingFocusField((current) => current ? remapWeightTicketLineKey(current, lineIdMap) : current)
-        setActiveLineId((current) => current === sourceLine.id ? persistedSourceLine.id : current)
-        setMobileLotDetailId((current) => current === sourceLine.id ? persistedSourceLine.id : current)
+        setActiveLineId((current) => lineIdMap[current] ?? current)
+        setMobileLotDetailId((current) => current ? (lineIdMap[current] ?? current) : current)
       })
     }
   }
@@ -2654,6 +2673,25 @@ export function WeightTicketFormCore({
     }
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setPendingFocusField(`line-${nextLine.id}-impurity`)
+    const draftSnapshot = form
+    void saveDraftBeforeAdding({
+      ...draftSnapshot,
+      lines: [...draftSnapshot.lines, nextLine],
+    }, new Set([sourceLine.id, nextLine.id]), new Set([nextLine.id])).then((savedForm) => {
+      if (!savedForm) return
+      const lineIdMap = lastBackgroundLineIdMapRef.current
+      if (!lineIdMap[nextLine.id]) return
+      setForm((current) => ({
+        ...current,
+        lines: remapWeightTicketLineIds(current.lines, lineIdMap),
+      }))
+      setCollapsedLotIds((current) => remapWeightTicketLineState(current, lineIdMap))
+      setCollapsedImpurityIds((current) => remapWeightTicketLineState(current, lineIdMap))
+      setTouched((current) => remapWeightTicketLineState(current, lineIdMap))
+      setPendingFocusField((current) => current ? remapWeightTicketLineKey(current, lineIdMap) : current)
+      setActiveLineId((current) => lineIdMap[current] ?? current)
+      setMobileLotDetailId((current) => current ? (lineIdMap[current] ?? current) : current)
+    })
   }
 
   function removeImpurityLine(sourceLineId: string) {
@@ -2907,7 +2945,7 @@ export function WeightTicketFormCore({
         const baselineFingerprint = baseline ? collaborationLineSnapshot(baseline, baseline.imageNames) : null
         if (!baseline || currentFingerprint !== baselineFingerprint) changedLineIds.add(line.id)
       })
-      const ticket = await saveWeightTicket({
+      const saveValues = {
         branchId: formToSave.branchId,
         collaborationBaseDocumentNo: (savedTicket ?? loadedTicket)?.documentNo,
         collaborationBaseLineIds: baselineLineIds,
@@ -2947,7 +2985,10 @@ export function WeightTicketFormCore({
         vehicleImageNames: formToSave.vehicleImageFiles.map((file) => file.rawValue),
         vehicleNo: formToSave.vehicleNo.trim(),
         godownName: formToSave.godownName.trim(),
-      })
+      }
+      const ticket = editingTicketId
+        ? await patchWeightTicketChanges(editingTicketId, saveValues)
+        : await saveWeightTicket(saveValues)
       invalidatePurchaseBillOptionsCache()
       setLoadError('')
       let ticketWithPreviews = ticket
@@ -3053,7 +3094,7 @@ export function WeightTicketFormCore({
           changedIds.add(line.id)
         }
       })
-      const ticket = await saveWeightTicketSection({
+      const saveValues = {
         branchId: snapshot.branchId,
         collaborationBaseDocumentNo: baselineTicket.documentNo,
         collaborationBaseLineIds: baselineIds,
@@ -3094,6 +3135,10 @@ export function WeightTicketFormCore({
         vehicleImageNames: snapshot.vehicleImageFiles.map((file) => file.rawValue),
         vehicleNo: snapshot.vehicleNo.trim(),
         godownName: snapshot.godownName.trim(),
+      }
+      const ticket = await patchWeightTicketChanges(baselineTicket.id, {
+        ...saveValues,
+        saveScope: 'section',
       })
       let ticketWithPreviews = ticket
       try {

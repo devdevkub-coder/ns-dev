@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   cachedWeightTicketReferences: vi.fn(),
   fetchFreshWeightTicketReferences: vi.fn(),
   saveWeightTicket: vi.fn(),
-  saveWeightTicketSection: vi.fn(),
+  patchWeightTicketChanges: vi.fn(),
   router: {
     push: vi.fn(),
     refresh: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('@/lib/weight-ticket-reference-cache', () => ({
 vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/weight-tickets')>()),
   saveWeightTicket: mocks.saveWeightTicket,
-  saveWeightTicketSection: mocks.saveWeightTicketSection,
+  patchWeightTicketChanges: mocks.patchWeightTicketChanges,
 }))
 
 import { changeWeightTicketProduct, getProductCardImages, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
@@ -46,6 +46,10 @@ const typeFormSectionsSource = readFileSync(
 )
 const weightTicketApiSource = readFileSync(
   resolve(process.cwd(), 'src/app/api/daily/weight-tickets/[id]/route.ts'),
+  'utf8',
+)
+const weightTicketCreateApiSource = readFileSync(
+  resolve(process.cwd(), 'src/app/api/daily/weight-tickets/route.ts'),
   'utf8',
 )
 const weightTicketClientSource = readFileSync(
@@ -88,6 +92,9 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain("if (shouldIgnoreRapidAdd('product')) return")
     expect(formSource).toContain('if (shouldIgnoreRapidAdd(`lot:${sourceLine.id}`)) return')
     expect(formSource).toContain('if (shouldIgnoreRapidAdd(`impurity:${sourceLine.id}`)) return')
+    expect(formSource).toContain('new Set([sourceLine.id, nextLine.id])')
+    expect(formSource).toContain('lastBackgroundLineIdMapRef.current = ticket.lineIdMap')
+    expect(formSource).toContain('draftLineIds: Array.from(draftLineIds)')
   })
 
   it('uses the ticket returned by the header save as the section-save identity', () => {
@@ -103,6 +110,13 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain('const persistedRootId = requirePersistedWeightTicketLineId(ticket.lineIdMap, sectionId)')
     expect(formSource).not.toContain('const persistedRootId = ticket.lineIdMap[sectionId] ?? sectionId')
     expect(formSource).toContain('remapWeightTicketLineIds(current.lines, ticket.lineIdMap)')
+  })
+
+  it('keeps blank child lots limited to explicitly marked incremental saves', () => {
+    expect(weightTicketApiSource).toContain('isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)')
+    expect(weightTicketCreateApiSource).toContain('isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)')
+    expect(formSource).toContain('const linesForFingerprint = isScopedAdd')
+    expect(formSource).toContain('if (!isScopedAdd) {')
   })
 
   it('rejects an incomplete section line ID mapping instead of retaining a temporary ID', () => {
@@ -591,11 +605,18 @@ describe('weight-ticket product editor behavior', () => {
       partyName: values.type === 'WTO' ? 'ลูกค้าทดสอบ' : persistedDraftTicket.partyName,
       type: values.type,
     }))
-    mocks.saveWeightTicketSection.mockImplementation(mocks.saveWeightTicket)
+    mocks.patchWeightTicketChanges.mockImplementation(mocks.saveWeightTicket)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers()
+    // Let reference/preview promises settle inside act before unmounting so
+    // their guarded state updates do not leak into the next test.
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     act(() => root.unmount())
     container.remove()
     Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
@@ -663,9 +684,9 @@ describe('weight-ticket product editor behavior', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.dispatchEvent(new Event('change', { bubbles: true }))
     }
-    setInput('#weight-ticket-vehicleNo', '83-5476')
-    setInput('input[placeholder="เช่น โกดัง A"]', 'โกดัง A')
     await act(async () => {
+      setInput('#weight-ticket-vehicleNo', '83-5476')
+      setInput('input[placeholder="เช่น โกดัง A"]', 'โกดัง A')
       await Promise.resolve()
     })
   }
@@ -1144,24 +1165,33 @@ describe('weight-ticket product editor behavior', () => {
   })
 
   it('saves the first product section against the header draft and keeps the persisted line', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => (
-      init?.method === 'GET'
-        ? new Response(JSON.stringify({ maxUploadBytes: 10 * 1024 * 1024, uploadConcurrency: 2 }), { status: 200 })
-        : new Response(JSON.stringify({
-            bucket: 'weight-ticket-pdfs',
-            fileName: 'proof.jpg',
-            storageKey: 'tickets/proof.jpg',
-            thumbnailStatus: 'queued',
-            thumbnailStorageKey: 'tickets/thumbnails/proof.jpg',
-            thumbnailUrl: 'https://example.com/proof-thumbnail.jpg',
-          }), { status: 200 })
-    )))
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/images/preview')) {
+        return new Response(JSON.stringify({ imageNames: [], lines: [], refreshAfterMs: null, vehicleImageNames: [] }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200,
+        })
+      }
+      if (url.includes('/telemetry/')) return new Response('{}', { status: 200 })
+      if (init?.method === 'GET') {
+        return new Response(JSON.stringify({ maxUploadBytes: 10 * 1024 * 1024, uploadConcurrency: 2 }), { status: 200 })
+      }
+      return new Response(JSON.stringify({
+        bucket: 'weight-ticket-pdfs',
+        fileName: 'proof.jpg',
+        storageKey: 'tickets/proof.jpg',
+        thumbnailStatus: 'queued',
+        thumbnailStorageKey: 'tickets/thumbnails/proof.jpg',
+        thumbnailUrl: 'https://example.com/proof-thumbnail.jpg',
+      }), { status: 200 })
+    }))
     vi.stubGlobal('URL', {
       ...URL,
       createObjectURL: vi.fn(() => 'blob:proof'),
       revokeObjectURL: vi.fn(),
     })
-    mocks.saveWeightTicketSection.mockImplementationOnce(async (values: {
+    mocks.patchWeightTicketChanges.mockImplementationOnce(async (_ticketId: string, values: {
       lines: Array<{
         containerDeductionWeight: number
         deductionMode: 'none' | 'kg' | 'percent'
@@ -1267,7 +1297,10 @@ describe('weight-ticket product editor behavior', () => {
     expect(container.textContent).not.toContain('กรุณาแก้ข้อมูลใน section นี้ให้ครบก่อนบันทึก')
 
     await vi.waitFor(() => {
-      expect(mocks.saveWeightTicketSection).toHaveBeenCalledWith(expect.objectContaining({ id: persistedDraftTicket.id }))
+      expect(mocks.patchWeightTicketChanges).toHaveBeenCalledWith(
+        persistedDraftTicket.id,
+        expect.objectContaining({ id: persistedDraftTicket.id }),
+      )
       expect(container.querySelector('#weight-gross-1001')).not.toBeNull()
     })
   })

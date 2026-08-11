@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { calculateTicketTotals, displayWeightTicketStatus, type WeightTicketStatus, type WeightTicketType, weightTicketFormSchema } from '@/lib/weight-tickets'
+import { calculateTicketTotals, displayWeightTicketStatus, isWeightTicketDraftLotSkeleton, type WeightTicketStatus, type WeightTicketType, weightTicketFormSchema } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
@@ -159,6 +159,19 @@ export async function POST(request: Request) {
     requirePermission(context, 'daily.weight_tickets.create')
 
     const parsedValues = weightTicketFormSchema.parse(await request.json())
+    const draftLineIds = new Set(parsedValues.draftLineIds ?? [])
+    const unmarkedDraftLot = parsedValues.lines.find((line) => (
+      isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)
+    ))
+    if (unmarkedDraftLot) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'เต๋าใหม่ต้องกรอกน้ำหนักและแนบรูปภาพก่อนบันทึก',
+        fieldErrors: {
+          [`lines.${parsedValues.lines.findIndex((line) => line.id === unmarkedDraftLot.id)}.grossWeight`]: ['กรอกน้ำหนักรวม'],
+        },
+      }, { status: 400 })
+    }
     const imageBucket = await resolveWeightTicketImageBucket()
     const values = normalizeWeightTicketImageReferences(parsedValues, imageBucket)
     const imageStorageKeys = await assertWeightTicketImageAssetOwnership({
