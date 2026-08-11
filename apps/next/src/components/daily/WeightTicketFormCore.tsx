@@ -3647,28 +3647,24 @@ export function WeightTicketFormCore({
                     <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-3 py-3 xl:contents">
                       {(() => {
                 const line = activeLine
-                const impurityOwnerLine = isMobileLotDetailMode && mobileLotDetailLine
-                  ? mobileLotDetailLine
-                  : line
                 const parentLines = getMainParentLines(form.lines)
                 const rootLine = getWeightTicketRootLine(form.lines, line)
                 const index = parentLines.findIndex((entry) => entry.id === rootLine.id)
                 const lineTotals = calculateAdjustedLineTotals(line, lineCalculation)
                 const hasSelectedProduct = Boolean(line.productId)
-                const isPurchaseOnlyLine = isImpurityPurchaseLine(impurityOwnerLine)
+                const isPurchaseOnlyLine = isImpurityPurchaseLine(line)
                 const realLotSummary = calculateRealLotSummary(line, form.lines)
                 const purchaseSourceWeight = Math.max(
                   0,
-                  Number(impurityOwnerLine.grossWeight || 0) - Number(impurityOwnerLine.containerDeductionWeight || 0),
+                  Number(line.grossWeight || 0) - Number(line.containerDeductionWeight || 0),
                 )
-                const impurityOwnerHasSelectedProduct = Boolean(impurityOwnerLine.productId)
-                const canAddImpurityLine = impurityOwnerHasSelectedProduct && (isPurchaseOnlyLine
+                const canAddImpurityLine = hasSelectedProduct && (isPurchaseOnlyLine
                   ? purchaseSourceWeight > 0
-                  : calculateRealLotSummary(impurityOwnerLine, form.lines).lotCount > 0)
-                const impurityChildLines = getImpurityChildLines(impurityOwnerLine, form.lines)
-                const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(impurityOwnerLine, form.lines)
+                  : realLotSummary.lotCount > 0)
+                const impurityChildLines = getImpurityChildLines(line, form.lines)
+                const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(line, form.lines)
                 const purchaseSourceLine = isPurchaseOnlyLine
-                  ? form.lines.find((entry) => entry.id === impurityOwnerLine.impuritySourceLineId)
+                  ? form.lines.find((entry) => entry.id === line.impuritySourceLineId)
                   : undefined
                 const purchaseOnlyNote = purchaseSourceLine
                   ? `ซื้อเพิ่มจากสิ่งเจือปน 1 รายการ รวม ${formatWeight(calculateAdjustedLineTotals(purchaseSourceLine, lineCalculation).deductionWeight)} กก.`
@@ -3980,6 +3976,7 @@ export function WeightTicketFormCore({
 
 	                      {/* ซื้อเพิ่มจากสิ่งเจือปน */}
 	                      {(() => {
+	                        if (isMobileLotDetailMode) return null
 	                        const boughtImpurityLines = boughtImpurityLinesForLine
 	                        if (boughtImpurityLines.length === 0) return null
 	                        return (
@@ -4040,10 +4037,10 @@ export function WeightTicketFormCore({
 	                            </div>
 	                          </div>
 	                        )
-	                      })()}
+                        })()}
 
                       {/* ส่วนที่ 2: สิ่งเจือปน (เฉพาะสำหรับสินค้านี้) */}
-                      <div className="mt-4 border-t border-slate-200/60 pt-4">
+                      {!isMobileLotDetailMode ? <div className="mt-4 border-t border-slate-200/60 pt-4">
                         <div className="flex items-center justify-between gap-4 mb-2">
                           <div className="text-sm font-bold text-slate-700 uppercase tracking-wider">สิ่งเจือปน</div>
                           {impurityChildLines.length > 0 ? (
@@ -4051,7 +4048,7 @@ export function WeightTicketFormCore({
                               type="button"
                               variant="default"
                               disabled={!canAddImpurityLine}
-                              onClick={() => addImpurityLine(impurityOwnerLine)}
+                              onClick={() => addImpurityLine(line)}
                               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-sm font-semibold text-white outline-none hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400"
                             >
                               <Plus className="h-4 w-4" />
@@ -4075,7 +4072,7 @@ export function WeightTicketFormCore({
                                   type="button"
                                   variant="default"
                                   disabled={!canAddImpurityLine}
-                                  onClick={() => addImpurityLine(impurityOwnerLine)}
+                                  onClick={() => addImpurityLine(line)}
                                   className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-sm font-semibold text-white outline-none hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400"
                                 >
                                   <Plus className="size-4" />
@@ -4121,7 +4118,7 @@ export function WeightTicketFormCore({
                                 const showImpurityImageField = form.type === 'WTI' || isOtherProductImpurity
                                 const impurityOptionsForChild = optionsWithCurrentValue(impurityOptions, selectedImpurityId, child.impurityName)
                                 const impurityPurchaseProducts = optionsWithCurrentValue(
-                                  normalProducts.filter((product) => product.id !== impurityOwnerLine.productId),
+                                  normalProducts.filter((product) => product.id !== line.productId),
                                   child.impurityProductId,
                                   child.impurityProductName || child.impurityProductId,
                                 )
@@ -4151,7 +4148,7 @@ export function WeightTicketFormCore({
                                     key={child.id}
                                     className={cn(
                                       'bg-white p-2 rounded-xl border border-slate-200/60',
-                                      child.parentId !== impurityOwnerLine.id && 'ml-4 border-l-4 border-l-red-200 bg-red-50/30 md:ml-8',
+                                      child.parentId !== line.id && 'ml-4 border-l-4 border-l-red-200 bg-red-50/30 md:ml-8',
                                     )}
                                   >
                                     <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
@@ -4409,7 +4406,7 @@ export function WeightTicketFormCore({
                             </div>
                           )
                         })()}
-                      </div>
+                      </div> : null}
 
                       <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 lg:grid-cols-4">
                         <MiniMetric label="น้ำหนักรวม" value={`${formatWeight(lineTotals.grossWeight)} กก.`} />

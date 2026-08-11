@@ -40,6 +40,10 @@ const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
   'utf8',
 )
+const typeFormSectionsSource = readFileSync(
+  resolve(process.cwd(), 'src/components/daily/WeightTicketTypeFormSections.tsx'),
+  'utf8',
+)
 const weightTicketApiSource = readFileSync(
   resolve(process.cwd(), 'src/app/api/daily/weight-tickets/[id]/route.ts'),
   'utf8',
@@ -344,6 +348,10 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('disabled={!hasSelectedProduct || isLoadingTicket}')
     expect(formSource).toContain('if (!firstLineError)')
     expect(formSource).toContain('impurityChildLines.length > 0')
+    expect(formSource).toContain('const impurityChildLines = getImpurityChildLines(line, form.lines)')
+    expect(formSource).toContain('onClick={() => addImpurityLine(line)}')
+    expect(formSource).toContain('if (isMobileLotDetailMode) return null')
+    expect(formSource).toContain('{!isMobileLotDetailMode ? <div className="mt-4 border-t border-slate-200/60 pt-4">')
     expect(formSource).toContain('data-testid={`weight-ticket-add-nested-impurity-${child.id}`}')
     expect(formSource).toContain('onClick={() => addImpurityLine(child)}')
     expect(formSource).toContain('หักสิ่งเจือปนต่อ')
@@ -367,6 +375,17 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('if (isParent || isSecondaryLot) {')
     expect(formSource).toContain('if (getLineImages(line).length === 0)')
     expect(formSource).not.toContain('รูปสิ่งเจือปน (ไม่บังคับ)*')
+  })
+
+  it('keeps impurity actions at product-section scope while preserving WTI/WTO differences', () => {
+    expect(formSource).toContain('const impurityChildLines = getImpurityChildLines(line, form.lines)')
+    expect(formSource).toContain('const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(line, form.lines)')
+    expect(formSource).toContain('onClick={() => addImpurityLine(line)}')
+    expect(formSource).toContain("if (form.type !== 'WTI') return masterOptions")
+    expect(formSource).toContain("const showImpurityImageField = form.type === 'WTI' || isOtherProductImpurity")
+    expect(typeFormSectionsSource).toContain('export function WeightTicketWtiFormSection')
+    expect(typeFormSectionsSource).toContain('export function WeightTicketWtoFormSection')
+    expect(typeFormSectionsSource).toContain('<WarehouseField {...warehouse} />')
   })
 
   it('shows each product card a compact thumbnail from its real-lot evidence only', () => {
