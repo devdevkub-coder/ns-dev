@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createSignedUrl: vi.fn(),
+  createSignedUrls: vi.fn(),
   findAssets: vi.fn(),
   findSettings: vi.fn(),
 }))
@@ -15,7 +16,10 @@ vi.mock('@/lib/server/prisma', () => ({
 vi.mock('@/lib/server/supabase-admin', () => ({
   getSupabaseAdminClient: () => ({
     storage: {
-      from: () => ({ createSignedUrl: mocks.createSignedUrl }),
+      from: () => ({
+        createSignedUrl: mocks.createSignedUrl,
+        createSignedUrls: mocks.createSignedUrls,
+      }),
     },
   }),
 }))
@@ -28,6 +32,12 @@ beforeEach(() => {
     data: { signedUrl: 'https://signed.example/evidence.jpg?token=short-lived' },
     error: null,
   })
+  // The batched API returns one entry per requested path; default mock returns
+  // a signed URL for every path so tests see the happy-path cache.
+  mocks.createSignedUrls.mockImplementation(async (paths: string[]) => ({
+    data: paths.map((path) => ({ path, signedUrl: `https://signed.example/${path}?token=short-lived` })),
+    error: null,
+  }))
   mocks.findAssets.mockImplementation(async ({ where }: { where: { original_storage_key: { in: string[] } } }) => (
     where.original_storage_key.in.map((storageKey) => ({
       original_storage_key: storageKey,
@@ -188,6 +198,9 @@ describe('WTI/WTO private image reference contract', () => {
   })
 
   it('represents a signed thumbnail failure as failed without returning the original URL', async () => {
+    // Both the batched API and the single-key fallback fail so the resolver
+    // marks the thumbnail as failed and never leaks an unsigned URL.
+    mocks.createSignedUrls.mockResolvedValue({ data: [], error: { message: 'temporary storage error' } })
     mocks.createSignedUrl.mockResolvedValue({ data: null, error: { message: 'temporary storage error' } })
     const result = await attachWeightTicketImagePreviewUrls({
       imageNames: [storedReference()],

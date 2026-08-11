@@ -1,13 +1,7 @@
-import { z } from 'zod'
-import { readJsonResponse } from '@/lib/api-client'
-import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { companyProfileForPrint, type CompanyProfilePrintValues } from '@/lib/company-profile'
 import { prepareCorporatePrintLayout } from './corporate-print-layout'
+import { fetchCompanyProfileForPrint } from '@/lib/print-asset-prefetch'
 import { paginateStandardPrintItems } from './print-pagination'
-
-const companyProfilePayloadSchema = z.object({
-  ...companyProfileResponseSchema.shape,
-  selectedBranchName: z.string().nullable().default(null),
-})
 
 function escapeHtml(value: unknown) {
   return String(value ?? '')
@@ -319,9 +313,8 @@ export function openExpensePrintWindow(expense: any) {
 
 export async function openExpenseReceiptPrint(expense: any, targetWindow?: Window) {
   const printWindow = targetWindow ?? openExpensePrintWindow(expense)
-  const query = expense.branchId ? `?branchId=${encodeURIComponent(expense.branchId)}` : ''
-  const response = await fetch(`/api/admin/company-profile${query}`, { cache: 'no-store' })
-  const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
+  // Reads from the short-lived in-memory cache warmed on hover when available.
+  const payload = await fetchCompanyProfileForPrint(expense.branchId)
   const profile = companyProfileForPrint(payload)
   printWindow.document.open()
   printWindow.document.write(buildExpensePrintHtml(expense, profile))

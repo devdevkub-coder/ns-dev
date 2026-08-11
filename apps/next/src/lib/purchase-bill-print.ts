@@ -1,6 +1,5 @@
-import { z } from 'zod'
-import { readJsonResponse } from '@/lib/api-client'
-import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { companyProfileForPrint, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { fetchCompanyProfileForPrint } from '@/lib/print-asset-prefetch'
 import {
   paginatePurchaseBillPrintRows,
   parsePurchaseBillRemark,
@@ -11,11 +10,6 @@ import {
 } from './purchase-bill-print-layout'
 import { calculatePurchaseBillPostAdvanceTotals } from '@/lib/purchase-advance'
 import type { PurchaseBillDetail } from '@/lib/server/purchase-bill-detail'
-
-const companyProfilePayloadSchema = z.object({
-  ...companyProfileResponseSchema.shape,
-  selectedBranchName: z.string().nullable().default(null),
-})
 
 type PurchaseBillPrintBuildOptions = {
   measurementMode?: boolean
@@ -680,9 +674,8 @@ export function openPurchaseBillPrintWindow() {
 export async function openPurchaseBillPrint(bill: PurchaseBillDetail, targetWindow?: Window) {
   const printWindow = targetWindow ?? openPurchaseBillPrintWindow()
   try {
-    const query = bill.branchId ? `?branchId=${encodeURIComponent(bill.branchId)}` : ''
-    const response = await fetch(`/api/admin/company-profile${query}`, { cache: 'no-store' })
-    const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
+    // Reads from the short-lived in-memory cache warmed on hover when available.
+    const payload = await fetchCompanyProfileForPrint(bill.branchId)
     const profile = companyProfileForPrint(payload)
 
     writeDocument(printWindow, buildPurchaseBillPrintHtml(bill, profile, { measurementMode: true }))

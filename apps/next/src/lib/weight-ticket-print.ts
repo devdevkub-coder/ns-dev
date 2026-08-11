@@ -1,13 +1,7 @@
-import { z } from 'zod'
-import { readJsonResponse } from '@/lib/api-client'
-import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { companyProfileForPrint, type CompanyProfilePrintValues } from '@/lib/company-profile'
 import { prepareCorporatePrintLayout } from '@/lib/corporate-print-layout'
+import { fetchCompanyProfileForPrint } from '@/lib/print-asset-prefetch'
 import { decodeStoredImageAsset, displayWeightTicketStatus, isPreviewableStoredImageAsset, stripImpurityProductMeta, type StoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
-
-const companyProfilePayloadSchema = z.object({
-  ...companyProfileResponseSchema.shape,
-  selectedBranchName: z.string().nullable().default(null),
-})
 
 /**
  * WTI/WTO are the only printable forms whose table always renders the full
@@ -929,9 +923,9 @@ export function openWeightTicketPrintWindow(ticket: WeightTicketRecord) {
 
 export async function openWeightTicketReceiptPrint(ticket: WeightTicketRecord, targetWindow?: Window) {
   const printWindow = targetWindow ?? openWeightTicketPrintWindow(ticket)
-  const query = ticket.branchId ? `?branchId=${encodeURIComponent(ticket.branchId)}` : ''
-  const response = await fetch(`/api/admin/company-profile${query}`, { cache: 'no-store' })
-  const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
+  // Reads from the short-lived in-memory cache warmed on hover when available,
+  // otherwise fetches fresh. Either way the payload shape is identical.
+  const payload = await fetchCompanyProfileForPrint(ticket.branchId)
   const profile = companyProfileForPrint(payload)
   printWindow.document.open()
   printWindow.document.write(buildReceiptPrintHtml(ticket, profile))

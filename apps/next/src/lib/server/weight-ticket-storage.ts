@@ -292,6 +292,45 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
   const assetByStorageKey = new Map(assetRows.map((asset) => [asset.original_storage_key, asset]))
 
   const signedUrlByKey = new Map<string, string>()
+  // Batch-create signed URLs for every thumbnail that is ready in one Supabase
+  // storage call, instead of N parallel `createSignedUrl` requests. The unique
+  // thumbnail keys are collected up front and resolved into the shared map so
+  // the per-image `resolve` step below is a pure lookup.
+  const readyThumbnailKeys = new Set<string>()
+  for (const rawValue of rawValues) {
+    const asset = decodeStoredImageAsset(rawValue)
+    if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) continue
+    if (!asset.thumbnailStorageKey) continue
+    let storageKey: string
+    let thumbnailStorageKey: string
+    try {
+      storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
+      thumbnailStorageKey = assertWeightTicketImageStorageKey(asset.thumbnailStorageKey)
+    } catch {
+      continue
+    }
+    const processingAsset = assetByStorageKey.get(storageKey)
+    if (!processingAsset) continue
+    if (processingAsset.thumbnail_storage_key !== thumbnailStorageKey) continue
+    if ((processingAsset.thumbnail_status as 'failed' | 'processing' | 'queued' | 'ready') !== 'ready') continue
+    readyThumbnailKeys.add(thumbnailStorageKey)
+  }
+  if (readyThumbnailKeys.size > 0) {
+    const { data: batched, error: batchedError } = await supabase.storage
+      .from(bucket)
+      .createSignedUrls(Array.from(readyThumbnailKeys), processingConfig.previewTtlSeconds)
+    if (batchedError || !batched) {
+      console.error('[weight_ticket_image_preview] batched signed thumbnail URLs failed', {
+        bucket,
+        error: batchedError?.message ?? 'ไม่พบ signed URLs',
+      })
+    } else {
+      for (const entry of batched) {
+        if (!entry?.path || !entry.signedUrl) continue
+        signedUrlByKey.set(`${bucket}:${entry.path}`, entry.signedUrl)
+      }
+    }
+  }
   async function resolve(rawValue: string): Promise<string> {
     const asset = decodeStoredImageAsset(rawValue)
     if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) {
@@ -320,10 +359,12 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
     if (thumbnailStatus !== 'ready') {
       return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, undefined, thumbnailStatus)
     }
-    const cacheKey = `${asset.bucket}:${storageKey}:${thumbnailStorageKey}`
+    const cacheKey = `${asset.bucket}:${thumbnailStorageKey}`
     const cached = signedUrlByKey.get(cacheKey)
     if (cached) return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, cached, 'ready')
 
+    // Batch miss fallback (e.g. a path that failed inside createSignedUrls):
+    // request the single signed URL so one bad key never blocks the rest.
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(thumbnailStorageKey, processingConfig.previewTtlSeconds)
     if (error || !data?.signedUrl) {
       console.error('[weight_ticket_image_preview] signed thumbnail URL failed', {

@@ -1,13 +1,7 @@
-import { z } from 'zod'
-import { readJsonResponse } from '@/lib/api-client'
-import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { companyProfileForPrint, type CompanyProfilePrintValues } from '@/lib/company-profile'
 import { prepareCorporatePrintLayout } from '@/lib/corporate-print-layout'
+import { fetchCompanyProfileForPrint } from '@/lib/print-asset-prefetch'
 import { paginateStandardPrintItems } from '@/lib/print-pagination'
-
-const companyProfilePayloadSchema = z.object({
-  ...companyProfileResponseSchema.shape,
-  selectedBranchName: z.string().nullable().default(null),
-})
 
 export type AdvancePaymentPrintAllocation = {
   allocatedAmount: number
@@ -351,9 +345,8 @@ export function openAdvancePaymentPrintWindow() {
 
 export async function openAdvancePaymentPrint(doc: AdvancePaymentPrintDocument, targetWindow?: Window) {
   const printWindow = targetWindow ?? openAdvancePaymentPrintWindow()
-  const query = doc.branchId ? `?branchId=${encodeURIComponent(doc.branchId)}` : ''
-  const response = await fetch(`/api/admin/company-profile${query}`, { cache: 'no-store' })
-  const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
+  // Reads from the short-lived in-memory cache warmed on hover when available.
+  const payload = await fetchCompanyProfileForPrint(doc.branchId)
   const profile = companyProfileForPrint(payload)
   printWindow.document.open()
   printWindow.document.write(buildAdvancePaymentPrintHtml(doc, profile))

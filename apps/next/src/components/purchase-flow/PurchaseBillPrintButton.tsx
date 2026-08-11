@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Printer } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { openPurchaseBillPrint } from '@/lib/purchase-bill-print'
+import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 import type { PurchaseBillDetail } from '@/lib/server/purchase-bill-detail'
 
 export function PurchaseBillPrintButton({ bill }: { bill: PurchaseBillDetail }) {
@@ -24,7 +25,15 @@ export function PurchaseBillPrintButton({ bill }: { bill: PurchaseBillDetail }) 
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => void printBill()}>
+      <Button
+        className="gap-2 font-normal"
+        disabled={isPrinting}
+        type="button"
+        variant="outline"
+        onClick={() => void printBill()}
+        onMouseEnter={() => void prefetchPrintAssets(bill.branchId)}
+        onFocus={() => void prefetchPrintAssets(bill.branchId)}
+      >
         <Printer className="size-4" />
         {isPrinting ? 'กำลังเตรียมใบพิมพ์...' : 'พิมพ์บิลรับซื้อ'}
       </Button>

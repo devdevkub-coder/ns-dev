@@ -1,13 +1,7 @@
-import { z } from 'zod'
-import { readJsonResponse } from '@/lib/api-client'
-import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { companyProfileForPrint, type CompanyProfilePrintValues } from '@/lib/company-profile'
 import { prepareCorporatePrintLayout } from './corporate-print-layout'
+import { fetchCompanyProfileForPrint } from '@/lib/print-asset-prefetch'
 import { paginateStandardPrintItems } from '@/lib/print-pagination'
-
-const companyProfilePayloadSchema = z.object({
-  ...companyProfileResponseSchema.shape,
-  selectedBranchName: z.string().nullable().default(null),
-})
 
 const CASH_PAYMENT_METHOD = 'รับเงินสด'
 
@@ -564,8 +558,8 @@ export async function openReceiptVoucherPrint(row: ReceiptVoucherPrintDocument, 
   const printWindow = targetWindow ?? openReceiptVoucherPrintWindow()
   
   try {
-    const response = await fetch('/api/admin/company-profile', { cache: 'no-store' })
-    const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
+    // Reads from the short-lived in-memory cache warmed on hover when available.
+    const payload = await fetchCompanyProfileForPrint()
     const profile = companyProfileForPrint(payload)
     printWindow.document.open()
     printWindow.document.write(buildReceiptVoucherPrintHtml(row, profile))

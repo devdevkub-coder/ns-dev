@@ -1,14 +1,8 @@
-import { z } from 'zod'
-import { readJsonResponse } from '@/lib/api-client'
-import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
+import { companyProfileForPrint, type CompanyProfilePrintValues } from '@/lib/company-profile'
 import { prepareCorporatePrintLayout } from './corporate-print-layout'
+import { fetchCompanyProfileForPrint } from '@/lib/print-asset-prefetch'
 import { formatDateDisplay } from '@/lib/format'
 import { paginateStandardPrintItems } from './print-pagination'
-
-const companyProfilePayloadSchema = z.object({
-  ...companyProfileResponseSchema.shape,
-  selectedBranchName: z.string().nullable().default(null),
-})
 
 type ApprovalStatus = 'approved' | 'pending' | 'voided'
 
@@ -516,9 +510,8 @@ export function openPmaPrintWindow() {
 export async function openPmaBatchPrint(rows: PrintPmaRow[], modeLabel: string, targetWindow?: Window) {
   const printWindow = targetWindow ?? openPmaPrintWindow()
   
-  // โหลดข้อมูลบริษัท (ข้อมูลโปรไฟล์)
-  const response = await fetch('/api/admin/company-profile', { cache: 'no-store' })
-  const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
+  // โหลดข้อมูลบริษัท — อ่านจาก cache ที่อุ่นไว้ตอน hover ถ้ามี
+  const payload = await fetchCompanyProfileForPrint()
   const profile = companyProfileForPrint(payload)
   
   printWindow.document.open()

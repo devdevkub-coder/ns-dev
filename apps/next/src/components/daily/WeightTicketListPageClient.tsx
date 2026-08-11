@@ -19,6 +19,7 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
+import { prefetchPrintAssets, prefetchPrintFonts } from '@/lib/print-asset-prefetch'
 import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
@@ -351,6 +352,13 @@ export function WeightTicketListPageClient() {
     if (realtimeRefreshTimeoutRef.current !== null) window.clearTimeout(realtimeRefreshTimeoutRef.current)
   }, [])
 
+  // Warm the Noto Sans Thai webfonts in the browser cache on mount so the
+  // print popup (which loads the same fonts) can render on first paint.
+  // Idempotent and best-effort: failures fall back to the popup's own loader.
+  useEffect(() => {
+    void prefetchPrintFonts()
+  }, [])
+
   useWeightTicketRealtime(scheduleRealtimeRefresh, isUrlStateReady, realtimeBranchIds)
 
   useEffect(() => {
@@ -462,6 +470,11 @@ export function WeightTicketListPageClient() {
     let printWindow: Window | null = null
     try {
       printWindow = openWeightTicketPrintWindow(ticket)
+      // Open the popup, fetch the ticket detail, and warm the company profile
+      // cache in parallel so the print builder can skip its own profile fetch.
+      // The prefetch is best-effort: a failure here only means the builder
+      // refetches (it always fetches when the cache is empty).
+      void prefetchPrintAssets(ticket.branchId)
       // The print album renders each photo from its signed URL, so it normally
       // fetches the ticket with image previews. Tickets whose photos were never
       // thumbnail-processed cannot build preview URLs (the API throws), so fall

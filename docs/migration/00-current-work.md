@@ -1,3 +1,20 @@
+## Print performance optimization — 2026-08-12
+
+Active objective: ลดเวลารอตอนกดปุ่มพิมพ์เอกสาร (popup preview ช้า) โดย prefetch font/logo/company-profile ตอน hover และ warm cache ไว้ และ batch signed URL generation ฝั่ง server เพื่อลด HTTP round-trip
+
+Active batch:
+- เพิ่ม `apps/next/src/lib/print-asset-prefetch.ts` (ใหม่) เป็น helper กลาง — `prefetchPrintFonts()` (idempotent ต่อ tab), `fetchCompanyProfileForPrint(branchId?)` (cache TTL 30s + in-flight dedup), `prefetchPrintAssets(branchId?)` (font + profile + logo preload ผ่าน `new Image()`)
+- แก้ print module ทั้ง 9 ไฟล์ให้ใช้ `fetchCompanyProfileForPrint` แทน `fetch('/api/admin/company-profile')` ตรง ๆ และลบ `companyProfilePayloadSchema` ที่ซ้ำกันออก (schema canonical อยู่ใน helper)
+- `WeightTicketListPageClient` prefetch font ตอน mount + warm profile ขนานกับ ticket fetch ใน `handlePrintTicket`
+- `SalesBillPrintButton`/`PurchaseBillPrintButton` เพิ่ม `onMouseEnter`/`onFocus` prefetch
+- `weight-ticket-storage.ts` batch signed URLs ทั้งหมดผ่าน `createSignedUrls` 1 ครั้ง แทน N ครั้งของ `createSignedUrl` (fallback ทีละรูปเฉพาะตอน batch miss)
+
+Validation: type-check (with `NODE_OPTIONS=--max-old-space-size=4096`), lint, และ related tests ผ่าน — `weight-ticket-storage.test.ts` 13/13, `weight-ticket-print.test.ts` 30/30, `corporate-print-layout.test.ts` 11/11, `document-print-contract.test.ts` 51/51, `purchase-bill-print.test.ts` 25/25, `weight-tickets/[id]/images/preview/route.test.ts` 1/1
+
+Remaining risk: ไม่มีการแก้ contract ใด ๆ — visual output เหมือนเดิม 100%, แค่ latency ลดลง. Native browser UAT ยังไม่ได้ทำในรอบนี้ (ตามคำสั่งให้แก้ code อย่างเดียว)
+
+Immediate next: commit + push `sit-origin/main`
+
 ## Active WTI/WTO image upload checkpoint — 2026-08-10
 
 Objective: upload private original images without browser resize, let WTI/WTO save wait only for durable original uploads, and generate high-quality thumbnails asynchronously on the server. Active code adds a durable image-asset/job ledger, explicit `system_settings` for upload/thumbnail limits, Sharp Lanczos3/WebP processing with decoded-pixel protection, ownership binding during ticket save, and detail/form polling that progressively reveals ready thumbnails without falling back to original images. File selection now renders a local `blob:` thumbnail immediately while the durable upload is in flight, then keeps the server reference for save. SIT migration `20260810160000_add_weight_ticket_image_processing_jobs.sql` is applied and postflight found 204 ready assets with no missing originals or thumbnails. The asset ledger indexes thumbnail keys instead of enforcing uniqueness because historical references legitimately reuse a thumbnail object. Focused upload/thumbnail tests, lint, type-check and `git diff --check` pass; build and deployment smoke remain before push/promotion.
