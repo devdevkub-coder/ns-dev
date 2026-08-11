@@ -215,7 +215,7 @@ export function buildExpensePrintHtml(expense: any, profile: CompanyProfilePrint
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
+      .page { width: 190mm; height: 277mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
       .page-break-before { page-break-before: always !important; break-before: page !important; }
       .accent { height: 4px; background: linear-gradient(90deg, #b91c1c, #ea580c, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
@@ -258,10 +258,10 @@ export function buildExpensePrintHtml(expense: any, profile: CompanyProfilePrint
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 30mm; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }
       .total-row.final { background: #991b1b; color: white; font-size: 13px; font-weight: 900; }
-      .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 24px; break-inside: avoid; }
+      .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: auto; break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 28px; font-weight: 800; color: #1e293b; }
-      .footer { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 12px; }
+      .footer { margin-top: 8px; padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 12px; }
       .watermark { display: ${isCancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(239,68,68,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }

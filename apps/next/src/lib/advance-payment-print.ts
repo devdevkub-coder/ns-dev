@@ -243,7 +243,7 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
       .toolbar button.secondary { background: #475569; }
       .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
       .page:last-of-type { break-after: auto; page-break-after: auto; }
-      .page-content { min-height: 263mm; display: flex; flex-direction: column; }
+      .page-content { height: 263mm; min-height: 263mm; display: flex; flex-direction: column; }
       .page-break-before { break-before: page; page-break-before: always; }
       .accent { height: 4px; background: linear-gradient(90deg, #1e3a8a, #3b82f6, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
       .header { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
@@ -286,13 +286,13 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
       .continuation-summary-panel { min-height: 92px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; padding: 8px; }
       .continuation-panel-title { font-weight: 900; color: #1e293b; }
       .continuation-placeholder { margin-top: 12px; color: #94a3b8; }
-      .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; color: #1e3a8a; font-size: 13px; font-weight: 800; }
+      .continuation-signature { min-height: 74px; margin-top: auto; display: flex; align-items: center; justify-content: center; text-align: center; color: #1e3a8a; font-size: 13px; font-weight: 800; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 35mm; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }
       .total-row.final { background: #1e3a8a; color: white; font-weight: 900; }
       .total-row.allocated { color: #b45309; }
-      .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 20px; break-inside: avoid; }
+      .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: auto; break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 28px; font-weight: 800; color: #1e293b; }
       .continued { padding: 18px 0 6px; text-align: center; color: #1e3a8a; font-weight: 800; }

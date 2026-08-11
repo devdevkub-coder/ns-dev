@@ -430,7 +430,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       .toolbar button:hover { background: #1d4ed8; }
       .toolbar button.secondary { background: #475569; }
       
-      .page { width: 277mm; min-height: 190mm; margin: 0 auto 16px; padding: 7mm; background: #fff; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
+      .page { width: 277mm; height: 190mm; min-height: 190mm; margin: 0 auto 16px; padding: 7mm; background: #fff; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
       .page-break-before { page-break-before: always !important; break-before: page !important; }
       .document-header { display: grid; grid-template-columns: 1.45fr .55fr; gap: 16px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; }
       .company { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: start; min-width: 0; }
@@ -463,11 +463,11 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       .continuation-summary-panel { min-height: 70px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; padding: 8px; }
       .continuation-panel-title { font-weight: 900; color: #1e293b; }
       .continuation-placeholder { margin-top: 10px; color: #94a3b8; }
-      .continuation-signature { min-height: 56px; display: flex; align-items: center; justify-content: center; color: #1e40af; font-size: 13px; font-weight: 800; text-align: center; }
-      .signatures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin-top: 16px; }
+      .continuation-signature { min-height: 56px; margin-top: auto; display: flex; align-items: center; justify-content: center; color: #1e40af; font-size: 13px; font-weight: 800; text-align: center; }
+      .signatures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin-top: auto; }
       .sig { color: #475569; text-align: center; }
       .sig-line { border-top: 1px solid #94a3b8; color: #1e293b; font-weight: 800; margin-top: 24px; padding-top: 4px; }
-      .footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 11px; margin-top: auto; padding-top: 5px; }
+      .footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 11px; margin-top: 5px; padding-top: 5px; }
       
       .text-red { color: #dc2626; }
       .text-slate-800 { color: #1e293b; }

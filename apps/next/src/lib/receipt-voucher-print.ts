@@ -428,13 +428,15 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบสำคัญรับเงิน ${escapeHtml(row.docNo)}</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700; font-display: swap; }
       @page { size: A4 portrait; margin: 8mm; }
       * { box-sizing: border-box; }
       body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #334155; padding: 16px 0; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #059669; color: white; font: inherit; cursor: pointer; font-weight: bold; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 5mm; background: white; position: relative; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2); border-radius: 4px; }
+      .page { width: 190mm; height: 277mm; min-height: 277mm; margin: 0 auto 16px; padding: 5mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2); border-radius: 4px; }
       .page-break-before { page-break-before: always !important; break-before: page !important; }
       .print-footer { display: none; }
       .accent { height: 4px; background: linear-gradient(90deg, #065f46, #84cc16, #cbd5e1); border-radius: 99px; margin-bottom: 8px; }
@@ -490,7 +492,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .continuation-placeholder { margin-top: 12px; color: #94a3b8; }
       .continuation-signature { min-height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; color: #059669; font-size: 13px; letter-spacing: 0.5px; }
       
-      .footer-group { break-inside: avoid; page-break-inside: avoid; }
+      .footer-group { margin-top: auto; break-inside: avoid; page-break-inside: avoid; }
       .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 28px; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }
       .sig-block { text-align: center; color: #475569; }
       .sig-line { width: 82%; margin: 0 auto; height: 38px; border-bottom: 1px solid #475569; }

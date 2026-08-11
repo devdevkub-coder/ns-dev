@@ -96,6 +96,24 @@ describe('receipt voucher print layout', () => {
     )
   })
 
+  it('declares Noto Sans Thai @font-face so the A4 layout font check can load it', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      profile: { address: '99 กรุงเทพ', logoUrl: null, name: longCompanyName, phone: '021234567', taxId: '0105559999999' },
+      profileConfigured: true,
+      selectedBranchName: null,
+    }), { headers: { 'content-type': 'application/json' }, status: 200 })))
+
+    let html = ''
+    const printWindow = {
+      document: { close: vi.fn(), open: vi.fn(), write: vi.fn((value: string) => { html = value }) },
+      focus: vi.fn(),
+    } as unknown as Window
+    await openReceiptVoucherPrint(document, printWindow)
+
+    expect(html).toContain("@font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }")
+    expect(html).toContain("@font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700; font-display: swap; }")
+  })
+
   it('gives the long Company Payer name a full row without leaving gaps in the two-column grid', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       profile: {

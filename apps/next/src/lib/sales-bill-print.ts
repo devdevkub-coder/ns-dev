@@ -214,13 +214,15 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
             </div>
           </section>
 
-          <section class="signatures" data-signatures="final">
-            <div class="sig"><div class="sig-line">ผู้จัดทำเอกสาร</div><div>วันที่ ____ / ____ / ______</div></div>
-            <div class="sig"><div class="sig-line">ผู้ส่งมอบสินค้า</div><div>วันที่ ____ / ____ / ______</div></div>
-            <div class="sig"><div class="sig-line">ผู้รับสินค้า / ลูกค้า</div><div>วันที่ ____ / ____ / ______</div></div>
+          <section class="signature-zone">
+            <section class="signatures" data-signatures="final">
+              <div class="sig"><div class="sig-line">ผู้จัดทำเอกสาร</div><div>วันที่ ____ / ____ / ______</div></div>
+              <div class="sig"><div class="sig-line">ผู้ส่งมอบสินค้า</div><div>วันที่ ____ / ____ / ______</div></div>
+              <div class="sig"><div class="sig-line">ผู้รับสินค้า / ลูกค้า</div><div>วันที่ ____ / ____ / ______</div></div>
+            </section>
+            <div class="footer">${escapeHtml(profile.footerNote || '')}</div>
           </section>
         `}
-        <div class="footer">${escapeHtml(profile.footerNote || '')}</div>
       </main>
     `
   }).join('')
@@ -236,7 +238,7 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; font-weight: 700; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
+      .page { width: 190mm; height: 277mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
       .page:last-of-type { break-after: auto; page-break-after: auto; }
       .page-break-before { break-before: page; page-break-before: always; }
       .accent { height: 4px; background: linear-gradient(90deg, #0f766e, #16a34a, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
@@ -290,11 +292,12 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       .total-row.final { background: #0f766e; color: white; font-weight: 900; }
       .total-row.advance { color: #b45309; }
       .read-warning { margin-top: 10px; border: 1px solid #fcd34d; border-radius: 8px; background: #fffbeb; color: #92400e; padding: 7px 9px; font-weight: 700; }
-      .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 20px; break-inside: avoid; }
+      .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 0; break-inside: avoid; }
+      .signature-zone { min-height: 30mm; margin-top: auto; display: flex; flex: 0 0 30mm; flex-direction: column; justify-content: flex-end; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 28px; font-weight: 800; color: #1e293b; }
       .continued { padding: 18px 0 6px; text-align: center; color: #0f766e; font-weight: 700; }
-      .footer { margin-top: 8px; text-align: center; color: #64748b; }
+      .footer { margin-top: 4px; text-align: center; color: #64748b; }
       .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
         body { background: white; padding: 0; font-size: 12px; line-height: 1.2; }

@@ -2034,6 +2034,19 @@ export function LineSettingsPageClient() {
                 </div>
               ) : null}
 
+              <div className="rounded-md border border-blue-200 bg-blue-50/60 p-4 text-sm text-slate-700">
+                <p className="font-semibold text-slate-900">📖 วิธีเพิ่มกลุ่มใหม่ (สำหรับมือใหม่)</p>
+                <p className="mt-1.5 text-slate-600">LINE Messaging API ไม่มี endpoint ลิสต์ทุกกลุ่มที่บอทอยู่ — กลุ่มใหม่จะเข้าสู่ระบบได้<span className="font-medium text-slate-800">ทางเดียวคือผ่าน webhook event</span> กด &quot;ซิงค์กลุ่มจาก LINE&quot; จะดึงกลุ่มใหม่มาไม่ได้</p>
+                <ol className="mt-2.5 space-y-1.5 text-slate-600">
+                  <li className="flex gap-2"><span className="font-bold text-slate-800">1.</span><span>เชิญ LINE OA (บอท) เข้ากลุ่ม LINE ปลายทาง</span></li>
+                  <li className="flex gap-2"><span className="font-bold text-slate-800">2.</span><span>ในกลุ่มนั้น พิมพ์ข้อความใด ๆ 1 ครั้ง (แนะนำ <code className="rounded bg-white px-1 py-0.5 font-mono text-xs text-slate-700">/register สาขา=[รหัสสาขา]</code> เพื่อผูกสาขาให้เลย)</span></li>
+                  <li className="flex gap-2"><span className="font-bold text-slate-800">3.</span><span>กลับมาหน้านี้ → รีเฟรชหน้า (หรือรอสักครู่) → กลุ่มใหม่จะ<span className="font-medium text-slate-800">ขึ้นในตารางเองอัตโนมัติ</span></span></li>
+                  <li className="flex gap-2"><span className="font-bold text-slate-800">4.</span><span>เปิดใช้งานกลุ่ม + เลือกสาขา + ติ๊ก WTI/WTO แล้วไปสร้างกฎที่แท็บ &quot;การกำหนดเส้นทาง&quot;</span></li>
+                </ol>
+                <p className="mt-2.5 text-xs text-slate-500">ปุ่ม &quot;ซิงค์กลุ่มจาก LINE&quot; ใช้<span className="font-medium"> refresh ชื่อ/รูปของกลุ่มที่มีอยู่แล้ว</span> ไม่ใช่ดึงกลุ่มใหม่ — ถ้าเชิญบอทเข้ากลุ่มใหม่แล้วไม่ขึ้น ให้กลับไปทำขั้นตอนที่ 2 อีกครั้ง แล้วรอรีเฟรช</p>
+              </div>
+
+
               {/* Lined table view with resize headers */}
               <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden lg:block">
                 <div className="overflow-x-auto">

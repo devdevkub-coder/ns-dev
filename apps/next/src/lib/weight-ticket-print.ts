@@ -514,6 +514,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         </div>
 
         ${isLastPage ? `
+          <section class="bottom-zone">
           <section class="bottom-grid">
             <div class="panel">
               <div class="panel-title">สรุปตามหมวดสินค้า</div>
@@ -546,6 +547,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             <div class="sig"><div class="sig-line">พนักงานชั่ง</div><div>${escapeHtml(ticket.enteredBy || '-')}</div></div>
             <div class="sig"><div class="sig-line">${escapeHtml(signatureMiddle)}</div><div>วันที่ ____ / ____ / ______</div></div>
             <div class="sig"><div class="sig-line">ผู้อนุมัติ</div><div>วันที่ ____ / ____ / ______</div></div>
+          </section>
           </section>
         ` : `
           <section class="bottom-grid" data-continuation-panels="placeholder" aria-label="Continuation page summary placeholders">
@@ -612,7 +614,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 6mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
+      .page { width: 190mm; height: 277mm; min-height: 277mm; margin: 0 auto 16px; padding: 6mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
       .page:last-child { break-after: auto; page-break-after: auto; }
       .accent { height: 3px; background: linear-gradient(90deg, #166534, #65a30d, #cbd5e1); border-radius: 99px; margin-bottom: 8px; flex: 0 0 auto; }
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 10px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; flex: 0 0 auto; }
@@ -641,12 +643,14 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .weight-info-net { grid-column: 2; min-width: 0; }
       .weight-info-net .field-value { margin-top: 1px; white-space: nowrap; }
       table { width: 100%; border-collapse: collapse; }
-      .items-frame { margin: 8px 1px 0; border-radius: 6px; box-shadow: 0 0 0 1px #cbd5e1; overflow: hidden; flex: 0 0 auto; }
-      .items { margin-top: 0; font-size: 10.5px; table-layout: fixed; }
+      .items-frame { margin: 8px 1px 0; border-radius: 6px; box-shadow: 0 0 0 1px #cbd5e1; overflow: hidden; flex: 1 1 auto; display: flex; flex-direction: column; }
+      .items { margin-top: 0; font-size: 10.5px; table-layout: fixed; flex: 1 1 auto; height: 100%; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 4px 3px; text-align: left; font-weight: 700; overflow-wrap: anywhere; word-break: break-word; }
       .items td { border: 1px solid #dbe3ea; padding: 4px 3px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-      .items .empty td { height: 24px; color: transparent; }
-      .items .final-empty td { height: 28px; }
+      .items .empty td { height: auto; color: transparent; }
+      .items .final-empty td { height: auto; }
+      .items tbody { height: 100%; }
+      .items tbody > tr.empty > td { height: 1px; }
       .items .product-heading td { background: #f1f5f9; }
       .items .lot-row td { background: #ffffff; }
       .items .source-row td { background: #f8fafc; }
@@ -684,7 +688,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .album-card-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 7px; }
       .album-file-name { min-width: 0; overflow-wrap: anywhere; color: #334155; font-size: 9px; }
       .album-index { flex: 0 0 auto; border-radius: 4px; padding: 2px 5px; background: #f1f5f9; color: #475569; font-size: 9px; font-weight: 700; }
-      .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: auto; margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid; }
+      .bottom-zone { margin-top: auto; display: flex; flex-direction: column; }
+      .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 28px; margin-bottom: 0; break-inside: avoid; page-break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 16px; font-weight: 700; color: #1e293b; }
       .continued { min-height: 64px; margin-top: auto; display: flex; align-items: center; justify-content: center; padding-top: 8px; text-align: center; color: #14532d; font-weight: 700; }
@@ -727,7 +732,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .continuation-placeholder { font-size: 10px; }
         .summary-card { padding: 5px; }
         .summary-card .value { font-size: 10.5px; }
-        .signatures { gap: 12px; margin-top: auto; margin-bottom: 5mm; }
+        .signatures { gap: 12px; margin-top: 24px; margin-bottom: 0; }
         .sig-line { margin-top: 12px; padding-top: 3px; }
       }
     </style>

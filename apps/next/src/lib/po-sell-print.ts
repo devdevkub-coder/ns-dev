@@ -186,10 +186,12 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
         </div>
       </div>
 
-      <div class="signatures" data-signatures="final">
-        <div class="sig"><div>ผู้อนุมัติรายการ / Approved By</div><div class="sig-line">${escapeHtml(po.createdBy || '-')}</div><div style="font-size:12px;margin-top:2px">${escapeHtml(dateTimeDisplay(po.createdAt))}</div></div>
-        <div class="sig"><div>ผู้ประสานงานขาย / Sales Coordinator</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
-        <div class="sig"><div>ผู้ยืนยันใบสั่งจอง (ลูกค้า) / Confirmed By (Customer)</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
+      <div class="signature-zone">
+        <div class="signatures" data-signatures="final">
+          <div class="sig"><div>ผู้อนุมัติรายการ / Approved By</div><div class="sig-line">${escapeHtml(po.createdBy || '-')}</div><div style="font-size:12px;margin-top:2px">${escapeHtml(dateTimeDisplay(po.createdAt))}</div></div>
+          <div class="sig"><div>ผู้ประสานงานขาย / Sales Coordinator</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
+          <div class="sig"><div>ผู้ยืนยันใบสั่งจอง (ลูกค้า) / Confirmed By (Customer)</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
+        </div>
       </div>
     ` : `
       <section class="continuation-summary" data-continuation-summary="placeholder" aria-label="พื้นที่สรุปสำหรับหน้าต่อเนื่อง">
@@ -340,7 +342,7 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #6b21a8; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
+      .page { width: 190mm; height: 277mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
       .page:last-of-type { break-after: auto; page-break-after: auto; }
       .print-footer { display: none; }
       .accent { height: 4px; background: linear-gradient(90deg, #6b21a8, #a855f7, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
@@ -393,11 +395,13 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 30mm; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }
       .total-row.final { background: #6b21a8; color: white; font-size: 13px; font-weight: 900; }
-      .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 20px; break-inside: avoid; }
+      .page-content { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+      .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 0; break-inside: avoid; }
+      .signature-zone { min-height: 30mm; margin-top: auto; display: flex; flex: 0 0 30mm; flex-direction: column; justify-content: flex-end; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 28px; font-weight: 800; color: #1e293b; }
       .continued { padding: 18px 0 6px; text-align: center; color: #6b21a8; font-weight: 800; }
-      .footer { margin-top: 8px; text-align: center; color: #64748b; font-size: 12px; }
+      .footer { margin-top: 4px; text-align: center; color: #64748b; font-size: 12px; }
       .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
         @page { size: A4 portrait; margin: 8mm 8mm 12mm; }
