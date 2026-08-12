@@ -2403,9 +2403,7 @@ export async function POST(request: Request) {
     }
     const actor = currentActor(context)
     const createdAt = new Date()
-    const billDate = bangkokDateInput(createdAt)
-    const vatRatePercent = await activeVatRatePercent(normalizeDate(billDate))
-    const totals = calculateTotals(values, vatRatePercent)
+    let billDate = bangkokDateInput(createdAt)
 
     const productRefs = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
     const poBuyRefs = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
@@ -2460,7 +2458,11 @@ export async function POST(request: Request) {
       }
       receiptSummarySourceMap = receiptValidation.receiptSummarySourceMap
       receiptTicketIdsToRefresh = [receiptValidation.ticket.id]
+      billDate = toDateOnly(receiptValidation.ticket.document_date)
     }
+
+    const vatRatePercent = await activeVatRatePercent(normalizeDate(billDate))
+    const totals = calculateTotals(values, vatRatePercent)
 
     const items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
     const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
@@ -2493,7 +2495,7 @@ export async function POST(request: Request) {
           const createdBill = await tx.purchase_bills.create({
             data: {
               branch_id: effectiveBranch.id,
-              date: createdAt,
+              date: normalizeDate(billDate),
               created_by: actor,
               discount: values.discountTotal,
               discount_total: values.discountTotal,
