@@ -193,7 +193,7 @@ type ReceiptSplit = NonNullable<CustomerReceiptFormValues['splits']>[number]
 type PaymentBillSort = 'age_asc' | 'age_desc' | 'balance_asc' | 'balance_desc' | 'date_asc' | 'date_desc' | 'doc_asc' | 'doc_desc' | 'operator_asc' | 'operator_desc' | 'paid_asc' | 'paid_desc' | 'source_asc' | 'source_desc' | 'status_asc' | 'status_desc' | 'supplier_asc' | 'supplier_desc' | 'total_asc' | 'total_desc' | 'updated_asc' | 'updated_desc'
 type PaymentBillSortField = 'age' | 'balance' | 'date' | 'docNo' | 'operator' | 'paidAmount' | 'sourceDocNo' | 'status' | 'supplier' | 'totalAmount' | 'updatedAt'
 type PaymentQueueSourceFilter = 'all' | NonNullable<Bill['sourceType']>
-type ReceiptQueueStatusFilter = 'active' | 'all' | 'pending'
+type ReceiptQueueStatus = 'active' | 'pending'
 type HistorySortField = 'accountName' | 'amount' | 'bankFee' | 'billRefs' | 'date' | 'docNo' | 'netAmount' | 'notes' | 'partyName' | 'status' | 'wht'
 type PaymentHistoryStatusFilter = 'active' | 'all' | 'cancelled'
 type ReceiptTab = 'entry' | 'history'
@@ -774,6 +774,8 @@ export function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyPr
   }).join('')
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(reportTitle)}</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700 900; font-display: swap; }
       @page { size: A4 landscape; margin: 10mm; }
       * { box-sizing: border-box; }
       body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #334155; padding: 16px 0; }
@@ -923,6 +925,8 @@ export function buildPaymentVoucherPrintHtml(row: MoneyRow, detail: PaymentHisto
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(detail.docNo)}</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700 900; font-display: swap; }
       @page { size: A4 portrait; margin: 8mm; }
       * { box-sizing: border-box; }
       body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; line-height: 1.35; margin: 0; background: #334155; padding: 16px 0; }
@@ -1103,6 +1107,8 @@ function buildBatchReceiptPrintHtml(entries: CustomerReceiptPrintEntry[], title 
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700 900; font-display: swap; }
       @page { size: A4 portrait; margin: 8mm; }
       * { box-sizing: border-box; }
       body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #334155; padding: 16px 0; }
@@ -1188,9 +1194,11 @@ function receiptQueueDocNo(bill: Bill) {
   return bill.activeReceiptDocNos?.[0] ?? '-'
 }
 
-function receiptQueueStatus(bill: Bill): Exclude<ReceiptQueueStatusFilter, 'all'> {
+function receiptQueueStatus(bill: Bill): ReceiptQueueStatus {
   const status = String(bill.receiptStatus ?? '').toLowerCase()
-  if (status === 'active' || bill.activeReceiptDocNos?.length) return 'active'
+  // A pending RCP already has a document number, but money has not been received yet.
+  // Only an active receipt represents a completed collection.
+  if (status === 'active') return 'active'
   return 'pending'
 }
 
@@ -1215,6 +1223,8 @@ function buildReceivableBillPrintHtml(bill: Bill, customerName: string) {
   const receiptDocNo = receiptQueueDocNo(bill)
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(receiptDocNo)}</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700 900; font-display: swap; }
       @page { size: A4; margin: 12mm; }
       * { box-sizing: border-box; }
       body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #334155; padding: 16px 0; }
@@ -1348,14 +1358,15 @@ export function MoneyMovementPageClient({
   const [dateTo, setDateTo] = useState(() => mode === 'payment' ? todayDateInput() : '')
   const [accountFilter, setAccountFilter] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
-  const [receiptCurrencyFilter, setReceiptCurrencyFilter] = useState('')
   const [receiptSourceFilter, setReceiptSourceFilter] = useState<'SB' | 'CADV' | ''>('')
   const [billSearch, setBillSearch] = useState('')
+  const [receiptQueueCustomerSearch, setReceiptQueueCustomerSearch] = useState('')
+  const [receiptQueueDateFrom, setReceiptQueueDateFrom] = useState('')
+  const [receiptQueueDateTo, setReceiptQueueDateTo] = useState('')
   const [billPage, setBillPage] = useState(1)
   const [billPageSize, setBillPageSize] = useState(25)
-  const [billSort, setBillSort] = useState<PaymentBillSort>('date_desc')
+  const [billSort, setBillSort] = useState<PaymentBillSort>(() => mode === 'receipt' ? 'doc_desc' : 'date_desc')
   const [billSourceFilter, setBillSourceFilter] = useState<PaymentQueueSourceFilter>('all')
-  const [receiptQueueStatusFilter, setReceiptQueueStatusFilter] = useState<ReceiptQueueStatusFilter>('all')
   const [historyPage, setHistoryPage] = useState(1)
   const [historyPageSize, setHistoryPageSize] = useState(10)
   const [historySortField, setHistorySortField] = useState<HistorySortField>(mode === 'payment' ? 'date' : 'docNo')
@@ -1695,23 +1706,28 @@ export function MoneyMovementPageClient({
 
   const receiptBills = useMemo(() => {
     if (mode !== 'receipt') return []
-    const query = billSearch.trim().toLowerCase()
+    const documentQuery = billSearch.trim().toLowerCase()
+    const customerQuery = receiptQueueCustomerSearch.trim().toLowerCase()
     return data.bills.filter((bill) => {
       const customerName = partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? ''
       const balance = bill.receivableBalance ?? 0
-      const searchHaystack = [
+      const documentHaystack = [
         receiptQueueDocNo(bill),
         ...(bill.activeReceiptDocNos ?? []),
         bill.id,
         bill.docNo,
-        customerName,
-        bill.customerId ?? '',
-        bill.date ?? '',
       ].join(' ').toLowerCase()
-      const matchesSearch = !query || searchHaystack.includes(query)
+      const matchesDocument = !documentQuery || documentHaystack.includes(documentQuery)
+      const matchesCustomer = !customerQuery || [customerName, bill.customerId ?? ''].join(' ').toLowerCase().includes(customerQuery)
+      const matchesDate = receiptQueueDateFrom && receiptQueueDateTo
+        ? (bill.date ?? '') >= receiptQueueDateFrom && (bill.date ?? '') <= receiptQueueDateTo
+        : receiptQueueDateFrom
+          ? (bill.date ?? '') === receiptQueueDateFrom
+          : receiptQueueDateTo
+            ? (bill.date ?? '') === receiptQueueDateTo
+            : true
       const matchesBranch = !branchFilter || bill.branchId === branchFilter
-      const matchesStatus = receiptQueueStatusFilter === 'all' || receiptQueueStatus(bill) === receiptQueueStatusFilter
-      return matchesSearch && matchesBranch && matchesStatus && balance > 0
+      return matchesDocument && matchesCustomer && matchesDate && matchesBranch && balance > 0
     }).sort((left, right) => {
       const leftCustomerName = partyMap.get(left.customerId ?? '') ?? left.customerId ?? ''
       const rightCustomerName = partyMap.get(right.customerId ?? '') ?? right.customerId ?? ''
@@ -1764,7 +1780,7 @@ export function MoneyMovementPageClient({
           return String(right.date ?? '').localeCompare(String(left.date ?? ''))
       }
     })
-  }, [billSearch, billSort, branchFilter, data.bills, mode, partyMap, receiptQueueStatusFilter])
+  }, [billSearch, billSort, branchFilter, data.bills, mode, partyMap, receiptQueueCustomerSearch, receiptQueueDateFrom, receiptQueueDateTo])
 
   const supplierBillTotalRows = supplierBills.length
   const supplierBillTotalPages = Math.max(1, Math.ceil(supplierBillTotalRows / billPageSize))
@@ -1775,10 +1791,11 @@ export function MoneyMovementPageClient({
   const receiptBillCurrentPage = Math.min(billPage, receiptBillTotalPages)
   const receiptBillPageRows = receiptBills.slice((receiptBillCurrentPage - 1) * billPageSize, receiptBillCurrentPage * billPageSize)
   const entryBillTotalPages = mode === 'payment' ? supplierBillTotalPages : receiptBillTotalPages
-  const hasActiveBillFilters = billSearch.trim() !== '' || billSort !== 'date_desc' || billSourceFilter !== 'all' || branchFilter !== '' || receiptQueueStatusFilter !== 'all'
+  const defaultBillSort = mode === 'receipt' ? 'doc_desc' : 'date_desc'
+  const hasActiveBillFilters = billSearch.trim() !== '' || receiptQueueCustomerSearch.trim() !== '' || receiptQueueDateFrom !== '' || receiptQueueDateTo !== '' || billSort !== defaultBillSort || billSourceFilter !== 'all' || branchFilter !== ''
   useEffect(() => {
     setBillPage(1)
-  }, [billPageSize, billSearch, billSort, billSourceFilter, branchFilter, receiptQueueStatusFilter])
+  }, [billPageSize, billSearch, billSort, billSourceFilter, branchFilter, receiptQueueCustomerSearch, receiptQueueDateFrom, receiptQueueDateTo])
 
   useEffect(() => {
     if (billPage > entryBillTotalPages) setBillPage(entryBillTotalPages)
@@ -1802,15 +1819,14 @@ export function MoneyMovementPageClient({
       const matchesSearch = !query || searchHaystack.includes(query)
       const matchesAccount = matchesMoneyAccountFilter(row, accountFilter)
       const matchesBranch = !branchFilter || row.branchId === branchFilter
-      const matchesReceiptCurrency = mode !== 'receipt' || !receiptCurrencyFilter || (row.foreignAudit?.currencyCode ?? functionalCurrencyCode) === receiptCurrencyFilter
       const matchesReceiptSource = mode !== 'receipt' || !receiptSourceFilter || row.sourceType === receiptSourceFilter
       const matchesFrom = !dateFrom || row.date >= dateFrom
       const matchesTo = !dateTo || row.date <= dateTo
       const matchesHistoryStatus = paymentHistoryStatusFilter === 'all'
         || (paymentHistoryStatusFilter === 'active' ? row.status !== 'cancelled' : row.status === 'cancelled')
-      return matchesSearch && matchesAccount && matchesBranch && matchesReceiptCurrency && matchesReceiptSource && matchesFrom && matchesTo && matchesHistoryStatus
+      return matchesSearch && matchesAccount && matchesBranch && matchesReceiptSource && matchesFrom && matchesTo && matchesHistoryStatus
     })
-  }, [accountFilter, branchFilter, data.rows, dateFrom, dateTo, functionalCurrencyCode, mode, paymentHistoryStatusFilter, receiptCurrencyFilter, receiptSourceFilter, search])
+  }, [accountFilter, branchFilter, data.rows, dateFrom, dateTo, mode, paymentHistoryStatusFilter, receiptSourceFilter, search])
 
   const historyRows = useMemo(() => {
     return [...rows].sort((left, right) => {
@@ -1831,7 +1847,6 @@ export function MoneyMovementPageClient({
     || (mode === 'payment' ? dateFrom !== todayDateInput() || dateTo !== todayDateInput() : dateFrom !== '' || dateTo !== '')
     || accountFilter !== ''
     || branchFilter !== ''
-    || receiptCurrencyFilter !== ''
     || receiptSourceFilter !== ''
     || paymentHistoryStatusFilter !== 'all'
 
@@ -1868,7 +1883,7 @@ export function MoneyMovementPageClient({
 
   useEffect(() => {
     setHistoryPage(1)
-  }, [search, dateFrom, dateTo, accountFilter, branchFilter, historyPageSize, historySortField, historySortDirection, paymentHistoryStatusFilter, receiptCurrencyFilter, receiptSourceFilter])
+  }, [search, dateFrom, dateTo, accountFilter, branchFilter, historyPageSize, historySortField, historySortDirection, paymentHistoryStatusFilter, receiptSourceFilter])
 
   useEffect(() => {
     if (historyPage > historyTotalPages) setHistoryPage(historyTotalPages)
@@ -2035,10 +2050,8 @@ export function MoneyMovementPageClient({
     setDateTo('')
     setAccountFilter('')
     setBranchFilter('')
-    setReceiptCurrencyFilter('')
     setReceiptSourceFilter('')
     setPaymentHistoryStatusFilter('all')
-    setReceiptQueueStatusFilter('all')
   }
 
   function switchMoneyTab(value: ReceiptTab) {
@@ -2060,12 +2073,13 @@ export function MoneyMovementPageClient({
     setDateTo(mode === 'payment' && value === 'history' ? todayDateInput() : '')
     setAccountFilter('')
     setBranchFilter('')
-    setReceiptCurrencyFilter('')
     setReceiptSourceFilter('')
     setPaymentHistoryStatusFilter('all')
-    setReceiptQueueStatusFilter('all')
     setBillSearch('')
-    setBillSort('date_desc')
+    setReceiptQueueCustomerSearch('')
+    setReceiptQueueDateFrom('')
+    setReceiptQueueDateTo('')
+    setBillSort(mode === 'receipt' ? 'doc_desc' : 'date_desc')
     setBillSourceFilter('all')
     setBillPage(1)
     setHistoryPage(1)
@@ -2168,13 +2182,12 @@ export function MoneyMovementPageClient({
         const matchesSearch = !query || searchHaystack.includes(query)
         const matchesAccount = matchesMoneyAccountFilter(row, accountFilter)
         const matchesBranch = !branchFilter || row.branchId === branchFilter
-        const matchesReceiptCurrency = mode !== 'receipt' || !receiptCurrencyFilter || (row.foreignAudit?.currencyCode ?? functionalCurrencyCode) === receiptCurrencyFilter
         const matchesReceiptSource = mode !== 'receipt' || !receiptSourceFilter || row.sourceType === receiptSourceFilter
         const matchesFrom = row.date >= printDateFrom
         const matchesTo = row.date <= printDateTo
         const matchesPaymentStatus = paymentHistoryStatusFilter === 'all'
           || (paymentHistoryStatusFilter === 'active' ? row.status !== 'cancelled' : row.status === 'cancelled')
-        return matchesSearch && matchesAccount && matchesBranch && matchesReceiptCurrency && matchesReceiptSource && matchesFrom && matchesTo && matchesPaymentStatus
+        return matchesSearch && matchesAccount && matchesBranch && matchesReceiptSource && matchesFrom && matchesTo && matchesPaymentStatus
       })
       .sort((left, right) => `${left.date}-${left.docNo}`.localeCompare(`${right.date}-${right.docNo}`, 'th'))
   }
@@ -3398,12 +3411,40 @@ export function MoneyMovementPageClient({
           <div className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-2">
               <UiInput
-                className="h-9 min-w-[260px] flex-1 rounded-md"
-                placeholder="ค้นหาใบรับเงิน / Sales Bill / ลูกค้า / วันที่"
+                className="h-9 min-w-[220px] flex-1 rounded-md"
+                placeholder="ค้นหาเลขที่ใบรับเงิน / Sales Bill"
                 type="search"
                 value={billSearch}
                 onChange={(event) => setBillSearch(event.target.value)}
               />
+              <UiInput
+                aria-label="ค้นหาลูกค้า"
+                className="h-9 w-full rounded-md sm:w-[220px]"
+                placeholder="ค้นหาลูกค้า"
+                type="search"
+                value={receiptQueueCustomerSearch}
+                onChange={(event) => setReceiptQueueCustomerSearch(event.target.value)}
+              />
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <span className="shrink-0 text-xs font-semibold text-slate-500">วันที่:</span>
+                <DatePickerInput
+                  ariaLabel="วันที่เริ่มต้น"
+                  className="h-9 w-full sm:w-[145px]"
+                  id="receipt-queue-date-from"
+                  placeholder="วว/ดด/ปปปป"
+                  value={receiptQueueDateFrom}
+                  onChange={setReceiptQueueDateFrom}
+                />
+                <span aria-hidden="true" className="shrink-0 text-sm font-semibold text-slate-400">→</span>
+                <DatePickerInput
+                  ariaLabel="วันที่สิ้นสุด"
+                  className="h-9 w-full sm:w-[145px]"
+                  id="receipt-queue-date-to"
+                  placeholder="วว/ดด/ปปปป"
+                  value={receiptQueueDateTo}
+                  onChange={setReceiptQueueDateTo}
+                />
+              </div>
               <BranchSelectCombobox
                 branches={(data.branches ?? []).filter((branch) => branch.active)}
                 className="w-full sm:w-auto"
@@ -3414,16 +3455,6 @@ export function MoneyMovementPageClient({
                 value={branchFilter}
                 onChange={(value) => setBranchFilter(value ?? '')}
               />
-              <UiSelect
-                aria-label="กรองสถานะใบรับเงิน"
-                className="h-9 w-full px-2 sm:w-auto sm:min-w-[140px]"
-                value={receiptQueueStatusFilter}
-                onChange={(event) => setReceiptQueueStatusFilter(event.target.value as ReceiptQueueStatusFilter)}
-              >
-                <option value="all">ทุกสถานะ</option>
-                <option value="pending">รอรับเงิน</option>
-                <option value="active">รับเงินแล้ว</option>
-              </UiSelect>
               {hasActiveBillFilters ? (
                 <UiButton
                   className="h-9 font-normal"
@@ -3432,9 +3463,11 @@ export function MoneyMovementPageClient({
                   variant="secondary"
                   onClick={() => {
                     setBillSearch('')
-                    setBillSort('date_desc')
+                    setReceiptQueueCustomerSearch('')
+                    setReceiptQueueDateFrom('')
+                    setReceiptQueueDateTo('')
+                    setBillSort('doc_desc')
                     setBranchFilter('')
-                    setReceiptQueueStatusFilter('all')
                   }}
                 >
                   <X aria-hidden="true" className="mr-1 h-4 w-4" />
@@ -3565,14 +3598,6 @@ export function MoneyMovementPageClient({
                         </span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs font-medium text-slate-600">{formatDateTimeDisplay(bill.receiptUpdatedAt)}</TableCell>
-                      <TableCell className="truncate text-xs font-medium text-slate-700">{bill.receiptUpdatedBy || '-'}</TableCell>
-                      <TableCell className="text-center">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${receiptQueueStatus(bill) === 'active' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                          <span className={`size-1.5 rounded-full ${receiptQueueStatus(bill) === 'active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                          {receiptQueueStatusLabel(bill)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-center text-xs font-medium text-slate-600">{formatDateTimeDisplay(bill.receiptUpdatedAt)}</TableCell>
                       <TableCell className="truncate text-xs font-medium text-slate-700">{bill.receiptUpdatedBy || '-'}</TableCell>
                       <TableCell className="text-center">
                         {paymentBillStatus(bill) === 'cancelled' ? null : (
@@ -4380,10 +4405,6 @@ export function MoneyMovementPageClient({
                     <option value="SB">บิลขาย (SB)</option>
                     <option value="CADV">รับเงินล่วงหน้า (CADV)</option>
                   </UiSelect>
-                  <UiSelect className="h-9 w-auto min-w-[130px] px-2 py-1" value={receiptCurrencyFilter} onChange={(event) => setReceiptCurrencyFilter(event.target.value)}>
-                    <option value="">ทุกสกุลเงิน</option>
-                    {(data.currencies ?? []).map((currency) => <option key={currency.code} value={currency.code}>{currency.code}</option>)}
-                  </UiSelect>
                   <BranchSelectCombobox
                     branches={(data.branches ?? []).filter((branch) => branch.active)}
                     className="w-auto min-w-[180px]"
@@ -4498,13 +4519,6 @@ export function MoneyMovementPageClient({
                           <option value="">ทุกต้นทาง</option>
                           <option value="SB">บิลขาย (SB)</option>
                           <option value="CADV">รับเงินล่วงหน้า (CADV)</option>
-                        </UiSelect>
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-semibold text-slate-600">สกุลเงินรับ</span>
-                        <UiSelect className="h-9 w-full px-2" value={receiptCurrencyFilter} onChange={(event) => setReceiptCurrencyFilter(event.target.value)}>
-                          <option value="">ทุกสกุลเงิน</option>
-                          {(data.currencies ?? []).map((currency) => <option key={currency.code} value={currency.code}>{currency.code}</option>)}
                         </UiSelect>
                       </label>
                       <BranchSelectCombobox
