@@ -172,6 +172,14 @@ function sumDetails(rows: DetailRow[]) {
   return rows.reduce((sum, row) => sum + row.amount, 0)
 }
 
+export function calculateBalanceSheetEquity(totalAssets: number, totalLiabilities: number) {
+  return totalAssets - totalLiabilities
+}
+
+export function calculateDebtToEquity(totalLiabilities: number, totalEquity: number) {
+  return totalEquity > 0 ? totalLiabilities / totalEquity : 0
+}
+
 function moneyLine(section: string, label: string, amount: number, details?: DetailRow[], tone?: StatementLine['tone'], level = 0): StatementLine {
   return { amount, details, label, level, section, tone }
 }
@@ -758,7 +766,9 @@ export async function buildBalanceSheet(filter: AsOfFilter) {
   const currentYearPl = 0
   const totalAssets = cash + ar + inventory + fixedAssetNet
   const totalLiabilities = ap + currentLoan + longTermLoan
-  const totalEquity = paidUpCapital + retainedEarnings + ownerAdjustment + currentYearPl
+  const sourceEquity = paidUpCapital + retainedEarnings + ownerAdjustment + currentYearPl
+  const totalEquity = calculateBalanceSheetEquity(totalAssets, totalLiabilities)
+  const calculatedEquityAdjustment = totalEquity - sourceEquity
   const liabilitiesAndEquity = totalLiabilities + totalEquity
 
   return {
@@ -778,6 +788,7 @@ export async function buildBalanceSheet(filter: AsOfFilter) {
         moneyLine('equity', 'Retained Earnings', retainedEarnings, undefined, 'default'),
         moneyLine('equity', 'Owner Adjustment', ownerAdjustment, undefined, ownerAdjustment >= 0 ? 'good' : 'bad'),
         moneyLine('equity', 'Current Year P&L', currentYearPl, undefined, 'muted'),
+        moneyLine('equity', 'Calculated Equity Adjustment (Assets - Liabilities)', calculatedEquityAdjustment, undefined, calculatedEquityAdjustment >= 0 ? 'good' : 'bad'),
       ],
       liabilities: [
         moneyLine('currentLiabilities', 'Accounts Payable', ap, apDetails, 'bad'),
@@ -785,7 +796,10 @@ export async function buildBalanceSheet(filter: AsOfFilter) {
         moneyLine('nonCurrentLiabilities', 'Long-term Loan / Leasing', longTermLoan, loanDetails, 'bad'),
       ],
     },
-    sourceState: sourceState(['Current Year P&L is not rolled into retained earnings until GL/closing-period design is confirmed']),
+    sourceState: sourceState([
+      'Current Year P&L is not rolled into retained earnings until GL/closing-period design is confirmed',
+      'Total Equity uses Assets - Liabilities; the calculated adjustment makes the management statement reconcile while the source equity roll-forward is incomplete',
+    ]),
     summary: {
       ar,
       ap,
@@ -805,7 +819,7 @@ export async function buildBalanceSheet(filter: AsOfFilter) {
     },
     ratios: {
       currentRatio: totalLiabilities > 0 ? (cash + ar + inventory) / (ap + currentLoan || 1) : 0,
-      debtToEquity: totalEquity > 0 ? totalLiabilities / totalEquity : 0,
+      debtToEquity: calculateDebtToEquity(totalLiabilities, totalEquity),
       workingCapital: cash + ar + inventory - ap - currentLoan,
     },
   }
