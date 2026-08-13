@@ -86,6 +86,8 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(docTitle)} ตัวอย่าง</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700 900; font-display: swap; }
       @page { size: A4; margin: 12mm; }
       * { box-sizing: border-box; }
       body { font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 13px; color: #111; margin: 0; background: #334155; padding: 16px 0; }

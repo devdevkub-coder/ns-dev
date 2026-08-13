@@ -74,8 +74,18 @@ function emptyRowHeights(availableHeight: number, availableSlots: number, minimu
   const safeMinimum = Math.max(1, minimumHeight)
   if (availableHeight < safeMinimum && safeMinimum - availableHeight > 1e-6) return []
   const count = Math.min(availableSlots, Math.max(1, Math.floor(availableHeight / safeMinimum)))
-  const heights = Array.from({ length: count }, () => safeMinimum)
-  heights[count - 1] = availableHeight - safeMinimum * (count - 1)
+  // Share the remaining table space equally across every empty row instead of
+  // dumping all of it into the last row (which visually stretches one cell).
+  const base = Math.floor(availableHeight / count)
+  let remainder = availableHeight - base * count
+  const heights = Array.from({ length: count }, () => base)
+  let index = 0
+  while (remainder > 1e-6 && index < count) {
+    const extra = Math.min(1, remainder)
+    heights[index] += extra
+    remainder -= extra
+    index += 1
+  }
   return heights
 }
 

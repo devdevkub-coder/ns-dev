@@ -17,9 +17,10 @@ import {
 } from '@/components/daily/WeightTicketProductBreakdownTable'
 import { WeightTicketImageGallery, WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT } from '@/components/daily/WeightTicketImageGallery'
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
+import { invalidateWeightTicketForPrintCache, prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImageOriginal, getWeightTicketImagePreviews, isPreviewableStoredImageAsset, isThumbnailPreviewableStoredImageAsset, mergeWeightTicketImagePreviews, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImageOriginal, getWeightTicketImagePreviews, isThumbnailPreviewableStoredImageAsset, mergeWeightTicketImagePreviews, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
 import { useWeightTicketRealtime } from './useWeightTicketRealtime'
@@ -265,6 +266,7 @@ export function WeightTicketDetailModal({
     setCancelError('')
     try {
       const updated = await cancelWeightTicket(ticket.id, cancelNote)
+      invalidateWeightTicketForPrintCache(ticket.id)
       setTicket(updated)
     } catch (caught) {
       const message = getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้')
@@ -296,6 +298,7 @@ export function WeightTicketDetailModal({
     beginSaveStage('confirm')
     try {
       const updated = await confirmWeightTicket(ticket.id)
+      invalidateWeightTicketForPrintCache(ticket.id)
       setTicket(updated)
       setSuccessModalMessage(ticket.type === 'WTI' ? 'ยืนยันรับของเรียบร้อยแล้ว' : 'ยืนยันส่งของเรียบร้อยแล้ว')
     } catch (caught) {
@@ -310,7 +313,10 @@ export function WeightTicketDetailModal({
     setIsPrinting(true)
     let printWindow: Window | null = null
     try {
-      const printableTicket = ticket.imageNames.some((imageName) => !isPreviewableStoredImageAsset(decodeStoredImageAsset(imageName)))
+      // Start the company profile fetch now so the builder reuses it instead
+      // of waiting for a ~1s API round trip after the popup opens.
+      void prefetchPrintAssets(ticket.branchId)
+      const printableTicket = ticket.imageNames.some((imageName) => !isThumbnailPreviewableStoredImageAsset(decodeStoredImageAsset(imageName)))
         ? await getWeightTicket(ticketId)
         : ticket
       printWindow = openWeightTicketPrintWindow(printableTicket)
@@ -510,7 +516,7 @@ export function WeightTicketDetailModal({
                   <span className="sr-only sm:not-sr-only">แชร์</span>
                 </Button> : null}
                 {canPrintWeightTicket(ticket.status) ? (
-                  <Button aria-label={isPrinting ? 'กำลังเตรียมพิมพ์' : 'พิมพ์'} className="h-10 w-10 shrink-0 gap-0 border-emerald-600 bg-emerald-600 px-0 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" disabled={isPrinting} type="button" variant="outline" onClick={() => void handlePrintReceipt()}>
+                  <Button aria-label={isPrinting ? 'กำลังเตรียมพิมพ์' : 'พิมพ์'} className="h-10 w-10 shrink-0 gap-0 border-emerald-600 bg-emerald-600 px-0 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" disabled={isPrinting} type="button" variant="outline" onMouseEnter={() => void prefetchPrintAssets(ticket.branchId)} onFocus={() => void prefetchPrintAssets(ticket.branchId)} onClick={() => void handlePrintReceipt()}>
                     <Printer className="size-4" />
                     <span className="sr-only sm:not-sr-only">{isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}</span>
                   </Button>

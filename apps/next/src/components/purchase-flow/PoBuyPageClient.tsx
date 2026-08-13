@@ -25,6 +25,7 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { poBuyFormSchema, type PoBuyFormValues } from '@/lib/po-buy'
 import { openPoBuyPrint, openPoBuyPrintWindow, type PoBuyPrintDocument } from '@/lib/po-buy-print'
+import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 
 type Option = {
   active?: boolean | null
@@ -756,6 +757,9 @@ export function PoBuyPageClient() {
     setPrintingPoDocNo(row.docNo)
     try {
       printWindow = openPoBuyPrintWindow()
+      // Start the company profile fetch now so the builder reuses it instead
+      // of waiting for a ~1s API round trip after the popup opens.
+      void prefetchPrintAssets(row.branchId)
       await openPoBuyPrint(row satisfies PoBuyPrintDocument, printWindow)
     } catch (caught) {
       printWindow?.close()
@@ -1099,7 +1103,7 @@ export function PoBuyPageClient() {
                   <>
                     {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
                     {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
-                    <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
+                    <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onMouseEnter={() => void prefetchPrintAssets(row.branchId)} onFocus={() => void prefetchPrintAssets(row.branchId)} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
                     {shouldShowShortCloseButton(row) ? <TableActionMenuItem disabled={!canShortClosePoBuy(row)} onSelect={() => openShortCloseDialog(row)}>ปิดรับไม่ครบ</TableActionMenuItem> : null}
                   </>
                 )} />
@@ -1171,7 +1175,7 @@ export function PoBuyPageClient() {
                     <>
                       {data?.capabilities.update && row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
                       {data?.capabilities.cancel && row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
-                      <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
+                      <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onMouseEnter={() => void prefetchPrintAssets(row.branchId)} onFocus={() => void prefetchPrintAssets(row.branchId)} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
                       {data?.capabilities.shortClose && shouldShowShortCloseButton(row) ? <TableActionMenuItem disabled={!canShortClosePoBuy(row)} onSelect={() => openShortCloseDialog(row)}>ปิดรับไม่ครบ</TableActionMenuItem> : null}
                     </>
                   )} />}

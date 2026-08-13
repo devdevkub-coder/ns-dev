@@ -203,6 +203,8 @@ export function buildExpensePrintHtml(expense: any, profile: CompanyProfilePrint
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบสำคัญจ่ายค่าใช้จ่าย ${escapeHtml(expense.docNo)}</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700 900; font-display: swap; }
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
       body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #334155; padding: 16px 0; }
@@ -211,7 +213,7 @@ export function buildExpensePrintHtml(expense: any, profile: CompanyProfilePrint
       .toolbar button.secondary { background: #475569; }
       .page { width: 190mm; height: 277mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; }
       .page-break-before { page-break-before: always !important; break-before: page !important; }
-      .accent { height: 4px; background: linear-gradient(90deg, #b91c1c, #ea580c, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
+      .accent { height: 4px; flex: 0 0 auto; background: linear-gradient(90deg, #b91c1c, #ea580c, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
@@ -258,31 +260,14 @@ export function buildExpensePrintHtml(expense: any, profile: CompanyProfilePrint
       .footer { margin-top: 8px; padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 12px; }
       .watermark { display: ${isCancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(239,68,68,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
+        /* WYSIWYG contract: print renders exactly like the on-screen preview.
+         * Only the page box (A4 minus 8mm @page margin), toolbar hiding, and
+         * color fidelity differ between the two media. */
         @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; padding: 0; font-size: 12px; line-height: 1.2; }
+        *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { background: white; padding: 0; }
         .toolbar { display: none; }
         .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
-        .accent { margin-bottom: 7px; }
-        .header { gap: 10px; padding-bottom: 7px; }
-        .company { grid-template-columns: 48px 1fr; gap: 8px; }
-        .logo { width: 48px; height: 48px; }
-        .company-name { font-size: 14px; }
-        .company-info { font-size: 12px; line-height: 1.25; margin-top: 2px; }
-        .doc-title { font-size: 19px; }
-        .section-grid { gap: 8px; margin-top: 7px; }
-        .panel-title { padding: 4px 7px; }
-        .panel-body { padding: 5px 7px; }
-        .two-col { gap: 4px 8px; }
-        .items { font-size: 12px; margin-top: 7px; }
-        .items th, .items td { padding: 3px; }
-        .items .empty td { height: 18px; }
-        .bottom-grid { gap: 8px; margin-top: 7px; }
-        .note { min-height: 24px; }
-        .total-row { padding: 3px 6px; }
-        .total-row.final { font-size: 12px; }
-        .signatures { gap: 12px; margin-top: 15px; }
-        .sig-line { margin-top: 20px; padding-top: 3px; }
-        .footer { padding-top: 4px; }
       }
     </style>
   </head><body>
@@ -319,6 +304,6 @@ export async function openExpenseReceiptPrint(expense: any, targetWindow?: Windo
   printWindow.document.open()
   printWindow.document.write(buildExpensePrintHtml(expense, profile))
   printWindow.document.close()
-  await prepareCorporatePrintLayout(printWindow.document)
+  await prepareCorporatePrintLayout(printWindow.document, { fillContinuationFirst: true })
   printWindow.focus()
 }

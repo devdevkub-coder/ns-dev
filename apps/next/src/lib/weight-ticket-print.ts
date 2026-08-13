@@ -27,7 +27,7 @@ export const WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE = 6
 /** exported เพื่อให้ react-pdf template ใช้ค่าเดียวกันกับ HTML template */
 export { FIRST_PAGE_ITEM_ROWS, CONTINUATION_PAGE_ITEM_ROWS }
 
-/** Short neutral detail that remains visible inline only in 20-row dense tables. */
+/** Short neutral detail shown in the WTI product-total row when nothing was deducted. */
 export const NO_IMPURITY_SUMMARY_DETAIL = 'ไม่มีหักสิ่งเจือปน'
 
 export type PrintWeightRow = {
@@ -95,6 +95,11 @@ export function buildWeightTicketAttachmentImages(
 ): Array<StoredImageAsset & { url: string }> {
   return getWeightTicketAttachmentReferences(ticket)
     .map(decodeStoredImageAsset)
+    // Production only ever issues thumbnail signed URLs (stored on
+    // thumbnailUrl); the full-size `url` field is always null there, while
+    // legacy/dev records may carry a real url. Resolve either one so print,
+    // PDF and LINE all show the attachment images.
+    .map((image) => ({ ...image, url: image.url ?? image.thumbnailUrl ?? null }))
     .filter(isPreviewableStoredImageAsset)
 }
 
@@ -340,21 +345,21 @@ function estimateWrappedLineCount(value: string, maxCharacters: number) {
  * by React-PDF and server-generated LINE HTML. The browser print window still
  * performs a final CSS/font measurement after rendering.
  */
-export function estimatePrintWeightRowHeight(row: PrintWeightRow, isReceipt: boolean, dense = false) {
+export function estimatePrintWeightRowHeight(row: PrintWeightRow, isReceipt: boolean) {
   // The WTI item column is narrower than WTO's five-column table. These values
   // are conservative enough to move a wrapped row early rather than risk
   // allowing text to collide with the numeric cells.
   const itemColumnCharacters = isReceipt ? 34 : 58
-  const inlineNoImpurityDetail = dense && row.detail === NO_IMPURITY_SUMMARY_DETAIL
-  const productName = inlineNoImpurityDetail
-    ? `${row.productName} · ${row.detail}`
-    : row.productName
+  // A WTI/WTO product heading is a group label that occupies exactly one cell
+  // of the fixed 20-row form grid; its summary detail wraps within that cell
+  // without consuming a second slot, so it never crowds another row off the
+  // page (the DOM fitter re-measures with real fonts for the browser).
+  if (row.className === 'product-heading') return 1
   const lines = [
-    estimateWrappedLineCount(productName, itemColumnCharacters),
+    estimateWrappedLineCount(row.productName, itemColumnCharacters),
     row.label ? estimateWrappedLineCount(row.label, itemColumnCharacters) : 0,
-    inlineNoImpurityDetail ? 0 : row.detail ? estimateWrappedLineCount(row.detail, itemColumnCharacters) : 0,
+    row.detail ? estimateWrappedLineCount(row.detail, itemColumnCharacters) : 0,
   ]
-  if (inlineNoImpurityDetail) return Math.max(1, lines[0] + lines[1])
   // One product line plus one optional detail/label line is the normal row
   // shape and counts as one logical row. Only additional wrapped lines spend
   // extra height budget.
@@ -362,8 +367,7 @@ export function estimatePrintWeightRowHeight(row: PrintWeightRow, isReceipt: boo
 }
 
 function estimateRowsHeight(rows: readonly PrintWeightRow[], isReceipt: boolean) {
-  const dense = rows.length > 14
-  return rows.reduce((total, row) => total + estimatePrintWeightRowHeight(row, isReceipt, dense), 0)
+  return rows.reduce((total, row) => total + estimatePrintWeightRowHeight(row, isReceipt), 0)
 }
 
 function makePrintPage(
@@ -525,19 +529,15 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   const lotLines = ticket.lines.filter(isLotLine)
   const lotCount = lotLines.length
 
-  function rowHtml(row: PrintWeightRow, rowSlot: number, dense: boolean) {
-    const inlineNoImpurityDetail = dense && row.detail === NO_IMPURITY_SUMMARY_DETAIL
-    const inlineNoImpurity = inlineNoImpurityDetail
-      ? `<span class="muted dense-inline"> · ${escapeHtml(row.detail)}</span>`
-      : ''
+  function rowHtml(row: PrintWeightRow, rowSlot: number) {
     if (row.className === 'product-heading') {
       const colSpan = isReceipt ? 7 : 5
       return `
         <tr class="item-row product-heading" data-row-slot="${rowSlot}">
           <td class="c rank-cell">${escapeHtml(row.rank || '')}</td>
           <td colspan="${colSpan - 1}">
-            <div class="item-name">${escapeHtml(row.productName)}${inlineNoImpurity}</div>
-            ${inlineNoImpurityDetail ? '' : `<div class="muted">${detailHtml(row.detail)}</div>`}
+            <div class="item-name">${escapeHtml(row.productName)}</div>
+            ${row.detail ? `<div class="muted">${detailHtml(row.detail)}</div>` : ''}
           </td>
         </tr>
       `
@@ -549,9 +549,9 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       <tr class="item-row ${escapeHtml(row.className || '')}" data-row-slot="${rowSlot}">
         <td class="c rank-cell">${escapeHtml(row.rank || '')}</td>
         <td>
-          <div class="item-name">${escapeHtml(row.productName)}${inlineNoImpurity}</div>
+          <div class="item-name">${escapeHtml(row.productName)}</div>
           ${row.label ? `<div class="muted">${escapeHtml(row.label)}</div>` : ''}
-          ${inlineNoImpurityDetail ? '' : `<div class="muted">${detailHtml(row.detail)}</div>`}
+          ${row.detail ? `<div class="muted">${detailHtml(row.detail)}</div>` : ''}
         </td>
         <td class="r">${formatPrintableNumber(row.grossWeight)}</td>
         ${isReceipt ? `
@@ -573,8 +573,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   let rowSlot = 0
   const pageHtml = pages.map((page, pageIndex) => {
     const isLastPage = pageIndex === totalPages - 1
-    const denseTable = page.items.length > 14
-    const rows = page.items.map((row) => rowHtml(row, ++rowSlot, denseTable)).join('')
+    const rows = page.items.map((row) => rowHtml(row, ++rowSlot)).join('')
     const emptyRows = Array.from({ length: Math.max(0, page.capacity - page.items.length) }, (_, emptyIndex) => `
       <tr class="item-row empty${isLastPage ? ' final-empty' : ''}" data-row-slot="empty-${pageIndex + 1}-${emptyIndex + 1}" aria-hidden="true">
         ${Array.from({ length: isReceipt ? 7 : 5 }, () => '<td>&nbsp;</td>').join('')}
@@ -583,7 +582,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     const totalAfterContainer = Math.max(0, ticket.totals.grossWeight - ticket.totals.containerDeductionWeight)
 
     return `
-      <main class="page${denseTable ? ' dense-page' : ''}" data-document-type="${ticket.type}" data-print-page="${pageIndex + 1}" data-final-page="${isLastPage}">
+      <main class="page" data-document-type="${ticket.type}" data-print-page="${pageIndex + 1}" data-final-page="${isLastPage}">
         <div class="accent"></div>
         <section class="header">
           <div class="company">
@@ -623,7 +622,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         </section>
 
         <div class="items-frame">
-        <table class="items${denseTable ? ' dense' : ''}" style="--item-row-slots: ${page.capacity}">
+        <table class="items" style="--item-row-slots: ${page.capacity}">
           <thead>
             <tr>
               <th class="c rank-cell" style="width:7mm">#</th>
@@ -800,11 +799,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .items { margin-top: 0; font-size: 10.5px; table-layout: fixed; flex: 1 1 auto; height: 100%; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 4px 3px; text-align: left; font-weight: 700; overflow-wrap: anywhere; word-break: break-word; }
       .items td { border: 1px solid #dbe3ea; padding: 4px 3px; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-      .items.dense { font-size: 9px; line-height: 1.15; }
-      .items.dense th, .items.dense td { padding: 2px; }
-      .items.dense .muted { margin-top: 0; font-size: 8px; line-height: 1.15; }
-      .items.dense .dense-inline { display: inline; white-space: nowrap; }
-      .items.dense .detail-line { margin-top: 0; }
       .items tbody { height: 100%; }
       .items tbody > tr { height: calc(100% / var(--item-row-slots)); }
       .items .empty td { color: transparent; }
@@ -832,7 +826,11 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .summary-cards { display: grid; gap: 8px; }
       .summary-card { border: 1px solid #dbe3ea; border-radius: 6px; padding: 5px; background: #f8fafc; }
       .summary-card .value { font-size: 10.5px; font-weight: 700; color: #0f172a; margin-top: 2px; }
-      .attachment-page { padding-top: 6mm; }
+      /* The album pages carry no data-print-page so the shared fitter never
+       * normalizes them; keep them on the same A4 box (210×297mm, 8mm padding)
+       * as the normalized item pages so every paper in the popup has the same
+       * width and height. */
+      .attachment-page { width: 210mm; height: 297mm; min-height: 297mm; max-height: 297mm; padding: 8mm; overflow: hidden; }
       .album-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
       .album-title { color: #14532d; font-size: 16px; font-weight: 700; line-height: 1.25; }
       .album-subtitle { color: #475569; font-size: 10px; margin-top: 5px; line-height: 1.25; }
@@ -851,48 +849,18 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 16px; font-weight: 700; color: #1e293b; }
       .continued { min-height: 64px; margin-top: auto; display: flex; align-items: center; justify-content: center; padding-top: 8px; text-align: center; color: #14532d; font-weight: 700; }
       @media print {
+        /* WYSIWYG contract: print renders exactly like the on-screen preview.
+         * The WTI/WTO builders measure their pages at the base (screen) CSS, so
+         * the printed page fits by construction. Only the page box (A4 minus
+         * 8mm @page margin), toolbar hiding, and color fidelity differ. */
         @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; padding: 0; font-size: 10.5px; line-height: 1.18; }
+        *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { background: white; padding: 0; }
         .toolbar { display: none; }
         .page { width: auto; min-height: 281mm; margin: 0; padding: 0; box-shadow: none; border-radius: 0; break-after: page; page-break-after: always; }
         .page:last-child { break-after: auto; page-break-after: auto; }
-        .accent { margin-bottom: 7px; }
-        .header { gap: 10px; padding-bottom: 7px; }
-        .company { grid-template-columns: 48px 1fr; gap: 8px; }
-        .logo, .logo-placeholder { width: 48px; height: 48px; }
-        .company-name { font-size: 13px; }
-        .company-info { font-size: 9.5px; line-height: 1.18; margin-top: 1px; }
-        .doc-title { font-size: 16.5px; }
-        .doc-grid { gap: 6px 8px; }
-        .kv { padding: 3px 5px; }
-        .kv .label, .field-label, .summary-card .label { font-size: 9.5px; }
-        .kv .value, .field-value { font-size: 10px; }
-        .field-value.strong { font-size: 11.5px; }
-        .section-grid { gap: 8px; margin-top: 7px; }
-        .panel-title { padding: 4px 7px; }
-        .panel-body { padding: 5px 7px; }
-        .two-col { gap: 4px 8px; }
-        .weight-info-grid { gap: 3px 8px; padding-bottom: 6px; }
-        .items-frame { margin-top: 6px; }
-        .items { font-size: 10px; }
-        .items th, .items td { padding: 2.5px; }
-        .items.dense { font-size: 8.5px; line-height: 1.12; }
-        .items.dense th, .items.dense td { padding: 1.5px 2px; }
-        .items.dense .muted { font-size: 7.5px; line-height: 1.12; }
-        .items.dense .dense-inline { display: inline; white-space: nowrap; }
-        .muted { font-size: 9px; }
-        .detail-line { margin-top: 0; line-height: 1.25; }
-        .bottom-grid { gap: 8px; margin-top: 7px; }
-        .album-title { font-size: 15px; }
-        .album-subtitle { font-size: 9.5px; }
-        .album-grid { gap: 7px; }
-        .album-image-wrap { min-height: 170px; }
-        .note { min-height: 24px; }
-        .continuation-placeholder { font-size: 10px; }
-        .summary-card { padding: 5px; }
-        .summary-card .value { font-size: 10.5px; }
-        .signatures { gap: 12px; margin-top: 24px; margin-bottom: 0; }
-        .sig-line { margin-top: 12px; padding-top: 3px; }
+        /* Album pages match the normalized item pages: fixed 194×281mm box. */
+        .attachment-page { width: 194mm; height: 281mm; min-height: 281mm; max-height: 281mm; padding: 0; margin: 0; }
       }
     </style>
   </head><body>
@@ -937,6 +905,7 @@ export async function openWeightTicketReceiptPrint(ticket: WeightTicketRecord, t
   await prepareCorporatePrintLayout(printWindow.document, {
     maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
     reflowRows: true,
+    fillContinuationFirst: true,
   })
   printWindow.focus()
 }

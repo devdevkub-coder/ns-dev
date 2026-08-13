@@ -1,3 +1,18 @@
+## Print performance optimization batch 2 (A+B) — 2026-08-12
+
+Active objective: prefetch ticket detail + preload attachment images ตอน hover ที่ `พิมพ์` menu item ของ WTI/WTO เพื่อให้คลิกแล้ว popup render ทันทีโดยไม่ต้องรอ fetch ticket + download รูป
+
+Active batch:
+- `print-asset-prefetch.ts` เพิ่ม `prefetchWeightTicketForPrint`, `peekCachedWeightTicketForPrint`, `preloadWeightTicketAttachmentImages`, `invalidateWeightTicketForPrintCache` (TTL 20s, in-flight dedup)
+- `WeightTicketListPageClient.tsx` เพิ่ม `onMouseEnter`/`onFocus` prefetch ที่ menu item พิมพ์ (desktop + mobile), และ `handlePrintTicket` ใช้ cache ก่อน ถ้ามี cache hit ข้าม `getWeightTicket` fetch
+- ข้าม C (document.write → innerHTML) เพราะ risk ไม่คุ้มผล — font-face/CSP edge cases
+
+Validation: type-check, lint, 105/105 related tests ผ่าน
+
+Remaining risk: native browser UAT ยังไม่ได้ทำ; prefetch ทำงานเฉพาะตอน user hover ก่อนคลิก (user ที่คลิกเลยจะใช้ path เดิม)
+
+Immediate next: รอ user ตรวจ Code Review ก่อน commit; **จะไม่ push จนกว่า user บอก**
+
 ## Print performance optimization — 2026-08-12
 
 Active objective: ลดเวลารอตอนกดปุ่มพิมพ์เอกสาร (popup preview ช้า) โดย prefetch font/logo/company-profile ตอน hover และ warm cache ไว้ และ batch signed URL generation ฝั่ง server เพื่อลด HTTP round-trip

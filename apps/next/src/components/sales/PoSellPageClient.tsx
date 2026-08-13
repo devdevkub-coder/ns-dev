@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Download, Plus, Printer } from 'lucide-react'
 import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from '@/lib/po-sell-print'
+import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 import { Button as UiButton } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -241,6 +242,9 @@ export function PoSellPageClient() {
     setPrintingPoDocNo(row.docNo)
     try {
       printWindow = openPoSellPrintWindow()
+      // Start the company profile fetch now so the builder reuses it instead
+      // of waiting for a ~1s API round trip after the popup opens.
+      void prefetchPrintAssets(row.branchId)
       await openPoSellPrint(row satisfies PoSellPrintDocument, printWindow)
     } catch (err) {
       printWindow?.close()
@@ -926,7 +930,7 @@ export function PoSellPageClient() {
                 <TableActionButton mobileLabel menu={(
                   <>
                     {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                    <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoSell(row)}>พิมพ์</TableActionMenuItem>
+                    <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onMouseEnter={() => void prefetchPrintAssets(row.branchId)} onFocus={() => void prefetchPrintAssets(row.branchId)} onSelect={() => void printPoSell(row)}>พิมพ์</TableActionMenuItem>
                     {canShortClosePoSell(row) ? <TableActionMenuItem disabled={isSaving} onSelect={() => openShortCloseDialog(row)}>ปิดส่งไม่ครบ</TableActionMenuItem> : null}
                     {row.canCancel ? <TableActionMenuItem disabled={isSaving} onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
                   </>
@@ -1005,7 +1009,7 @@ export function PoSellPageClient() {
                 {isCancelledPoSell(row) ? null : <TableActionButton menu={(
                   <>
                     {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                    <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoSell(row)}>พิมพ์</TableActionMenuItem>
+                    <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onMouseEnter={() => void prefetchPrintAssets(row.branchId)} onFocus={() => void prefetchPrintAssets(row.branchId)} onSelect={() => void printPoSell(row)}>พิมพ์</TableActionMenuItem>
                     {canShortClosePoSell(row) ? <TableActionMenuItem disabled={isSaving} onSelect={() => openShortCloseDialog(row)}>ปิดส่งไม่ครบ</TableActionMenuItem> : null}
                     {row.canCancel ? <TableActionMenuItem disabled={isSaving} onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
                   </>

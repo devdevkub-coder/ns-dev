@@ -40,6 +40,6 @@ export async function cachedSalesBillReferences<T>(url: string) {
 
 export function invalidateSalesBillReferencesCache() {
   for (const key of cache.keys()) {
-    if (key.endsWith('/api/sales/bills/options?scope=global-reference')) cache.delete(key)
+    if (key.endsWith('/api/sales/bills/options')) cache.delete(key)
   }
 }

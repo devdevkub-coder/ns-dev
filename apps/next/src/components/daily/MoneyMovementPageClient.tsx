@@ -2245,7 +2245,7 @@ export function MoneyMovementPageClient({
       printWindow.document.open()
       printWindow.document.write(buildBatchReceiptPrintHtml(entries))
       printWindow.document.close()
-      await prepareCorporatePrintLayout(printWindow.document, { groupAttribute: 'data-print-group' })
+      await prepareCorporatePrintLayout(printWindow.document, { groupAttribute: 'data-print-group', fillContinuationFirst: true })
       printWindow.focus()
     } catch (caught) {
       printWindow.close()
@@ -2275,7 +2275,7 @@ export function MoneyMovementPageClient({
       printWindow.document.open()
       printWindow.document.write(buildPaymentVoucherPrintHtml(row, detail, profile))
       printWindow.document.close()
-      await prepareCorporatePrintLayout(printWindow.document)
+      await prepareCorporatePrintLayout(printWindow.document, { fillContinuationFirst: true })
       printWindow.focus()
     } catch (caught) {
       printWindow.close()
@@ -2299,7 +2299,7 @@ export function MoneyMovementPageClient({
       printWindow.document.open()
       printWindow.document.write(buildCustomerReceiptPrintHtml(row, profile))
       printWindow.document.close()
-      await prepareCorporatePrintLayout(printWindow.document)
+      await prepareCorporatePrintLayout(printWindow.document, { fillContinuationFirst: true })
       printWindow.focus()
     } catch (caught) {
       printWindow.close()

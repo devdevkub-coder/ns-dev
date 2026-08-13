@@ -22,6 +22,7 @@ import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/F
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { openReceiptVoucherPrint, openReceiptVoucherPrintWindow, type ReceiptVoucherPrintDocument } from '@/lib/receipt-voucher-print'
+import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 
 type VoucherItem = {
   amount?: number | string | null
@@ -296,6 +297,10 @@ export function ReceiptVouchersPageClient() {
     setPrintingDocNo(row.docNo)
     try {
       printWindow = openReceiptVoucherPrintWindow()
+      // Start the company profile fetch now so the builder's own
+      // fetchCompanyProfileForPrint (same page context) reuses it instead of
+      // waiting for a ~1s API round trip after the popup opens.
+      void prefetchPrintAssets()
       const docToPrint: ReceiptVoucherPrintDocument = {
         ...row,
       }
@@ -801,7 +806,7 @@ export function ReceiptVouchersPageClient() {
                 <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
                   <TableActionButton busy={printingDocNo === row.docNo} mobileLabel menu={(
                     <>
-                      <TableActionMenuItem disabled={printingDocNo === row.docNo} onSelect={() => void printReceiptVoucher(row)}>พิมพ์</TableActionMenuItem>
+                      <TableActionMenuItem disabled={printingDocNo === row.docNo} onMouseEnter={() => void prefetchPrintAssets()} onFocus={() => void prefetchPrintAssets()} onSelect={() => void printReceiptVoucher(row)}>พิมพ์</TableActionMenuItem>
                       <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
                       <TableActionMenuItem onSelect={() => { setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</TableActionMenuItem>
                     </>
@@ -854,7 +859,7 @@ export function ReceiptVouchersPageClient() {
                       busy={printingDocNo === row.docNo}
                       menu={(
                         <>
-                          <TableActionMenuItem disabled={printingDocNo === row.docNo} onSelect={() => void printReceiptVoucher(row)}>พิมพ์</TableActionMenuItem>
+                          <TableActionMenuItem disabled={printingDocNo === row.docNo} onMouseEnter={() => void prefetchPrintAssets()} onFocus={() => void prefetchPrintAssets()} onSelect={() => void printReceiptVoucher(row)}>พิมพ์</TableActionMenuItem>
                           <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
                           <TableActionMenuItem onSelect={() => { setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</TableActionMenuItem>
                         </>

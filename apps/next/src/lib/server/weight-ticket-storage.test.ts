@@ -197,6 +197,65 @@ describe('WTI/WTO private image reference contract', () => {
     expect(JSON.parse(result.imageNames[0] ?? '{}')).not.toHaveProperty('thumbnailUrl')
   })
 
+  it('keeps a legacy reference without a thumbnail key instead of failing the whole batch', async () => {
+    // Images uploaded before the thumbnail pipeline have no thumbnailStorageKey
+    // and no asset ledger row. The preview must not throw for the whole batch:
+    // the UI reports them as existing images without a preview instead.
+    mocks.findAssets.mockResolvedValue([{
+      original_storage_key: 'attachments/pending/evidence.jpg',
+      thumbnail_status: 'ready',
+      thumbnail_storage_key: 'attachments/pending/evidence.thumb.webp',
+    }])
+    const legacy = JSON.stringify({
+      bucket: 'weight-ticket-images',
+      fileName: 'legacy-evidence.jpg',
+      storageKey: 'attachments/pending/legacy-evidence.jpg',
+    })
+    const healthy = storedReference()
+
+    const result = await attachWeightTicketImagePreviewUrls({
+      imageNames: [legacy, healthy],
+      lines: [{ imageNames: [legacy] }],
+      vehicleImageNames: [legacy],
+    }, 'weight-ticket-images')
+
+    expect(result.imageNames[0]).toBe(legacy)
+    expect(JSON.parse(result.imageNames[1] ?? '{}')).toEqual(expect.objectContaining({ thumbnailStatus: 'ready' }))
+    expect(result.vehicleImageNames[0]).toBe(legacy)
+    expect(result.lines[0].imageNames[0]).toBe(legacy)
+  })
+
+  it('resolves a legacy reference through the asset ledger thumbnail when the ledger knows it', async () => {
+    // A reference missing thumbnailStorageKey can still get a preview when the
+    // asset ledger row carries the generated thumbnail key and status.
+    const legacy = JSON.stringify({
+      bucket: 'weight-ticket-images',
+      fileName: 'ledger-evidence.jpg',
+      storageKey: 'attachments/pending/ledger-evidence.jpg',
+    })
+    mocks.findAssets.mockResolvedValue([{
+      original_storage_key: 'attachments/pending/ledger-evidence.jpg',
+      thumbnail_status: 'ready',
+      thumbnail_storage_key: 'attachments/pending/ledger-evidence.thumb.webp',
+    }])
+
+    const result = await attachWeightTicketImagePreviewUrls({
+      imageNames: [legacy],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')
+
+    expect(mocks.createSignedUrls).toHaveBeenCalledWith(
+      ['attachments/pending/ledger-evidence.thumb.webp'],
+      expect.any(Number),
+    )
+    expect(JSON.parse(result.imageNames[0] ?? '{}')).toEqual(expect.objectContaining({
+      thumbnailStatus: 'ready',
+      thumbnailStorageKey: 'attachments/pending/ledger-evidence.thumb.webp',
+      thumbnailUrl: expect.stringContaining('https://signed.example/attachments/pending/ledger-evidence.thumb.webp'),
+    }))
+  })
+
   it('represents a signed thumbnail failure as failed without returning the original URL', async () => {
     // Both the batched API and the single-key fallback fail so the resolver
     // marks the thumbnail as failed and never leaks an unsigned URL.

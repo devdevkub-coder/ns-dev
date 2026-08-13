@@ -14,6 +14,7 @@ import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
+import { cachedPageOptions } from '@/lib/options-cache'
 import { ApiError } from '@/lib/api-client'
 import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
 import { ArrowDownUp, Download, Plus, Search } from 'lucide-react'
@@ -1366,7 +1367,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     let cancelled = false
     async function loadOptions() {
       try {
-        const payload = await dailyFetchJson<ProductionOrderOptions>('/api/production/orders/options')
+        const payload = await cachedPageOptions<ProductionOrderOptions>('/api/production/orders/options')
         if (cancelled) return
         setOptions(payload)
         setInputForm((current) => {

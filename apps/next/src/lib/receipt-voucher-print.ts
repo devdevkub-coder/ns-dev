@@ -564,7 +564,7 @@ export async function openReceiptVoucherPrint(row: ReceiptVoucherPrintDocument, 
     printWindow.document.open()
     printWindow.document.write(buildReceiptVoucherPrintHtml(row, profile))
     printWindow.document.close()
-    await prepareCorporatePrintLayout(printWindow.document)
+    await prepareCorporatePrintLayout(printWindow.document, { fillContinuationFirst: true })
     printWindow.focus()
   } catch (err) {
     printWindow.document.open()

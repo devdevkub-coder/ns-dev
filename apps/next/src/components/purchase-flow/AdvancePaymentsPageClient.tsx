@@ -22,6 +22,7 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { calculateSupplierAdvanceTaxBreakdown, supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { openAdvancePaymentPrint } from '@/lib/advance-payment-print'
+import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 
 type OptionRow = {
   active: boolean | null
@@ -343,6 +344,9 @@ export function AdvancePaymentsPageClient() {
   }, [])
 
   const handlePrint = (row: AdvancePaymentRow) => {
+    // Start the company profile fetch now so the builder reuses it instead of
+    // waiting for a ~1s API round trip after the popup opens.
+    void prefetchPrintAssets(row.branchId)
     void openAdvancePaymentPrint({
       id: row.id,
       docNo: row.docNo,
@@ -1049,7 +1053,7 @@ export function AdvancePaymentsPageClient() {
                   <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
                     <TableActionButton mobileLabel menu={(
                       <>
-                        <TableActionMenuItem onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
+                        <TableActionMenuItem onMouseEnter={() => void prefetchPrintAssets(row.branchId)} onFocus={() => void prefetchPrintAssets(row.branchId)} onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
                         <TableActionMenuItem disabled={!row.canEdit} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
                         <TableActionMenuItem disabled={!row.canCancel} onSelect={() => void openCancelFromRow(row.id)}>ยกเลิก</TableActionMenuItem>
                       </>
@@ -1111,7 +1115,7 @@ export function AdvancePaymentsPageClient() {
                     <td className="p-3 text-center">
                       {row.status === 'cancelled' ? null : <TableActionButton menu={(
                         <>
-                          <TableActionMenuItem onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
+                          <TableActionMenuItem onMouseEnter={() => void prefetchPrintAssets(row.branchId)} onFocus={() => void prefetchPrintAssets(row.branchId)} onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
                           <TableActionMenuItem disabled={!row.canEdit} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
                           <TableActionMenuItem disabled={!row.canCancel} onSelect={() => void openCancelFromRow(row.id)}>ยกเลิก</TableActionMenuItem>
                         </>
@@ -1141,6 +1145,8 @@ export function AdvancePaymentsPageClient() {
                   disabled={!detail}
                   type="button"
                   variant="outline"
+                  onMouseEnter={() => detail && void prefetchPrintAssets(detail.branchId)}
+                  onFocus={() => detail && void prefetchPrintAssets(detail.branchId)}
                   onClick={() => detail && handlePrint(detail)}
                 >
                   พิมพ์

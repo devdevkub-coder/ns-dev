@@ -51,8 +51,13 @@ type ProfileCacheEntry = {
   expiresAt: number
 }
 
-let profileCache: ProfileCacheEntry | null = null
-let inFlightProfileRequest: Promise<CompanyProfilePrintPayload> | null = null
+/** In-memory cache, keyed by branch so different branches never mix. */
+const profileCacheByBranch = new Map<string, ProfileCacheEntry>()
+const inFlightProfileByBranch = new Map<string, Promise<CompanyProfilePrintPayload>>()
+
+function profileCacheKey(branchId?: string | null): string {
+  return branchId ? `b:${encodeURIComponent(branchId)}` : 'default'
+}
 
 /** Track whether we have already preloaded the fonts in this tab. */
 let fontsPreloaded = false
@@ -91,27 +96,35 @@ export function prefetchPrintFonts(): Promise<void> {
  * briefly so a rapid succession of prints (or a hover → click) does not hit
  * the API twice. Same shape as the raw API response.
  *
- * Deduplicates concurrent requests via `inFlightProfileRequest`.
+ * Deduplicates concurrent requests via `inFlightProfileByBranch`, so a print
+ * handler can start `prefetchPrintAssets(branchId)` while its detail fetch
+ * runs and the builder's own `fetchCompanyProfileForPrint` call (same page
+ * context, same branch key) will await that same in-flight request instead of
+ * issuing a second API round trip.
  */
 export async function fetchCompanyProfileForPrint(branchId?: string | null): Promise<CompanyProfilePrintPayload> {
+  const key = profileCacheKey(branchId)
   const now = Date.now()
-  if (profileCache && profileCache.expiresAt > now) {
-    return profileCache.payload
+  const cached = profileCacheByBranch.get(key)
+  if (cached && cached.expiresAt > now) {
+    return cached.payload
   }
-  if (inFlightProfileRequest) {
-    return inFlightProfileRequest
+  const inFlight = inFlightProfileByBranch.get(key)
+  if (inFlight) {
+    return inFlight
   }
   const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : ''
-  inFlightProfileRequest = (async () => {
+  const request = (async () => {
     const response = await fetch(`/api/admin/company-profile${query}`, { cache: 'no-store' })
     const payload = await readJsonResponse(response, companyProfilePrintPayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
-    profileCache = { payload, expiresAt: Date.now() + COMPANY_PROFILE_CACHE_TTL_MS }
+    profileCacheByBranch.set(key, { payload, expiresAt: Date.now() + COMPANY_PROFILE_CACHE_TTL_MS })
     return payload
   })()
+  inFlightProfileByBranch.set(key, request)
   try {
-    return await inFlightProfileRequest
+    return await request
   } finally {
-    inFlightProfileRequest = null
+    inFlightProfileByBranch.delete(key)
   }
 }
 
@@ -120,9 +133,10 @@ export async function fetchCompanyProfileForPrint(branchId?: string | null): Pro
  * Useful for print builders that want to skip a refetch when the host page
  * already warmed the cache on hover.
  */
-export function peekCachedCompanyProfileForPrint(): CompanyProfilePrintPayload | null {
-  if (profileCache && profileCache.expiresAt > Date.now()) {
-    return profileCache.payload
+export function peekCachedCompanyProfileForPrint(branchId?: string | null): CompanyProfilePrintPayload | null {
+  const cached = profileCacheByBranch.get(profileCacheKey(branchId))
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload
   }
   return null
 }
@@ -171,5 +185,247 @@ export async function prefetchPrintAssets(branchId?: string | null): Promise<voi
  * for TTL expiry.
  */
 export function invalidateCompanyProfileForPrintCache(): void {
-  profileCache = null
+  profileCacheByBranch.clear()
+  inFlightProfileByBranch.clear()
+}
+
+// ---------------------------------------------------------------------------
+// Weight-ticket print prefetch (A+B optimization)
+// ---------------------------------------------------------------------------
+//
+// Why: when the user clicks "พิมพ์" on a WTI/WTO row, `handlePrintTicket` opens
+// the popup, fetches the full ticket detail (which includes per-image signed
+// URLs), then opens the print window which has to download each attachment
+// image from its signed URL before `prepareCorporatePrintLayout` can paginate.
+// On hover we can warm both: fetch the ticket detail into memory, and preload
+// every attachment image via `new Image()` so the popup's image requests are
+// served from the browser HTTP cache.
+//
+// Design notes (per AGENTS.md cache rules):
+// - Ticket detail is a read-only snapshot of an already-completed (or
+//   printable) document. Source of truth remains the API. We cache only the
+//   most recently prefetched ticket per id, with a short TTL, so a ticket that
+//   was just edited and re-opened for print always re-reads fresh data after
+//   the TTL. No write/side-effect is ever performed by the prefetch.
+// - Attachment image preload is L0 asset warming only. The signed URL is the
+//   exact same URL the popup would request anyway; we never mint a new URL,
+//   never store bytes in JS memory, and never bypass the storage privacy
+//   contract. Only `url` (the full-size signed URL the popup album renders)
+//   is preloaded — thumbnails already have their own preview path.
+// - Failures are swallowed by the prefetch path; the print flow always
+//   refetches and surfaces the real error.
+
+import { type WeightTicketRecord, getWeightTicket, decodeStoredImageAsset } from '@/lib/weight-tickets'
+
+const WEIGHT_TICKET_CACHE_TTL_MS = 20_000
+
+type TicketCacheEntry = {
+  ticket: WeightTicketRecord
+  expiresAt: number
+}
+
+const ticketCacheById = new Map<string, TicketCacheEntry>()
+const inFlightTicketById = new Map<string, Promise<WeightTicketRecord | null>>()
+
+/**
+ * Prefetch the full ticket detail (including signed image preview URLs) and
+ * preload every attachment image into the browser HTTP cache. Intended for
+ * hover/focus on a WTI/WTO row. Never throws — failures are swallowed and the
+ * print flow will refetch on click.
+ *
+ * The prefetched ticket is available via `peekCachedWeightTicketForPrint(id)`
+ * for a short window so `handlePrintTicket` can skip its own fetch.
+ */
+export async function prefetchWeightTicketForPrint(ticketId: string): Promise<void> {
+  // Already cached and fresh — just (re-)warm images in case the browser
+  // evicted them.
+  const cached = peekCachedWeightTicketForPrint(ticketId)
+  if (cached) {
+    preloadWeightTicketAttachmentImages(cached)
+    return
+  }
+  // Dedupe concurrent prefetches for the same id.
+  const existing = inFlightTicketById.get(ticketId)
+  if (existing) {
+    void existing.then((ticket) => {
+      if (ticket) preloadWeightTicketAttachmentImages(ticket)
+    })
+    return
+  }
+  const request = (async () => {
+    try {
+      // Try with image previews first; the print album needs the signed URLs.
+      const ticket = await getWeightTicket(ticketId)
+      ticketCacheById.set(ticketId, { ticket, expiresAt: Date.now() + WEIGHT_TICKET_CACHE_TTL_MS })
+      preloadWeightTicketAttachmentImages(ticket)
+      return ticket
+    } catch {
+      // Tickets whose photos were never thumbnail-processed cannot build
+      // preview URLs (the API throws). This is expected for such tickets and
+      // happens on every hover, so stay silent here — the click-time print
+      // flow already warns when it falls back to `includeImagePreviews=false`.
+      return null
+    } finally {
+      inFlightTicketById.delete(ticketId)
+    }
+  })()
+  inFlightTicketById.set(ticketId, request)
+  await request
+}
+
+/**
+ * Synchronously return a fresh prefetched ticket, or null. The print handler
+ * uses this to skip its own `getWeightTicket` fetch when the user hovered
+ * first.
+ */
+export function peekCachedWeightTicketForPrint(ticketId: string): WeightTicketRecord | null {
+  const entry = ticketCacheById.get(ticketId)
+  if (!entry) return null
+  if (entry.expiresAt < Date.now()) {
+    ticketCacheById.delete(ticketId)
+    return null
+  }
+  return entry.ticket
+}
+
+/**
+ * Preload every attachment image of a ticket into the browser HTTP cache by
+ * creating an `Image` element for each signed URL. Best-effort: failures are
+ * swallowed because the popup will retry and report errors via
+ * `waitForPrintAssets`.
+ */
+export function preloadWeightTicketAttachmentImages(ticket: WeightTicketRecord): void {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') return
+  try {
+    // Decode every stored image reference and preload the signed URL of each
+    // previewable asset. Production only issues thumbnail signed URLs (on
+    // thumbnailUrl) while legacy/dev records may carry a real url, so resolve
+    // either one. Different raw values can resolve to the same signed URL, so
+    // dedupe by URL before warming the HTTP cache.
+    const rawValues = [...ticket.vehicleImageNames, ...ticket.imageNames]
+    const seen = new Set<string>()
+    for (const rawValue of rawValues) {
+      const asset = decodeStoredImageAsset(rawValue)
+      const url = asset.url ?? asset.thumbnailUrl ?? null
+      if (!url) continue
+      try {
+        const parsed = new URL(url)
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue
+      } catch {
+        continue
+      }
+      if (seen.has(url)) continue
+      seen.add(url)
+      const img = new Image()
+      img.decoding = 'async'
+      img.src = url
+      // Discard load/error: we only want to warm the HTTP cache.
+    }
+  } catch {
+    /* ignore — print flow will retry */
+  }
+}
+
+/**
+ * Invalidate the prefetched ticket cache for a single id, or all tickets when
+ * no id is given. Call after the user edits/cancels a ticket on the host page
+ * so the next print re-reads fresh data instead of using the stale prefetch.
+ */
+export function invalidateWeightTicketForPrintCache(ticketId?: string): void {
+  if (ticketId) {
+    ticketCacheById.delete(ticketId)
+    return
+  }
+  ticketCacheById.clear()
+}
+
+// ---------------------------------------------------------------------------
+// Generic document-detail prefetch (hover → click)
+// ---------------------------------------------------------------------------
+//
+// Some print flows (sales/purchase bills) only fetch the full document detail
+// from the API after the user clicks "พิมพ์", so the popup sits on its loading
+// screen for the whole request (~1s remote round trip). This helper lets the
+// host page prefetch that detail on hover/focus of the print button; the click
+// handler then reads it synchronously via `peekPrintDocumentDetail` and skips
+// the fetch, cutting the popup wait from ~1.2s to near-instant.
+//
+// Design notes (per AGENTS.md cache rules):
+// - Read-only snapshot of the document being printed; source of truth remains
+//   the API. Short TTL (20s), deduped by in-flight promise, failures swallowed
+//   (the click handler always falls back to its own fetch and surfaces the
+//   real error).
+// - Invalidation: host pages call `invalidatePrintDocumentDetail(docNo)` after
+//   a save/cancel so an edited document is never printed from a stale
+//   prefetch. A generation counter also stops an in-flight hover fetch that
+//   started before the mutation from repopulating the cache afterwards.
+
+const PRINT_DOCUMENT_DETAIL_CACHE_TTL_MS = 20_000
+
+const printDocumentDetailCache = new Map<string, { payload: unknown; expiresAt: number }>()
+const inFlightPrintDocumentDetail = new Map<string, Promise<unknown>>()
+let printDocumentDetailGeneration = 0
+
+/**
+ * Prefetch a print document's detail payload into a short-lived cache. Returns
+ * the payload on success or null on failure — never throws. Idempotent within
+ * the TTL and deduped against concurrent calls for the same key.
+ */
+export async function prefetchPrintDocumentDetail<T>(
+  cacheKey: string,
+  fetcher: () => Promise<T>,
+): Promise<T | null> {
+  const cached = peekPrintDocumentDetail<T>(cacheKey)
+  if (cached) return cached
+  const existing = inFlightPrintDocumentDetail.get(cacheKey)
+  if (existing) return existing as Promise<T>
+  const generationAtStart = printDocumentDetailGeneration
+  const request = (async () => {
+    try {
+      const payload = await fetcher()
+      // If the document was saved/cancelled while this fetch was in flight,
+      // drop the stale result instead of caching it.
+      if (printDocumentDetailGeneration === generationAtStart) {
+        printDocumentDetailCache.set(cacheKey, { payload, expiresAt: Date.now() + PRINT_DOCUMENT_DETAIL_CACHE_TTL_MS })
+      }
+      return payload
+    } catch {
+      return null
+    } finally {
+      inFlightPrintDocumentDetail.delete(cacheKey)
+    }
+  })()
+  inFlightPrintDocumentDetail.set(cacheKey, request)
+  return request
+}
+
+/**
+ * Synchronously read a fresh prefetched document detail, or null. The print
+ * handler uses this to skip its own fetch when the user hovered first.
+ */
+export function peekPrintDocumentDetail<T>(cacheKey: string): T | null {
+  const entry = printDocumentDetailCache.get(cacheKey)
+  if (!entry) return null
+  if (entry.expiresAt < Date.now()) {
+    printDocumentDetailCache.delete(cacheKey)
+    return null
+  }
+  return entry.payload as T
+}
+
+/**
+ * Invalidate the prefetched document detail for one key, or all keys when no
+ * key is given. Call after the host page saves/cancels a document so the next
+ * print re-reads fresh data. Also bumps the generation counter so any in-flight
+ * prefetch that started before the mutation cannot repopulate the cache.
+ */
+export function invalidatePrintDocumentDetail(cacheKey?: string): void {
+  printDocumentDetailGeneration += 1
+  if (cacheKey) {
+    printDocumentDetailCache.delete(cacheKey)
+    inFlightPrintDocumentDetail.delete(cacheKey)
+    return
+  }
+  printDocumentDetailCache.clear()
+  inFlightPrintDocumentDetail.clear()
 }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
-import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { authContextErrorResponse, getCurrentAuthContext, invalidateAppUserAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches } from '@/lib/server/reference-master-cache'
@@ -221,6 +221,8 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
       request,
       targetAppUserId: id.toString(),
     })
+
+    invalidateAppUserAuthContext()
 
     return NextResponse.json({ id: id.toString() })
   } catch (caught) {

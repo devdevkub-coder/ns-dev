@@ -66,7 +66,7 @@ export async function resolveWeightTicketImageProcessingConfig() {
     maxAttempts: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_MAX_ATTEMPTS', 1, 10),
     drainBatchSize: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_DRAIN_BATCH_SIZE', 1, 100),
     maxDimension: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_MAX_DIMENSION', 320, 2048),
-    maxSourcePixels: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_MAX_SOURCE_PIXELS', 1_000_000, 100_000_000),
+    maxSourcePixels: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_MAX_SOURCE_PIXELS', 1_000_000, 300_000_000),
     previewPollSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_PREVIEW_POLL_SECONDS', 1, 30),
     retryDelaySeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_RETRY_DELAY_SECONDS', 1, 3600),
     previewTtlSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS', 60, 3600),
@@ -300,20 +300,27 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
   for (const rawValue of rawValues) {
     const asset = decodeStoredImageAsset(rawValue)
     if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) continue
-    if (!asset.thumbnailStorageKey) continue
     let storageKey: string
-    let thumbnailStorageKey: string
     try {
       storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
-      thumbnailStorageKey = assertWeightTicketImageStorageKey(asset.thumbnailStorageKey)
     } catch {
       continue
     }
     const processingAsset = assetByStorageKey.get(storageKey)
     if (!processingAsset) continue
-    if (processingAsset.thumbnail_storage_key !== thumbnailStorageKey) continue
+    // Legacy references stored without a thumbnailStorageKey field can still
+    // resolve through the asset ledger, which knows the generated thumbnail.
+    const thumbnailStorageKey = asset.thumbnailStorageKey ?? processingAsset.thumbnail_storage_key
+    if (!thumbnailStorageKey) continue
+    let validatedThumbnailStorageKey: string
+    try {
+      validatedThumbnailStorageKey = assertWeightTicketImageStorageKey(thumbnailStorageKey)
+    } catch {
+      continue
+    }
+    if (processingAsset.thumbnail_storage_key !== validatedThumbnailStorageKey) continue
     if ((processingAsset.thumbnail_status as 'failed' | 'processing' | 'queued' | 'ready') !== 'ready') continue
-    readyThumbnailKeys.add(thumbnailStorageKey)
+    readyThumbnailKeys.add(validatedThumbnailStorageKey)
   }
   if (readyThumbnailKeys.size > 0) {
     const { data: batched, error: batchedError } = await supabase.storage
@@ -336,46 +343,56 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
     if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) {
       throw new WeightTicketImageReferenceError(`รูปหลักฐาน ${asset.fileName} ไม่มี bucket หรือ storage key ที่ถูกต้อง`)
     }
-    if (!asset.thumbnailStorageKey) {
-      throw new WeightTicketImageReferenceError(`รูปหลักฐาน ${asset.fileName} ยังไม่มี thumbnail กรุณารัน backfill ก่อนเปิดใช้งาน preview`)
-    }
     let storageKey: string
-    let thumbnailStorageKey: string
     try {
       storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
-      thumbnailStorageKey = assertWeightTicketImageStorageKey(asset.thumbnailStorageKey)
     } catch {
       throw new WeightTicketImageReferenceError(`storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
     }
     const processingAsset = assetByStorageKey.get(storageKey)
+    // Legacy references stored before the thumbnail pipeline may lack the
+    // thumbnailStorageKey field. Resolve it through the asset ledger when
+    // possible; when neither the reference nor the ledger knows a thumbnail,
+    // keep the original reference so the UI can report it as an existing
+    // image without a preview instead of failing the whole document.
+    const thumbnailStorageKey = asset.thumbnailStorageKey ?? processingAsset?.thumbnail_storage_key
+    if (!thumbnailStorageKey) {
+      return rawValue
+    }
+    let validatedThumbnailStorageKey: string
+    try {
+      validatedThumbnailStorageKey = assertWeightTicketImageStorageKey(thumbnailStorageKey)
+    } catch {
+      throw new WeightTicketImageReferenceError(`storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
+    }
     if (!processingAsset) {
       console.error('[weight_ticket_image_preview] missing asset ledger row', { bucket, storageKey })
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, undefined, 'failed')
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed')
     }
-    if (processingAsset.thumbnail_storage_key !== thumbnailStorageKey) {
+    if (processingAsset.thumbnail_storage_key !== validatedThumbnailStorageKey) {
       throw new WeightTicketImageReferenceError(`thumbnail storage key ของรูปหลักฐาน ${asset.fileName} ไม่ตรงกับทะเบียนรูป`)
     }
     const thumbnailStatus = processingAsset.thumbnail_status as 'failed' | 'processing' | 'queued' | 'ready'
     if (thumbnailStatus !== 'ready') {
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, undefined, thumbnailStatus)
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, thumbnailStatus)
     }
-    const cacheKey = `${asset.bucket}:${thumbnailStorageKey}`
+    const cacheKey = `${asset.bucket}:${validatedThumbnailStorageKey}`
     const cached = signedUrlByKey.get(cacheKey)
-    if (cached) return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, cached, 'ready')
+    if (cached) return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, cached, 'ready')
 
     // Batch miss fallback (e.g. a path that failed inside createSignedUrls):
     // request the single signed URL so one bad key never blocks the rest.
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(thumbnailStorageKey, processingConfig.previewTtlSeconds)
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(validatedThumbnailStorageKey, processingConfig.previewTtlSeconds)
     if (error || !data?.signedUrl) {
       console.error('[weight_ticket_image_preview] signed thumbnail URL failed', {
         bucket,
         error: error?.message ?? 'ไม่พบ signed URL',
         storageKey,
       })
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, undefined, 'failed')
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed')
     }
     signedUrlByKey.set(cacheKey, data.signedUrl)
-    return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, thumbnailStorageKey, data.signedUrl, 'ready')
+    return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, data.signedUrl, 'ready')
   }
 
   const [imageNames, vehicleImageNames, lines] = await Promise.all([

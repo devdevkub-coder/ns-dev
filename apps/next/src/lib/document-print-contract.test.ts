@@ -40,6 +40,8 @@ function standardPages(html: string) {
 function expectStandardPrintContract(html: string, expectedPages: number, expectedItemCount: number, continuationTitles: readonly string[]) {
   const pages = standardPages(html)
 
+  expect(html).toContain("url('/fonts/NotoSansThai-Regular.ttf')")
+  expect(html).toContain("url('/fonts/NotoSansThai-Bold.ttf')")
   expect(pages).toHaveLength(expectedPages)
   pages.forEach((page, index) => {
     expect(page.match(/data-row-slot/g)).toHaveLength(15)
@@ -74,6 +76,25 @@ function expectStandardPrintContract(html: string, expectedPages: number, expect
   expect(html).toMatch(/\.page\s*\{[^}]*box-shadow:/)
   expect(html).toMatch(/@media print\s*\{[\s\S]*?body\s*\{[^}]*background:\s*(?:white|#fff)/)
   expect(html).toMatch(/@media print\s*\{[\s\S]*?\.page\s*\{[^}]*box-shadow:\s*none/)
+  expectPrintDoesNotShrink(html)
+}
+
+/**
+ * WYSIWYG print contract: the document's own `@media print` block must NOT
+ * shrink the layout (no font-size changes, no cell-padding reduction, no
+ * signature-gap margins). What you see in the preview popup is exactly what
+ * prints — the only print adjustments allowed are the A4 page box, toolbar
+ * hiding, and color fidelity. See docs/design.md "Print Document Baseline".
+ */
+function expectPrintDoesNotShrink(html: string) {
+  const printBlock = html.match(/@media print\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? ''
+  expect(printBlock).not.toBe('')
+  // 1. No font-size changes at print time.
+  expect(printBlock).not.toMatch(/font-size\s*:/)
+  // 2. No padding changes except the page/body `padding: 0` normalization.
+  expect(printBlock.replace(/padding\s*:\s*0(?:\s*!important)?\s*;/g, '')).not.toMatch(/padding\s*:/)
+  // 3. No margin-top/margin-bottom changes (signature gaps, spacing shrink).
+  expect(printBlock).not.toMatch(/margin-(?:top|bottom)\s*:/)
 }
 
 function expectSingleLineCompanyHeader(html: string) {

@@ -297,6 +297,8 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} ${escapeHtml(po.docNo)}</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700 900; font-display: swap; }
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
       body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #334155; padding: 16px 0; }
@@ -307,7 +309,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .page:last-child { break-after: auto; page-break-after: auto; }
       .page-content { min-height: calc(277mm - 14mm); display: flex; flex-direction: column; }
       .final-block { margin-top: auto; }
-      .accent { height: 4px; background: linear-gradient(90deg, #166534, #65a30d, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
+      .accent { height: 4px; flex: 0 0 auto; background: linear-gradient(90deg, #166534, #65a30d, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
@@ -369,43 +371,16 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .footer { margin-top: 8px; text-align: center; color: #64748b; font-size: 12px; }
       .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
+        /* WYSIWYG contract: print renders exactly like the on-screen preview.
+         * Only the page box (A4 minus 8mm @page margin), toolbar hiding, and
+         * color fidelity differ between the two media. */
         @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; padding: 0; font-size: 12px; line-height: 1.2; }
+        *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { background: white; padding: 0; }
         .toolbar { display: none; }
         .page { width: auto; min-height: 281mm; margin: 0; padding: 0; box-shadow: none; break-after: page; page-break-after: always; }
         .page:last-child { break-after: auto; page-break-after: auto; }
         .page-content { min-height: 281mm; }
-        .accent { margin-bottom: 7px; }
-        .header { gap: 10px; padding-bottom: 7px; }
-        .company { grid-template-columns: 48px 1fr; gap: 8px; }
-        .logo { width: 48px; height: 48px; }
-        .company-name { font-size: 14px; }
-        .company-info { font-size: 12px; line-height: 1.25; margin-top: 2px; }
-        .doc-title { font-size: 19px; }
-        .doc-grid { gap: 3px 6px; margin-top: 5px; }
-        .kv { padding: 3px 5px; }
-        .section-grid { gap: 8px; margin-top: 7px; }
-        .panel-title { padding: 4px 7px; }
-        .panel-body { padding: 5px 7px; }
-        .two-col { gap: 4px 8px; }
-        .header, .section-grid { break-inside: avoid; page-break-inside: avoid; }
-        .continuation-label { margin-top: 7px; padding: 4px 6px; font-size: 12px; }
-        .items { font-size: 12px; margin-top: 7px; page-break-before: auto; }
-        .items th { padding: 3px; }
-        .items td { padding: 3px; }
-        .items .empty td { height: 18px; }
-        .muted { font-size: 12px; }
-        .summary-cards { gap: 6px; margin-top: 6px; }
-        .summary-card { padding: 5px; }
-        .summary-card .value { font-size: 12px; }
-        .bottom-grid { gap: 8px; margin-top: 7px; break-before: auto; page-break-before: auto; }
-        .note { min-height: 24px; }
-        .total-row { padding: 3px 6px; }
-        .total-row.final { font-size: 12px; }
-        .signatures { gap: 18px; margin-top: 10px; }
-        .sig-line { margin-top: 18px; padding-top: 3px; }
-        .continued { padding: 12px 0 4px; }
-        .footer { margin-top: 4px; }
       }
     </style>
   </head><body>
@@ -442,6 +417,6 @@ export async function openPoBuyPrint(po: PoBuyPrintDocument, targetWindow?: Wind
   printWindow.document.open()
   printWindow.document.write(buildPoBuyPrintHtml(po, profile))
   printWindow.document.close()
-  await prepareCorporatePrintLayout(printWindow.document)
+  await prepareCorporatePrintLayout(printWindow.document, { fillContinuationFirst: true })
   printWindow.focus()
 }

@@ -114,6 +114,39 @@ describe('purchase bill print layout', () => {
     if (expected[0] !== undefined) expect(fillerRows[0]).toBeCloseTo(expected[0], 5)
   })
 
+  it('shares leftover table space equally across every empty row instead of stretching one', () => {
+    // 13 empty slots share the leftover height evenly: no single row may
+    // absorb the whole remainder (which previously stretched the last cell).
+    const plan = paginatePurchaseBillPrintRows(
+      ['', ''],
+      measurements([40, 40]),
+    )
+
+    const fillerRows = plan[0]?.emptyRowHeights ?? []
+    expect(fillerRows).toHaveLength(13)
+    const total = fillerRows.reduce((sum, height) => sum + height, 0)
+    // final capacity 600 - 2 rows × 40 = 520 leftover
+    expect(total).toBeCloseTo(520, 5)
+    const max = Math.max(...fillerRows)
+    const min = Math.min(...fillerRows)
+    expect(max - min).toBeLessThanOrEqual(1)
+  })
+
+  it('distributes a large leftover evenly even when only a few slots remain', () => {
+    // 13 rows use ~300px total (final capacity 600 - 300 leftover), leaving
+    // 2 empty slots: both filler rows get ~150px, none is stretched alone.
+    const rowHeight = 300 / 13
+    const plan = paginatePurchaseBillPrintRows(
+      Array.from({ length: 13 }, () => ''),
+      measurements(Array.from({ length: 13 }, () => rowHeight)),
+    )
+
+    const fillerRows = plan[0]?.emptyRowHeights ?? []
+    expect(fillerRows).toHaveLength(2)
+    expect(fillerRows[0]).toBeCloseTo(150, 5)
+    expect(fillerRows[1]).toBeCloseTo(150, 5)
+  })
+
   it('splits an over-height row only between numbered REMARK entries', () => {
     const note = '- 1. ข้อหนึ่ง\n- 2. ข้อสอง\n- 3. ข้อสาม'
     const plan = paginatePurchaseBillPrintRows(

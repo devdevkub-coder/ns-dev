@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* Noto Sans Thai — global @font-face so every page uses the real Thai font
+   (previously only declared inside print-popup HTML, so the main app fell
+   back to a system font on every page). */
+@font-face {
+  font-family: "Noto Sans Thai";
+  src: url("/fonts/NotoSansThai-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans Thai";
+  src: url("/fonts/NotoSansThai-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+}
+
 @variant dark (&:is(.dark, .dark *));
 
 ::view-transition-old(root),

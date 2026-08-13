@@ -177,6 +177,9 @@ describe('purchase bill print', () => {
     expect(html).toMatch(/\.page\s*\{[^}]*width:\s*210mm;[^}]*height:\s*297mm;[^}]*min-height:\s*297mm;[^}]*max-height:\s*297mm;[^}]*padding:\s*8mm;[^}]*overflow:\s*hidden;/)
     expect(html).toMatch(/@media print\s*\{[\s\S]*?body\s*\{[^}]*padding:\s*0;[\s\S]*?\.page\s*\{[^}]*width:\s*194mm;[^}]*height:\s*281mm;[^}]*min-height:\s*281mm;[^}]*max-height:\s*281mm;[^}]*padding:\s*0;[^}]*overflow:\s*hidden;[^}]*box-shadow:\s*none;/)
     expect(html).toMatch(/@media print\s*\{[\s\S]*?-webkit-print-color-adjust:\s*exact;[\s\S]*?print-color-adjust:\s*exact;/)
+    // WYSIWYG: print must not shrink the preview layout (no font/padding/margin changes).
+    const printBlock = html.match(/@media print\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? ''
+    expect(printBlock.replace(/padding\s*:\s*0(?:\s*!important)?\s*;/g, '')).not.toMatch(/font-size\s*:|padding\s*:|margin-(?:top|bottom)\s*:/)
     expect(html).toContain('@page { size: A4 portrait; margin: 8mm; }')
   })
 

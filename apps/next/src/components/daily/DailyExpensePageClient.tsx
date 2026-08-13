@@ -19,6 +19,7 @@ import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/acco
 import { dailyFetchJson, expenseFormSchema, formatMoney, todayDateInput, type DailyAccountOption, type ExpenseFormValues, type ExpenseLineFormValues } from '@/lib/daily'
 import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, sanitizeDecimalInput } from '@/lib/format'
 import { openExpenseReceiptPrint } from '@/lib/expense-print'
+import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 
 type CategoryOption = { active: boolean | null; id: string; name: string; typeId?: string | null; typeName?: string | null }
@@ -2097,6 +2098,9 @@ function ExpenseDetailModal({ onCancel, onClose, onEdit, row }: { onCancel: (row
   const handlePrint = async () => {
     setIsPrinting(true)
     try {
+      // Start the company profile fetch now so the builder reuses it instead
+      // of waiting for a ~1s API round trip after the popup opens.
+      void prefetchPrintAssets(row.branchId)
       await openExpenseReceiptPrint({ ...row, lines })
     } catch (caught) {
       window.alert(caught instanceof Error ? caught.message : 'เปิดใบสำคัญจ่ายไม่สำเร็จ')
@@ -2121,7 +2125,7 @@ function ExpenseDetailModal({ onCancel, onClose, onEdit, row }: { onCancel: (row
             <DialogDescription className="mt-1 truncate text-xs text-slate-300">{row.payee || 'ไม่ระบุผู้รับเงิน'}</DialogDescription>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
-            <Button className="h-9 gap-2 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white" disabled={isPrinting} type="button" variant="outline" onClick={handlePrint}>
+            <Button className="h-9 gap-2 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white" disabled={isPrinting} type="button" variant="outline" onMouseEnter={() => void prefetchPrintAssets(row.branchId)} onFocus={() => void prefetchPrintAssets(row.branchId)} onClick={handlePrint}>
               <Printer className="size-4" />
               {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
             </Button>

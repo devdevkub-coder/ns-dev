@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { XLSX } from '@/lib/server/xlsx'
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 import { calculateCustomerAdvanceAllocation, calculateSalesBillPostCustomerAdvanceTotals } from '@/lib/customer-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -26,7 +25,6 @@ import { appendWtoPendingOutEventsForHoldKeys, appendWtoPendingOutEventsForSales
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 import { requiresWeightTicketOpenBillPermission, WEIGHT_TICKET_OPEN_BILL_PERMISSION } from '@/lib/server/weight-ticket-open-bill-permissions'
-import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
 import { normalizeSalesBillProfitCostSource } from '@/lib/server/sales-bill-profit-cost-source'
 import {
@@ -1700,6 +1698,9 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
 }
 
 async function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[]) {
+  // Lazy-load the XLSX module only for the export path — it pulls in heavy xlsx libs
+  // that the common JSON list API never needs.
+  const { XLSX, applyWorksheetTableLayout } = await import('@/lib/server/xlsx')
   const summaryData = summaryRows.map((row) => ({
     'เลขที่': row.docNo,
     'อ้างอิง': row.refNo || '-',

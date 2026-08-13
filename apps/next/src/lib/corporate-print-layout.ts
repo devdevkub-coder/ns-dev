@@ -16,12 +16,81 @@ export function paginateMeasuredCorporateRows<T>(
   fitsContinuationPage: (candidateRows: readonly T[]) => boolean,
   fitsFinalPage: (candidateRows: readonly T[]) => boolean,
   maxRowsPerPage = CORPORATE_PRINT_MAX_ROWS_PER_PAGE,
+  fillContinuationFirst = false,
 ): MeasuredCorporatePage<T>[] {
   if (maxRowsPerPage < 1 || !Number.isInteger(maxRowsPerPage)) {
     throw new Error('maxRowsPerPage must be a positive integer')
   }
 
   if (rows.length === 0) return [{ isFinalPage: true, items: [], pageNo: 1 }]
+
+  if (fillContinuationFirst) {
+    // Pages fill to capacity first; the final page receives the remainder
+    // (reserving totals/signatures). If the remainder overflows the final
+    // page's own capacity, only the overflow stays on a continuation page so
+    // the final page is never left empty. This mirrors the deterministic plan
+    // of the dedicated WTI/WTO paginator used by PDF and LINE so every
+    // pipeline keeps page 1 full before spilling onto page 2.
+    const pages: MeasuredCorporatePage<T>[] = []
+    let cursor = 0
+    while (cursor < rows.length) {
+      const remaining = rows.length - cursor
+      if (remaining <= maxRowsPerPage) {
+        // The tail may exceed what the final template can hold alongside its
+        // totals/signatures. Give the final page as many trailing rows as fit,
+        // pushing only the overflow onto a continuation page.
+        let finalCount = remaining
+        while (finalCount > 0 && !fitsFinalPage(rows.slice(rows.length - finalCount))) {
+          finalCount -= 1
+        }
+        if (finalCount === 0 && !fitsFinalPage([])) {
+          throw new Error(`Corporate print row ${rows.length} is taller than the available A4 page area`)
+        }
+        if (finalCount === remaining) {
+          pages.push({
+            isFinalPage: true,
+            items: [...rows.slice(cursor)],
+            pageNo: pages.length + 1,
+          })
+          return pages
+        }
+        const continuationCount = remaining - finalCount
+        if (!fitsContinuationPage(rows.slice(cursor, cursor + continuationCount))) {
+          throw new Error(`Corporate print row ${cursor + 1} is taller than the available A4 page area`)
+        }
+        pages.push({
+          isFinalPage: false,
+          items: [...rows.slice(cursor, cursor + continuationCount)],
+          pageNo: pages.length + 1,
+        })
+        pages.push({
+          isFinalPage: true,
+          items: [...rows.slice(rows.length - finalCount)],
+          pageNo: pages.length + 1,
+        })
+        return pages
+      }
+      let continuationCount = maxRowsPerPage
+      while (
+        continuationCount > 0
+        && !fitsContinuationPage(rows.slice(cursor, cursor + continuationCount))
+      ) {
+        continuationCount -= 1
+      }
+      if (continuationCount === 0) {
+        throw new Error(`Corporate print row ${cursor + 1} is taller than the available A4 page area`)
+      }
+      pages.push({
+        isFinalPage: false,
+        items: [...rows.slice(cursor, cursor + continuationCount)],
+        pageNo: pages.length + 1,
+      })
+      cursor += continuationCount
+    }
+    // Unreachable for non-empty input: the tail branch above always returns.
+    pages.push({ isFinalPage: true, items: [], pageNo: pages.length + 1 })
+    return pages
+  }
 
   // Reserve a fitting suffix for the final page first. This prevents a
   // continuation page from accidentally becoming the last page when the
@@ -75,6 +144,12 @@ type CorporatePrintLayoutOptions = {
   groupAttribute?: string
   /** Dedicated builders (WTI/WTO) already own their row capacities. */
   reflowRows?: boolean
+  /**
+   * Fill continuation pages to capacity before spilling the remainder onto the
+   * final page. WTI/WTO form documents opt in so page 1 is always full and the
+   * final page (totals/signatures) receives only the leftover rows.
+   */
+  fillContinuationFirst?: boolean
 }
 
 type PrintPageElement = HTMLElement & {
@@ -375,23 +450,31 @@ function ensurePrintStatus(document: Document) {
   return buttons
 }
 
-function setPrintStatus(buttons: readonly HTMLButtonElement[], message: string, isError = false) {
+function setPrintStatus(
+  buttons: readonly HTMLButtonElement[],
+  message: string,
+  mode: 'error' | 'pending' | 'ready' = 'ready',
+) {
   buttons.forEach((button) => {
-    button.disabled = isError
-    button.dataset.corporatePrintReady = String(!isError)
+    // Only 'ready' releases the print button. 'pending' keeps it disabled
+    // while the document is still loading (fonts/logo/photos), so a user can
+    // never print a half-loaded album or a form that has not been paginated.
+    button.disabled = mode !== 'ready'
+    button.dataset.corporatePrintReady = String(mode === 'ready')
     const status = button.nextElementSibling?.matches('[data-corporate-print-status]')
       ? button.nextElementSibling as HTMLElement
       : null
     if (status) {
       status.textContent = message
-      status.style.color = isError ? '#fecaca' : '#cbd5e1'
-      status.style.fontWeight = isError ? '700' : '400'
+      status.style.color = mode === 'error' ? '#fecaca' : '#cbd5e1'
+      status.style.fontWeight = mode === 'error' ? '700' : '400'
     }
   })
 }
 
-async function waitForPrintAssets(document: Document, timeoutMs: number) {
-  const imagePromises = Array.from(document.images).map((image) => {
+function waitForImages(images: readonly HTMLImageElement[], timeoutMs: number) {
+  if (images.length === 0) return Promise.resolve()
+  const imagePromises = images.map((image) => {
     if (image.complete) {
       return image.naturalWidth > 0 ? Promise.resolve() : Promise.reject(new Error('โหลดโลโก้หรือรูปภาพเอกสารไม่สำเร็จ'))
     }
@@ -400,11 +483,21 @@ async function waitForPrintAssets(document: Document, timeoutMs: number) {
       image.addEventListener('error', () => reject(new Error('โหลดโลโก้หรือรูปภาพเอกสารไม่สำเร็จ')), { once: true })
     })
   })
+  let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => reject(new Error('รอฟอนต์หรือรูปภาพนานเกินกำหนด')), timeoutMs)
+  })
+  return Promise.race([Promise.all(imagePromises), timeout]).finally(() => {
+    if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId)
+  })
+}
+
+function waitForPrintFonts(document: Document) {
   const fonts = document.fonts
   if (!fonts || typeof fonts.load !== 'function' || !fonts.ready) {
     throw new Error('Browser ไม่รองรับการตรวจสอบฟอนต์ Noto Sans Thai')
   }
-  imagePromises.push(
+  return Promise.all([
     Promise.all([
       fonts.load("400 12px 'Noto Sans Thai'", 'กข123'),
       fonts.load("700 12px 'Noto Sans Thai'", 'กข123'),
@@ -414,16 +507,35 @@ async function waitForPrintAssets(document: Document, timeoutMs: number) {
       }
     }),
     fonts.ready.then(() => undefined),
-  )
+  ])
+}
+
+/**
+ * Wait for the Noto Sans Thai faces plus the given images. Callers pass only
+ * the images that actually affect layout: fonts and the form/logo images gate
+ * pagination, while album photo pages (`.attachment-page`) sit on fixed grids
+ * that the fitter never measures — they load in parallel and only gate the
+ * final "พร้อมพิมพ์" status so printing never captures half-loaded photos.
+ */
+async function waitForPrintAssets(
+  document: Document,
+  timeoutMs: number,
+  images: readonly HTMLImageElement[],
+) {
+  const pending = [waitForPrintFonts(document), waitForImages(images, timeoutMs)]
   let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timeoutId = globalThis.setTimeout(() => reject(new Error('รอฟอนต์หรือรูปภาพนานเกินกำหนด')), timeoutMs)
   })
   try {
-    await Promise.race([Promise.all(imagePromises), timeout])
+    await Promise.race([Promise.all(pending), timeout])
   } finally {
     if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId)
   }
+}
+
+function albumImages(document: Document): HTMLImageElement[] {
+  return Array.from(document.querySelectorAll<HTMLImageElement>('.attachment-page img'))
 }
 
 function appendEmptyRows(
@@ -457,7 +569,7 @@ function copyPageRows(page: PrintPageElement, rows: readonly HTMLTableRowElement
 
 function markLayoutError(document: Document, buttons: readonly HTMLButtonElement[], message: string) {
   document.body.dataset.corporatePrintLayout = 'error'
-  setPrintStatus(buttons, message, true)
+  setPrintStatus(buttons, message, 'error')
 }
 
 /**
@@ -477,21 +589,41 @@ export async function prepareCorporatePrintLayout(
   const buttons = ensurePrintStatus(document)
   const maxRowsPerPage = options.maxRowsPerPage ?? CORPORATE_PRINT_MAX_ROWS_PER_PAGE
   const orientation = options.orientation ?? 'portrait'
+  // One shared deadline for the whole prepare pass so deferring the album wait
+  // never extends the worst-case total beyond the caller's timeout budget.
+  const deadline = Date.now() + (options.timeoutMs ?? 8_000)
+  const remainingMs = () => Math.max(1, deadline - Date.now())
+  // Album photo pages (`.attachment-page`) sit on a fixed grid the fitter
+  // never measures, so their images never gate pagination. Pagination waits
+  // only for fonts + form/logo images; the album photos stream in parallel and
+  // gate just the final "พร้อมพิมพ์" status so printing never captures
+  // half-loaded photos.
+  const albumImagesList = albumImages(document)
+  const albumImageSet = new Set(albumImagesList)
+  const formImages = Array.from(document.images).filter((image) => !albumImageSet.has(image))
   let layoutAnchor: Comment | null = null
   let layoutParent: HTMLElement | null = null
   const generatedPages: PrintPageElement[] = []
 
+  async function finishReady() {
+    if (albumImagesList.length > 0) {
+      setPrintStatus(buttons, 'กำลังโหลดรูปถ่ายแนบ...', 'pending')
+      await waitForImages(albumImagesList, remainingMs())
+    }
+    setPrintStatus(buttons, 'พร้อมพิมพ์ · A4')
+    document.body.dataset.corporatePrintLayout = 'ready'
+  }
+
   try {
     normalizePrintPages(document, formPages, orientation)
-    await waitForPrintAssets(document, options.timeoutMs ?? 8_000)
+    await waitForPrintAssets(document, remainingMs(), formImages)
 
     if (options.reflowRows === false) {
       const overflowPages = formPages.filter(overflows).map((page) => page.dataset.printPage ?? '?')
       if (overflowPages.length > 0) {
         throw new Error(`หน้ ${overflowPages.join(', ')} มีเนื้อหาล้นกรอบ A4`)
       }
-      setPrintStatus(buttons, 'พร้อมพิมพ์ · A4')
-      document.body.dataset.corporatePrintLayout = 'ready'
+      await finishReady()
       return
     }
 
@@ -515,6 +647,7 @@ export async function prepareCorporatePrintLayout(
         (candidateRows) => measureCandidate(document, continuation, candidateRows, false),
         (candidateRows) => measureCandidate(document, finalTemplate, candidateRows, true),
         maxRowsPerPage,
+        options.fillContinuationFirst === true,
       )
       return { group, allRows, plans }
     })
@@ -523,8 +656,7 @@ export async function prepareCorporatePrintLayout(
       if (overflowPages.length > 0) {
         throw new Error(`หน้ ${overflowPages.join(', ')} มีเนื้อหาล้นกรอบ A4`)
       }
-      setPrintStatus(buttons, 'พร้อมพิมพ์ · A4')
-      document.body.dataset.corporatePrintLayout = 'ready'
+      await finishReady()
       return
     }
 
@@ -565,8 +697,7 @@ export async function prepareCorporatePrintLayout(
 
     layoutAnchor.remove()
     layoutAnchor = null
-    setPrintStatus(buttons, 'พร้อมพิมพ์ · A4')
-    document.body.dataset.corporatePrintLayout = 'ready'
+    await finishReady()
   } catch (error) {
     generatedPages.forEach((page) => page.remove())
     const restoreAnchor = layoutAnchor

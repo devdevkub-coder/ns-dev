@@ -20,6 +20,7 @@ updated: 2026-08-11
 
 หลักทั่วไป:
 
+- **WYSIWYG preview = print (บังคับทุกเอกสาร):** สิ่งที่เห็นใน preview popup ต้องเป็นสิ่งที่ออกจากเครื่องพิมพ์เป๊ะ. Builder ห้ามมี `@media print` ที่บีบ layout (ห้ามลด font-size / padding เซลล์ / margin ระยะส่วน เช่น ช่องว่างก่อนลายเซ็น) — กลไกคือ popup จัดหน้า 1 ครั้งด้วย CSS ฐาน (screen) แล้ว print ใช้ DOM + CSS เดียวกัน. `@media print` จำกัดเฉพาะกล่องหน้า A4 (194×281mm), ซ่อน toolbar, `print-color-adjust: exact`, และ rule การพิมพ์จริงที่จำเป็น. Guard: `expectPrintDoesNotShrink` ใน contract test + สคริปต์เทียบพิกเซล `reports/playwright/compare-sb-preview-print.mjs` ครอบทั้ง 9 เอกสาร.
 - เอกสารธุรกิจทุกชนิดใช้ measured A4 layout กลาง (`corporate-print-layout`) หลังโหลด font/logo แล้ว. ความสูงจริงเป็นตัวตัดสินการแบ่งหน้า; 15 รายการเป็นจำนวนสูงสุดต่อหน้า ไม่ใช่จำนวนที่ต้องยัดให้ครบ. หน้าต่อเนื่องมีหัวข้อ placeholder และ `( มีต่อหน้า X / Continued on Page X ➔ )`, ส่วนยอดจริง/หมายเหตุจริง/ลายเซ็นอยู่หน้าสุดท้ายเท่านั้น.
 - ข้อยกเว้นที่ต้องคงตัวจัดหน้าเฉพาะเอกสาร: PB (วัดสองรอบและแบ่ง REMARK ตามข้อ), WTI/WTO (form capacity และ attachment album แยก), และรายงาน PMT/RCP ประจำวัน (งบหน้าแรก 8 แถว). PMA ใช้ A4 landscape ผ่านตัวจัดหน้ากลาง.
 
@@ -77,7 +78,7 @@ Each placeholder panel contains `-` as the explicit empty value. The contract ap
 - 15 เป็นเพดานรายการต่อหน้า. แถวถัดไปที่ชนพื้นที่สงวนต้องย้ายทั้งแถวไปหน้าถัดไป; ถ้าแถวเดียวสูงเกินหน้าและมี REMARK หลายข้อ จึงแบ่งเฉพาะระหว่างข้อ โดยคงเลขรายการเดิม, ใส่ชื่อสินค้า `(ต่อ)`, เลขข้อเดินต่อ และไม่ทำยอดซ้ำ.
 - REMARK รูปแบบ `- 1. ... - 2. ...` แสดงเป็น `1. ...`, `2. ...` คนละบรรทัดด้วย hanging indent; หมายเหตุธรรมดายังคงเป็นข้อความธรรมดา. คอลัมน์ `#` กว้าง 8 มม. และยอดหลายหน่วยแสดงหนึ่งหน่วยต่อหนึ่งบรรทัด.
 - PB print normalizes equivalent kilogram labels (`กก.`, `กิโลกรัม`, `kg`) to `กก.` at the presentation boundary, merges those aliases into the same weight total line, and keeps the value inside its quantity column; true other units such as `ลัง` remain separate.
-- หน้าสุดท้ายสงวน signature zone 30 มม. และแสดงยอด/หมายเหตุ/ลายเซ็นจริง; หน้า `1..N-1` แสดง placeholder กับข้อความมีต่อหน้า. แถวว่างคำนวณจากพื้นที่คงเหลือจริงแทนการบังคับ 15 ช่องเท่ากันทุกกรณี.
+- หน้าสุดท้ายสงวน signature zone 30 มม. และแสดงยอด/หมายเหตุ/ลายเซ็นจริง; หน้า `1..N-1` แสดง placeholder กับข้อความมีต่อหน้า. แถวว่างคำนวณจากพื้นที่คงเหลือจริงแทนการบังคับ 15 ช่องเท่ากันทุกกรณี. แถวว่างหลายแถวต้องแบ่งพื้นที่คงเหลือเท่าๆ กัน (`emptyRowHeights` แจกส่วนเกินให้ทุกแถวทีละ 1px แทนการยัดทั้งหมดเข้าแถวสุดท้าย) เพื่อไม่ให้มีแถวเดียวถูกยืดจนผิดรูป — ครอบทั้ง preview และ print เนื่องจากใช้ DOM/CSS เดียวกัน.
 - Preview และ Print ใช้ content geometry เดียวกัน (`210 × 297 มม.` พร้อม padding 8 มม. เทียบกับ print content `194 × 281 มม.`). ปุ่มพิมพ์เปิดหลังตรวจทุก logical page ว่าไม่ overflow เท่านั้น; การวัดล้มเหลวต้อง fail closed และไม่เรียก `window.print()`.
 - Safety guard จำกัดเฉพาะ candidate ที่เพิ่มจากการลองแบ่ง REMARK หลายข้อ เพื่อกัน DOM โตแบบกำลังสอง; จำนวนแถว PB ปกติและจำนวนหน้ารวมยังไม่ถูกจำกัดโดย guard นี้.
 - ขอบเขตนี้เป็น presentation/read-only เท่านั้น ไม่เปลี่ยน API, DB, Storage, Cache, document snapshot, total calculation หรือเอกสารชนิดอื่น.
@@ -166,8 +167,26 @@ What changed:
 Cache & image delivery notes (per AGENTS.md rules):
 
 1. Data level & source of truth — Font and logo preloads are L0 static asset warming (no business state). The company-profile payload cache is read-only header data used to render print forms; source of truth remains `/api/admin/company-profile`. No financial, stock, permission, or transaction status is cached.
-2. Key/URL scope, TTL, headers, invalidation — The profile cache is a single in-memory entry per tab (no scope key beyond `branchId` on the URL), TTL 30s, and is invalidated by TTL only plus an explicit `invalidateCompanyProfileForPrintCache()` hook for future use after profile edits. Signed URLs come from Supabase storage with their existing `WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS` expiry; the batch does not extend or shorten their lifetime.
+2. Key/URL scope, TTL, headers, invalidation — The profile cache is an in-memory map keyed by `branchId` (one entry per branch per tab), TTL 30s, with in-flight dedup so a print handler's `prefetchPrintAssets(branchId)` warm and the builder's own `fetchCompanyProfileForPrint(branchId)` call share a single API request. Invalidation is by TTL only plus an explicit `invalidateCompanyProfileForPrintCache()` hook for use after profile edits. Signed URLs come from Supabase storage with their existing `WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS` expiry; the batch does not extend or shorten their lifetime.
 3. What is not cached and why — Per-row business facts, transaction status, stock, balances, and report data are never cached; only the public company header used by print builders. The prefetch never writes to `localStorage`/`sessionStorage`/persistent cache.
 4. Image original/thumbnail & privacy — Logo preload uses the existing public company logo URL only; no new signed URL is minted. Thumbnail signed URLs for ticket attachments are still generated server-side and consumed by the popup; only the request count to Supabase storage changed (N → 1), not the privacy contract or thumbnail/original split.
 5. Tests — `weight-ticket-storage.test.ts` extended with a `createSignedUrls` mock and an explicit batch-failure + single-fallback failure case; `weight-ticket-print.test.ts`, `corporate-print-layout.test.ts`, `document-print-contract.test.ts`, and `purchase-bill-print.test.ts` continue to assert unchanged HTML/contract behavior (120/120 related tests pass). The font/profile prefetch path is best-effort by design and falls back to the existing per-popup loader, so no separate failure test is required for the swallow path; the happy path is covered indirectly by every passing print test that renders with the cached profile.
+
+## 2026-08-12 Weight-Ticket Print Prefetch (A+B)
+
+Why: batch 1 above only warmed fonts/profile/logo; the heaviest remaining latency on WTI/WTO prints is the in-flight `getWeightTicket(id)` fetch (which mints signed URLs for every attachment) plus the popup's per-image downloads. This batch warms both on hover so a click-through print renders from cache.
+
+What changed:
+
+- `print-asset-prefetch.ts` adds `prefetchWeightTicketForPrint(ticketId)` (fetch ticket detail with image previews into a per-id in-memory cache, TTL 20s, with in-flight dedup), `peekCachedWeightTicketForPrint(ticketId)` (sync read of the cached ticket), `preloadWeightTicketAttachmentImages(ticket)` (creates one `Image` element per signed URL returned by the ticket read model so the browser HTTP cache is warm before the popup requests them), and `invalidateWeightTicketForPrintCache(ticketId?)`.
+- `WeightTicketListPageClient.tsx` adds `onMouseEnter`/`onFocus` prefetch on both Desktop and Mobile `พิมพ์` menu items, and `handlePrintTicket` now calls `peekCachedWeightTicketForPrint` first — on a cache hit it skips its own `getWeightTicket` fetch entirely. The fallback to `includeImagePreviews=false` is unchanged.
+- No C (`document.write` → `innerHTML`) was done in this batch: it carries CSP/font-face edge cases for little gain relative to A+B and is deferred until measured impact justifies the risk.
+
+Cache & image delivery notes (per AGENTS.md rules):
+
+1. Data level & source of truth — Ticket detail cache is a read-only snapshot of an already-printable document. Source of truth remains the API. No financial, stock, permission, or transaction status is cached beyond what the existing print read-model already returns.
+2. Key/URL scope, TTL, invalidation — Per-ticket-id in-memory entry, TTL 20s. `invalidateWeightTicketForPrintCache(ticketId?)` is exposed for the host page to call after a ticket edit/cancel so the next print re-reads fresh data. Signed URLs come from the existing `attachWeightTicketImagePreviewUrls` API path; the prefetch never mints a URL itself.
+3. What is not cached — No write/side-effect is performed by the prefetch. No bytes are stored in JS memory; only the browser HTTP cache is warmed via `Image`.
+4. Image original/thumbnail & privacy — Only `asset.url` (the full-size signed URL the popup album renders) is preloaded. Thumbnail URLs already have their own preview path. The storage privacy contract is unchanged.
+5. Tests — `weight-ticket-print.test.ts` (30), `corporate-print-layout.test.ts` (11), `document-print-contract.test.ts` (51), `weight-ticket-storage.test.ts` (13) — 105/105 pass. The prefetch is best-effort and falls back to the existing fetch/loader path on any failure, so no separate swallow-path failure test is required; the happy path is covered indirectly by every passing print test that renders with a fresh ticket fetch.
 

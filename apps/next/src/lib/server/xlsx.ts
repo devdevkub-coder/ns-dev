@@ -1,5 +1,19 @@
-import readXlsxFile from 'read-excel-file/node'
-import writeXlsxFile, { type SheetData } from 'write-excel-file/node'
+// Heavy xlsx libs are lazy-loaded on first actual Excel read/write so that the
+// 40+ API routes importing this wrapper don't pay their compile/module cost on
+// plain JSON requests (only the export/import paths use them).
+import type { SheetData } from 'write-excel-file/node'
+
+let readXlsxFilePromise: Promise<typeof import('read-excel-file/node')> | null = null
+function lazyReadXlsxFile() {
+  readXlsxFilePromise ??= import('read-excel-file/node')
+  return readXlsxFilePromise
+}
+
+let writeXlsxFilePromise: Promise<typeof import('write-excel-file/node')> | null = null
+function lazyWriteXlsxFile() {
+  writeXlsxFilePromise ??= import('write-excel-file/node')
+  return writeXlsxFilePromise
+}
 
 type CellValue = string | number | boolean | Date | null | undefined
 
@@ -80,6 +94,7 @@ function sheetToData(sheet: WorkSheet): SheetData {
 }
 
 export async function readWorkbook(buffer: Buffer): Promise<WorkBook> {
+  const { default: readXlsxFile } = await lazyReadXlsxFile()
   const sheets = await readXlsxFile(buffer)
   const workbook: WorkBook = { SheetNames: [], Sheets: {} }
 
@@ -118,6 +133,7 @@ export const XLSX = {
     },
   },
   async write(workbook: WorkBook, _options: { bookType: 'xlsx'; type: 'buffer' }): Promise<Buffer> {
+    const { default: writeXlsxFile } = await lazyWriteXlsxFile()
     const sheets = workbook.SheetNames.map((sheetName) => {
       const sheet = workbook.Sheets[sheetName]
       return {

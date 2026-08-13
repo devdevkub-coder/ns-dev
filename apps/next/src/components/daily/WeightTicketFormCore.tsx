@@ -893,8 +893,8 @@ function formatAttachmentFileSize(bytes: number) {
 }
 
 function validateSelectedWeightTicketImage(file: File, maxUploadBytes: number) {
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type.toLowerCase())) {
-    return `ไฟล์ ${file.name} ไม่รองรับ รองรับเฉพาะ JPG, PNG และ WebP`
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/avif'].includes(file.type.toLowerCase())) {
+    return `ไฟล์ ${file.name} ไม่รองรับ รองรับเฉพาะ JPG, PNG, WebP และ HEIC`
   }
   if (file.size > maxUploadBytes) {
     return `ไฟล์ ${file.name} มีขนาด ${formatAttachmentFileSize(file.size)} เกินขนาดที่ระบบกำหนด ${formatAttachmentFileSize(maxUploadBytes)} กรุณาเลือกรูปใหม่`
@@ -2229,6 +2229,26 @@ export function WeightTicketFormCore({
         const baselineFingerprint = baseline ? collaborationLineSnapshot(baseline, baseline.imageNames) : null
         if (!baseline || currentFingerprint !== baselineFingerprint) changedLineIds.add(line.id)
       })
+      // Background saves may carry draft lots that an earlier incremental save
+      // already persisted but the user is still filling in (weight/images not
+      // entered yet). Those lines are now part of the baseline, so this save
+      // includes them, yet the caller's explicit draftLineIds only marks the
+      // brand-new line. Re-mark every current draft-lot skeleton so the server
+      // does not reject the save with "เต๋าใหม่ต้องกรอกน้ำหนักและแนบรูปภาพก่อนบันทึก".
+      // The explicit final save (saveTicket) never passes through here, so an
+      // unfinished lot still blocks the final save.
+      const skeletonDraftLineIds = new Set(draftLineIds)
+      snapshotToSave.lines.forEach((line) => {
+        const grossWeight = Number(line.grossWeight || 0)
+        if (
+          grossWeight === 0
+          && line.deductionMode === 'none'
+          && Boolean(line.parentId)
+          && !getLineImpurityId(line)
+          && !line.impuritySourceLineId
+        ) skeletonDraftLineIds.add(line.id)
+      })
+      draftLineIds = skeletonDraftLineIds
       const saveValues: WeightTicketFormValues = {
         branchId: snapshotToSave.branchId,
         collaborationBaseDocumentNo: (savedTicket ?? loadedTicket)?.documentNo,

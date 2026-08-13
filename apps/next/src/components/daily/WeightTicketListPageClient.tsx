@@ -19,7 +19,13 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
-import { prefetchPrintAssets, prefetchPrintFonts } from '@/lib/print-asset-prefetch'
+import {
+  invalidateWeightTicketForPrintCache,
+  peekCachedWeightTicketForPrint,
+  prefetchPrintAssets,
+  prefetchPrintFonts,
+  prefetchWeightTicketForPrint,
+} from '@/lib/print-asset-prefetch'
 import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
@@ -438,6 +444,7 @@ export function WeightTicketListPageClient() {
     try {
       const updated = await cancelWeightTicket(ticket.id, note)
       invalidatePurchaseBillOptionsCache()
+      invalidateWeightTicketForPrintCache(ticket.id)
       setTickets((current) => current.map((ticket) => ticket.id === updated.id ? updated : ticket))
       setCancelTicket(null)
       setCancelNote('')
@@ -456,6 +463,7 @@ export function WeightTicketListPageClient() {
     try {
       const updated = await confirmWeightTicket(ticket.id)
       invalidatePurchaseBillOptionsCache()
+      invalidateWeightTicketForPrintCache(ticket.id)
       setTickets((current) => current.map((row) => row.id === updated.id ? updated : row))
     } catch (caught) {
       setLoadError(getErrorMessage(caught, 'ยืนยันใบรับ-ส่งของไม่ได้'))
@@ -475,18 +483,23 @@ export function WeightTicketListPageClient() {
       // The prefetch is best-effort: a failure here only means the builder
       // refetches (it always fetches when the cache is empty).
       void prefetchPrintAssets(ticket.branchId)
-      // The print album renders each photo from its signed URL, so it normally
-      // fetches the ticket with image previews. Tickets whose photos were never
-      // thumbnail-processed cannot build preview URLs (the API throws), so fall
-      // back to the raw record: the form still prints and any photo without a
-      // URL is simply omitted from the album instead of blocking the whole
-      // document with a 500.
-      let detailTicket: WeightTicketRecord
-      try {
-        detailTicket = await getWeightTicket(ticket.id)
-      } catch (caught) {
-        console.warn('[weight-ticket-print] image preview URLs unavailable, printing without photo previews', caught)
-        detailTicket = await getWeightTicket(ticket.id, { includeImagePreviews: false })
+      // If the user hovered the print action first, the ticket detail and its
+      // attachment signed URLs are already cached and preloaded — skip the
+      // refetch so the popup can render immediately.
+      let detailTicket: WeightTicketRecord | null = peekCachedWeightTicketForPrint(ticket.id)
+      if (!detailTicket) {
+        // The print album renders each photo from its signed URL, so it normally
+        // fetches the ticket with image previews. Tickets whose photos were never
+        // thumbnail-processed cannot build preview URLs (the API throws), so fall
+        // back to the raw record: the form still prints and any photo without a
+        // URL is simply omitted from the album instead of blocking the whole
+        // document with a 500.
+        try {
+          detailTicket = await getWeightTicket(ticket.id)
+        } catch (caught) {
+          console.warn('[weight-ticket-print] image preview URLs unavailable, printing without photo previews', caught)
+          detailTicket = await getWeightTicket(ticket.id, { includeImagePreviews: false })
+        }
       }
       await openWeightTicketReceiptPrint(detailTicket, printWindow)
     } catch (caught) {
@@ -824,7 +837,7 @@ export function WeightTicketListPageClient() {
                       {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
                       {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                       {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
-                      {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                      {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => { void prefetchWeightTicketForPrint(ticket.id); void prefetchPrintAssets(ticket.branchId) }} onFocus={() => { void prefetchWeightTicketForPrint(ticket.id); void prefetchPrintAssets(ticket.branchId) }}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
                       {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                       {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                       {ticket.canCancel ? (
@@ -937,7 +950,7 @@ export function WeightTicketListPageClient() {
                             {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
                             {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                             {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
-                            {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                            {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => { void prefetchWeightTicketForPrint(ticket.id); void prefetchPrintAssets(ticket.branchId) }} onFocus={() => { void prefetchWeightTicketForPrint(ticket.id); void prefetchPrintAssets(ticket.branchId) }}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
                             {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                             {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                             {ticket.canCancel ? (
@@ -1085,6 +1098,9 @@ export function WeightTicketListPageClient() {
                 onRequestClose={(requestClose) => { guardedFormCloseRef.current = requestClose }}
                 onClose={() => setActiveForm(null)}
                 onSaveSuccess={() => {
+                  // The print prefetch cache can outlive the form; drop it so
+                  // the next print re-reads the freshly saved ticket.
+                  invalidateWeightTicketForPrintCache(activeForm.id)
                   setActiveForm(null)
                   setRefreshKey((prev) => prev + 1)
                 }}

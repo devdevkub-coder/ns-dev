@@ -232,10 +232,10 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; position: sticky; top: 0; z-index: 50; margin-top: -16px; margin-bottom: 16px; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; font-weight: 700; }
       .toolbar button.secondary { background: #475569; }
-      .page { width: 190mm; height: 277mm; min-height: 277mm; margin: 0 auto 16px; padding: 7mm; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
+      .page { width: 210mm; height: 297mm; min-height: 297mm; max-height: 297mm; margin: 0 auto 16px; padding: 8mm; overflow: hidden; background: white; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.2); border-radius: 4px; break-after: page; page-break-after: always; }
       .page:last-of-type { break-after: auto; page-break-after: auto; }
       .page-break-before { break-before: page; page-break-before: always; }
-      .accent { height: 4px; background: linear-gradient(90deg, #0f766e, #16a34a, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
+      .accent { height: 4px; flex: 0 0 auto; background: linear-gradient(90deg, #0f766e, #16a34a, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
@@ -294,32 +294,16 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
       .footer { margin-top: 4px; text-align: center; color: #64748b; }
       .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
-        body { background: white; padding: 0; font-size: 12px; line-height: 1.2; }
+        /* Print must render EXACTLY like the on-screen preview (WYSIWYG). The
+         * inner layout uses the same styles in both media — the only print
+         * adjustments are the page box (A4 minus 8mm @page margin), hiding the
+         * screen toolbar, and forcing colors to print. */
+        *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { background: white; padding: 0; }
         .toolbar { display: none; }
-        .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
-        .accent { margin-bottom: 7px; }
-        .header { gap: 10px; padding-bottom: 7px; }
-        .company { grid-template-columns: 48px 1fr; gap: 8px; }
-        .logo { width: 48px; height: 48px; }
-        .company-name { font-size: 14px; }
-        .company-info { line-height: 1.25; margin-top: 2px; }
-        .doc-title { font-size: 19px; }
-        .section-grid { gap: 8px; margin-top: 7px; }
-        .panel-title { padding: 4px 7px; }
-        .panel-body { padding: 5px 7px; }
-        .two-col { gap: 4px 8px; }
-        .items { margin-top: 7px; }
-        .items th, .items td { padding: 3px; }
-        .items .empty td { height: 18px; }
-        .summary-grid { gap: 6px; margin-top: 6px; }
-        .summary-card { padding: 5px; }
-        .bottom-grid { gap: 8px; margin-top: 7px; }
-        .note { min-height: 24px; }
-        .total-row { padding: 3px 6px; }
-        .signatures { gap: 18px; margin-top: 10px; }
-        .sig-line { margin-top: 18px; padding-top: 3px; }
-        .continued { padding: 12px 0 4px; }
-        .footer { margin-top: 4px; }
+        .page-break-before { break-before: auto !important; page-break-before: auto !important; }
+        .page { width: 194mm; height: 281mm; min-height: 281mm; max-height: 281mm; padding: 0; margin: 0; overflow: hidden; box-shadow: none; border-radius: 0; break-after: page; page-break-after: always; }
+        .page:last-of-type { break-after: auto; page-break-after: auto; }
       }
     </style>
   </head><body>
@@ -354,6 +338,6 @@ export async function openSalesBillPrint(bill: SalesBillDetail, targetWindow?: W
   printWindow.document.open()
   printWindow.document.write(buildSalesBillPrintHtml(bill, profile))
   printWindow.document.close()
-  await prepareCorporatePrintLayout(printWindow.document)
+  await prepareCorporatePrintLayout(printWindow.document, { fillContinuationFirst: true })
   printWindow.focus()
 }

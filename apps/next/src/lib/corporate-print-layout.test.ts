@@ -38,6 +38,67 @@ describe('paginateMeasuredCorporateRows', () => {
     expect(pages.flatMap((page) => page.items)).toEqual(rows)
   })
 
+  it('fills page 1 to capacity first when fillContinuationFirst is enabled', () => {
+    // Same scenario as above: final template fits only 4 rows. With
+    // fillContinuationFirst the continuation page fills to its 15-row capacity
+    // and the final page receives only the leftover — page 1 is never
+    // under-filled while the final page is packed.
+    const rows = Array.from({ length: 16 }, (_, index) => index + 1)
+    const pages = paginateMeasuredCorporateRows(
+      rows,
+      (candidate) => candidate.length <= 15,
+      (candidate) => candidate.length <= 4,
+      15,
+      true,
+    )
+
+    expect(pages.map((page) => ({ final: page.isFinalPage, count: page.items.length }))).toEqual([
+      { final: false, count: 15 },
+      { final: true, count: 1 },
+    ])
+    expect(pages.flatMap((page) => page.items)).toEqual(rows)
+  })
+
+  it('keeps every continuation page full for a longer fillContinuationFirst document', () => {
+    const rows = Array.from({ length: 40 }, (_, index) => index + 1)
+    const pages = paginateMeasuredCorporateRows(
+      rows,
+      (candidate) => candidate.length <= 15,
+      (candidate) => candidate.length <= 8,
+      15,
+      true,
+    )
+
+    expect(pages.map((page) => ({ final: page.isFinalPage, count: page.items.length }))).toEqual([
+      { final: false, count: 15 },
+      { final: false, count: 15 },
+      { final: false, count: 2 },
+      { final: true, count: 8 },
+    ])
+    expect(pages.flatMap((page) => page.items)).toEqual(rows)
+  })
+
+  it('splits an overflowing tail so the final page is never left empty', () => {
+    // 25 rows with a 20-row page capacity but a final template that holds only
+    // 4 rows: the last continuation page takes the 1-row overflow and the
+    // final page keeps the 4 rows it can actually fit alongside totals.
+    const rows = Array.from({ length: 25 }, (_, index) => index + 1)
+    const pages = paginateMeasuredCorporateRows(
+      rows,
+      (candidate) => candidate.length <= 20,
+      (candidate) => candidate.length <= 4,
+      20,
+      true,
+    )
+
+    expect(pages.map((page) => ({ final: page.isFinalPage, count: page.items.length }))).toEqual([
+      { final: false, count: 20 },
+      { final: false, count: 1 },
+      { final: true, count: 4 },
+    ])
+    expect(pages.flatMap((page) => page.items)).toEqual(rows)
+  })
+
   it('creates an empty final page when a row fits only the continuation template', () => {
     const pages = paginateMeasuredCorporateRows(
       [1],
@@ -155,6 +216,72 @@ describe('paginateMeasuredCorporateRows', () => {
 
     expect(document.body.dataset.corporatePrintLayout).toBe('error')
     expect(document.querySelector<HTMLButtonElement>('button')?.disabled).toBe(true)
+  })
+
+  it('paginates form rows without waiting for album photo images', async () => {
+    const dom = new JSDOM(`<!doctype html><html><head></head><body>
+      <button onclick="window.print()">Print</button>
+      <main class="page" data-print-page="1" data-final-page="true">
+        <table>
+          <tbody>
+            <tr data-row-slot="1"><td>one</td></tr>
+            <tr data-row-slot="2"><td>two</td></tr>
+          </tbody>
+          <tfoot data-page-totals="final"><tr><td>100</td></tr></tfoot>
+        </table>
+        <section class="summary-grid"><div>summary</div></section>
+        <section class="signatures" data-signatures="final"><div>Sign</div></section>
+      </main>
+      <main class="page attachment-page">
+        <div class="album-grid">
+          <article class="album-card"><div class="album-image-wrap"><img src="https://storage.example/photo-1.jpg?token=slow"></div></article>
+          <article class="album-card"><div class="album-image-wrap"><img src="https://storage.example/photo-2.jpg?token=slow"></div></article>
+        </div>
+      </main>
+    </body></html>`)
+    const document = dom.window.document
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: {
+        load: async () => [{ status: 'loaded' }],
+        ready: Promise.resolve(),
+      },
+    })
+    Object.defineProperties(dom.window.HTMLElement.prototype, {
+      clientHeight: { configurable: true, get: () => 150 },
+      clientWidth: { configurable: true, get: () => 800 },
+      scrollHeight: { configurable: true, get: () => 100 },
+      scrollWidth: { configurable: true, get: () => 800 },
+    })
+
+    const albumImages = [...document.querySelectorAll<HTMLImageElement>('.attachment-page img')]
+    expect(albumImages).toHaveLength(2)
+    // Simulate the slowest realistic case: photos still streaming in.
+    for (const image of albumImages) {
+      Object.defineProperty(image, 'complete', { configurable: true, value: false })
+      Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 0 })
+    }
+
+    const layoutPromise = prepareCorporatePrintLayout(document)
+    // Give the fitter a tick to finish pagination; it must not wait on the
+    // album photos, so the form page is laid out and the status shows the
+    // photo-streaming message while the images are still pending.
+    await new Promise((resolve) => setTimeout(resolve, 25))
+
+    expect(document.querySelectorAll('[data-corporate-print-page="true"]')).toHaveLength(1)
+    expect(document.querySelector<HTMLElement>('[data-corporate-print-status]')?.textContent).toBe('กำลังโหลดรูปถ่ายแนบ...')
+    // The print button must stay locked while photos stream in — printing
+    // half-loaded album pages is never allowed.
+    expect(document.querySelector<HTMLButtonElement>('button')?.disabled).toBe(true)
+
+    // Now the photos resolve; the fitter releases the print button.
+    for (const image of albumImages) {
+      image.dispatchEvent(new dom.window.Event('load'))
+    }
+    await layoutPromise
+    expect(document.body.dataset.corporatePrintLayout).toBe('ready')
+    expect(document.querySelector<HTMLElement>('[data-corporate-print-status]')?.textContent).toBe('พร้อมพิมพ์ · A4')
+    expect(document.querySelector<HTMLButtonElement>('button')?.disabled).toBe(false)
   })
 
   it('keeps the builder empty-row prototype when redistributing rows', async () => {

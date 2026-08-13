@@ -363,13 +363,18 @@ describe('weight ticket print HTML', () => {
     expect(rows[0]?.detail).toContain('ไม่มีหักสิ่งเจือปน')
   })
 
-  it('keeps the no-impurity detail visible when a WTI table uses dense 20-row styling', () => {
+  it('keeps the explicit no-impurity detail visible on every WTI form page at the shared font size', () => {
     const html = buildReceiptPrintHtml(ticketWithPrintRowCount(21, 'WTI'), profile)
 
-    expect(html).toContain('class="muted dense-inline"> · ไม่มีหักสิ่งเจือปน</span>')
+    expect(html).toContain('ไม่มีหักสิ่งเจือปน')
+    // WYSIWYG: every page uses the same 10.5px table font — no dense/smaller
+    // font variant on crowded pages.
+    expect(html).not.toContain('dense-inline')
+    expect(html).not.toContain('dense-page')
+    expect(html).not.toContain('.items.dense')
   })
 
-  it('budgets a dense no-impurity label together with a near-limit WTI product name', async () => {
+  it('budgets a no-impurity label together with a near-limit WTI product name', async () => {
     await ensurePdfFontsRegistered()
     const ticketWithRows = ticketWithPrintRowCount(20, 'WTI')
     const longProductName = 'A'.repeat(30)
@@ -383,8 +388,10 @@ describe('weight ticket print HTML', () => {
     const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithRows }))
 
     expect(rows[18]?.detail).toBe(NO_IMPURITY_SUMMARY_DETAIL)
-    expect(estimatePrintWeightRowHeight(rows[18]!, true, true)).toBe(2)
-    expect(pages.map((page) => page.items.length)).toEqual([19, 1])
+    // The product-total label stays on one 20-row form page: its short
+    // no-impurity detail costs the same single grid slot as any other row.
+    expect(estimatePrintWeightRowHeight(rows[18]!, true)).toBe(1)
+    expect(pages.map((page) => page.items.length)).toEqual([20])
     expect(htmlPages).toHaveLength(pages.length)
     expect(htmlPages[0]).toContain(longProductName)
     expect(htmlPages.at(-1)).toContain('data-page-totals="final"')
@@ -618,6 +625,9 @@ describe('weight ticket print HTML', () => {
     expect(html).toContain("url('/fonts/NotoSansThai-Regular.ttf')")
     expect(html).toContain("url('/fonts/NotoSansThai-Bold.ttf')")
     expect(html).toContain("font-family: 'Noto Sans Thai', Arial, sans-serif")
+    // WYSIWYG: print must not shrink the preview layout (no font/padding/margin changes).
+    const printBlock = html.match(/@media print\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? ''
+    expect(printBlock.replace(/padding\s*:\s*0(?:\s*!important)?\s*;/g, '')).not.toMatch(/font-size\s*:|padding\s*:|margin-(?:top|bottom)\s*:/)
     expect(html).not.toContain('ขอบคุณที่ใช้บริการค่ะ/ครับ')
     expect(html).not.toContain('class="footer"')
   })
@@ -634,6 +644,45 @@ describe('weight ticket print HTML', () => {
 
     expect(html).toContain(signedUrl)
     expect(html).not.toContain('data:image/jpeg;base64,AAAA')
+  })
+
+  it('resolves thumbnail-only references (production shape) for print, PDF and LINE', () => {
+    // Production previews only ever carry a thumbnail signed URL on
+    // thumbnailUrl — the full-size url is null. Print/PDF/LINE must still
+    // render the attachment images.
+    const thumbnailUrl = 'https://storage.example/thumb-product.jpg?token=short'
+    const thumbnailOnly = encodeStoredImageReference(
+      'product-photo.jpg',
+      undefined,
+      'tickets/product-photo.jpg',
+      'weight-ticket-images',
+      'thumbs/product-photo.jpg',
+      thumbnailUrl,
+      'ready',
+    )
+    const ticketWithThumbnails = { ...ticket, imageNames: [thumbnailOnly] }
+
+    const images = buildWeightTicketAttachmentImages(ticketWithThumbnails)
+    expect(images.map((image) => image.fileName)).toEqual(['product-photo.jpg'])
+    expect(images[0].url).toBe(thumbnailUrl)
+
+    const html = buildReceiptPrintHtml(ticketWithThumbnails, profile)
+    expect(html).toContain(thumbnailUrl)
+    expect(html).toContain('ใบรับสินค้า (รูปถ่ายแนบ)')
+
+    // Legacy/dev records carrying a real url keep taking precedence.
+    const withRealUrl = encodeStoredImageReference(
+      'product-photo.jpg',
+      'https://storage.example/full-product.jpg?token=full',
+      'tickets/product-photo.jpg',
+      'weight-ticket-images',
+      'thumbs/product-photo.jpg',
+      thumbnailUrl,
+      'ready',
+    )
+    expect(buildWeightTicketAttachmentImages({ ...ticket, imageNames: [withRealUrl] })[0].url).toBe(
+      'https://storage.example/full-product.jpg?token=full',
+    )
   })
 
   it('puts vehicle images before product evidence in the shared print/PDF attachment album', () => {
@@ -706,6 +755,19 @@ describe('weight ticket print HTML', () => {
     expect(sevenImageHtml).toContain('#7')
     expect(sevenImageHtml).toContain('หน้า 2 / 3')
     expect(sevenImageHtml).toContain('หน้า 3 / 3')
+  })
+
+  it('sizes the photo album page on the same A4 box as the normalized item pages', () => {
+    // The shared fitter (prepareCorporatePrintLayout) normalizes every item
+    // page to a 210×297mm box with 8mm padding. The album pages carry no
+    // data-print-page so they never get normalized — they must match by CSS
+    // so the photo paper is not narrower than the item paper in the popup.
+    const html = buildReceiptPrintHtml(ticketWithAttachmentCount(6), profile)
+    const document = new JSDOM(html).window.document
+    const style = document.querySelector('style')?.textContent ?? ''
+
+    expect(style).toMatch(/\.attachment-page \{[^}]*width: 210mm[^}]*height: 297mm[^}]*min-height: 297mm[^}]*max-height: 297mm[^}]*padding: 8mm/)
+    expect(style).toMatch(/@media print \{[\s\S]*\.attachment-page \{[^}]*width: 194mm[^}]*height: 281mm[^}]*padding: 0/)
   })
 
   it('keeps rendered PDF attachment pagination aligned with the six-image A4 contract', async () => {

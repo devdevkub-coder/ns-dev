@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { invalidateCompanyProfileForPrintCache } from './print-asset-prefetch'
 import { openReceiptVoucherPrint, type ReceiptVoucherPrintDocument } from './receipt-voucher-print'
 
 const longCompanyName = 'บริษัท เอ็นเอส สแครป เมทัล รีไซเคิล แอนด์ อินดัสเทรียล เซอร์วิสเซส จำกัด'
@@ -47,6 +48,10 @@ function makeItems(count: number) {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  // The print profile cache is module-level with a short TTL, so a test that
+  // stubs `fetch` with a different payload must invalidate it or the first
+  // stubbed payload is reused for the whole file.
+  invalidateCompanyProfileForPrintCache()
 })
 
 describe('receipt voucher print layout', () => {
@@ -134,6 +139,9 @@ describe('receipt voucher print layout', () => {
     expect(html).toMatch(/@media print\s*\{[\s\S]*?-webkit-print-color-adjust:\s*exact;[\s\S]*?print-color-adjust:\s*exact;/)
     expect(html).toMatch(/@media print\s*\{[\s\S]*?\.page\s*\{[^}]*width:\s*194mm;[^}]*height:\s*281mm;[^}]*min-height:\s*281mm;[^}]*max-height:\s*281mm;[^}]*overflow:\s*hidden;/)
     expect(html).toMatch(/@media print\s*\{[\s\S]*?\.page\s*\{[^}]*padding:\s*0;/)
+    // WYSIWYG: print must not shrink the preview layout (no font/padding/margin changes).
+    const printBlock = html.match(/@media print\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? ''
+    expect(printBlock.replace(/padding\s*:\s*0(?:\s*!important)?\s*;/g, '')).not.toMatch(/font-size\s*:|padding\s*:|margin-(?:top|bottom)\s*:/)
   })
 
   it('gives the long Company Payer name a full row without leaving gaps in the two-column grid', async () => {

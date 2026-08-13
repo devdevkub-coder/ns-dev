@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Sarabun } from 'next/font/google'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { cachedPageOptions } from '@/lib/options-cache'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
@@ -202,8 +203,8 @@ export function ProfitCostAnalysisPageClient() {
     const controller = new AbortController()
     setOptionsError(null)
     setIsOptionsLoading(true)
-    dailyFetchJson<OptionsApiPayload>('/api/profit-cost-analysis/options', { signal: controller.signal })
-      .then((options) => setData((current) => ({ ...current, filters: { ...current.filters, ...options } })))
+    cachedPageOptions<OptionsApiPayload>('/api/profit-cost-analysis/options')
+      .then((options) => { if (!controller.signal.aborted) setData((current) => ({ ...current, filters: { ...current.filters, ...options } })) })
       .catch((caught) => {
         if (caught instanceof DOMException && caught.name === 'AbortError') return
         setOptionsError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกไม่ได้')

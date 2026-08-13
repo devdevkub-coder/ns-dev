@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import type { Prisma } from '../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { effectivePermissionCodes } from '@/lib/server/authorization'
 import { prisma } from '@/lib/server/prisma'
@@ -90,11 +91,73 @@ const appUserAuthSelect = {
   },
 } as const
 
+const APP_USER_CONTEXT_CACHE_TTL_MS = 10_000
+
+type AppUserContextRow = NonNullable<Prisma.app_usersGetPayload<{
+  select: typeof appUserAuthSelect
+}>>
+
+type AppUserContextCacheEntry = {
+  expiresAt: number
+  value: AppUserContextRow
+}
+
+const globalForAuthContextCache = globalThis as unknown as {
+  appUserContextCache?: Map<string, AppUserContextCacheEntry>
+}
+
+// Caches the five-level Prisma context lookup (roles, permissions, overrides,
+// branches) keyed by auth_user_id for a short window. The JWT is still verified
+// on every request via supabase.auth.getUser() before this cache is consulted,
+// and the proxy re-checks permissions live via current_app_permission_codes()
+// (which reads auth.uid() directly), so a stale entry can never grant access.
+function getAppUserContextCache() {
+  globalForAuthContextCache.appUserContextCache ??= new Map()
+  return globalForAuthContextCache.appUserContextCache
+}
+
+// Drop cached auth-context rows when an admin edits a user's roles,
+// permission overrides, or active status — or when a role definition changes
+// (which affects every user holding it). The proxy still re-verifies
+// permissions live on every request, so this keeps the short-lived cache from
+// ever delaying a revoked permission on routes the proxy does not gate.
+export function invalidateAppUserAuthContext(authUserId?: string) {
+  const cache = getAppUserContextCache()
+  if (authUserId) {
+    cache.delete(authUserId)
+    return
+  }
+  cache.clear()
+}
+
 async function findAppUserWithAuth(where: Parameters<typeof prisma.app_users.findUnique>[0]['where']) {
-  return prisma.app_users.findUnique({
+  const authUserId = typeof where === 'object' && where !== null
+    ? (where as { auth_user_id?: string }).auth_user_id
+    : undefined
+  if (!authUserId) {
+    return prisma.app_users.findUnique({
+      select: appUserAuthSelect,
+      where,
+    })
+  }
+
+  const cache = getAppUserContextCache()
+  const cached = cache.get(authUserId)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value
+  }
+  if (cached) {
+    cache.delete(authUserId)
+  }
+
+  const appUser = await prisma.app_users.findUnique({
     select: appUserAuthSelect,
     where,
   })
+  if (appUser) {
+    cache.set(authUserId, { expiresAt: Date.now() + APP_USER_CONTEXT_CACHE_TTL_MS, value: appUser })
+  }
+  return appUser
 }
 
 type AppUserWithAuth = NonNullable<Awaited<ReturnType<typeof findAppUserWithAuth>>>

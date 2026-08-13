@@ -517,6 +517,6 @@ export async function openPmaBatchPrint(rows: PrintPmaRow[], modeLabel: string, 
   printWindow.document.open()
   printWindow.document.write(buildPmaSummaryPrintHtml(rows, profile, modeLabel))
   printWindow.document.close()
-  await prepareCorporatePrintLayout(printWindow.document, { orientation: 'landscape' })
+  await prepareCorporatePrintLayout(printWindow.document, { orientation: 'landscape', fillContinuationFirst: true })
   printWindow.focus()
 }

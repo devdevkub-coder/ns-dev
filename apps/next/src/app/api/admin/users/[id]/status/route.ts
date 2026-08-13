@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
-import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { authContextErrorResponse, getCurrentAuthContext, invalidateAppUserAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
 
@@ -95,6 +95,8 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
       request,
       targetAppUserId: user.id.toString(),
     })
+
+    invalidateAppUserAuthContext()
 
     return NextResponse.json({
       accountStatus,

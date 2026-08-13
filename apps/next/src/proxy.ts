@@ -96,11 +96,14 @@ export async function proxy(request: NextRequest) {
   const requiredPermissions = permissionCodesForPath(pathname)
 
   if (requiredPermissions.length > 0) {
-    const permissionResults = await Promise.all(requiredPermissions.map((permissionCode) => supabase.rpc('has_app_permission', {
-      _permission_code: permissionCode,
-    })))
-    const permissionError = permissionResults.find((result) => result.error)?.error
-    const hasPermission = permissionResults.some((result) => result.data === true)
+    // Batch the whole permission set in one RPC instead of one round trip per
+    // required permission. has_app_permission() internally recomputes the full
+    // permission list for every call, so N sequential checks cost N identical
+    // DB scans — replacing them with a single current_app_permission_codes()
+    // call is behavior-identical but much cheaper on every request.
+    const { data: grantedPermissionCodes, error: permissionError } = await supabase.rpc('current_app_permission_codes')
+    const hasPermission = Array.isArray(grantedPermissionCodes)
+      && requiredPermissions.some((permissionCode) => grantedPermissionCodes.includes(permissionCode))
 
     if (permissionError) {
       return authErrorResponse(response, pathname.startsWith('/api/')

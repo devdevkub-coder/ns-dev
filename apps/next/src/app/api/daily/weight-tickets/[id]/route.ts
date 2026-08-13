@@ -280,7 +280,8 @@ async function updateWeightTicket(
     requirePermission(auth, 'daily.weight_tickets.update')
 
     const { id } = await context.params
-    const parsedValues = weightTicketFormSchema.parse(await request.json())
+    const rawBody = await request.json()
+    const parsedValues = weightTicketFormSchema.parse(rawBody)
     const draftLineIds = new Set(parsedValues.draftLineIds ?? [])
     const unmarkedDraftLot = parsedValues.lines.find((line) => (
       isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)
@@ -493,9 +494,15 @@ async function updateWeightTicket(
         }
       }
       const collaborationCurrentUpdatedAt = existing.updated_at
+      // A stale updatedAt only matters when another user changed the ticket
+      // after the client's baseline. Background auto-saves from the same
+      // session bump updated_at between the baseline capture and the explicit
+      // save, so a mismatch with the current actor as the last writer is
+      // self-inflicted and must not surface as a false-positive 409.
       const hasRemoteLineChanges = Boolean(
         collaborationBaseUpdatedAt
-        && collaborationBaseUpdatedAt !== (collaborationCurrentUpdatedAt?.toISOString() ?? null),
+        && collaborationBaseUpdatedAt !== (collaborationCurrentUpdatedAt?.toISOString() ?? null)
+        && existing.updated_by !== actor,
       )
       await tx.weight_ticket_product_summary_lines.deleteMany({
         where: {
@@ -597,12 +604,24 @@ async function updateWeightTicket(
         const missingChangedLineIds = Object.keys(collaborationBaseLineVersions)
           .filter((lineId) => collaborationChangedLineIds.has(lineId) && !latestLineIds.has(lineId))
         if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds)
+        // A version mismatch only blocks the save when another user was the
+        // last writer of the line. Lines the current actor created (never
+        // updated) or updated with an earlier save are self-inflicted baseline
+        // drift: background auto-saves bump versions/updated_at after the
+        // client captured its baseline, so the merge below reconciles them
+        // instead of failing with a false-positive 409. A genuine conflict
+        // still surfaces when the line was last written by someone else.
+        const isRealLineConflict = (line: (typeof latestLines)[number]) => (
+          line.updated_by !== actor
+          && (line.version > 1 || line.updated_by != null)
+        )
         const conflictingLineIds = latestLines
           .filter((line) => collaborationChangedLineIds.has(String(line.id)))
           .filter((line) => {
             const baseVersion = collaborationBaseLineVersions[String(line.id)]
             return baseVersion == null || line.version !== baseVersion
           })
+          .filter(isRealLineConflict)
           .map((line) => String(line.id))
         if (conflictingLineIds.length) throw new WeightTicketCollaborationConflictError(conflictingLineIds)
         const latestLineByClientId = new Map<string, (typeof latestLines)[number]>()
@@ -689,49 +708,100 @@ async function updateWeightTicket(
           wasInBase,
         })
         if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
-        const persistedLinePairs = await Promise.all(effectiveLineRows.map(async (data, index) => {
+        // Two-phase write: line_no is unique per ticket, so updates that
+        // renumber rows (a deletion or reorder shifts every following line)
+        // must first vacate their old line numbers before any row takes a
+        // slot another row still occupies. A single Promise.all raced those
+        // updates against each other and produced P2002 "ข้อมูลซ้ำกับรายการที่มีอยู่แล้ว".
+        const lineWriteSteps = effectiveLineRows.map((data, index) => {
           const valueLine = effectiveValues.lines[index]
           const currentLine = latestLineByClientId.get(valueLine.id)
-          if (currentLine) {
-            const isChanged = collaborationChangedLineIds.has(String(currentLine.id))
+          return currentLine
+            ? {
+                clientId: valueLine.id,
+                currentLineId: currentLine.id,
+                data,
+                isChanged: collaborationChangedLineIds.has(String(currentLine.id)),
+                kind: 'update' as const,
+              }
+            : { clientId: valueLine.id, data, kind: 'create' as const }
+        })
+        const maxCurrentLineNo = latestLines.reduce((max, line) => Math.max(max, line.line_no), 0)
+        await Promise.all(lineWriteSteps.map((step, index) => (
+          step.kind === 'update'
+            ? tx.weight_ticket_lines.update({
+                data: { line_no: maxCurrentLineNo + index + 1 },
+                where: { id: step.currentLineId },
+              })
+            : Promise.resolve()
+        )))
+        const persistedLinePairs: Array<readonly [string, string]> = []
+        for (const [index, step] of lineWriteSteps.entries()) {
+          if (step.kind === 'update') {
             await tx.weight_ticket_lines.update({
-              data: isChanged
-                ? { ...data, updated_at: new Date(), updated_by: actor, version: { increment: 1 } }
-                : data,
-              where: { id: currentLine.id },
+              data: {
+                ...step.data,
+                line_no: index + 1,
+                ...(step.isChanged ? { updated_at: new Date(), updated_by: actor, version: { increment: 1 } } : {}),
+              },
+              where: { id: step.currentLineId },
             })
-            return [valueLine.id, String(currentLine.id)] as const
+            persistedLinePairs.push([step.clientId, String(step.currentLineId)])
           } else {
-            const createdLine = await tx.weight_ticket_lines.create({ data })
-            return [valueLine.id, String(createdLine.id)] as const
+            const createdLine = await tx.weight_ticket_lines.create({ data: { ...step.data, line_no: index + 1 } })
+            persistedLinePairs.push([step.clientId, String(createdLine.id)])
           }
-        }))
+        }
         lineIdMap = Object.fromEntries(persistedLinePairs)
         createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
       } else if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
         const existingLineByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
         const retainedLineNos = new Set(lineRows.map((line) => line.line_no))
-        const persistedLinePairs = await Promise.all(lineRows.map(async (data, index) => {
-          const existingLine = existingLineByLineNo.get(data.line_no)
-          if (existingLine) {
-            const lineChanged = weightTicketLineWriteFingerprint(existingLine) !== weightTicketLineWriteFingerprint(data)
-            await tx.weight_ticket_lines.update({
-              data: lineChanged
-                ? { ...data, updated_at: new Date(), updated_by: actor, version: { increment: 1 } }
-                : data,
-              where: { id: existingLine.id },
-            })
-            return [effectiveValues.lines[index].id, String(existingLine.id)] as const
-          } else {
-            const createdLine = await tx.weight_ticket_lines.create({ data })
-            return [effectiveValues.lines[index].id, String(createdLine.id)] as const
-          }
-        }))
-        lineIdMap = Object.fromEntries(persistedLinePairs)
         const removedLineIds = existing.weight_ticket_lines
           .filter((line) => !retainedLineNos.has(line.line_no))
           .map((line) => line.id)
         if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
+        // Two-phase write so renumbering cannot violate the (ticket, line_no)
+        // unique constraint mid-flight (see the collaboration branch above).
+        const deliveredLineWriteSteps = lineRows.map((data, index) => {
+          const existingLine = existingLineByLineNo.get(data.line_no)
+          return existingLine
+            ? {
+                clientId: effectiveValues.lines[index].id,
+                currentLineId: existingLine.id,
+                data,
+                isChanged: weightTicketLineWriteFingerprint(existingLine) !== weightTicketLineWriteFingerprint(data),
+                kind: 'update' as const,
+              }
+            : { clientId: effectiveValues.lines[index].id, data, kind: 'create' as const }
+        })
+        const deliveredMaxLineNo = existing.weight_ticket_lines.reduce((max, line) => Math.max(max, line.line_no), 0)
+        await Promise.all(deliveredLineWriteSteps.map((step, index) => (
+          step.kind === 'update'
+            ? tx.weight_ticket_lines.update({
+                data: { line_no: deliveredMaxLineNo + index + 1 },
+                where: { id: step.currentLineId },
+              })
+            : Promise.resolve()
+        )))
+        const persistedLinePairs: Array<readonly [string, string]> = []
+        for (const [index, step] of deliveredLineWriteSteps.entries()) {
+          if (step.kind === 'update') {
+            await tx.weight_ticket_lines.update({
+              data: {
+                ...step.data,
+                line_no: index + 1,
+                ...(step.isChanged ? { updated_at: new Date(), updated_by: actor, version: { increment: 1 } } : {}),
+              },
+              where: { id: step.currentLineId },
+            })
+            persistedLinePairs.push([step.clientId, String(step.currentLineId)])
+          } else {
+            const createdLine = await tx.weight_ticket_lines.create({ data: { ...step.data, line_no: index + 1 } })
+            persistedLinePairs.push([step.clientId, String(createdLine.id)])
+          }
+        }
+        lineIdMap = Object.fromEntries(persistedLinePairs)
         createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
       } else {
         await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })

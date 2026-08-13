@@ -239,7 +239,7 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
       .page:last-of-type { break-after: auto; page-break-after: auto; }
       .page-content { height: 263mm; min-height: 263mm; display: flex; flex-direction: column; }
       .page-break-before { break-before: page; page-break-before: always; }
-      .accent { height: 4px; background: linear-gradient(90deg, #1e3a8a, #3b82f6, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
+      .accent { height: 4px; flex: 0 0 auto; background: linear-gradient(90deg, #1e3a8a, #3b82f6, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
       .header { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
@@ -293,34 +293,14 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
       .footer { margin-top: 8px; text-align: center; color: #64748b; }
       .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 48mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 50px; font-weight: 900; pointer-events: none; }
       @media print {
-        body { background: white; padding: 0; font-size: 12px; line-height: 1.2; }
+        /* WYSIWYG contract: print renders exactly like the on-screen preview.
+         * Only the page box (A4 minus 8mm @page margin), toolbar hiding, and
+         * color fidelity differ between the two media. */
+        *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { background: white; padding: 0; }
         .toolbar { display: none; }
         .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
         .page-content { min-height: 281mm; }
-        .accent { margin-bottom: 7px; }
-        .header { gap: 10px; padding-bottom: 7px; }
-        .company { grid-template-columns: 48px 1fr; gap: 8px; }
-        .logo { width: 48px; height: 48px; }
-        .company-name { font-size: 14px; }
-        .company-info { line-height: 1.25; margin-top: 2px; }
-        .doc-title { font-size: 18px; }
-        .doc-grid { gap: 3px 6px; margin-top: 5px; }
-        .kv { padding: 3px 5px; }
-        .section-grid { gap: 8px; margin-top: 7px; }
-        .panel-title { padding: 4px 7px; }
-        .panel-body { padding: 5px 7px; }
-        .two-col { gap: 4px 8px; }
-        .table-title { margin-top: 7px; }
-        .items { margin-top: 4px; }
-        .items th, .items td { padding: 3px; }
-        .items .empty td { height: 18px; }
-        .bottom-grid { gap: 8px; margin-top: 7px; }
-        .note { min-height: 24px; }
-        .total-row { padding: 3px 6px; }
-        .signatures { gap: 18px; margin-top: 10px; }
-        .sig-line { margin-top: 18px; padding-top: 3px; }
-        .continued { padding: 12px 0 4px; }
-        .footer { margin-top: 4px; }
       }
     </style>
   </head><body>
@@ -351,6 +331,6 @@ export async function openAdvancePaymentPrint(doc: AdvancePaymentPrintDocument, 
   printWindow.document.open()
   printWindow.document.write(buildAdvancePaymentPrintHtml(doc, profile))
   printWindow.document.close()
-  await prepareCorporatePrintLayout(printWindow.document)
+  await prepareCorporatePrintLayout(printWindow.document, { fillContinuationFirst: true })
   printWindow.focus()
 }

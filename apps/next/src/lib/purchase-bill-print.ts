@@ -525,7 +525,7 @@ export function buildPurchaseBillPrintHtml(
       .measure-end-block { margin-top: 0; }
       @media print {
         *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        body { background: white; padding: 0; font-size: 12px; line-height: 1.2; }
+        body { background: white; padding: 0; }
         .toolbar, .measurement-status, #pb-measurement-root { display: none !important; }
         .page-break-before { break-before: auto !important; page-break-before: auto !important; }
         .page { width: 194mm; height: 281mm; min-height: 281mm; max-height: 281mm; padding: 0; margin: 0; overflow: hidden; box-shadow: none; border-radius: 0; break-after: page; page-break-after: always; }

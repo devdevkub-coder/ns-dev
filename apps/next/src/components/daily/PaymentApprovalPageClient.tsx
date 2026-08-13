@@ -23,6 +23,7 @@ import {
   paymentApprovalSourcePresentation,
 } from '@/lib/payment-approval-presentation'
 import { openPmaBatchPrint } from '@/lib/payment-approval-print'
+import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 
 type ApprovalDestinationOption = {
   accountNo: string
@@ -464,6 +465,9 @@ export function PaymentApprovalPageClient() {
     const rowsToPrint = rows.filter((row) => selectedRowIds.has(row.id))
     if (rowsToPrint.length === 0) return
     const modeLabel = tab === 'ap' ? 'ต้นทุน (AP/บิลซื้อ)' : tab === 'advance' ? 'ต้นทุน (จ่ายเงินล่วงหน้า/มัดจำ)' : tab === 'pettyReturn' ? 'คืนเงินสำรองจ่าย / คืนเงินกู้กรรมการ' : 'ค่าใช้จ่าย'
+    // Start the company profile fetch now so the builder reuses it instead of
+    // waiting for a ~1s API round trip after the popup opens.
+    void prefetchPrintAssets()
     void openPmaBatchPrint(rowsToPrint, modeLabel)
   }, [rows, selectedRowIds, tab])
 
@@ -831,6 +835,8 @@ export function PaymentApprovalPageClient() {
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs py-1 h-9 gap-1 flex items-center"
               size="sm"
               type="button"
+              onMouseEnter={() => void prefetchPrintAssets()}
+              onFocus={() => void prefetchPrintAssets()}
               onClick={handlePrintSelected}
             >
               🖨 พิมพ์ใบอนุมัติที่เลือก ({selectedRowIds.size})
@@ -1229,8 +1235,11 @@ export function PaymentApprovalPageClient() {
                     className="h-9 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
                     type="button"
                     variant="outline"
+                    onMouseEnter={() => void prefetchPrintAssets()}
+                    onFocus={() => void prefetchPrintAssets()}
                     onClick={() => {
                       const modeLabel = tab === 'ap' ? 'ต้นทุน (AP/บิลซื้อ)' : tab === 'advance' ? 'ต้นทุน (จ่ายเงินล่วงหน้า/มัดจำ)' : tab === 'pettyReturn' ? 'คืนเงินสำรองจ่าย / คืนเงินกู้กรรมการ' : 'ค่าใช้จ่าย'
+                      void prefetchPrintAssets()
                       void openPmaBatchPrint([detail.row], modeLabel)
                     }}
                   >

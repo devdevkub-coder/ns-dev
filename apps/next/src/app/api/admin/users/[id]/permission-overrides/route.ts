@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
-import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { authContextErrorResponse, getCurrentAuthContext, invalidateAppUserAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -48,6 +48,7 @@ export async function PUT(request: Request, { params }: { params: Promise<unknow
       }
     })
     await recordAuthAuditEvent({ context, eventType: 'app_user.permission_overrides_updated', metadata: { overrideCount: parsed.length, userId: userId.toString() }, request })
+    invalidateAppUserAuthContext()
     return NextResponse.json({ id: userId.toString() })
   } catch (caught) {
     return authContextErrorResponse(caught)

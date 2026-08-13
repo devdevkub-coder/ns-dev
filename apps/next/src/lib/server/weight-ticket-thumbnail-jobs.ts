@@ -152,14 +152,13 @@ export async function processWeightTicketThumbnailAsset(assetId: bigint): Promis
     const originalBytes = Buffer.from(await originalBlob.arrayBuffer())
     const source = sharp(originalBytes, {
       failOn: 'error',
-      limitInputPixels: config.maxSourcePixels,
     })
     const metadata = await source.metadata()
     const width = metadata.width
     const height = metadata.height
     const sourcePixels = width && height ? width * height : 0
     if (!width || !height || !Number.isSafeInteger(sourcePixels) || sourcePixels > config.maxSourcePixels) {
-      throw new Error(`รูปมีความละเอียดสูงเกินกว่าที่ระบบรองรับ (${config.maxSourcePixels.toLocaleString('en-US')} พิกเซล)`)
+      throw new Error(`รูปมีความละเอียดสูงเกินกว่าที่ระบบรองรับ (สูงสุด ${(config.maxSourcePixels / 1_000_000).toLocaleString('th-TH')} ล้านพิกเซล)`)
     }
 
     const thumbnail = await source
