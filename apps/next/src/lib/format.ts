@@ -11,6 +11,20 @@ export function formatDateDisplay(value: string | null | undefined) {
   }
 }
 
+// มาตรฐานกลางสำหรับวันที่บนหน้าจอ: ใช้ ค.ศ. (คริสต์ศักราช) เสมอ
+// อย่าใช้ Intl.DateTimeFormat('th-TH', ...) ตรงๆ ใน component เพราะ locale 'th-TH'
+// ใช้ปฏิทินพุทธเป็นค่าเริ่มต้น -> ปีจะออกมาเป็น พ.ศ. (+543) โดยไม่ได้ตั้งใจ
+// ฟอร์แมตเตอร์นี้บังคับ calendar: 'gregory' ไว้ที่จุดเดียว เพื่อกันปีหลุดเป็น พ.ศ.
+export function formatThaiDateCE(value: Date | string | number, options: Intl.DateTimeFormatOptions = {}) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return new Intl.DateTimeFormat('th-TH', { ...options, calendar: 'gregory' }).format(date)
+}
+
+export function formatThaiMonthYearLabel(year: string | number, month: string | number) {
+  return new Intl.DateTimeFormat('th-TH', { calendar: 'gregory', month: 'long', year: 'numeric' }).format(new Date(Number(year), Number(month) - 1, 1))
+}
+
 export function formatPhoneDisplay(value: string | null | undefined) {
   if (!value) return null
   const digits = value.replace(/\D/g, '')
