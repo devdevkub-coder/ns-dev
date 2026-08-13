@@ -2344,7 +2344,22 @@ export function WeightTicketFormCore({
       prepareValidationFocus(firstHeaderError, snapshot)
       return null
     }
-    const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
+    const draftLotIds = new Set(
+      snapshot.lines
+        .filter((line) => (
+          Number(line.grossWeight || 0) === 0
+          && line.deductionMode === 'none'
+          && Boolean(line.parentId)
+          && !getLineImpurityId(line)
+          && !line.impuritySourceLineId
+        ))
+        .map((line) => line.id),
+    )
+    const firstLineError = Object.keys(errors).find((key) => {
+      if (key === 'lines') return true
+      const lineId = key.match(/^line-(.+?)-(?:product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)?.[1]
+      return Boolean(lineId && !draftLotIds.has(lineId))
+    })
     if (snapshot.lines.length > 0 && firstLineError) {
       setTouched((current) => ({ ...current, [firstLineError]: true }))
       prepareValidationFocus(firstLineError, snapshot)
