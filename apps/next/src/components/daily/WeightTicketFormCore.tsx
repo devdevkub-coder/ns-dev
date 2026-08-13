@@ -33,6 +33,7 @@ import {
   formatWeight,
   getWeightTicket,
   getWeightTicketImagePreviews,
+  isWeightTicketDraftLotSkeleton,
   isOtherProductImpurityId,
   isOtherProductImpurityLabel,
   normalizeDecimalInput,
@@ -345,6 +346,16 @@ function WeightTicketLineCardThumbnail({ files }: { files: AttachmentPreview[] }
 
 function getLineImpurityId(line: FormWeightTicketLine) {
   return line.deductionMode === 'none' ? '' : line.impurityId ?? ''
+}
+
+function isFormDraftLotSkeleton(line: FormWeightTicketLine) {
+  return isWeightTicketDraftLotSkeleton({
+    deductionMode: line.deductionMode,
+    grossWeight: Number(line.grossWeight || 0),
+    impurityId: getLineImpurityId(line),
+    impuritySourceLineId: line.impuritySourceLineId,
+    parentId: line.parentId,
+  })
 }
 
 function hasEnteredText(value: string | null | undefined) {
@@ -2135,13 +2146,7 @@ export function WeightTicketFormCore({
     // Keep unfinished lot skeletons explicitly marked so deleting one lot
     // cannot make validation fail against another draft lot in the same ticket.
     const draftLineIds = latestSnapshot.lines
-      .filter((line) => (
-        Number(line.grossWeight || 0) === 0
-        && line.deductionMode === 'none'
-        && Boolean(line.parentId)
-        && !line.impurityId
-        && !line.impuritySourceLineId
-      ))
+      .filter(isFormDraftLotSkeleton)
       .map((line) => persistedLineId(line.id))
       .filter((lineId) => !deletedIds.has(lineId))
     const baselineFormLines = new Map(ticketToFormState(baselineTicket).lines.map((line) => [line.id, line] as const))
@@ -2346,13 +2351,7 @@ export function WeightTicketFormCore({
     }
     const draftLotIds = new Set(
       snapshot.lines
-        .filter((line) => (
-          Number(line.grossWeight || 0) === 0
-          && line.deductionMode === 'none'
-          && Boolean(line.parentId)
-          && !getLineImpurityId(line)
-          && !line.impuritySourceLineId
-        ))
+        .filter(isFormDraftLotSkeleton)
         .map((line) => line.id),
     )
     const firstLineError = Object.keys(errors).find((key) => {
@@ -2422,14 +2421,7 @@ export function WeightTicketFormCore({
       // unfinished lot still blocks the final save.
       const skeletonDraftLineIds = new Set(draftLineIds)
       snapshotToSave.lines.forEach((line) => {
-        const grossWeight = Number(line.grossWeight || 0)
-        if (
-          grossWeight === 0
-          && line.deductionMode === 'none'
-          && Boolean(line.parentId)
-          && !getLineImpurityId(line)
-          && !line.impuritySourceLineId
-        ) skeletonDraftLineIds.add(line.id)
+        if (isFormDraftLotSkeleton(line)) skeletonDraftLineIds.add(line.id)
       })
       draftLineIds = skeletonDraftLineIds
       const saveValues: WeightTicketFormValues = {
