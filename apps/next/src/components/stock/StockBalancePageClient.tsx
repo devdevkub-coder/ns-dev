@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
+import { formatThaiDateCE } from '@/lib/format'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
@@ -193,6 +194,7 @@ export function StockBalancePageClient() {
   const filteredRows = useMemo(() => {
     return (data?.rows ?? [])
       .filter((row) => !group || row.productMetalGroup === group)
+      .map((row) => ({ ...row, value: roundMoney2(row.value) }))
   }, [data?.rows, group])
 
   const displayRows = useMemo<DisplayBalanceRow[]>(() => {
@@ -224,8 +226,15 @@ export function StockBalancePageClient() {
     }
 
     return Array.from(grouped.values())
+      // ตัด "รายการผี": แถวที่รวมแล้ว qty/value/รอเข้า/รอออก เป็น 0 ทั้งหมด
+      // (เช่น เคลื่อนเข้าแล้วออกจนสุทธิเป็น 0) จะไม่นับเป็นรายการสต๊อก
+      // ใช้เกณฑ์เดียวกับมุมมอง Matrix (isVisibleStockBalanceTotal)
+      .filter((row) => isVisibleStockBalanceTotal(row.sourceRows ?? [row]))
   }, [filteredRows])
-  const summary = useMemo(() => filteredRows.reduce((acc, row) => {
+  // นับจาก displayRows (grouped) เพื่อให้จำนวนรายการตรงกับตาราง "รายสินค้า" —
+  // ถ้านับจาก filteredRows ดิบ แถวเดียวกันที่แยกตามคลัง/lot จะถูกนับซ้ำ
+  // ทำให้ผลรวม RM+WIP+FG มากกว่าจำนวนที่แท็บแสดง (เช่น 184 vs 164)
+  const summary = useMemo(() => displayRows.reduce((acc, row) => {
     acc.qty += row.qty
     acc.value += row.value
     acc.awaitingBillQty += row.awaitingBillQty
@@ -243,17 +252,19 @@ export function StockBalancePageClient() {
     }
     if (row.qty < 0) acc.negativeRows += 1
     return acc
-  }, { availableQty: 0, availableValue: 0, awaitingBillQty: 0, negativeRows: 0, notAvailableQty: 0, notAvailableValue: 0, onHandRows: 0, onHoldQty: 0, pendingInRows: 0, pendingOutRows: 0, qty: 0, readyQty: 0, value: 0 }), [filteredRows])
+  }, { availableQty: 0, availableValue: 0, awaitingBillQty: 0, negativeRows: 0, notAvailableQty: 0, notAvailableValue: 0, onHandRows: 0, onHoldQty: 0, pendingInRows: 0, pendingOutRows: 0, qty: 0, readyQty: 0, value: 0 }), [displayRows])
 
   const byStatus = useMemo(() => ['RM', 'WIP', 'FG'].map((itemStatus) => {
-    const rows = filteredRows.filter((row) => row.status === itemStatus)
+    // ใช้ displayRows (grouped) ให้ count ตรงกับจำนวนแถวในตาราง "รายสินค้า"
+    // ยอด qty/value ไม่เปลี่ยนเพราะ grouping รวมยอดของแถวเดียวกันไว้แล้ว
+    const rows = displayRows.filter((row) => row.status === itemStatus)
     return {
       count: rows.length,
       qty: rows.reduce((sum, row) => sum + row.qty, 0),
       status: itemStatus,
       value: rows.reduce((sum, row) => sum + row.value, 0),
     }
-  }), [filteredRows])
+  }), [displayRows])
 
   const matrixRows = useMemo(() => {
     const groups = new Map<string, MatrixRow>()
@@ -987,7 +998,14 @@ function formatDateTime(value: string) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+  return formatThaiDateCE(date, { dateStyle: 'short', timeStyle: 'short' })
+}
+
+// ปัดค่าเงินเป็น 2 ตำแหน่งครั้งเดียวตอนโหลดข้อมูล (ไม่ใช่ตอนแสดงผล)
+// เพื่อให้ผลรวมทุกจุด (การ์ด/Matrix/ตาราง) เท่ากับผลบวกของส่วนประกอบที่แสดงเสมอ
+// เช่น มิฉะนั้น raw 41,403,150.1251 + 332,550.2299 = .3550 → รวมโชว์ .36 แต่ส่วนประกอบ .13 + .22 = .35
+function roundMoney2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
 function latestDateOnly(current: string, next: string) {
