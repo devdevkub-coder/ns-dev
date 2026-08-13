@@ -2131,6 +2131,19 @@ export function WeightTicketFormCore({
       if (!baselineLines.has(lineId)) changedIds.delete(lineId)
     }
     const linesToPatch = latestSnapshot.lines.filter((line) => changedIds.has(line.id) && !deletedIds.has(line.id))
+    // A delete PATCH is merged with the persisted document on the server.
+    // Keep unfinished lot skeletons explicitly marked so deleting one lot
+    // cannot make validation fail against another draft lot in the same ticket.
+    const draftLineIds = latestSnapshot.lines
+      .filter((line) => (
+        Number(line.grossWeight || 0) === 0
+        && line.deductionMode === 'none'
+        && Boolean(line.parentId)
+        && !line.impurityId
+        && !line.impuritySourceLineId
+      ))
+      .map((line) => persistedLineId(line.id))
+      .filter((lineId) => !deletedIds.has(lineId))
     const baselineFormLines = new Map(ticketToFormState(baselineTicket).lines.map((line) => [line.id, line] as const))
     const headerChanges = new Set(changedHeaderFields)
     const saveValues: WeightTicketFormValues = {
@@ -2140,6 +2153,7 @@ export function WeightTicketFormCore({
       collaborationBaseLineVersions: Object.fromEntries(baselineTicket.lines.map((line) => [line.id, line.version ?? 1])),
       collaborationChangedLineIds: Array.from(changedIds),
       collaborationDeletedLineIds: Array.from(deletedIds),
+      draftLineIds,
       collaborationBaseHeader: {
         branchId: baselineTicket.branchId,
         partyId: baselineTicket.partyId,
