@@ -34,6 +34,7 @@ import {
   formatWeight,
   getWeightTicket,
   getWeightTicketImagePreviews,
+  isWeightTicketDraftLotSkeleton,
   isOtherProductImpurityId,
   isOtherProductImpurityLabel,
   normalizeDecimalInput,
@@ -79,6 +80,7 @@ type FormState = {
 }
 
 type CollaborationHeaderField = 'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'
+type ImmediateLinePatchMode = 'full' | 'images' | 'relations'
 
 type WeightTicketLineRelation = Pick<WeightTicketLine, 'id' | 'parentId'> & {
   impuritySourceLineId?: string
@@ -347,6 +349,16 @@ function getLineImpurityId(line: FormWeightTicketLine) {
   return line.deductionMode === 'none' ? '' : line.impurityId ?? ''
 }
 
+function isFormDraftLotSkeleton(line: FormWeightTicketLine) {
+  return isWeightTicketDraftLotSkeleton({
+    deductionMode: line.deductionMode,
+    grossWeight: Number(line.grossWeight || 0),
+    impurityId: getLineImpurityId(line),
+    impuritySourceLineId: line.impuritySourceLineId,
+    parentId: line.parentId,
+  })
+}
+
 function hasEnteredText(value: string | null | undefined) {
   return Boolean(value?.trim())
 }
@@ -467,7 +479,7 @@ type ActionConfirmationRequest = {
   confirmLabel: string
   description: string
   destructive: boolean
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   title: string
 }
 
@@ -1225,10 +1237,20 @@ export function WeightTicketFormCore({
   const [draftStartedAt] = useState(() => new Date().toISOString())
   const [timerNow, setTimerNow] = useState(() => Date.now())
   const [isWeightTicketSummaryCollapsed, setIsWeightTicketSummaryCollapsed] = useState(true)
+  const loadedTicketRef = useRef<WeightTicketRecord | null>(null)
+  const savedTicketRef = useRef<WeightTicketRecord | null>(null)
 
   useEffect(() => {
     formRef.current = form
   }, [form])
+
+  useEffect(() => {
+    loadedTicketRef.current = loadedTicket
+  }, [loadedTicket])
+
+  useEffect(() => {
+    savedTicketRef.current = savedTicket
+  }, [savedTicket])
 
   useEffect(() => () => {
     const current = formRef.current
@@ -2066,6 +2088,157 @@ export function WeightTicketFormCore({
     markLinesDirty(ids)
   }
 
+  async function patchImmediateWeightTicketChanges(
+    changedLineIds: Iterable<string>,
+    deletedLineIds: Iterable<string>,
+    changedHeaderFields: Iterable<CollaborationHeaderField> = [],
+    linePatchModes: ReadonlyMap<string, ImmediateLinePatchMode> = new Map(),
+  ) {
+    if (saveInFlightRef.current) {
+      // This helper is called from event handlers; the clock is only used to
+      // bound the wait while another save releases the in-flight guard.
+      // eslint-disable-next-line react-hooks/purity
+      const waitStartedAt = Date.now()
+      while (saveInFlightRef.current) {
+        // eslint-disable-next-line react-hooks/purity
+        if (Date.now() - waitStartedAt >= 30_000) {
+          const error = new Error('ลบข้อมูลไม่ได้ เนื่องจากการบันทึกก่อนหน้ายังไม่เสร็จ')
+          setLoadError(error.message)
+          throw error
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 25))
+      }
+    }
+
+    const baselineTicket = savedTicketRef.current ?? loadedTicketRef.current
+    const ticketId = baselineTicket?.id ?? editingTicketId
+    if (!baselineTicket || !ticketId) {
+      if (editingTicketId) throw new Error('ไม่พบเอกสารที่บันทึกแล้วสำหรับการลบข้อมูล')
+      return
+    }
+    await waitForPendingAttachmentUploads()
+    const lineIdMap = lastBackgroundLineIdMapRef.current
+    const latestSnapshot = {
+      ...formRef.current,
+      lines: remapWeightTicketLineIds(formRef.current.lines, lineIdMap),
+    }
+    const persistedLineId = (lineId: string) => lineIdMap[lineId] ?? lineId
+    const deletedIds = new Set(deletedLineIds)
+    const changedIds = new Set(changedLineIds)
+    const remappedDeletedIds = new Set(Array.from(deletedIds, persistedLineId))
+    const remappedChangedIds = new Set(Array.from(changedIds, persistedLineId))
+    const remappedLinePatchModes = new Map(
+      Array.from(linePatchModes.entries(), ([lineId, mode]) => [persistedLineId(lineId), mode] as const),
+    )
+    deletedIds.clear()
+    remappedDeletedIds.forEach((lineId) => deletedIds.add(lineId))
+    changedIds.clear()
+    remappedChangedIds.forEach((lineId) => changedIds.add(lineId))
+    deletedIds.forEach((lineId) => changedIds.add(lineId))
+    const baselineLines = new Map(baselineTicket.lines.map((line) => [line.id, line] as const))
+    for (const lineId of Array.from(deletedIds)) {
+      if (!baselineLines.has(lineId)) deletedIds.delete(lineId)
+    }
+    for (const lineId of Array.from(changedIds)) {
+      if (!baselineLines.has(lineId)) changedIds.delete(lineId)
+    }
+    const linesToPatch = latestSnapshot.lines.filter((line) => changedIds.has(line.id) && !deletedIds.has(line.id))
+    // A delete PATCH is merged with the persisted document on the server.
+    // Keep unfinished lot skeletons explicitly marked so deleting one lot
+    // cannot make validation fail against another draft lot in the same ticket.
+    const draftLineIds = latestSnapshot.lines
+      .filter(isFormDraftLotSkeleton)
+      .map((line) => persistedLineId(line.id))
+      .filter((lineId) => !deletedIds.has(lineId))
+    const baselineFormLines = new Map(ticketToFormState(baselineTicket).lines.map((line) => [line.id, line] as const))
+    const headerChanges = new Set(changedHeaderFields)
+    const saveValues: WeightTicketFormValues = {
+      branchId: headerChanges.has('branchId') ? latestSnapshot.branchId : baselineTicket.branchId,
+      collaborationBaseDocumentNo: baselineTicket.documentNo,
+      collaborationBaseLineIds: baselineTicket.lines.map((line) => line.id),
+      collaborationBaseLineVersions: Object.fromEntries(baselineTicket.lines.map((line) => [line.id, line.version ?? 1])),
+      collaborationChangedLineIds: Array.from(changedIds),
+      collaborationDeletedLineIds: Array.from(deletedIds),
+      draftLineIds,
+      collaborationBaseHeader: {
+        branchId: baselineTicket.branchId,
+        partyId: baselineTicket.partyId,
+        remark: baselineTicket.remark,
+        vehicleImageNames: baselineTicket.vehicleImageNames,
+        vehicleNo: baselineTicket.vehicleNo,
+        godownName: baselineTicket.godownName,
+      },
+      collaborationChangedHeaderFields: Array.from(changedHeaderFields),
+      collaborationBaseUpdatedAt: baselineTicket.updatedAt,
+      id: ticketId,
+      lines: linesToPatch.map((line) => {
+        const baselineLine = baselineLines.get(line.id)
+        const baselineFormLine = baselineFormLines.get(line.id)
+        const mode = remappedLinePatchModes.get(line.id) ?? 'full'
+        const sourceLine = mode === 'images' && baselineFormLine
+          ? { ...baselineFormLine, imageNames: getLineImages(line).map((file) => file.rawValue) }
+          : mode === 'relations' && baselineFormLine
+            ? { ...baselineFormLine, parentId: line.parentId, impuritySourceLineId: line.impuritySourceLineId }
+            : line
+        return {
+        containerDeductionWeight: Number(sourceLine.containerDeductionWeight || 0),
+        deductionMode: sourceLine.deductionMode,
+        deductionValue: Number(sourceLine.deductionValue || 0),
+        grossWeight: Number(sourceLine.grossWeight || 0),
+        id: sourceLine.id,
+        version: baselineLine?.version ?? sourceLine.version,
+        imageNames: sourceLine.imageNames,
+        impurityId: sourceLine.impurityId,
+        impurityProductId: sourceLine.impurityProductId ?? '',
+        impuritySourceLineId: sourceLine.impuritySourceLineId,
+        note: sourceLine.note,
+        productId: sourceLine.productId,
+        warehouseId: sourceLine.warehouseId,
+        parentId: sourceLine.parentId,
+        }
+      }),
+      partyId: headerChanges.has('partyId') ? latestSnapshot.partyId : baselineTicket.partyId,
+      remark: headerChanges.has('remark') ? latestSnapshot.remark.trim() : baselineTicket.remark,
+      type: latestSnapshot.type,
+      vehicleImageNames: headerChanges.has('vehicleImageNames')
+        ? latestSnapshot.vehicleImageFiles.map((file) => file.rawValue)
+        : baselineTicket.vehicleImageNames,
+      vehicleNo: headerChanges.has('vehicleNo') ? latestSnapshot.vehicleNo.trim() : baselineTicket.vehicleNo,
+      godownName: headerChanges.has('godownName') ? latestSnapshot.godownName.trim() : baselineTicket.godownName,
+    }
+
+    saveInFlightRef.current = 'auto_save'
+    beginSaveStage('auto_save')
+    try {
+      const ticket = await patchWeightTicketChanges(ticketId, saveValues)
+      invalidatePurchaseBillOptionsCache()
+      setLoadedTicket(ticket)
+      setSavedTicket(ticket)
+      setFormBaseline(formSafetySnapshot(ticketToFormState(ticket)))
+      setLoadError('')
+      setMergeNotice('ลบข้อมูลแล้ว')
+      deletedIds.forEach((lineId) => deletedLineIdsRef.current.delete(lineId))
+      changedIds.forEach((lineId) => changedLineIdsRef.current.delete(lineId))
+      for (const field of headerChanges) {
+        const currentValue = field === 'vehicleImageNames'
+          ? formRef.current.vehicleImageFiles.map((file) => file.rawValue)
+          : formRef.current[field]
+        const persistedValue = field === 'vehicleImageNames'
+          ? ticket.vehicleImageNames
+          : ticket[field]
+        if (JSON.stringify(currentValue) === JSON.stringify(persistedValue)) {
+          dirtyHeaderFieldsRef.current.delete(field)
+        }
+      }
+    } catch (caught) {
+      setLoadError(getErrorMessage(caught, 'ลบข้อมูลไม่ได้'))
+      throw caught
+    } finally {
+      endSaveStage()
+      saveInFlightRef.current = null
+    }
+  }
+
   function changeBranch(value: string | null) {
     const branchId = value ?? ''
     const currentParty = (form.type === 'WTI' ? suppliers : customers)
@@ -2177,7 +2350,16 @@ export function WeightTicketFormCore({
       prepareValidationFocus(firstHeaderError, snapshot)
       return null
     }
-    const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
+    const draftLotIds = new Set(
+      snapshot.lines
+        .filter(isFormDraftLotSkeleton)
+        .map((line) => line.id),
+    )
+    const firstLineError = Object.keys(errors).find((key) => {
+      if (key === 'lines') return true
+      const lineId = key.match(/^line-(.+?)-(?:product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)?.[1]
+      return Boolean(lineId && !draftLotIds.has(lineId))
+    })
     if (snapshot.lines.length > 0 && firstLineError) {
       setTouched((current) => ({ ...current, [firstLineError]: true }))
       prepareValidationFocus(firstLineError, snapshot)
@@ -2240,14 +2422,7 @@ export function WeightTicketFormCore({
       // unfinished lot still blocks the final save.
       const skeletonDraftLineIds = new Set(draftLineIds)
       snapshotToSave.lines.forEach((line) => {
-        const grossWeight = Number(line.grossWeight || 0)
-        if (
-          grossWeight === 0
-          && line.deductionMode === 'none'
-          && Boolean(line.parentId)
-          && !getLineImpurityId(line)
-          && !line.impuritySourceLineId
-        ) skeletonDraftLineIds.add(line.id)
+        if (isFormDraftLotSkeleton(line)) skeletonDraftLineIds.add(line.id)
       })
       draftLineIds = skeletonDraftLineIds
       const saveValues: WeightTicketFormValues = {
@@ -2305,6 +2480,12 @@ export function WeightTicketFormCore({
       // the live form contains a temporary line excluded from this save.
       // This preserves the draft document ID for the next explicit save.
       setSavedTicket(ticket)
+      // Update the refs synchronously as well as React state. A user can
+      // delete the newly persisted line immediately after this response;
+      // the delete PATCH must see the returned UUID before the effect that
+      // mirrors state into these refs runs.
+      loadedTicketRef.current = ticket
+      savedTicketRef.current = ticket
       // This is a background save started by "เพิ่มสินค้า". Keep the live
       // form untouched because the user may already be editing the newly
       // opened line while this response is in flight.
@@ -2412,6 +2593,10 @@ export function WeightTicketFormCore({
 
   function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
+    // A previous background-save response can leave a field error keyed to
+    // an older line snapshot. Revalidate the current form on this add flow
+    // instead of showing that stale server message on a completed lot.
+    setServerFieldErrors({})
     const firstHeaderError = ['branchId', 'partyId', 'vehicleNo', 'godownName'].find((key) => errors[key])
     const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
     // Auto-save must not block the local lot editor. Only the explicit final
@@ -2521,31 +2706,91 @@ export function WeightTicketFormCore({
     })
   }
 
-  function removeLine(lineId: string) {
-    setForm((current) => {
-      const targetLine = current.lines.find((line) => line.id === lineId)
-      const parentLines = getMainParentLines(current.lines)
-      if (!targetLine) return current
-      if (!isImpurityPurchaseLine(targetLine) && !targetLine.parentId && parentLines.length === 1) return current
+  async function removeLine(lineId: string) {
+    const current = formRef.current
+    const targetLine = current.lines.find((line) => line.id === lineId)
+    const parentLines = getMainParentLines(current.lines)
+    if (!targetLine) return
+    if (!isImpurityPurchaseLine(targetLine) && !targetLine.parentId && parentLines.length === 1) return
 
-      const removedIds = getWeightTicketRelatedLineIds(current.lines, lineId)
-      const purchaseSourceIds = new Set(
-        current.lines
-          .filter((line) => removedIds.has(line.id) && line.impuritySourceLineId)
-          .map((line) => line.impuritySourceLineId!),
-      )
-      const nextLines = current.lines
-        .filter((line) => !removedIds.has(line.id))
-        .map((line) => purchaseSourceIds.has(line.id)
-          ? { ...line, impurityPurchaseAction: 'none' as const }
-          : line)
-      markLinesDeleted([...removedIds])
-      setMobileLotDetailId((current) => current && removedIds.has(current) ? null : current)
-      return {
-        ...current,
-        lines: nextLines,
+    const removedIds = getWeightTicketRelatedLineIds(current.lines, lineId)
+    const purchaseSourceIds = new Set(
+      current.lines
+        .filter((line) => removedIds.has(line.id) && line.impuritySourceLineId)
+        .map((line) => line.impuritySourceLineId!),
+    )
+    const nextLines = current.lines
+      .filter((line) => !removedIds.has(line.id))
+      .map((line) => purchaseSourceIds.has(line.id)
+        ? { ...line, impurityPurchaseAction: 'none' as const }
+        : line)
+    const nextForm = { ...current, lines: nextLines }
+    const previousChangedLineIds = new Set(changedLineIdsRef.current)
+    const previousDeletedLineIds = new Set(deletedLineIdsRef.current)
+    formRef.current = nextForm
+    setForm(nextForm)
+    markLinesDeleted(removedIds)
+    setMobileLotDetailId((currentLotId) => currentLotId && removedIds.has(currentLotId) ? null : currentLotId)
+    try {
+      await patchImmediateWeightTicketChanges([], removedIds)
+    } catch (caught) {
+      formRef.current = current
+      setForm(current)
+      changedLineIdsRef.current = previousChangedLineIds
+      deletedLineIdsRef.current = previousDeletedLineIds
+      throw caught
+    }
+  }
+
+  async function removeLot(lotId: string) {
+    const current = formRef.current
+    const nextLines = removeWeightTicketLot(current.lines, lotId)
+    const removedIds = current.lines
+      .filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id))
+      .map((line) => line.id)
+    const changedRelationIds = nextLines
+      .filter((line) => {
+        const previous = current.lines.find((entry) => entry.id === line.id)
+        return Boolean(previous && (
+          previous.parentId !== line.parentId
+          || previous.impuritySourceLineId !== line.impuritySourceLineId
+        ))
+      })
+      .map((line) => line.id)
+    const nextForm = { ...current, lines: nextLines }
+    const previousChangedLineIds = new Set(changedLineIdsRef.current)
+    const previousDeletedLineIds = new Set(deletedLineIdsRef.current)
+    formRef.current = nextForm
+    setForm(nextForm)
+    if (removedIds.length) markLinesDeleted(removedIds)
+    if (changedRelationIds.length) markLinesDirty(changedRelationIds)
+    const removedLine = current.lines.find((line) => line.id === lotId)
+    if (removedLine && !removedLine.parentId) {
+      const promotedLine = nextLines.find((line) => (
+        !line.parentId
+        && line.productId === removedLine.productId
+        && !isImpurityPurchaseLine(line)
+      ))
+      if (promotedLine) {
+        setActiveLineId(promotedLine.id)
+        setMobileLotDetailId(null)
       }
-    })
+    }
+    if (removedIds.includes(lotId)) setMobileLotDetailId(null)
+    try {
+      await patchImmediateWeightTicketChanges(
+        changedRelationIds,
+        removedIds,
+        [],
+        new Map(changedRelationIds.map((lineId) => [lineId, 'relations' as const])),
+      )
+    } catch (caught) {
+      formRef.current = current
+      setForm(current)
+      changedLineIdsRef.current = previousChangedLineIds
+      deletedLineIdsRef.current = previousDeletedLineIds
+      throw caught
+    }
   }
 
   function requestLineProductChange(lineId: string, productId: string) {
@@ -2587,11 +2832,6 @@ export function WeightTicketFormCore({
   }
 
   function requestProductRemoval(lineId: string) {
-    if (!shouldConfirmWeightTicketProductRemoval(form.lines, lineId)) {
-      removeLine(lineId)
-      return
-    }
-
     requestConfirmation({
       cancelLabel: 'ไม่ลบ',
       confirmLabel: 'ลบสินค้า',
@@ -2602,50 +2842,7 @@ export function WeightTicketFormCore({
     })
   }
 
-  function removeLot(lotId: string) {
-    setForm((current) => {
-      const nextLines = removeWeightTicketLot(current.lines, lotId)
-      const removedIds = current.lines
-        .filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id))
-        .map((line) => line.id)
-      if (removedIds.length) markLinesDeleted(removedIds)
-      const changedRelationIds = nextLines
-        .filter((line) => {
-          const previous = current.lines.find((entry) => entry.id === line.id)
-          return Boolean(previous && (
-            previous.parentId !== line.parentId
-            || previous.impuritySourceLineId !== line.impuritySourceLineId
-          ))
-        })
-        .map((line) => line.id)
-      if (changedRelationIds.length) markLinesDirty(changedRelationIds)
-
-      const removedLine = current.lines.find((line) => line.id === lotId)
-      if (removedLine && !removedLine.parentId) {
-        const promotedLine = nextLines.find((line) => (
-          !line.parentId
-          && line.productId === removedLine.productId
-          && !isImpurityPurchaseLine(line)
-        ))
-        if (promotedLine) {
-          setActiveLineId(promotedLine.id)
-          setMobileLotDetailId(null)
-        }
-      }
-      if (removedIds.includes(lotId)) setMobileLotDetailId(null)
-
-      return nextLines.length === current.lines.length && nextLines.every((line, index) => line === current.lines[index])
-        ? current
-        : { ...current, lines: nextLines }
-    })
-  }
-
   function requestLotRemoval(lot: FormWeightTicketLine) {
-    if (!shouldConfirmWeightTicketLotRemoval(lot)) {
-      removeLot(lot.id)
-      return
-    }
-
     requestConfirmation({
       cancelLabel: 'ไม่ลบ',
       confirmLabel: 'ลบเต๋า',
@@ -2715,24 +2912,31 @@ export function WeightTicketFormCore({
     })
   }
 
-  function removeImpurityLine(sourceLineId: string) {
-    setForm((current) => {
-      const nextLines = removeImpurityPurchaseLinesForSource(current.lines, sourceLineId)
-        .filter((line) => line.id !== sourceLineId)
-      markLinesDeleted(current.lines.filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id)).map((line) => line.id))
-      return {
-        ...current,
-        lines: nextLines,
-      }
-    })
+  async function removeImpurityLine(sourceLineId: string) {
+    const current = formRef.current
+    const nextLines = removeImpurityPurchaseLinesForSource(current.lines, sourceLineId)
+      .filter((line) => line.id !== sourceLineId)
+    const removedIds = current.lines
+      .filter((line) => !nextLines.some((nextLine) => nextLine.id === line.id))
+      .map((line) => line.id)
+    const nextForm = { ...current, lines: nextLines }
+    const previousChangedLineIds = new Set(changedLineIdsRef.current)
+    const previousDeletedLineIds = new Set(deletedLineIdsRef.current)
+    formRef.current = nextForm
+    setForm(nextForm)
+    markLinesDeleted(removedIds)
+    try {
+      await patchImmediateWeightTicketChanges([], removedIds)
+    } catch (caught) {
+      formRef.current = current
+      setForm(current)
+      changedLineIdsRef.current = previousChangedLineIds
+      deletedLineIdsRef.current = previousDeletedLineIds
+      throw caught
+    }
   }
 
   function requestImpurityRemoval(sourceLineId: string) {
-    if (!shouldConfirmWeightTicketImpurityRemoval(form.lines, sourceLineId, impurityOptions[0]?.id ?? '')) {
-      removeImpurityLine(sourceLineId)
-      return
-    }
-
     requestConfirmation({
       cancelLabel: 'ไม่ลบ',
       confirmLabel: 'ลบสิ่งเจือปน',
@@ -2862,38 +3066,57 @@ export function WeightTicketFormCore({
     }
   }
 
-  function removeVehicleImage(fileId: string) {
-    dirtyHeaderFieldsRef.current.add('vehicleImageNames')
+  async function applyVehicleImageRemoval(fileId: string) {
     const currentForm = formRef.current
     const removedFile = currentForm.vehicleImageFiles.find((file) => file.id === fileId)
-    revokeLocalAttachmentPreview(removedFile)
-    formRef.current = {
+    const previousDirtyHeaderFields = new Set(dirtyHeaderFieldsRef.current)
+    dirtyHeaderFieldsRef.current.add('vehicleImageNames')
+    const nextForm = {
       ...currentForm,
       vehicleImageFiles: currentForm.vehicleImageFiles.filter((file) => file.id !== fileId),
     }
-    setForm((current) => {
-      return {
-        ...current,
-        vehicleImageFiles: current.vehicleImageFiles.filter((file) => file.id !== fileId),
-      }
-    })
+    formRef.current = nextForm
+    setForm(nextForm)
+    try {
+      await patchImmediateWeightTicketChanges([], [], ['vehicleImageNames'])
+      revokeLocalAttachmentPreview(removedFile)
+    } catch (caught) {
+      formRef.current = currentForm
+      setForm(currentForm)
+      dirtyHeaderFieldsRef.current = previousDirtyHeaderFields
+      throw caught
+    }
   }
 
-  function removeLineImage(lineId: string, fileId: string) {
+  async function applyLineImageRemoval(lineId: string, fileId: string) {
     const currentForm = formRef.current
     const currentLine = currentForm.lines.find((line) => line.id === lineId)
     const currentImages = currentLine ? getLineImages(currentLine) : []
-    revokeLocalAttachmentPreview(currentImages.find((file) => file.id === fileId))
-    formRef.current = {
+    const removedFile = currentImages.find((file) => file.id === fileId)
+    const previousChangedLineIds = new Set(changedLineIdsRef.current)
+    const nextForm = {
       ...currentForm,
       lines: currentForm.lines.map((line) => line.id === lineId
         ? { ...line, imageFiles: currentImages.filter((file) => file.id !== fileId) }
         : line),
     }
-    updateLine(lineId, (current) => {
-      const images = getLineImages(current)
-      return { ...current, imageFiles: images.filter((entry) => entry.id !== fileId) }
-    })
+    formRef.current = nextForm
+    setForm(nextForm)
+    markLinesDirty([lineId])
+    try {
+      await patchImmediateWeightTicketChanges(
+        [lineId],
+        [],
+        [],
+        new Map([[lineId, 'images' as const]]),
+      )
+      revokeLocalAttachmentPreview(removedFile)
+    } catch (caught) {
+      formRef.current = currentForm
+      setForm(currentForm)
+      changedLineIdsRef.current = previousChangedLineIds
+      throw caught
+    }
   }
 
   const backToList = useCallback(() => {
@@ -3493,7 +3716,7 @@ export function WeightTicketFormCore({
                   files={form.vehicleImageFiles}
                   onAppend={(files) => void appendVehicleImages(files)}
                   onPreview={setPreviewImage}
-                  onRemove={removeVehicleImage}
+                  onRemove={applyVehicleImageRemoval}
                 />
               </FieldBlock>
             </div>
@@ -3975,7 +4198,7 @@ export function WeightTicketFormCore({
                                           disabled={!hasSelectedProduct}
                                           onAppend={(files) => void appendLineImages(lot.id, files)}
                                           onPreview={setPreviewImage}
-                                          onRemove={(fileId) => removeLineImage(lot.id, fileId)}
+                                          onRemove={(fileId) => applyLineImageRemoval(lot.id, fileId)}
                                           noWrapper
                                         />
                                       </FieldBlock>
@@ -4450,7 +4673,7 @@ export function WeightTicketFormCore({
                                             disabled={!hasSelectedProduct}
                                             onAppend={(files) => void appendLineImages(child.id, files)}
                                             onPreview={setPreviewImage}
-                                            onRemove={(fileId) => removeLineImage(child.id, fileId)}
+                                            onRemove={(fileId) => applyLineImageRemoval(child.id, fileId)}
                                             noWrapper
                                           />
                                         </FieldBlock>

@@ -1,5 +1,12 @@
 # 10 Environment Status
 
+### SIT-to-Production Migration Parity Repair — 2026-08-10
+
+- Applied and recorded the four migrations that were present in SIT but missing or incomplete in Production: `20260806130000_add_stock_transfer_action_permissions`, `20260806150000_scope_weight_ticket_realtime_channels`, `20260808100000_repair_production_document_line_indexes`, and `20260808103000_drop_production_output_round_unique`.
+- Production migration history now matches SIT at 202/202 rows for the compared history set. Two pre-existing Production rows had NULL migration names; they were corrected to the repository migration names without changing business data.
+- Postflight parity: all three stock-transfer permissions are active, the branch-scoped WTI realtime read policy exists, the two non-unique production document indexes exist, and `uq_production_outputs_order_round` is absent in both environments.
+- No transaction/master data was backfilled or rewritten. This database apply does not promote application code; Production Git/Vercel commit still requires a separate verified promotion check.
+
 ### WTI/WTO Storage Bucket Split Hardening — 2026-08-06
 
 - Target contract: `WEIGHT_TICKET_IMAGE_BUCKET` ต้องเป็น private สำหรับรูปหลักฐานต้นฉบับ; `WEIGHT_TICKET_PDF_BUCKET` ต้องเป็น public สำหรับ PDF และภาพ JPEG อัลบั้มที่สร้างเป็น outbound artifact.

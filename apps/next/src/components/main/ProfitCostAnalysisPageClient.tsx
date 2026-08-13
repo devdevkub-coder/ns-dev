@@ -13,6 +13,8 @@ import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDateDisplay } from '@/lib/format'
+import { shouldDecodeDimensionRows } from '@/lib/profit-cost-table-decoding'
+import { sortProfitCostRanking } from '@/lib/profit-cost-ranking'
 
 type Option = { active: boolean; code?: string; creditTerm?: number; id: string; name: string }
 type ProductRow = {
@@ -238,9 +240,9 @@ export function ProfitCostAnalysisPageClient() {
       .then((rankings) => setData((current) => ({
         ...current,
         top: {
-          byGp: rankings.top.byGp.map(decodeProductRow),
-          byRevenue: rankings.top.byRevenue.map(decodeProductRow),
-          byStockValue: rankings.top.byStockValue.map(decodeProductRow),
+          byGp: sortProfitCostRanking(rankings.top.byGp.map(decodeProductRow), 'gp'),
+          byRevenue: sortProfitCostRanking(rankings.top.byRevenue.map(decodeProductRow), 'revenue'),
+          byStockValue: sortProfitCostRanking(rankings.top.byStockValue.map(decodeProductRow), 'stockValue'),
         },
       })))
       .catch((caught) => {
@@ -264,7 +266,7 @@ export function ProfitCostAnalysisPageClient() {
     dailyFetchJson<{ alerts?: { amount: string; label: string; severity: string; type: string }[]; rows?: Array<Record<string, string | number | null>>; totalRows?: number }>(`/api/profit-cost-analysis/${tableEndpoint}?${tableParams}`, { signal: controller.signal })
       .then((tablePayload) => {
         const productRows = activeTab === 'products' ? (tablePayload.rows ?? []).map((row) => decodeProductRow(row as unknown as ProductApiRow)) : []
-        const dimensionRows = (tablePayload.rows ?? []).map(decodeDimensionRow)
+        const dimensionRows = shouldDecodeDimensionRows(activeTab) ? (tablePayload.rows ?? []).map(decodeDimensionRow) : []
         setTotalRows(tablePayload.totalRows ?? tablePayload.alerts?.length ?? 0)
         setData((current) => ({
           ...current,
@@ -334,16 +336,19 @@ export function ProfitCostAnalysisPageClient() {
     <section className="space-y-4">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-12">
         <PairMetric
-          className={`${profitKpiCardClass} col-span-2 xl:col-span-4`}
+          className={`${profitKpiCardClass} col-span-2 xl:col-span-6`}
           label="ซื้อ / ขายรวม"
           left={{ label: 'ซื้อ', note: `${money(summary.purchaseQty)} กก.`, value: money(summary.purchaseAmount) }}
           right={{ label: 'ขาย', note: `${money(summary.salesQty)} กก.`, value: money(summary.revenue) }}
           tone="slate"
         />
-        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="COGS" tone="slate" value={money(summary.cogs)} sub="ต้นทุนขาย" />
-        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="GP" tone={(summary.gp ?? 0) >= 0 ? 'emerald' : 'red'} value={money(summary.gp)} sub={`${pct(summary.gpPct)}%`} />
-        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="สต๊อกคงเหลือ" tone="slate" value={money(summary.stockQty)} sub="กก." />
-        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="มูลค่าสต๊อก" tone="slate" value={money(summary.stockValue)} sub="รวมตามตัวกรอง" />
+        <PairMetric
+          className={`${profitKpiCardClass} col-span-2 xl:col-span-6`}
+          label="ยอดคงเหลือเจ้าหนี้ / ลูกหนี้"
+          left={{ label: 'เจ้าหนี้คงเหลือ', note: `AP · ผู้ขายที่ซื้อ ${count(summary.supplierCount)} ราย`, value: money(summary.ap) }}
+          right={{ label: 'ลูกหนี้คงเหลือ', note: `AR · ลูกค้าที่ขาย ${count(summary.customerCount)} ราย`, value: money(summary.ar) }}
+          tone="slate"
+        />
         <PairMetric
           className={`${profitKpiCardClass} col-span-2 xl:col-span-4`}
           label="ราคาเฉลี่ย/กก."
@@ -351,13 +356,10 @@ export function ProfitCostAnalysisPageClient() {
           right={{ label: 'ขาย', value: money(summary.avgSell) }}
           tone="slate"
         />
-        <PairMetric
-          className={`${profitKpiCardClass} col-span-2 xl:col-span-8`}
-          label="ยอดคงเหลือเจ้าหนี้ / ลูกหนี้"
-          left={{ label: 'เจ้าหนี้คงเหลือ', note: `AP · ผู้ขายที่ซื้อ ${count(summary.supplierCount)} ราย`, value: money(summary.ap) }}
-          right={{ label: 'ลูกหนี้คงเหลือ', note: `AR · ลูกค้าที่ขาย ${count(summary.customerCount)} ราย`, value: money(summary.ar) }}
-          tone="slate"
-        />
+        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="COGS" tone="slate" value={money(summary.cogs)} sub="ต้นทุนขาย" />
+        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="GP" tone={(summary.gp ?? 0) >= 0 ? 'emerald' : 'red'} value={money(summary.gp)} sub={`${pct(summary.gpPct)}%`} />
+        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="สต๊อกคงเหลือ" tone="slate" value={money(summary.stockQty)} sub="กก." />
+        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="มูลค่าสต๊อก" tone="slate" value={money(summary.stockValue)} sub="รวมตามตัวกรอง" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">

@@ -94,6 +94,8 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain('if (shouldIgnoreRapidAdd(`impurity:${sourceLine.id}`)) return')
     expect(formSource).toContain('new Set([sourceLine.id, nextLine.id])')
     expect(formSource).toContain('lastBackgroundLineIdMapRef.current = ticket.lineIdMap')
+    expect(formSource).toContain('loadedTicketRef.current = ticket')
+    expect(formSource).toContain('savedTicketRef.current = ticket')
     expect(formSource).toContain('draftLineIds: Array.from(draftLineIds)')
   })
 
@@ -1086,14 +1088,11 @@ describe('weight-ticket product editor behavior', () => {
     })
 
     expect(container.querySelectorAll('[id^="weight-ticket-line-card-"]')).toHaveLength(2)
-    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).not.toBeNull()
-
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
 
-    expect(container.querySelectorAll('[id^="weight-ticket-line-card-"]')).toHaveLength(1)
-    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).toBeNull()
+    expect(container.querySelectorAll('[id^="weight-ticket-line-card-"]')).toHaveLength(2)
   })
 
   it('auto-saves an empty WTI draft once and ignores a duplicate add while saving', async () => {
