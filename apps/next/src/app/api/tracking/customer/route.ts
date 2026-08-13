@@ -168,7 +168,7 @@ export async function GET(request: Request) {
         const revenue = lineTotals.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
         const received = receivedByBill.get(bill.id) ?? toNumber(bill.received_amount)
         const cogs = toNumber(bill.cogs_amount ?? bill.total_cost)
-        const gp = toNumber(bill.gross_profit) || revenue - cogs
+        const gp = bill.gross_profit != null ? toNumber(bill.gross_profit) : revenue - cogs
         const receivable = Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - received)
         const aging = computeFinancialDueAging({
           asOfDate,
@@ -244,7 +244,7 @@ export async function GET(request: Request) {
         const lineTotals = billLineTotals(bill.id)
         const revenue = lineTotals.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
         return {
-          gp: sum.gp + (toNumber(bill.gross_profit) || revenue - toNumber(bill.cogs_amount ?? bill.total_cost)),
+          gp: sum.gp + (bill.gross_profit != null ? toNumber(bill.gross_profit) : revenue - toNumber(bill.cogs_amount ?? bill.total_cost)),
           month: monthKey,
           qty: sum.qty + lineTotals.qty,
           revenue: sum.revenue + revenue,
@@ -265,7 +265,7 @@ export async function GET(request: Request) {
         const billItem = salesBillLineFactTotals(lines)
         const billRevenue = billItem.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
         const billCogs = toNumber(bill.cogs_amount ?? bill.total_cost)
-        const billGp = toNumber(bill.gross_profit) || billRevenue - billCogs
+        const billGp = bill.gross_profit != null ? toNumber(bill.gross_profit) : billRevenue - billCogs
         const channelName = bill.sales_channels?.name ?? 'ไม่ระบุช่องทาง'
         const channel = channelMap.get(channelName) ?? { billCount: 0, channelName, cogs: 0, gp: 0, qty: 0, revenue: 0 }
         channel.billCount += 1
@@ -290,7 +290,7 @@ export async function GET(request: Request) {
         const received = receivedByBill.get(bill.id) ?? toNumber(bill.received_amount)
         const receivable = Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - received)
         const cogs = toNumber(bill.cogs_amount ?? bill.total_cost)
-        const gp = toNumber(bill.gross_profit) || revenue - cogs
+        const gp = bill.gross_profit != null ? toNumber(bill.gross_profit) : revenue - cogs
         const aging = computeFinancialDueAging({
           asOfDate,
           creditTermDays: bill.credit_term ?? customers.find((customer) => customer.id === detailCustomer.id)?.creditTerm ?? 0,
@@ -320,7 +320,7 @@ export async function GET(request: Request) {
           const revenue = lineTotals.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
           const received = receivedByBill.get(bill.id) ?? toNumber(bill.received_amount)
           const cogs = toNumber(bill.cogs_amount ?? bill.total_cost)
-          const gp = toNumber(bill.gross_profit) || revenue - cogs
+          const gp = bill.gross_profit != null ? toNumber(bill.gross_profit) : revenue - cogs
           const aging = computeFinancialDueAging({
             asOfDate,
             creditTermDays: bill.credit_term ?? detailCustomerMaster?.creditTerm ?? 0,
@@ -371,7 +371,7 @@ export async function GET(request: Request) {
             const cogs = toNumber(bill.cogs_amount ?? bill.total_cost)
             return {
               billCount: sum.billCount + 1,
-              gp: sum.gp + (toNumber(bill.gross_profit) || revenue - cogs),
+              gp: sum.gp + (bill.gross_profit != null ? toNumber(bill.gross_profit) : revenue - cogs),
               month: monthKey,
               qty: sum.qty + lineTotals.qty,
               receivable: sum.receivable + Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - received),

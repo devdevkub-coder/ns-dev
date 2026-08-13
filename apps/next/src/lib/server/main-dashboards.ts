@@ -346,7 +346,10 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   const purchaseAmount = livePurchaseAmount + historicalCogs
   const salesAmount = liveSalesAmount + historicalRevenue
   const cogs = liveCogs + historicalCogs
-  const grossProfit = (activeSales.reduce((sum, row) => sum + toNumber(row.gross_profit), 0) || liveSalesAmount - liveCogs) + historicalRevenue - historicalCogs
+  const anyStoredGrossProfit = activeSales.some((row) => row.gross_profit != null)
+  const grossProfit = (anyStoredGrossProfit
+    ? activeSales.reduce((sum, row) => sum + toNumber(row.gross_profit), 0)
+    : liveSalesAmount - liveCogs) + historicalRevenue - historicalCogs
   const expenseAmount = expenses.filter((row) => activeStatus(row.status)).reduce((sum, row) => sum + toNumber(row.amount), 0) + historicalExpenses
   const cashBalance = currentCash.cash + currentCash.bank
   const kpiExpenses = expenseAmount + cogs
@@ -515,7 +518,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   activeSales.forEach((row) => {
     const month = ensureMonth(row.date)
     month.sales += toNumber(row.total_amount)
-    month.gp += toNumber(row.gross_profit) || toNumber(row.total_amount) - toNumber(row.cogs_amount || row.total_cost)
+    month.gp += row.gross_profit != null ? toNumber(row.gross_profit) : toNumber(row.total_amount) - toNumber(row.cogs_amount ?? row.total_cost)
   })
   expenses.filter((row) => activeStatus(row.status)).forEach((row) => { ensureMonth(row.date).expense += toNumber(row.amount) })
   scopedHistoricalRows.forEach((row) => {

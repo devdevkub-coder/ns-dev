@@ -252,8 +252,10 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     if (!row) return
     const qty = Array.isArray(bill.items) ? bill.items.filter(isJsonItem).reduce((sum: number, item: JsonItem) => sum + itemQty(item), 0) : 0
     const amount = toNumber(bill.total_amount)
-    const cogs = toNumber(bill.cogs_amount) || toNumber(bill.total_cost)
-    const gp = toNumber(bill.gross_profit) || amount - cogs
+    // Respect stored values even when they are 0 (e.g. a bill whose cost could not be matched):
+    // a stored 0 COGS/GP is real data, not a missing value, so never fall back to revenue here.
+    const cogs = bill.cogs_amount != null ? toNumber(bill.cogs_amount) : toNumber(bill.total_cost)
+    const gp = bill.gross_profit != null ? toNumber(bill.gross_profit) : amount - cogs
     row.saleAmount += amount
     row.saleQty += qty
     row.cogs += cogs

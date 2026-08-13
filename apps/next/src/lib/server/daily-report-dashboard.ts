@@ -75,7 +75,7 @@ export async function buildDailyReportDashboard(filter: MainDashboardFilter): Pr
   const purchaseAmount = activePurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
   const cogs = activeSales.reduce((sum, row) => sum + toNumber(row.cogs_amount || row.total_cost), 0)
   const expenseAmount = expenses.filter((row) => activeStatus(row.status)).reduce((sum, row) => sum + toNumber(row.amount), 0)
-  const grossProfit = activeSales.reduce((sum, row) => sum + (toNumber(row.gross_profit) || toNumber(row.total_amount) - toNumber(row.cogs_amount || row.total_cost)), 0)
+  const grossProfit = activeSales.reduce((sum, row) => sum + (row.gross_profit != null ? toNumber(row.gross_profit) : toNumber(row.total_amount) - toNumber(row.cogs_amount ?? row.total_cost)), 0)
   const productIn = new Map<string, { amount: number; code: string; group: string; id: string; name: string; qty: number }>()
   const productOut = new Map<string, { amount: number; code: string; group: string; id: string; name: string; qty: number }>()
   for (const bill of activePurchases) for (const item of itemRows(purchaseBillItemRows(bill))) { const product = productByKey.get(item.productId); const current = productIn.get(item.productId) ?? { amount: 0, code: product?.code ?? '', group: product?.metal_group ?? 'อื่นๆ', id: product?.code ?? '', name: product?.name ?? '-', qty: 0 }; current.amount += item.amount; current.qty += item.qty; productIn.set(item.productId, current) }

@@ -215,7 +215,7 @@ export async function GET(request: NextRequest) {
     activeSales.forEach((bill) => {
       const amount = jsonNumber(bill.total_amount)
       const cost = jsonNumber(bill.total_cost ?? bill.cogs_amount)
-      const profit = jsonNumber(bill.gross_profit) || amount - cost
+      const profit = bill.gross_profit != null ? jsonNumber(bill.gross_profit) : amount - cost
       const weight = billWeight(bill)
       const channelName = bill.sales_channels?.name ?? 'ไม่ระบุช่องทาง'
       const customerName = bill.customers?.name ?? '-'
