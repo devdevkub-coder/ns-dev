@@ -51,7 +51,7 @@ type DueRow = {
 type LoanDashboardPayload = {
   byType: { label: string; value: number }[]
   overdueList: DueRow[]
-  summary: { due7: number; due30: number; dueThisMonth: number; interestThisMonth: number; overdueAmount: number; principalThisMonth: number; totalOutstanding: number }
+  summary: { due7: number; due30: number; dueThisMonth: number; interestThisMonth: number; odAvailable: number; odLimit: number; odUsed: number; overdueAmount: number; principalThisMonth: number; totalOutstanding: number }
   upcomingDue: DueRow[]
 }
 
@@ -465,6 +465,9 @@ export function LoanDashboardPageClient() {
             <MiniHero label="ครบเดือนนี้" value={formatMoney(data?.summary.dueThisMonth)} />
             <MiniHero label="เกินกำหนด" value={formatMoney(data?.summary.overdueAmount)} tone="red" />
             <MiniHero label="ดอกเบี้ยเดือนนี้" value={formatMoney(data?.summary.interestThisMonth)} tone="amber" />
+            <MiniHero label="วงเงิน OD" value={formatMoney(data?.summary.odLimit)} />
+            <MiniHero label="OD ใช้ไป" value={formatMoney(data?.summary.odUsed)} tone="amber" />
+            <MiniHero label="OD เหลือใช้" value={formatMoney(data?.summary.odAvailable)} />
           </div>
         </div>
         <Panel title=" สัดส่วนหนี้ตามประเภท">{(data?.byType ?? []).map((row) => <Bar key={row.label} color="bg-blue-500" label={row.label} max={maxType} value={row.value} />)} {!isLoading && (data?.byType.length ?? 0) === 0 ? <EmptyText>ยังไม่มีข้อมูลสินเชื่อ</EmptyText> : null}</Panel>
@@ -476,6 +479,9 @@ export function LoanDashboardPageClient() {
         <StatCard label="ดอกเบี้ยเดือนนี้" value={formatMoney(data?.summary.interestThisMonth)} tone="amber" />
         <StatCard label="งวดใน 7 วัน" value={data?.summary.due7 ?? 0} tone="cyan" />
         <StatCard label="งวดใน 30 วัน" value={data?.summary.due30 ?? 0} tone="blue" />
+        <StatCard label="วงเงิน OD" value={formatMoney(data?.summary.odLimit)} tone="cyan" />
+        <StatCard label="OD ใช้ไป" value={formatMoney(data?.summary.odUsed)} tone="amber" />
+        <StatCard label="OD เหลือใช้" value={formatMoney(data?.summary.odAvailable)} tone="blue" />
       </div>
       <Panel title=" ภาระหนี้แยกตามประเภท">{(data?.byType ?? []).map((row) => <Bar key={row.label} color="bg-cyan-500" label={row.label} max={data?.summary.totalOutstanding ?? 0} value={row.value} />)} {!isLoading && (data?.byType.length ?? 0) === 0 ? <EmptyText>ยังไม่มีข้อมูลสินเชื่อ</EmptyText> : null}</Panel>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
