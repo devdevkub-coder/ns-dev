@@ -17,7 +17,7 @@ import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { dailyFetchJson, expenseFormSchema, formatMoney, todayDateInput, type DailyAccountOption, type ExpenseFormValues, type ExpenseLineFormValues } from '@/lib/daily'
-import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, sanitizeDecimalInput } from '@/lib/format'
+import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, formatThaiDateCE, sanitizeDecimalInput } from '@/lib/format'
 import { openExpenseReceiptPrint } from '@/lib/expense-print'
 import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
@@ -25,7 +25,7 @@ import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 type CategoryOption = { active: boolean | null; id: string; name: string; typeId?: string | null; typeName?: string | null }
 type BranchOption = { active: boolean; code: string; id: string; name: string }
 type ExpenseLineDraft = Omit<ExpenseLineFormValues, 'id'> & { categoryName?: string; id: string; lineNo?: number; vatPct?: number }
-type ExpenseRow = Omit<ExpenseFormValues, 'lines'> & {
+export type ExpenseRow = Omit<ExpenseFormValues, 'lines'> & {
   accountName: string
   categoryName: string
   docNo: string
@@ -157,6 +157,11 @@ function expenseStatusLabel(status: ExpenseFormValues['status']) {
   if (status === 'paid') return 'เสร็จสิ้น'
   if (status === 'cancelled') return 'ยกเลิกแล้ว'
   return 'ยังไม่อนุมัติ'
+}
+
+// ยอดรวม/aggregate ของค่าใช้จ่ายต้องไม่นับใบที่ยกเลิกแล้ว (status enum: pending_approval/approved/paid/cancelled)
+function isCancelledExpenseStatus(status: ExpenseFormValues['status'] | null | undefined) {
+  return status === 'cancelled'
 }
 
 function paymentMethodOptionGroup(value: string, paymentMethods: Array<Pick<MasterDataRecord, 'name' | 'type'>>) {
@@ -330,7 +335,7 @@ function calculateExpenseTotals(lines: ExpenseLineDraft[], vatRatePercent: numbe
   }
 }
 
-function buildLegacyExpenseDashboard(rows: ExpenseRow[], categories: CategoryOption[], periodMonths: number): ExpenseDashboardData {
+export function buildLegacyExpenseDashboard(rows: ExpenseRow[], categories: CategoryOption[], periodMonths: number): ExpenseDashboardData {
   const monthList = getRecentMonths(periodMonths)
   const byCategory = new Map<string, ExpenseHeatmapRow>()
 
@@ -359,7 +364,7 @@ function buildLegacyExpenseDashboard(rows: ExpenseRow[], categories: CategoryOpt
   })
 
   for (const row of rows) {
-    if (!row.date) continue
+    if (!row.date || isCancelledExpenseStatus(row.status)) continue
     const month = row.date.slice(0, 7)
     if (!monthList.includes(month)) continue
     const key = row.categoryId && byCategory.has(row.categoryId) ? row.categoryId : '_uncat'
@@ -409,6 +414,38 @@ function buildLegacyExpenseDashboard(rows: ExpenseRow[], categories: CategoryOpt
     prev,
     total,
     vsAvg,
+  }
+}
+
+// สรุปยอดค่าใช้จ่าย (KPI เดือนนี้ / รายหมวด / ผู้รับเงิน / แนวโน้ม) — ต้องไม่นับใบที่ยกเลิกแล้ว (cancelled/void)
+export function buildExpenseSummary(rows: ExpenseRow[]) {
+  const month = todayDateInput().slice(0, 7)
+  const monthly = rows.filter((row) => row.date.startsWith(month) && !isCancelledExpenseStatus(row.status))
+  const byCategory = new Map<string, number>()
+  const byPayee = new Map<string, number>()
+  for (const row of monthly) {
+    const lines = normalizeExpenseLines(row.lines, row)
+    for (const line of lines) {
+      const categoryName = line.categoryName || row.categoryName || 'ไม่ระบุหมวด'
+      const lineNet = line.amount + line.vatAmount - line.whtAmount
+      byCategory.set(categoryName, (byCategory.get(categoryName) ?? 0) + lineNet)
+    }
+    byPayee.set(row.payee || 'ไม่ระบุผู้รับเงิน', (byPayee.get(row.payee || 'ไม่ระบุผู้รับเงิน') ?? 0) + row.netAmount)
+  }
+  const trend = getRecentMonths(6).map((trendMonth) => ({
+    month: trendMonth,
+    total: rows.filter((row) => row.date.startsWith(trendMonth) && !isCancelledExpenseStatus(row.status)).reduce((sum, row) => sum + row.netAmount, 0),
+  }))
+  const topCategories = Array.from(byCategory, ([name, total]) => ({ name, total })).sort((left, right) => right.total - left.total).slice(0, 8)
+  return {
+    catTotal: topCategories.reduce((sum, item) => sum + item.total, 0),
+    monthlyCount: monthly.length,
+    monthlyTotal: monthly.reduce((sum, row) => sum + row.netAmount, 0),
+    paidTotal: rows.filter((row) => row.status === 'paid').reduce((sum, row) => sum + row.netAmount, 0),
+    pendingTotal: rows.filter((row) => row.status !== 'paid' && row.status !== 'cancelled').reduce((sum, row) => sum + row.netAmount, 0),
+    topCategories,
+    topPayees: Array.from(byPayee, ([name, total]) => ({ name, total })).sort((left, right) => right.total - left.total).slice(0, 5),
+    trend,
   }
 }
 
@@ -505,36 +542,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
       })
   }, [accountId, branchId, categoryId, dateFrom, dateTo, rows, search, sortDirection, sortKey, statusFilter])
 
-  const summary = useMemo(() => {
-    const month = todayDateInput().slice(0, 7)
-    const monthly = rows.filter((row) => row.date.startsWith(month))
-    const byCategory = new Map<string, number>()
-    const byPayee = new Map<string, number>()
-    for (const row of monthly) {
-      const lines = normalizeExpenseLines(row.lines, row)
-      for (const line of lines) {
-        const categoryName = line.categoryName || row.categoryName || 'ไม่ระบุหมวด'
-        const lineNet = line.amount + line.vatAmount - line.whtAmount
-        byCategory.set(categoryName, (byCategory.get(categoryName) ?? 0) + lineNet)
-      }
-      byPayee.set(row.payee || 'ไม่ระบุผู้รับเงิน', (byPayee.get(row.payee || 'ไม่ระบุผู้รับเงิน') ?? 0) + row.netAmount)
-    }
-    const trend = getRecentMonths(6).map((trendMonth) => ({
-      month: trendMonth,
-      total: rows.filter((row) => row.date.startsWith(trendMonth)).reduce((sum, row) => sum + row.netAmount, 0),
-    }))
-    const topCategories = Array.from(byCategory, ([name, total]) => ({ name, total })).sort((left, right) => right.total - left.total).slice(0, 8)
-    return {
-      catTotal: topCategories.reduce((sum, item) => sum + item.total, 0),
-      monthlyCount: monthly.length,
-      monthlyTotal: monthly.reduce((sum, row) => sum + row.netAmount, 0),
-      paidTotal: rows.filter((row) => row.status === 'paid').reduce((sum, row) => sum + row.netAmount, 0),
-      pendingTotal: rows.filter((row) => row.status !== 'paid' && row.status !== 'cancelled').reduce((sum, row) => sum + row.netAmount, 0),
-      topCategories,
-      topPayees: Array.from(byPayee, ([name, total]) => ({ name, total })).sort((left, right) => right.total - left.total).slice(0, 5),
-      trend,
-    }
-  }, [rows])
+  const summary = useMemo(() => buildExpenseSummary(rows), [rows])
 
   const filteredSummary = useMemo(() => ({
     count: filteredRows.length,
@@ -2270,7 +2278,7 @@ function getRecentMonths(count: number) {
 }
 
 function formatMonthLabel(month: string) {
-  return new Intl.DateTimeFormat('th-TH', { month: 'short', year: '2-digit' }).format(new Date(`${month}-01T00:00:00`))
+  return formatThaiDateCE(new Date(`${month}-01T00:00:00`), { month: 'short', year: '2-digit' })
 }
 
 function formatMonthLabelShort(month: string) {
