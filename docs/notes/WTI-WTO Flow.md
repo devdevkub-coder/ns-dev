@@ -154,7 +154,7 @@ What is what: `pending_out` คือ reservation ของ stock ที่ย�
 เมื่อมีการเลือกสินค้าและเพิ่มรายการครั้งแรก ระบบสร้างเอกสารเป็น `draft` อัตโนมัติ หลังจากนั้นการเพิ่มสินค้า/เต๋าใหม่ รวมถึงการเพิ่ม/ลบรูปและสิ่งเจือปนที่อยู่ใน section สินค้าและน้ำหนัก ให้บันทึกเป็น operation รายการทันที ส่วนการแก้ไขข้อมูลเดิมต้องรอกด `บันทึก` ไม่ส่งฟอร์มทั้งเอกสารกลับไปเขียนทับ:
 
 ```text
-add line -> manual update line -> manual delete line
+add line -> manual update line -> immediate delete line operation
 add impurity -> manual update impurity -> delete impurity
 add image -> delete image
 ```
@@ -269,7 +269,7 @@ Server เป็นผู้สร้าง `line_id`, ตรวจสิทธ�
 #### Phase 4: WTI form behavior
 
 - [ ] `WTI-40` เมื่อเพิ่มสินค้า/เต๋าครั้งแรก ให้สร้าง draft และเก็บ `document_id` ไว้ใช้ต่อโดยไม่ออก draft ซ้ำ
-- [ ] `WTI-41` auto-save เฉพาะการเพิ่มสินค้า/เต๋า และการเพิ่ม/ลบรูป/สิ่งเจือปน; การแก้ไขข้อมูลเดิมและการลบ line ต้องรอกด `บันทึก`
+- [ ] `WTI-41` auto-save เฉพาะการเพิ่มสินค้า/เต๋า และ operation การเพิ่ม/ลบรูป/สิ่งเจือปน/ลบ line; การแก้ไขข้อมูลเดิมต้องรอกด `บันทึก`
 - [ ] `WTI-41A` แสดงสถานะ/ข้อความ validation ของ line ที่ไม่ครบ และปิด `เพิ่มรายการสินค้า`/`เพิ่มเต๋า` จนกว่าทุก line เดิมจะผ่าน validation
 - [ ] `WTI-42` ป้องกันการส่ง request ซ้ำจากการกดเร็ว, debounce เฉพาะ field น้ำหนักที่กำลังพิมพ์ และคง stable row/line identity
 - [ ] `WTI-43` เมื่อ event จากตราชั่งอื่นเข้ามา ให้ merge รายการและ summary โดยไม่ล้างข้อมูลที่ผู้ใช้กำลังกรอก

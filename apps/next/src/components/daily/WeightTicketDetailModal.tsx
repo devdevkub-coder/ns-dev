@@ -145,6 +145,18 @@ export function WeightTicketDetailModal({
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
   const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(ticket?.canCancel && cancelNote.trim()))
+  const pendingThumbnailCount = useMemo(() => {
+    if (!ticket) return 0
+    const imageNames = [
+      ...ticket.imageNames,
+      ...ticket.vehicleImageNames,
+      ...ticket.lines.flatMap((line) => line.imageNames),
+    ]
+    return imageNames.filter((imageName) => {
+      const status = decodeStoredImageAsset(imageName).thumbnailStatus
+      return status === 'queued' || status === 'processing'
+    }).length
+  }, [ticket])
 
   function requestClose() {
     if (isCanceling) return
@@ -361,6 +373,10 @@ export function WeightTicketDetailModal({
 
   async function handleSendLineNotification() {
     if (!ticket || !canShareWeightTicket(ticket.status)) return
+    if (pendingThumbnailCount > 0) {
+      setShareError(`ยังสร้างภาพตัวอย่างไม่เสร็จ ${pendingThumbnailCount} รูป กรุณารอให้รูปพร้อมก่อนส่ง`)
+      return
+    }
     setIsSendingLine(true)
     setShareError('')
     try {
@@ -1089,11 +1105,16 @@ export function WeightTicketDetailModal({
                 <div className="font-semibold text-slate-900">{ticket?.documentNo}</div>
                 <div className="mt-1 text-xs text-slate-500">{ticket?.partyName} · {ticket ? `${formatWeight(ticket.totals.netWeight)} กก.` : ''}</div>
               </div>
+              {pendingThumbnailCount > 0 ? (
+                <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700" role="status">
+                  กำลังสร้างภาพตัวอย่าง {pendingThumbnailCount} รูป กรุณารอให้รูปพร้อมก่อนส่ง
+                </div>
+              ) : null}
               {shareError ? <div className="text-xs text-red-600">{shareError}</div> : null}
             </div>
             <DialogFooter className="flex-wrap gap-2">
               <Button type="button" variant="secondary" onClick={() => setShowShareDialog(false)}>ปิด</Button>
-              <Button disabled={isSendingLine} type="button" onClick={handleSendLineNotification}>
+              <Button disabled={isSendingLine || pendingThumbnailCount > 0} type="button" onClick={handleSendLineNotification}>
                 <Share2 className="mr-2 size-4" />
                 {isSendingLine ? 'กำลังส่ง...' : 'ส่งเข้ากลุ่มหลัก'}
               </Button>
