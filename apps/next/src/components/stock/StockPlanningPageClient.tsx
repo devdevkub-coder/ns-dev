@@ -14,8 +14,8 @@ import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
-
 import { nextSortState, sortRows, type SortState } from './stock-planning-sort'
+import { planningKpi } from './stock-planning-kpi'
 type Row = {
   date: string
   docNo: string
@@ -382,7 +382,10 @@ export function StockPlanningPageClient() {
         ? shortageRows.reduce((sum, row) => sum + row.shortage * numberValue(row.unitPrice), 0) / shortageQty
         : 0
 
-      if (includeEmpty || rows.length || events.length) {
+      // "เฉพาะสินค้าที่มี PO Sell" (includeEmpty=false) ต้องแสดงเฉพาะสินค้าที่มี
+      // PO Sell จริง ๆ เท่านั้น — สินค้าที่มีแค่ PO Buy (rows ว่าง) ไม่ควรถูกนับ
+      // เพราะจะทำให้ตัวนับ KPI กับจำนวนแถวในตารางไม่ตรงกัน
+      if (includeEmpty || rows.length) {
         result.push({
           avgCost,
           buyBudget: maxShortage * avgCost,
@@ -421,7 +424,7 @@ export function StockPlanningPageClient() {
 
   const allRows = useMemo(() => plans.flatMap((plan) => plan.rows), [plans])
   const shortagePlans = useMemo(() => plans.filter((plan) => plan.shortage > 0.01), [plans])
-  const shortageTotal = shortagePlans.reduce((sum, plan) => sum + plan.shortage, 0)
+  const kpi = useMemo(() => planningKpi(plans), [plans])
   const calendarRows = allRows.filter((row) => row.date.startsWith(month))
   const sortedActivePlans = useMemo(
     () => view === 'purchase'
@@ -509,25 +512,25 @@ export function StockPlanningPageClient() {
           icon="📋"
           label="PO Sell ค้างส่ง"
           tone="slate"
-          value={initialLoading ? 'กำลังโหลด' : data ? `${allRows.length.toLocaleString('th-TH')} รายการ` : '—'}
+          value={initialLoading ? 'กำลังโหลด' : data ? `${kpi.sellCount.toLocaleString('th-TH')} รายการ` : '—'}
         />
         <KpiCard
           icon="✓"
           label="พร้อมส่ง"
           tone="emerald"
-          value={initialLoading ? 'กำลังโหลด' : data ? `${allRows.filter((row) => row.enough).length.toLocaleString('th-TH')} รายการ` : '—'}
+          value={initialLoading ? 'กำลังโหลด' : data ? `${kpi.readyCount.toLocaleString('th-TH')} รายการ` : '—'}
         />
         <KpiCard
           icon="⚠"
           label="ขาด"
           tone="danger"
-          value={initialLoading ? 'กำลังโหลด' : data ? `${allRows.filter((row) => !row.enough).length.toLocaleString('th-TH')} รายการ` : '—'}
+          value={initialLoading ? 'กำลังโหลด' : data ? `${kpi.shortCount.toLocaleString('th-TH')} รายการ` : '—'}
         />
         <KpiCard
           icon="↗"
           label="ต้องซื้อเพิ่ม"
           tone="red"
-          value={initialLoading ? 'กำลังโหลด' : data ? `${formatMoney(shortageTotal)} กก.` : '—'}
+          value={initialLoading ? 'กำลังโหลด' : data ? `${formatMoney(kpi.shortageKg)} กก.` : '—'}
         />
       </div>
 
