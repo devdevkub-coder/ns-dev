@@ -229,6 +229,10 @@ export const customerFormSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อบริษัท', path: ['name'] })
   }
 
+  if (values.type === 'นิติบุคคล' && values.marketScope === 'ในประเทศ' && !values.taxId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกเลขผู้เสียภาษี', path: ['taxId'] })
+  }
+
   if (values.marketScope === 'ในประเทศ') {
     if (values.countryCode && values.countryCode !== 'TH') {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'ลูกค้าในประเทศต้องใช้รหัสประเทศ TH', path: ['countryCode'] })

@@ -996,7 +996,7 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
                 </SelectField>
               </>
             )}
-            <TextField error={errors.taxId} label="เลขผู้เสียภาษี" value={form.taxId ?? ''} onChange={(value) => update('taxId', value || null)} />
+            <TextField error={errors.taxId} label="เลขผู้เสียภาษี" required={form.type === 'นิติบุคคล' && form.marketScope === 'ในประเทศ'} value={form.taxId ?? ''} onChange={(value) => update('taxId', value || null)} />
             <label className="block">
               <span className="mb-1.5 block text-xs font-semibold text-slate-600">
                 โทรศัพท์
