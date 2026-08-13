@@ -2592,6 +2592,10 @@ export function WeightTicketFormCore({
 
   function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
+    // A previous background-save response can leave a field error keyed to
+    // an older line snapshot. Revalidate the current form on this add flow
+    // instead of showing that stale server message on a completed lot.
+    setServerFieldErrors({})
     const firstHeaderError = ['branchId', 'partyId', 'vehicleNo', 'godownName'].find((key) => errors[key])
     const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
     // Auto-save must not block the local lot editor. Only the explicit final
