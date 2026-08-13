@@ -5,6 +5,7 @@ import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-p
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemQty } from '@/lib/server/purchase-bill-items'
 import { listActiveAccounts } from '@/lib/server/reference-master-cache'
+import { salesBillGrossProfitAmount, salesBillRevenueAmount } from '@/lib/server/sales-bill-amounts'
 
 type JsonItem = Prisma.JsonObject
 
@@ -157,7 +158,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     }),
     prisma.sales_bills.findMany({
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
-      select: { cogs_amount: true, date: true, doc_no: true, gross_profit: true, id: true, items: true, receivable_balance: true, status: true, total_amount: true, total_cost: true },
+      select: { cogs_amount: true, date: true, doc_no: true, gross_profit: true, id: true, items: true, receivable_balance: true, status: true, total_amount: true, total_cost: true, vat_amount: true },
       where: { date: { gte: start, lt: next } },
     }),
     prisma.expenses.findMany({
@@ -251,11 +252,11 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     const row = daily.get(dayId(bill.date))
     if (!row) return
     const qty = Array.isArray(bill.items) ? bill.items.filter(isJsonItem).reduce((sum: number, item: JsonItem) => sum + itemQty(item), 0) : 0
-    const amount = toNumber(bill.total_amount)
+    const amount = salesBillRevenueAmount(bill)
     // Respect stored values even when they are 0 (e.g. a bill whose cost could not be matched):
     // a stored 0 COGS/GP is real data, not a missing value, so never fall back to revenue here.
     const cogs = bill.cogs_amount != null ? toNumber(bill.cogs_amount) : toNumber(bill.total_cost)
-    const gp = bill.gross_profit != null ? toNumber(bill.gross_profit) : amount - cogs
+    const gp = salesBillGrossProfitAmount(bill)
     row.saleAmount += amount
     row.saleQty += qty
     row.cogs += cogs
