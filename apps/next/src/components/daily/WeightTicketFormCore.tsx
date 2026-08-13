@@ -2144,6 +2144,15 @@ export function WeightTicketFormCore({
       if (!baselineLines.has(lineId)) changedIds.delete(lineId)
     }
     const linesToPatch = latestSnapshot.lines.filter((line) => changedIds.has(line.id) && !deletedIds.has(line.id))
+    const headerChanges = new Set(changedHeaderFields)
+    // A newly added lot may only exist in the local form. Once it is removed,
+    // there is no server-side line to delete and no PATCH should be sent.
+    if (deletedIds.size === 0 && changedIds.size === 0 && headerChanges.size === 0) {
+      for (const lineId of deletedLineIds) deletedLineIdsRef.current.delete(lineId)
+      for (const lineId of changedLineIds) changedLineIdsRef.current.delete(lineId)
+      setMergeNotice('ลบข้อมูลแล้ว')
+      return
+    }
     // A delete PATCH is merged with the persisted document on the server.
     // Keep unfinished lot skeletons explicitly marked so deleting one lot
     // cannot make validation fail against another draft lot in the same ticket.
@@ -2152,7 +2161,6 @@ export function WeightTicketFormCore({
       .map((line) => persistedLineId(line.id))
       .filter((lineId) => !deletedIds.has(lineId))
     const baselineFormLines = new Map(ticketToFormState(baselineTicket).lines.map((line) => [line.id, line] as const))
-    const headerChanges = new Set(changedHeaderFields)
     const saveValues: WeightTicketFormValues = {
       branchId: headerChanges.has('branchId') ? latestSnapshot.branchId : baselineTicket.branchId,
       collaborationBaseDocumentNo: baselineTicket.documentNo,
