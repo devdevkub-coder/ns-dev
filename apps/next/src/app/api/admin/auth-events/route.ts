@@ -40,6 +40,11 @@ type CountRow = {
   total: bigint
 }
 
+type GroupCountRow = {
+  group_key: string | null
+  total: bigint
+}
+
 function groupCondition(group: z.infer<typeof listAuthEventsSchema>['group']) {
   const authEvents = Prisma.sql`(e.stream = 'audit' and e.action in ('login', 'logout', 'invite', 'reset'))`
 
@@ -50,9 +55,9 @@ function groupCondition(group: z.infer<typeof listAuthEventsSchema>['group']) {
   return null
 }
 
-function buildWhere(values: z.infer<typeof listAuthEventsSchema>) {
+function buildWhere(values: z.infer<typeof listAuthEventsSchema>, options: { includeGroup?: boolean } = {}) {
   const clauses: Prisma.Sql[] = []
-  const groupSql = groupCondition(values.group)
+  const groupSql = options.includeGroup === false ? null : groupCondition(values.group)
 
   if (groupSql) clauses.push(groupSql)
   if (values.eventType) clauses.push(Prisma.sql`e.event_type = ${values.eventType}`)
@@ -97,9 +102,10 @@ export async function GET(request: Request) {
       target: url.searchParams.get('target') ?? undefined,
     })
     const where = buildWhere(values)
+    const whereWithoutGroup = buildWhere(values, { includeGroup: false })
     const offset = (values.page - 1) * values.pageSize
 
-    const [rows, countRows] = await Promise.all([
+    const [rows, countRows, groupCountRows] = await Promise.all([
       prisma.$queryRaw<AuthEventRow[]>`
       with unified as (
         select
@@ -210,10 +216,65 @@ export async function GET(request: Request) {
       from unified e
       ${where}
     `,
+      prisma.$queryRaw<GroupCountRow[]>`
+      with unified as (
+        select
+          'audit'::text as stream,
+          a.event_key as event_type,
+          a.action,
+          a.metadata,
+          a.user_agent,
+          coalesce(a.actor_username, actor.email) as actor_username,
+          coalesce(a.actor_display_name, actor.display_name) as actor_display_name,
+          coalesce(target.email, a.target_label) as target_username,
+          coalesce(target.display_name, a.target_label) as target_display_name,
+          a.request_path,
+          null::text as route_path
+        from public.app_audit_logs a
+        left join public.app_users actor on actor.id = a.actor_app_user_id
+        left join public.app_users target
+          on target.id = case
+            when a.target_type = 'app_user' and a.target_id ~ '^[0-9]+$'
+            then a.target_id::bigint
+            else null
+          end
+        union all
+        select
+          'activity'::text as stream,
+          activity.activity_key as event_type,
+          activity.activity_type as action,
+          activity.metadata,
+          activity.user_agent,
+          coalesce(activity.actor_username, actor.email) as actor_username,
+          coalesce(activity.actor_display_name, actor.display_name) as actor_display_name,
+          activity.target_label as target_username,
+          activity.target_label as target_display_name,
+          activity.request_path,
+          activity.route_path
+        from public.app_activity_logs activity
+        left join public.app_users actor on actor.id = activity.actor_app_user_id
+      )
+      select
+        case
+          when (e.stream = 'audit' and e.action in ('login', 'logout', 'invite', 'reset')) then 'auth'
+          when (e.stream = 'audit' and e.event_type like 'app_user.%' and e.action not in ('login', 'logout', 'invite', 'reset')) then 'users'
+          when (e.stream = 'audit' and e.action in ('permission', 'role')) then 'permissions'
+          when e.stream = 'activity' then 'activity'
+        end as group_key,
+        count(*)::bigint as total
+      from unified e
+      ${whereWithoutGroup}
+      group by group_key
+    `,
     ])
     const total = Number(countRows[0]?.total ?? 0)
+    const groupCounts = { activity: 0, auth: 0, permissions: 0, users: 0 }
+    for (const row of groupCountRows) {
+      if (row.group_key && row.group_key in groupCounts) groupCounts[row.group_key as keyof typeof groupCounts] = Number(row.total)
+    }
 
     return NextResponse.json({
+      groupCounts,
       page: values.page,
       pageSize: values.pageSize,
       rows: rows.map((row) => ({

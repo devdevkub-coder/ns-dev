@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
+import { formatThaiDateCE } from '@/lib/format'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -23,7 +24,15 @@ type AuditEvent = {
   userAgent: string | null
 }
 
+type AuditGroupCounts = {
+  activity: number
+  auth: number
+  permissions: number
+  users: number
+}
+
 type AuditPayload = {
+  groupCounts: AuditGroupCounts
   page: number
   pageSize: number
   rows: AuditEvent[]
@@ -36,7 +45,15 @@ const auditUserSchema = z.object({
   email: z.string(),
 }).nullable()
 
+const auditGroupCountsSchema = z.object({
+  activity: z.number().int().min(0),
+  auth: z.number().int().min(0),
+  permissions: z.number().int().min(0),
+  users: z.number().int().min(0),
+})
+
 const auditPayloadSchema = z.object({
+  groupCounts: auditGroupCountsSchema.default({ activity: 0, auth: 0, permissions: 0, users: 0 }),
   page: z.number().int().min(1),
   pageSize: z.number().int().min(1),
   rows: z.array(z.object({
@@ -76,7 +93,7 @@ const auditColumns: Array<ResizableColumnDefinition<AuditColumnKey>> = [
 ]
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  return formatThaiDateCE(value, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 function userLabel(user: AuditUser) {
@@ -87,6 +104,38 @@ function userLabel(user: AuditUser) {
 function metadataText(metadata: unknown) {
   if (!metadata || typeof metadata !== 'object') return '-'
   return JSON.stringify(metadata, null, 2)
+}
+
+function metadataDisplayValue(value: unknown) {
+  if (value === null || value === undefined) return '-'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function MetadataTable({ metadata }: { metadata: unknown }) {
+  const entries = useMemo(() => {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return []
+    return Object.entries(metadata as Record<string, unknown>)
+  }, [metadata])
+
+  if (entries.length === 0) {
+    return <div className="rounded bg-slate-950 p-3.5 font-mono text-xs text-slate-400">-</div>
+  }
+
+  return (
+    <div className="max-h-60 overflow-auto rounded bg-slate-950">
+      <table className="w-full text-xs">
+        <tbody className="divide-y divide-slate-800/60">
+          {entries.map(([key, value]) => (
+            <tr key={key}>
+              <td className="whitespace-nowrap px-3 py-1.5 align-top font-mono text-slate-400">{key}</td>
+              <td className="break-all px-3 py-1.5 font-mono text-slate-200">{metadataDisplayValue(value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 function csvEscape(value: unknown) {
@@ -175,7 +224,7 @@ export function AuditLogPageClient() {
   const [query, setQuery] = useState('')
   const [selfApproval, setSelfApproval] = useState<SelfApprovalFilter>('all')
   const [target, setTarget] = useState('')
-  const [data, setData] = useState<AuditPayload>({ page: 1, pageSize: 50, rows: [], total: 0, totalPages: 1 })
+  const [data, setData] = useState<AuditPayload>({ groupCounts: { activity: 0, auth: 0, permissions: 0, users: 0 }, page: 1, pageSize: 50, rows: [], total: 0, totalPages: 1 })
   const [selectedRow, setSelectedRow] = useState<AuditEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -194,6 +243,7 @@ export function AuditLogPageClient() {
       const payload = await readJsonResponse(response, auditPayloadSchema, 'โหลด Audit & Activity Log ไม่สำเร็จ')
 
       setData({
+        groupCounts: payload?.groupCounts ?? { activity: 0, auth: 0, permissions: 0, users: 0 },
         page: Number(payload?.page ?? page),
         pageSize: Number(payload?.pageSize ?? pageSize),
         rows: Array.isArray(payload?.rows) ? payload.rows : [],
@@ -212,14 +262,7 @@ export function AuditLogPageClient() {
   }, [loadRows])
 
   const eventTypes = useMemo(() => Array.from(new Set(data.rows.map((row) => row.eventType))).sort(), [data.rows])
-  const summary = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const row of data.rows) {
-      const key = eventGroup(row.eventType)
-      counts.set(key, (counts.get(key) ?? 0) + 1)
-    }
-    return counts
-  }, [data.rows])
+  const summary = data.groupCounts
   const sortedRows = useMemo(() => {
     if (!sortKey) return data.rows
 
@@ -390,8 +433,8 @@ export function AuditLogPageClient() {
             }}
           >
             <div className="text-xs font-semibold text-slate-500">{item.label}</div>
-            <div className="mt-1 text-xl md:text-2xl font-bold text-slate-900">{summary.get(item.label) ?? 0}</div>
-            <div className="mt-1 text-xs text-slate-400">ในหน้าปัจจุบัน</div>
+            <div className="mt-1 text-xl md:text-2xl font-bold text-slate-900">{summary[item.value as keyof AuditGroupCounts] ?? 0}</div>
+            <div className="mt-1 text-xs text-slate-400">ตามตัวกรองทั้งหมด</div>
           </button>
         ))}
       </div>
@@ -401,7 +444,7 @@ export function AuditLogPageClient() {
         <div className="grid gap-3 lg:grid-cols-5">
           <label className="block text-sm font-medium lg:col-span-2">
             ค้นหา
-            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="event, user, metadata, user agent" value={query} onChange={(event) => {
+            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="ค้นหาเหตุการณ์ ผู้ใช้ หรือรายละเอียด" value={query} onChange={(event) => {
               setQuery(event.target.value)
               setPage(1)
             }} />
@@ -606,7 +649,7 @@ export function AuditLogPageClient() {
                   <DetailItem label="User Agent" value={selectedRow.userAgent || '-'} />
                   <div>
                     <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Metadata</div>
-                    <pre className="max-h-60 overflow-auto rounded bg-slate-950 p-3.5 font-mono text-xs leading-relaxed text-slate-200">{metadataText(selectedRow.metadata)}</pre>
+                    <MetadataTable metadata={selectedRow.metadata} />
                   </div>
                 </div>
               </div>
