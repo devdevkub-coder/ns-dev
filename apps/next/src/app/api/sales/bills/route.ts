@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 import { calculateCustomerAdvanceAllocation, calculateSalesBillPostCustomerAdvanceTotals } from '@/lib/customer-advance'
+import { actorDisplayName, resolveActorDisplayNames } from '@/lib/server/actor-display-names'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
+import { formatThaiDateCE } from '@/lib/format'
 import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_ACTIVE_STATUSES, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
@@ -1794,9 +1796,15 @@ export async function GET(request: Request) {
       salesBillLineCountByBillId(billIds),
     ])
     const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0, lineCountByBillId.get(row.id)))
+    const actorDisplayNames = await resolveActorDisplayNames(jsonRows.flatMap((row) => [row.createdBy, row.updatedBy]))
+    const displayRows = jsonRows.map((row) => ({
+      ...row,
+      createdBy: actorDisplayName(row.createdBy, actorDisplayNames),
+      updatedBy: actorDisplayName(row.updatedBy, actorDisplayNames),
+    }))
 
     if (url.searchParams.get('format') === 'xlsx') {
-      const body = await buildWorkbook(jsonRows, await salesBillLineFactsForBills(billIds, { lineStatuses: ['active', 'cancelled'], tradingStatuses: ['active', 'cancelled'] }))
+      const body = await buildWorkbook(displayRows, await salesBillLineFactsForBills(billIds, { lineStatuses: ['active', 'cancelled'], tradingStatuses: ['active', 'cancelled'] }))
       const filename = `sales_bills_${new Date().toISOString().slice(0, 10)}.xlsx`
 
       return new NextResponse(new Uint8Array(body), {
@@ -1808,7 +1816,7 @@ export async function GET(request: Request) {
       })
     }
 
-    return NextResponse.json({ rows: jsonRows, totalAmount: toNumber(totals._sum.total_amount), totalRows }, { headers: { 'Cache-Control': 'private, no-store' } })
+    return NextResponse.json({ rows: displayRows, totalAmount: toNumber(totals._sum.total_amount), totalRows }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดบิลขายไม่ได้', 500)
@@ -3792,8 +3800,8 @@ export async function PATCH(request: Request) {
           paid_amount: 0,
           updated_at: createdAt,
           updated_by: actor,
-          note: [bill.note, `ยกเลิกโดย ${actor} เมื่อ ${createdAt.toLocaleString('th-TH')} - เหตุผล: ${reason}`].filter(Boolean).join('\n'),
-          notes: [bill.notes, `ยกเลิกโดย ${actor} เมื่อ ${createdAt.toLocaleString('th-TH')} - เหตุผล: ${reason}`].filter(Boolean).join('\n'),
+          note: [bill.note, `ยกเลิกโดย ${actor} เมื่อ ${formatThaiDateCE(createdAt)} - เหตุผล: ${reason}`].filter(Boolean).join('\n'),
+          notes: [bill.notes, `ยกเลิกโดย ${actor} เมื่อ ${formatThaiDateCE(createdAt)} - เหตุผล: ${reason}`].filter(Boolean).join('\n'),
         },
         where: { id: bill.id },
       })

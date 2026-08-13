@@ -1,5 +1,6 @@
 import { purchaseBillStatusText, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import { supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
+import { actorDisplayName, resolveActorDisplayNames } from '@/lib/server/actor-display-names'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../generated/prisma/client'
@@ -652,6 +653,11 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     sourceKinds: Array.from(item.sourceKinds),
   }))
 
+  const actorDisplayNames = await resolveActorDisplayNames([
+    bill.created_by,
+    ...bill.purchase_bill_status_logs.map((log) => log.created_by),
+  ])
+
   const timeline = bill.purchase_bill_status_logs.map((log): PurchaseBillDetailTimelineEvent => {
     const amount = historyMetaValue(log.meta, 'amount')
     const accountCode = historyMetaValue(log.meta, 'accountCode')
@@ -712,9 +718,10 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const transitionText = log.from_status && log.from_status !== log.to_status
       ? `${purchaseBillStatusLabel(log.from_status)} -> ${purchaseBillStatusLabel(log.to_status)}`
       : purchaseBillStatusLabel(log.to_status)
+    const actorName = actorDisplayName(log.created_by ?? '-', actorDisplayNames)
     const details = [
       `สถานะ ${transitionText}`,
-      `ผู้ทำ ${log.created_by ?? '-'}`,
+      `ผู้ทำ ${actorName}`,
     ]
     if (typeof paymentDocNo === 'string' && paymentDocNo) details.push(`เลขที่การชำระเงิน ${paymentDocNo}`)
     if (paymentDate) details.push(`วันที่จ่ายตามเอกสาร PMT ${paymentDate}`)
@@ -731,7 +738,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     if (log.note) details.push(`หมายเหตุ ${log.note}`)
     return {
       action: log.action,
-      actor: log.created_by ?? '-',
+      actor: actorName,
       createdAt: log.created_at.toISOString(),
       details,
       id: log.event_key ?? `purchase-bill-status:${log.id}`,
@@ -759,7 +766,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     allocationRows,
     branchId: bill.branches?.code ?? '',
     branchName: bill.branches?.name ?? '-',
-    createdBy: bill.created_by ?? '-',
+    createdBy: actorDisplayName(bill.created_by ?? '-', actorDisplayNames),
     date: bill.date ? toDateOnly(bill.date) : '-',
     discount: toNumber(bill.discount_total ?? bill.discount),
     docNo: bill.doc_no,

@@ -1,3 +1,4 @@
+import { actorDisplayName, resolveActorDisplayNames } from '@/lib/server/actor-display-names'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { requireSalesBillStatus, salesBillStatusText } from '@/lib/server/sales-bill-history'
@@ -593,6 +594,10 @@ export async function getSalesBillDetail(
     if (lineUsageQty <= 0 || usageQty <= 0) return
     stockCogsByUsageLogId.set(log.id, lineCogs * (usageQty / lineUsageQty))
   })
+  const actorDisplayNames = await resolveActorDisplayNames([
+    bill.created_by,
+    ...statusLogs.map((log) => log.created_by),
+  ])
   const timeline = statusLogs.map((log) => {
     const customerReceiptDocNo = historyMetaValue(log.meta, 'customerReceiptDocNo')
     const allocationLineNo = historyMetaValue(log.meta, 'allocationLineNo')
@@ -600,12 +605,13 @@ export async function getSalesBillDetail(
     const transitionText = log.from_status && log.from_status !== log.to_status
       ? `${salesBillStatusLabel(log.from_status)} -> ${salesBillStatusLabel(log.to_status)}`
       : salesBillStatusLabel(log.to_status)
+    const actorName = actorDisplayName(log.created_by ?? '-', actorDisplayNames)
     const details = [
       `สถานะ ${transitionText}`,
       `ยอดบิล ${money(toNumber(log.total_amount_snapshot))}`,
       `รับแล้ว ${money(toNumber(log.received_amount_snapshot))}`,
       `ค้างรับ ${money(toNumber(log.receivable_balance_snapshot))}`,
-      `ผู้ทำ ${log.created_by ?? '-'}`,
+      `ผู้ทำ ${actorName}`,
     ]
     if (typeof customerReceiptDocNo === 'string' && customerReceiptDocNo) details.push(`ใบรับเงิน ${customerReceiptDocNo}`)
     if (typeof allocationLineNo === 'number') details.push(`Receipt allocation line ${allocationLineNo}`)
@@ -613,7 +619,7 @@ export async function getSalesBillDetail(
     if (log.note) details.push(`หมายเหตุ ${log.note}`)
     return {
       action: log.action,
-      actor: log.created_by ?? '-',
+      actor: actorName,
       createdAt: log.created_at.toISOString(),
       details,
       id: log.event_key ?? `sales-bill-status:${String(log.id)}`,
@@ -714,7 +720,7 @@ export async function getSalesBillDetail(
     branchId: bill.branches?.code ?? '',
     branchName: bill.branches?.name ?? '-',
     channelName: bill.sales_channels?.name ?? '-',
-    createdBy: bill.created_by ?? '-',
+    createdBy: actorDisplayName(bill.created_by ?? '-', actorDisplayNames),
     customerAddress: customerAddress(bill.customers),
     customerAdvanceAmount,
     customerAdvanceDocNo: customerAdvanceAllocations.map((allocation) => allocation.customer_advance_doc_no).find(Boolean) ?? '',

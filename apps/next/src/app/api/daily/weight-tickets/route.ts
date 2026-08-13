@@ -378,10 +378,11 @@ export async function POST(request: Request) {
     const created = createResult.ticket
     const usage = await getWeightTicketUsageCounts(prisma, created.id)
     const mapped = mapWeightTicketRow(created, usage)
-    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.enteredBy, mapped.updatedBy])
     const displayMapped = {
       ...mapped,
       createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames),
+      enteredBy: mapped.enteredBy == null ? null : weightTicketActorDisplayName(mapped.enteredBy, actorDisplayNames),
       updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
     }
     await recordAuditLog({

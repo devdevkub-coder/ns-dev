@@ -249,6 +249,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     ])
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
       responseMapped.createdBy,
+      responseMapped.enteredBy,
       responseMapped.updatedBy,
       ...downstreamAllocations.map((event) => event.createdBy),
       ...timeline.map((event) => event.actorName),
@@ -258,6 +259,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       ...responseMapped,
       createdBy: weightTicketActorDisplayName(responseMapped.createdBy, actorDisplayNames),
       downstreamAllocations: downstreamAllocations.map((event) => ({ ...event, createdBy: weightTicketActorDisplayName(event.createdBy, actorDisplayNames) })),
+      enteredBy: responseMapped.enteredBy == null ? null : weightTicketActorDisplayName(responseMapped.enteredBy, actorDisplayNames),
       pendingOutEvents,
       timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
       updatedBy: responseMapped.updatedBy == null ? null : weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
@@ -966,10 +968,11 @@ async function updateWeightTicket(
         targetType: 'weight_ticket',
     })
     void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: mapped.lines.map((line) => line.id) })
-    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
+    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.enteredBy, mapped.updatedBy])
     return NextResponse.json({
       ...mapped,
       createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames),
+      enteredBy: mapped.enteredBy == null ? null : weightTicketActorDisplayName(mapped.enteredBy, actorDisplayNames),
       lineIdMap: updateResult.lineIdMap,
       updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
     })
@@ -1157,12 +1160,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       ])
       const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
         responseMapped.createdBy,
+        responseMapped.enteredBy,
         responseMapped.updatedBy,
         ...timeline.map((event) => event.actorName),
       ])
       return NextResponse.json({
         ...responseMapped,
         createdBy: weightTicketActorDisplayName(responseMapped.createdBy, actorDisplayNames),
+        enteredBy: responseMapped.enteredBy == null ? null : weightTicketActorDisplayName(responseMapped.enteredBy, actorDisplayNames),
         pendingOutEvents,
         timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
         updatedBy: responseMapped.updatedBy == null ? null : weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),
@@ -1264,12 +1269,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     ])
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
       responseMapped.createdBy,
+      responseMapped.enteredBy,
       responseMapped.updatedBy,
       ...timeline.map((event) => event.actorName),
     ])
     return NextResponse.json({
       ...responseMapped,
       createdBy: weightTicketActorDisplayName(responseMapped.createdBy, actorDisplayNames),
+      enteredBy: responseMapped.enteredBy == null ? null : weightTicketActorDisplayName(responseMapped.enteredBy, actorDisplayNames),
       pendingOutEvents,
       timeline: timeline.map((event) => ({ ...event, actorName: weightTicketActorDisplayName(event.actorName, actorDisplayNames) })),
       updatedBy: responseMapped.updatedBy == null ? null : weightTicketActorDisplayName(responseMapped.updatedBy, actorDisplayNames),

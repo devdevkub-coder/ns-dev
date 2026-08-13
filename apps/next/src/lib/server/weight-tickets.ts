@@ -15,6 +15,7 @@ import {
   type WeightTicketStatus,
   type WeightTicketType,
 } from '@/lib/weight-tickets'
+import { actorDisplayName, resolveActorDisplayNames } from '@/lib/server/actor-display-names'
 import { getBranchCodeIntersection, type AppAuthContext } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -475,37 +476,13 @@ function requireWeightTicketEventActor(value: string | null, eventKey: string) {
 }
 
 export async function resolveWeightTicketActorDisplayNames(actorValues: Array<string | null>) {
-  const emails = [...new Set(actorValues
-    .filter((value): value is string => value != null)
-    .map((value) => value.trim().toLowerCase())
-    .filter((value) => value.includes('@')))]
-  if (!emails.length) return new Map<string, string>()
-
-  const users = await prisma.app_users.findMany({
-    select: { display_name: true, email: true, first_name: true, last_name: true },
-    where: { email: { in: emails, mode: 'insensitive' } },
-  })
-  return new Map(users.flatMap((user) => {
-    const email = user.email?.trim().toLowerCase()
-    if (!email) return []
-    const displayName = user.display_name?.trim()
-    const lastName = user.last_name?.trim()
-    if (!displayName) return []
-    if (!lastName) return [[email, displayName] as const]
-
-    const lastInitial = `${Array.from(lastName).slice(0, 2).join('')}.`
-    const nameWithoutFullLastName = displayName.endsWith(lastName) ? displayName.slice(0, -lastName.length).trimEnd() : displayName
-    return [[email, `${nameWithoutFullLastName} ${lastInitial}`] as const]
-  }))
+  return resolveActorDisplayNames(actorValues)
 }
 
 export function weightTicketActorDisplayName(value: string, displayNames: Map<string, string>) {
   const actor = value.trim()
   if (!actor) throw new WeightTicketDataContractError('Timeline event ไม่มีข้อมูลผู้ดำเนินการ')
-  if (!actor.includes('@')) return actor
-  const displayName = displayNames.get(actor.toLowerCase())
-  if (!displayName) throw new WeightTicketDataContractError(`ไม่พบชื่อผู้ดำเนินการของ ${actor}`)
-  return displayName
+  return actorDisplayName(actor, displayNames)
 }
 
 export function requireWeightTicketBranchDocumentCode(code: string | null | undefined) {

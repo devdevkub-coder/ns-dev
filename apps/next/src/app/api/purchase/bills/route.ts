@@ -12,6 +12,7 @@ import {
   requirePurchaseBillStatus,
   isPurchaseBillCancelledStatus,
 } from '@/lib/purchase-bill-status'
+import { actorDisplayName, resolveActorDisplayNames } from '@/lib/server/actor-display-names'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import {
   appendSupplierAdvanceAllocationLogs,
@@ -2280,9 +2281,15 @@ async function rowsPayload(
       paymentWorkflowStatus,
     }
   })
+  const actorDisplayNames = await resolveActorDisplayNames(mappedRows.flatMap((row) => [row.createdBy, row.updatedBy]))
+  const displayMappedRows = mappedRows.map((row) => ({
+    ...row,
+    createdBy: actorDisplayName(row.createdBy, actorDisplayNames),
+    updatedBy: actorDisplayName(row.updatedBy, actorDisplayNames),
+  }))
   const filteredRows = query.statuses?.length
-    ? mappedRows.filter((row) => query.statuses?.includes(String(row.paymentWorkflowStatus ?? '').toLowerCase()))
-    : mappedRows
+    ? displayMappedRows.filter((row) => query.statuses?.includes(String(row.paymentWorkflowStatus ?? '').toLowerCase()))
+    : displayMappedRows
   const sortedRows = query.sortKey === 'status'
     ? sortPurchaseBillRowsByWorkflow(filteredRows, query.sortDirection)
     : filteredRows
