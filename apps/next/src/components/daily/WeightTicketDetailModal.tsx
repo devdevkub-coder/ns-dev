@@ -23,13 +23,14 @@ import { cn } from '@/lib/utils'
 import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImageOriginal, getWeightTicketImagePreviews, isThumbnailPreviewableStoredImageAsset, mergeWeightTicketImagePreviews, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { WeightTicketSaveProgress, useWeightTicketSaveProgress } from '@/components/daily/WeightTicketSaveProgress'
 import { getErrorMessage } from '@/lib/api-client'
+import { formatThaiDateCE } from '@/lib/format'
 import { useWeightTicketRealtime } from './useWeightTicketRealtime'
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', {
+  return formatThaiDateCE(date, {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',

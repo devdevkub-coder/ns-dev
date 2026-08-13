@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/server/prisma'
 import { formatWeight } from '@/lib/weight-tickets'
+import { formatThaiDateCE } from '@/lib/format'
 import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
 
 export const runtime = 'nodejs'
@@ -12,7 +13,7 @@ function formatDateTime(value?: string | Date | null) {
   if (!value) return '-'
   const date = typeof value === 'string' ? new Date(value) : value
   if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('th-TH', {
+  return formatThaiDateCE(date, {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
@@ -374,7 +375,7 @@ export async function POST(request: Request) {
               const wtoCount = tickets.filter(t => t.doc_type === 'WTO').length
               const totalNet = tickets.reduce((sum, t) => sum + Number(t.net_weight || 0), 0)
 
-              replyText = `📈 ยอดใบชั่งวันนี้ (${new Date().toLocaleDateString('th-TH')}):\n` +
+              replyText = `📈 ยอดใบชั่งวันนี้ (${formatThaiDateCE(new Date(), { dateStyle: 'medium' })}):\n` +
                 `• สาขา: ${target?.branch_code || 'ทุกสาขา'}\n` +
                 `• ใบชั่งรับเข้า WTI: ${wtiCount} ใบ\n` +
                 `• ใบชั่งส่งออก WTO: ${wtoCount} ใบ\n` +
@@ -401,7 +402,7 @@ export async function POST(request: Request) {
                 const wtoCount = tickets.filter(t => t.doc_type === 'WTO').length
                 const totalNet = tickets.reduce((sum, t) => sum + Number(t.net_weight || 0), 0)
 
-                replyText = `📈 ยอดใบชั่งวันที่ ${start.toLocaleDateString('th-TH')}:\n` +
+                replyText = `📈 ยอดใบชั่งวันที่ ${formatThaiDateCE(start, { dateStyle: 'medium' })}:\n` +
                   `• สาขา: ${target?.branch_code || 'ทุกสาขา'}\n` +
                   `• ใบชั่งรับเข้า WTI: ${wtiCount} ใบ\n` +
                   `• ใบชั่งส่งออก WTO: ${wtoCount} ใบ\n` +

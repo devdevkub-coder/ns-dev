@@ -17,7 +17,7 @@ import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/F
 import { ApiError } from '@/lib/api-client'
 import { calculateCustomerAdvanceTaxBreakdown, customerAdvanceFormSchema, type CustomerAdvanceVatType } from '@/lib/customer-advance'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
-import { formatDateDisplay } from '@/lib/format'
+import { formatDateDisplay, formatThaiDateCE } from '@/lib/format'
 
 type MasterOption = {
   branchIds?: string[]
@@ -955,10 +955,10 @@ function DetailGrid({ items }: { items: Array<[string, string]> }) {
 }
 
 function formatDateTimeDisplay(value: string) {
-  return new Intl.DateTimeFormat('th-TH', {
+  return formatThaiDateCE(new Date(value), {
     dateStyle: 'short',
     timeStyle: 'short',
-  }).format(new Date(value))
+  })
 }
 
 function customerAdvanceTimelineTone(event: CustomerAdvanceDetail['timeline'][number]) {

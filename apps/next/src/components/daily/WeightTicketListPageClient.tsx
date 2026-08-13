@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Download, Plus, Printer, RotateCcw, Search, Share2, SquarePen, XCircle } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api-client'
+import { formatThaiDateCE } from '@/lib/format'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -86,7 +87,7 @@ function formatDateTime(value?: string | null) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', {
+  return formatThaiDateCE(date, {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
@@ -99,7 +100,7 @@ function formatDateTimeSplit(value?: string | null) {
   if (!value) return { date: '-', time: '' }
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return { date: value, time: '' }
-  const dateStr = d.toLocaleDateString('th-TH', {
+  const dateStr = formatThaiDateCE(d, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -936,7 +937,7 @@ export function WeightTicketListPageClient() {
                       </div>
                     </td>
                     <td className="px-3 py-3 text-center text-slate-600">
-                      <div className="truncate">{ticket.updatedBy}</div>
+                      <div className="mx-auto max-w-[180px] truncate font-semibold text-slate-800" title={ticket.updatedBy ?? ''}>{ticket.updatedBy}</div>
                       <div className="whitespace-nowrap text-xs text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-center">

@@ -17,6 +17,7 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
+import { formatThaiDateCE } from '@/lib/format'
 import { sidebarPermissionSections } from '@/lib/navigation'
 import { branchAccessModeForRoleScopes, type AdminUserBranchAccessMode } from './admin-user-branch-access'
 import { z } from 'zod'
@@ -367,15 +368,15 @@ export function duplicateUserMessage(user: DuplicateUserCandidate) {
 
 function formatDate(value: string | null) {
   if (!value) return '-'
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  return formatThaiDateCE(value, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 function formatDateParts(value: string | null) {
   if (!value) return { date: '-', time: '' }
   const parsed = new Date(value)
   return {
-    date: new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(parsed),
-    time: new Intl.DateTimeFormat('th-TH', { timeStyle: 'short' }).format(parsed),
+    date: formatThaiDateCE(parsed, { dateStyle: 'medium' }),
+    time: formatThaiDateCE(parsed, { timeStyle: 'short' }),
   }
 }
 

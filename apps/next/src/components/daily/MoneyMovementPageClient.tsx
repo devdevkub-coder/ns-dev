@@ -29,7 +29,7 @@ import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfi
 import { prepareCorporatePrintLayout } from '@/lib/corporate-print-layout'
 import { calculateCustomerReceiptCashRequired, calculateCustomerReceiptSettlement } from '@/lib/customer-receipt-settlement'
 import { customerReceiptFormSchema, dailyFetchJson, formatMoney, supplierPaymentFormSchema, todayDateInput, type CustomerReceiptFormValues, type DailyAccountOption, type SupplierPaymentFormValues } from '@/lib/daily'
-import { formatAccountNoDisplay, formatDateDisplay } from '@/lib/format'
+import { formatAccountNoDisplay, formatDateDisplay, formatThaiDateCE } from '@/lib/format'
 import { normalizePaymentMethod, paymentDestinationKey } from '@/lib/payment-destination'
 import { paginatePaymentDailyReportItems, paginateStandardPrintItems } from '@/lib/print-pagination'
 
@@ -398,14 +398,14 @@ function formatFxQuoteTimestamp(value: string | null | undefined) {
   if (!value) return null
   const timestamp = new Date(value)
   if (Number.isNaN(timestamp.getTime())) return null
-  return new Intl.DateTimeFormat('th-TH', {
+  return formatThaiDateCE(timestamp, {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     month: '2-digit',
     timeZone: 'Asia/Bangkok',
     year: 'numeric',
-  }).format(timestamp)
+  })
 }
 
 function parseMoneyInput(value: string) {
@@ -744,7 +744,7 @@ export function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyPr
         <div class="doc-title">
           <h1>${escapeHtml(reportTitle)}</h1>
           <div class="range">${escapeHtml(paymentDailyReportDateRangeLabel(params.dateFrom, params.dateTo))}</div>
-          <div>พิมพ์เมื่อ ${escapeHtml(params.printedAt.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }))}</div>
+          <div>พิมพ์เมื่อ ${escapeHtml(formatThaiDateCE(params.printedAt, { dateStyle: 'medium', timeStyle: 'short' }))}</div>
           <div class="page-label">หน้า ${page.pageNo} / ${page.totalPages}</div>
         </div>
       </div>
@@ -1210,11 +1210,11 @@ function formatDateTimeDisplay(value: string | null | undefined) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
-  return new Intl.DateTimeFormat('th-TH', {
+  return formatThaiDateCE(date, {
     dateStyle: 'short',
     timeStyle: 'short',
     timeZone: 'Asia/Bangkok',
-  }).format(date)
+  })
 }
 
 function buildReceivableBillPrintHtml(bill: Bill, customerName: string) {
@@ -1301,7 +1301,7 @@ function formatTimelineDate(value: string) {
   if (!value) return '-'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return '-'
-  return parsed.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
+  return formatThaiDateCE(parsed, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 function TableSortHeader<TSortKey extends string>({
@@ -1786,6 +1786,11 @@ export function MoneyMovementPageClient({
   const supplierBillTotalPages = Math.max(1, Math.ceil(supplierBillTotalRows / billPageSize))
   const supplierBillCurrentPage = Math.min(billPage, supplierBillTotalPages)
   const supplierBillPageRows = supplierBills.slice((supplierBillCurrentPage - 1) * billPageSize, supplierBillCurrentPage * billPageSize)
+  // หน้าจ่ายเงินแสดงเฉพาะ PMA ที่สถานะ approved แล้ว — ถ้ายังไม่มีเลย ให้บอกผู้ใช้ว่าไปอนุมัติก่อน
+  // (ไม่ใช่ "ไม่พบตามเงื่อนไข" ซึ่งเข้าใจผิดว่า มีแต่ถูกกรองออก)
+  const paymentQueueEmptyMessage = (data.bills?.length ?? 0) === 0
+    ? 'ยังไม่มี PMA ที่อนุมัติแล้ว — ไปที่หน้าอนุมัติจ่ายเพื่ออนุมัติก่อน'
+    : 'ไม่พบ PMA ค้างจ่ายตามเงื่อนไขการกรอง'
   const receiptBillTotalRows = receiptBills.length
   const receiptBillTotalPages = Math.max(1, Math.ceil(receiptBillTotalRows / billPageSize))
   const receiptBillCurrentPage = Math.min(billPage, receiptBillTotalPages)
@@ -3765,7 +3770,7 @@ export function MoneyMovementPageClient({
               )
             })}
             {!isLoading && supplierBillPageRows.length === 0 ? (
-              <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ไม่พบ PMA ค้างจ่ายตามเงื่อนไข</div>
+              <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">{paymentQueueEmptyMessage}</div>
             ) : null}
           </div>
 
@@ -3856,7 +3861,7 @@ export function MoneyMovementPageClient({
                       </TableRow>
                     )
                   })}
-                  {!isLoading && supplierBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={paymentQueueColumns.length}>ไม่พบ PMA ค้างจ่ายตามเงื่อนไข</TableCell></TableRow> : null}
+                  {!isLoading && supplierBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={paymentQueueColumns.length}>{paymentQueueEmptyMessage}</TableCell></TableRow> : null}
                 </TableBody>
             </Table>
           </div>

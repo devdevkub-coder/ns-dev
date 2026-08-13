@@ -6,6 +6,7 @@ import { PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, hasPermission, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
+import { formatThaiDateCE } from '@/lib/format'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
@@ -1101,7 +1102,7 @@ export async function PATCH(request: Request) {
       }
 
       const reason = values.note?.trim() || 'ยกเลิกจากหน้า PO Sell'
-      const cancelLine = `ยกเลิกโดย ${actor} เมื่อ ${updatedAt.toLocaleString('th-TH')} - เหตุผล: ${reason}`
+      const cancelLine = `ยกเลิกโดย ${actor} เมื่อ ${formatThaiDateCE(updatedAt)} - เหตุผล: ${reason}`
       const cancelledItems = Array.isArray(existing.items)
         ? existing.items.map((item: unknown) => (item && typeof item === 'object' && !Array.isArray(item) ? { ...item, remainingQty: 0 } : item))
         : existing.items
@@ -1131,7 +1132,7 @@ export async function PATCH(request: Request) {
       }
 
       const reason = values.note.trim()
-      const shortCloseLine = `ปิดส่งไม่ครบโดย ${actor} เมื่อ ${updatedAt.toLocaleString('th-TH')} - ปิดคงเหลือ ${toNumber(existing.remaining_qty).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} กก. เหตุผล: ${reason}`
+      const shortCloseLine = `ปิดส่งไม่ครบโดย ${actor} เมื่อ ${formatThaiDateCE(updatedAt)} - ปิดคงเหลือ ${toNumber(existing.remaining_qty).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} กก. เหตุผล: ${reason}`
       const shortClosedItems = Array.isArray(existing.items)
         ? existing.items.map((item: unknown) => (item && typeof item === 'object' && !Array.isArray(item) ? { ...item, remainingQty: 0 } : item))
         : existing.items

@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 import { SalesBillPrintButton } from '@/components/sales-flow/SalesBillPrintButton'
 import { formatMoney } from '@/lib/daily'
+import { formatThaiDateCE } from '@/lib/format'
 import { AuthContextError, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
 
@@ -306,7 +307,7 @@ function formatDateTime(value: string) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', {
+  return formatThaiDateCE(date, {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',

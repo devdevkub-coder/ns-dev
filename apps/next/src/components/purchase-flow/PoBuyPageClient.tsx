@@ -22,7 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip'
 import { ApiError } from '@/lib/api-client'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
-import { formatDateDisplay } from '@/lib/format'
+import { formatDateDisplay, formatThaiDateCE } from '@/lib/format'
 import { poBuyFormSchema, type PoBuyFormValues } from '@/lib/po-buy'
 import { openPoBuyPrint, openPoBuyPrintWindow, type PoBuyPrintDocument } from '@/lib/po-buy-print'
 import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
@@ -232,7 +232,7 @@ function formatDateTime(value?: string) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', {
+  return formatThaiDateCE(date, {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',

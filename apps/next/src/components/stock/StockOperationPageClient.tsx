@@ -13,7 +13,7 @@ import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
-import { formatDateDisplay } from '@/lib/format'
+import { formatDateDisplay, formatThaiDateCE } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
@@ -1632,7 +1632,7 @@ function formatDateTime(value: string | number | boolean | null | undefined) {
   if (!value) return '-'
   const date = new Date(String(value))
   if (Number.isNaN(date.getTime())) return String(value)
-  return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+  return formatThaiDateCE(date, { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function normalizeSortValue(value: string | number | boolean | null | undefined) {

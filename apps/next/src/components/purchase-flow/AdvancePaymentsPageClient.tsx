@@ -19,7 +19,7 @@ import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
-import { formatDateDisplay } from '@/lib/format'
+import { formatDateDisplay, formatThaiDateCE } from '@/lib/format'
 import { calculateSupplierAdvanceTaxBreakdown, supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { openAdvancePaymentPrint } from '@/lib/advance-payment-print'
 import { prefetchPrintAssets } from '@/lib/print-asset-prefetch'
@@ -1511,7 +1511,7 @@ function formatDateTimeDisplay(value: string | null | undefined) {
   if (Number.isNaN(date.getTime())) {
     return value.replace('T', ' ')
   }
-  return date.toLocaleString('th-TH', {
+  return formatThaiDateCE(date, {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',

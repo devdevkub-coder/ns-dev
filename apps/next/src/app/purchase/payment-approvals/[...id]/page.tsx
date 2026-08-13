@@ -5,6 +5,7 @@ import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { formatThaiDateCE } from '@/lib/format'
 
 export const metadata: Metadata = {
   title: 'รายละเอียดอนุมัติจ่าย | NS Scrap ERP',
@@ -30,7 +31,7 @@ function dateOrDash(value: Date | null | undefined) {
 }
 
 function dateTime(value: Date | null | undefined) {
-  return value ? value.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '-'
+  return value ? formatThaiDateCE(value, { dateStyle: 'medium', timeStyle: 'short' }) : '-'
 }
 
 function statusLabel(status: string | null | undefined) {

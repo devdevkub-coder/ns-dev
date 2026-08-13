@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { XLSX } from '@/lib/server/xlsx'
 import { mapPrismaProduct } from '@/lib/domain/product'
+import { formatThaiDateCE } from '@/lib/format'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
@@ -96,7 +97,7 @@ function formatCellValue(product: Product, key: keyof Product) {
 async function buildWorkbook(products: Product[], total: number, filters: { active: string; productType: string; q: string }) {
   const generatedAt = new Date()
   const summaryRows = [
-    ['Export ณ', generatedAt.toLocaleString('th-TH')],
+    ['Export ณ', formatThaiDateCE(generatedAt)],
     ['จำนวนที่ export', products.length.toLocaleString('th-TH')],
     ['จำนวนทั้งหมดตาม filter', total.toLocaleString('th-TH')],
     ['ค้นหา', filters.q || '-'],

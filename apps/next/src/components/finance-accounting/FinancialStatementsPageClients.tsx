@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Activity, ArrowDownRight, ArrowUpRight, Building2, ChartColumnBig, Download, Landmark, Scale, SlidersHorizontal, TrendingUp, Wallet } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { formatThaiDateCE } from '@/lib/format'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard, KpiCardGrid, type KpiCardTone } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -1088,7 +1089,7 @@ function percent(value: number) {
 function shortThaiDate(value: string) {
   const [year, month, day] = value.split('-').map(Number)
   if (!year || !month || !day) return value
-  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }).format(new Date(year, month - 1, day))
+  return formatThaiDateCE(new Date(year, month - 1, day), { day: 'numeric', month: 'short', year: '2-digit' })
 }
 
 const thaiMonthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { XLSX } from '@/lib/server/xlsx'
 import { mapPrismaSupplier } from '@/lib/domain/supplier'
 import { supplierPaymentMethodGroup, type SupplierPaymentMethodRecord } from '@/lib/supplier'
-import { formatAccountNoDisplay, formatPhoneDisplay } from '@/lib/format'
+import { formatAccountNoDisplay, formatPhoneDisplay, formatThaiDateCE } from '@/lib/format'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
@@ -195,7 +195,7 @@ async function buildWorkbook(
 ) {
   const generatedAt = new Date()
   const summaryRows = [
-    ['Export ณ', generatedAt.toLocaleString('th-TH')],
+    ['Export ณ', formatThaiDateCE(generatedAt)],
     ['จำนวนที่ export', suppliers.length.toLocaleString('th-TH')],
     ['จำนวนทั้งหมดตาม filter', total.toLocaleString('th-TH')],
     ['ค้นหา', filters.q || '-'],

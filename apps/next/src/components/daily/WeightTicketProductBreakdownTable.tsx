@@ -2,6 +2,7 @@
 
 import { Fragment } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { formatThaiDateCE } from '@/lib/format'
 import { decodeStoredImageAsset, formatWeight, isThumbnailPreviewableStoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
 type PreviewImage = { bucket: string; contextTitle?: string; fileName: string; originalStorageKey: string; url: string }
@@ -154,10 +155,10 @@ function formatMoney(value: number) {
 
 function formatDateTime(value: string | null) {
   if (!value) return '-'
-  return new Intl.DateTimeFormat('th-TH', {
+  return formatThaiDateCE(new Date(value), {
     dateStyle: 'short',
     timeStyle: 'short',
-  }).format(new Date(value))
+  })
 }
 
 function pendingOutStatusLabel(status: string) {

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, ArrowLeft, Box, CheckCircle2, ChevronDown, Clock, ImagePlus, Pencil, Plus, Scale, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { formatThaiDateCE } from '@/lib/format'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Card } from '@/components/ui/Card'
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from '@/components/ui/combobox'
@@ -1139,10 +1140,10 @@ function formatElapsedTime(ms: number) {
 function formatTimerDateTime(value: string | null | undefined) {
   const timestamp = parseTime(value)
   if (timestamp === null) return '-'
-  return new Intl.DateTimeFormat('th-TH', {
+  return formatThaiDateCE(new Date(timestamp), {
     dateStyle: 'medium',
     timeStyle: 'short',
-  }).format(new Date(timestamp))
+  })
 }
 
 function weightTicketReceivedAt(ticket: WeightTicketRecord | null) {

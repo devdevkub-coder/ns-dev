@@ -16,7 +16,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { cachedPageOptions } from '@/lib/options-cache'
 import { ApiError } from '@/lib/api-client'
-import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
+import { formatDateDisplay, formatThaiDateCE, sanitizeDecimalInput } from '@/lib/format'
 import { ArrowDownUp, Download, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
@@ -228,7 +228,7 @@ function formatMovementDateTime(value?: string | null) {
   if (!value) return '-'
   try {
     const date = new Date(value)
-    return new Intl.DateTimeFormat('th-TH', { day: '2-digit', hour: '2-digit', minute: '2-digit', month: '2-digit', timeZone: 'Asia/Bangkok', year: 'numeric' }).format(date)
+    return formatThaiDateCE(date, { day: '2-digit', hour: '2-digit', minute: '2-digit', month: '2-digit', timeZone: 'Asia/Bangkok', year: 'numeric' })
   } catch {
     return value
   }
@@ -237,7 +237,7 @@ function formatMovementDateTimeParts(value?: string | null) {
   if (!value) return { date: '-', time: '' }
   try {
     const parsed = new Date(value)
-    const date = new Intl.DateTimeFormat('th-TH', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Bangkok', year: 'numeric' }).format(parsed)
+    const date = formatThaiDateCE(parsed, { day: '2-digit', month: '2-digit', timeZone: 'Asia/Bangkok', year: 'numeric' })
     const time = new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok', hour12: false }).format(parsed)
     return { date, time }
   } catch {

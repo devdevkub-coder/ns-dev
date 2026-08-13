@@ -6,6 +6,7 @@ import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { formatThaiDateCE } from '@/lib/format'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { toNumber } from '@/lib/server/master-data'
 import { XLSX } from '@/lib/server/xlsx'
@@ -284,7 +285,7 @@ async function buildWorkbook(payload: Awaited<ReturnType<typeof ledgerPayload>>)
 
   const generatedAt = new Date()
   const summaryRows = [
-    ['Export ณ', generatedAt.toLocaleString('th-TH')],
+    ['Export ณ', formatThaiDateCE(generatedAt)],
     ['จำนวนรายการ', payload.rows.length.toLocaleString('th-TH')],
     ['จำนวนบัญชี', payload.accounts.length.toLocaleString('th-TH')],
     ['กลุ่มยอดซ้ำที่ตรวจพบ', payload.duplicateGroups.length.toLocaleString('th-TH')],

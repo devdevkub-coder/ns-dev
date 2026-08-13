@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 import { PurchaseBillPrintButton } from '@/components/purchase-flow/PurchaseBillPrintButton'
+import { formatThaiDateCE } from '@/lib/format'
 import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getPurchaseBillDetail, type PurchaseBillDetailTimelineEvent } from '@/lib/server/purchase-bill-detail'
 
@@ -22,7 +23,7 @@ function formatDateTime(value?: string) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', {
+  return formatThaiDateCE(date, {
     dateStyle: 'short',
     timeStyle: 'short',
     timeZone: 'Asia/Bangkok',

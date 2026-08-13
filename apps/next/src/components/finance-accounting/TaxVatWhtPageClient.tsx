@@ -8,6 +8,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { formatThaiMonthYearLabel } from '@/lib/format'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type TaxColumnKey = 'date' | 'no' | 'party' | 'base' | 'value' | 'hasDoc'
@@ -61,7 +62,7 @@ export function TaxVatWhtPageClient() {
   const { data, error, isLoading } = useApi<TaxPayload>(url)
   const maxCalendar = Math.max(...(data?.taxCalendar ?? []).flatMap((row) => [row.vOut, row.vIn, Math.abs(row.vatPayable)]), 1)
   const selectedBranch = (data?.branches ?? []).find((branch) => branch.id === branchId)?.name ?? 'ทุกสาขา'
-  const periodLabel = thaiPeriodLabel(year, month)
+  const periodLabel = formatThaiMonthYearLabel(year, month)
   const detailTabs = [
     { count: data?.vatOutput.items.length ?? 0, label: 'VAT ขาย', value: 'vat-output' },
     { count: data?.vatInput.items.length ?? 0, label: 'VAT ซื้อ', value: 'vat-input' },
@@ -322,10 +323,6 @@ function money(value?: number) {
   return amount < 0 ? `(${formatMoney(Math.abs(amount))})` : formatMoney(amount)
 }
 
-function thaiPeriodLabel(year: string, month: string) {
-  const date = new Date(Number(year), Number(month) - 1, 1)
-  return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric' }).format(date)
-}
 
 function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {
   return (

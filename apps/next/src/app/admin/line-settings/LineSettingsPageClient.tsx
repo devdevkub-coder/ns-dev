@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState, useMemo } from 'react'
 import { z } from 'zod'
 import { getErrorMessage } from '@/lib/api-client'
+import { formatThaiDateCE } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
@@ -2626,7 +2627,7 @@ export function LineSettingsPageClient() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {sortedJobs.map((job) => {
-                        const dateStr = new Date(job.created_at).toLocaleString('th-TH')
+                        const dateStr = formatThaiDateCE(job.created_at)
                         const boundTarget = targets.find(t => t.target_id === job.target_id)
                         return (
                           <tr key={job.id} className="hover:bg-slate-50/50 transition-colors text-xs">
@@ -2689,7 +2690,7 @@ export function LineSettingsPageClient() {
                   </div>
                 ) : (
                   sortedJobs.map((job) => {
-                    const dateStr = new Date(job.created_at).toLocaleString('th-TH')
+                    const dateStr = formatThaiDateCE(job.created_at)
                     const boundTarget = targets.find(t => t.target_id === job.target_id)
                     return (
                       <div key={job.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 text-xs">
@@ -3577,7 +3578,7 @@ export function LineSettingsPageClient() {
                     <div key={attempt.id} className="bg-white rounded-xl border border-slate-200 p-3 leading-relaxed">
                       <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
                         <span className="font-bold text-slate-700">พยายามส่งครั้งที่ #{attempt.attempt_no}</span>
-                        <span className="text-xs text-slate-400">{new Date(attempt.created_at).toLocaleString('th-TH')}</span>
+                        <span className="text-xs text-slate-400">{formatThaiDateCE(attempt.created_at)}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-slate-600">
                         <div>

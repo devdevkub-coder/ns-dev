@@ -17,7 +17,7 @@ import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/F
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, stockTransferFormSchema, todayDateInput, type StockTransferFormValues } from '@/lib/daily'
 import { firstErrorKeyFromZodIssues, focusFieldError, issueMapFromZodIssues } from '@/lib/form-errors'
-import { formatDateDisplay } from '@/lib/format'
+import { formatDateDisplay, formatThaiDateCE } from '@/lib/format'
 
 type Option = { active: boolean | null; branch_id?: string | null; code?: string | null; id: string; name: string }
 type SourceStock = { productId: string; productCode: string; productName: string; qty: number; readyQty: number; sourceUnitCost: number; sourceValue: number }
@@ -1179,7 +1179,7 @@ function formatDateTime(value: string) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+  return formatThaiDateCE(date, { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function statusLabel(status: Row['status']) {

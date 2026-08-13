@@ -5,6 +5,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { prisma } from '@/lib/server/prisma'
 import { sendLinePush } from '@/lib/server/weight-ticket-line-notification'
 import { resolveLineAccessToken, syncLineTargetsFromAPI } from '@/lib/server/line-target-sync'
+import { formatThaiDateCE } from '@/lib/format'
 
 export const runtime = 'nodejs'
 
@@ -158,7 +159,7 @@ export async function PATCH(request: Request) {
       try {
         const textMessage = {
           type: 'text',
-          text: `🔌 NS Scrap ERP: ข้อความทดสอบการเชื่อมต่อ\nเป้าหมาย: ${target.display_name}\nเวลาส่ง: ${new Date().toLocaleString('th-TH')}`
+          text: `🔌 NS Scrap ERP: ข้อความทดสอบการเชื่อมต่อ\nเป้าหมาย: ${target.display_name}\nเวลาส่ง: ${formatThaiDateCE(new Date())}`
         }
         const pushResult = await sendLinePush(target.target_id, [textMessage], token)
         return NextResponse.json({ ok: true, lineRequestId: pushResult.lineRequestId })
