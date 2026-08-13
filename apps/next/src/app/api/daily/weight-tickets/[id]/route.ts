@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { calculateTicketTotals, isOtherProductImpurityLabel, isWeightTicketDraftLotSkeleton, OTHER_PRODUCT_IMPURITY_ID, parseImpurityProductMeta, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketFormSchema, weightTicketIncrementalPatchSchema, type WeightTicketFormValues, type WeightTicketIncrementalPatch } from '@/lib/weight-tickets'
+import { calculateTicketTotals, isOtherProductImpurityLabel, isWeightTicketDraftLotSkeleton, OTHER_PRODUCT_IMPURITY_ID, parseImpurityProductMeta, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketDeleteLinesSchema, weightTicketFormSchema, weightTicketIncrementalPatchSchema, type WeightTicketFormValues, type WeightTicketIncrementalPatch } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -1002,6 +1002,48 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const rawValues = await request.json()
     const existing = await findScopedTicket(id, branchScopeIds(auth))
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของที่ต้องการยกเลิก' }, { status: 404 })
+
+    const deleteLines = weightTicketDeleteLinesSchema.safeParse(rawValues)
+    if (deleteLines.success) {
+      requirePermission(auth, 'daily.weight_tickets.update')
+      const usage = await getWeightTicketUsageCounts(prisma, existing.id)
+      if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, usage)) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: mutableTicketErrorMessage('edit', usage) }, { status: 400 })
+      }
+      const deletedIds = new Set(deleteLines.data.deletedLineIds)
+      const existingIds = new Set(existing.weight_ticket_lines.map((line) => String(line.id)))
+      const missingIds = [...deletedIds].filter((lineId) => !existingIds.has(lineId))
+      if (missingIds.length) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบเต๋าที่ต้องการลบ' }, { status: 404 })
+      const versionConflicts = [...deletedIds].filter((lineId) => {
+        const line = existing.weight_ticket_lines.find((entry) => String(entry.id) === lineId)
+        const expected = deleteLines.data.collaborationBaseLineVersions[String(line?.id)]
+        return line && expected != null && (line.version ?? 1) !== expected
+      })
+      if (versionConflicts.length) return NextResponse.json({ code: 'CONFLICT', error: 'มีผู้ใช้อื่นแก้ไขเต๋าที่กำลังลบแล้ว กรุณาโหลดข้อมูลล่าสุด', lineIds: versionConflicts }, { status: 409 })
+      const actor = currentActor(auth)
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`select pg_advisory_xact_lock(${existing.id})`
+        const locked = await tx.weight_tickets.findUniqueOrThrow({ include: ticketInclude, where: { id: existing.id } })
+        const lockedLines = new Map(locked.weight_ticket_lines.map((line) => [String(line.id), line] as const))
+        const lockedConflicts = [...deletedIds].filter((lineId) => {
+          const line = lockedLines.get(lineId)
+          const expected = deleteLines.data.collaborationBaseLineVersions[lineId]
+          return !line || (expected != null && (line.version ?? 1) !== expected)
+        })
+        if (lockedConflicts.length) throw new WeightTicketCollaborationConflictError(lockedConflicts)
+        await tx.weight_ticket_lines.deleteMany({ where: { id: { in: [...deletedIds].map((lineId) => BigInt(lineId)) }, weight_ticket_id: existing.id } })
+        const remaining = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
+        if (remaining.length) {
+          await tx.weight_ticket_lines.updateMany({ data: { line_no: { increment: 1000000 } }, where: { weight_ticket_id: existing.id } })
+          for (const [index, line] of remaining.entries()) await tx.weight_ticket_lines.update({ data: { line_no: index + 1 }, where: { id: line.id } })
+        }
+        return tx.weight_tickets.update({ data: { updated_at: new Date(), updated_by: actor }, include: ticketInclude, where: { id: locked.id } })
+      })
+      const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
+      const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
+      const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
+      return NextResponse.json({ ...mapped, createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames), lineIdMap: {}, updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames) })
+    }
 
     const incrementalPatch = weightTicketIncrementalPatchSchema.safeParse(rawValues)
     if (incrementalPatch.success) {

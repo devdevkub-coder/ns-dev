@@ -568,6 +568,15 @@ export const weightTicketIncrementalPatchSchema = z.object({
 
 export type WeightTicketIncrementalPatch = z.infer<typeof weightTicketIncrementalPatchSchema>
 
+export const weightTicketDeleteLinesSchema = z.object({
+  operation: z.literal('delete_lines'),
+  deletedLineIds: z.array(z.string().trim().min(1).max(80)).min(1),
+  collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()),
+  collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
+})
+
+export type WeightTicketDeleteLines = z.infer<typeof weightTicketDeleteLinesSchema>
+
 const weightTicketRecordLineSchema = z.object({
   containerDeductionWeight: z.string().default(''),
   containerDeductionWeightValue: z.number().default(0),
@@ -1407,6 +1416,24 @@ export async function patchWeightTicketChanges(
     body: JSON.stringify(parsed),
   })
   return readJsonResponse(response, weightTicketSaveResultSchema, 'บันทึกการเปลี่ยนแปลงใบรับ-ส่งของไม่ได้')
+}
+
+export async function deleteWeightTicketLines(
+  id: string,
+  values: Pick<WeightTicketFormValues, 'collaborationBaseLineVersions' | 'collaborationBaseUpdatedAt' | 'collaborationDeletedLineIds'>,
+) {
+  const parsed = weightTicketDeleteLinesSchema.parse({
+    operation: 'delete_lines',
+    deletedLineIds: values.collaborationDeletedLineIds ?? [],
+    collaborationBaseLineVersions: values.collaborationBaseLineVersions ?? {},
+    collaborationBaseUpdatedAt: values.collaborationBaseUpdatedAt,
+  })
+  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(parsed),
+  })
+  return readJsonResponse(response, weightTicketSaveResultSchema, 'ลบเต๋าไม่ได้')
 }
 
 export async function cancelWeightTicket(id: string, note: string) {

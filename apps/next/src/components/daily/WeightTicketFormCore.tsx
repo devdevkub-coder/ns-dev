@@ -30,6 +30,7 @@ import {
   calculateWeightTicketLineTotals,
   createWeightTicketLine,
   decodeStoredImageAsset,
+  deleteWeightTicketLines,
   encodeStoredImageReference,
   formatWeight,
   getWeightTicket,
@@ -2210,7 +2211,9 @@ export function WeightTicketFormCore({
     saveInFlightRef.current = 'auto_save'
     beginSaveStage('auto_save')
     try {
-      const ticket = await patchWeightTicketChanges(ticketId, saveValues)
+      const ticket = linesToPatch.length === 0 && headerChanges.size === 0
+        ? await deleteWeightTicketLines(ticketId, saveValues)
+        : await patchWeightTicketChanges(ticketId, saveValues)
       invalidatePurchaseBillOptionsCache()
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
@@ -2597,9 +2600,6 @@ export function WeightTicketFormCore({
     // an older line snapshot. Revalidate the current form on this add flow
     // instead of showing that stale server message on a completed lot.
     setServerFieldErrors({})
-    setTouched((current) => Object.fromEntries(
-      Object.entries(current).filter(([key]) => !key.startsWith('line-')),
-    ))
     const firstHeaderError = ['branchId', 'partyId', 'vehicleNo', 'godownName'].find((key) => errors[key])
     const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
     // Auto-save must not block the local lot editor. Only the explicit final
