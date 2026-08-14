@@ -18,6 +18,7 @@ export const salespersonsPageConfig: MasterDataPageConfig = {
     { key: 'phone', label: 'โทรศัพท์' },
     { key: 'email', label: 'อีเมล' },
     { key: 'commissionEnabled', label: 'คิดค่าคอมมิชชั่น', type: 'checkbox' },
+    { key: 'commissionPct', label: 'อัตราคอมฯ (%)', type: 'number' },
   ],
   columns: [
     { key: 'code', label: 'รหัส' },
@@ -25,6 +26,7 @@ export const salespersonsPageConfig: MasterDataPageConfig = {
     { key: 'phone', label: 'โทร' },
     { key: 'email', label: 'อีเมล' },
     { key: 'commissionEnabled', label: 'คิดค่าคอม', align: 'center' },
+    { key: 'commissionPct', label: 'คอมฯ %', align: 'right', format: 'number' },
     statusColumn,
   ],
 }
@@ -182,7 +184,7 @@ export const bankNamesPageConfig: MasterDataPageConfig = {
     { key: 'symbol', label: 'สัญลักษณ์' },
   ],
   columns: [
-    { key: 'code', label: 'รหัส' },
+    { key: 'code', label: 'รหัส', width: 160, minWidth: 150 },
     { key: 'name', label: 'ชื่อธนาคาร' },
     { key: 'symbol', label: 'สัญลักษณ์', align: 'center' },
     statusColumn,

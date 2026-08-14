@@ -1,7 +1,7 @@
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso, toNumber } from '@/lib/server/master-data'
 import { invalidateSalespersonReferenceCache } from '@/lib/server/reference-master-cache'
 import { MASTER_DATA_PAGE_PERMISSIONS } from '@/lib/master-data-page-permissions'
 import { z } from 'zod'
@@ -32,7 +32,7 @@ function mapSalesperson(row: Awaited<ReturnType<typeof prisma.salespersons.findM
     branchName: null,
     address: null,
     commissionEnabled: row.commission_eligible ?? false,
-    commissionPct: null,
+    commissionPct: toNumber(row.commission_pct),
     baseSalary: null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
@@ -109,6 +109,7 @@ export async function POST(request: Request) {
       email: values.email || null,
       active: values.active,
       commission_eligible: values.commissionEnabled,
+      commission_pct: values.commissionPct,
     }
     const row = existing
       ? await prisma.salespersons.update({

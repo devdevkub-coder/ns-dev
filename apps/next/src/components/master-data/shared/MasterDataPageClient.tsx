@@ -772,7 +772,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
           {/* Desktop Table View */}
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
             <div className="overflow-x-auto">
-              <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {config.columns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
                   <col style={columnResize.getColumnStyle('__action')} />
@@ -932,11 +932,15 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
   const { requestConfirmation } = useActionConfirmation()
 
   useEffect(() => {
+    // rebuild form เฉพาะเมื่อเปลี่ยน record (เปิด modal ใหม่) เท่านั้น —
+    // อย่าใส่ paymentMethodRows ใน deps เพราะ parent สร้าง array ใหม่ทุก render
+    // (fieldOptionRows.type ?? []) ทำให้ฟอร์มโดน reset กลางคันเวลาพิมพ์/ติ๊ก
     const nextForm = record ? recordToForm(record, paymentMethodRows) : emptyFormForConfig(config)
     setForm(nextForm)
     setBaseline(formSnapshot(nextForm))
     setErrors({})
-  }, [config, paymentMethodRows, record])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- paymentMethodRows ตั้งใจไม่ใส่ใน deps: parent สร้าง array ใหม่ทุก render (fieldOptionRows.type ?? [])
+  }, [config, record])
 
   useEffect(() => {
     onDirtyChange(isDirty)

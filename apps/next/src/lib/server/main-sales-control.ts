@@ -661,6 +661,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
     code: string
     phone: string
     commissionEligible: boolean
+    commissionPct: number
     qty: number
     amount: number
     commissionableQty: number
@@ -682,6 +683,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
         code: salesId === '_UNASSIGNED_' ? '-' : salesId,
         phone: salesId === '_UNASSIGNED_' ? '' : sales?.phone ?? '',
         commissionEligible: salesId === '_UNASSIGNED_' ? false : sales?.commissionEligible ?? false,
+        commissionPct: salesId === '_UNASSIGNED_' ? 0 : sales?.commissionPct ?? 0,
         qty: 0,
         amount: 0,
         commissionableQty: 0,
@@ -766,7 +768,10 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
     }
   }
 
-  const calculateCommission = (amount: number) => {
+  // BUG #53: ถ้าตั้ง commission_pct ใน master พนักงานขาย (>0) ให้คำนวณตาม %
+  // ไม่เช่นนั้นใช้สูตรขั้นบันไดเดิม (1M ขึ้นไป: 1000 + 500 ต่อ 5 แสน)
+  const calculateCommission = (amount: number, pct: number) => {
+    if (pct > 0) return amount * pct / 100
     if (amount < 1000000) return 0
     const diff = amount - 1000000
     const steps = diff > 0 ? Math.floor((diff - 0.001) / 500000) : 0
@@ -774,7 +779,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
   }
 
   const salesRows = Array.from(summary.values()).map((row) => {
-    const commission = calculateCommission(row.commissionableAmount)
+    const commission = calculateCommission(row.commissionableAmount, row.commissionPct)
     return {
       avgPrice: row.qty > 0 ? row.amount / row.qty : 0,
       billCount: row.billCount,

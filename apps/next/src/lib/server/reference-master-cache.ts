@@ -211,6 +211,7 @@ type SalesChannelDbRow = {
 type SalespersonDbRow = {
   active: boolean | null
   commission_eligible: boolean | null
+  commission_pct: { toString: () => string } | number | null
   code: string | null
   id: bigint
   name: string
@@ -403,6 +404,7 @@ type CachedSalesChannelRecord = {
 type CachedSalespersonRecord = {
   active: boolean
   commissionEligible: boolean
+  commissionPct: number
   code: string
   id: string
   name: string
@@ -702,6 +704,7 @@ export type SalesChannelReferenceRecord = {
 export type SalespersonReferenceRecord = {
   active: boolean
   commissionEligible: boolean
+  commissionPct: number
   code: string
   id: bigint
   name: string
@@ -1465,7 +1468,7 @@ function hydrateSalesChannelRecord(row: CachedSalesChannelRecord): SalesChannelR
 }
 
 function hydrateSalespersonRecord(row: CachedSalespersonRecord): SalespersonReferenceRecord {
-  return { active: row.active, code: row.code, commissionEligible: row.commissionEligible, id: BigInt(row.id), name: row.name, phone: row.phone ?? null }
+  return { active: row.active, code: row.code, commissionEligible: row.commissionEligible, commissionPct: Number(row.commissionPct) || 0, id: BigInt(row.id), name: row.name, phone: row.phone ?? null }
 }
 
 function hydrateImpurityRecord(row: CachedImpurityRecord): ImpurityReferenceRecord {
@@ -1495,7 +1498,7 @@ function dehydrateSalesChannelRecord(row: SalesChannelReferenceRecord): CachedSa
 }
 
 function dehydrateSalespersonRecord(row: SalespersonReferenceRecord): CachedSalespersonRecord {
-  return { active: row.active, commissionEligible: row.commissionEligible, code: row.code, id: row.id.toString(), name: row.name, phone: row.phone ?? null }
+  return { active: row.active, commissionEligible: row.commissionEligible, commissionPct: row.commissionPct, code: row.code, id: row.id.toString(), name: row.name, phone: row.phone ?? null }
 }
 
 function dehydrateImpurityRecord(row: ImpurityReferenceRecord): CachedImpurityRecord {
@@ -2294,12 +2297,13 @@ export async function listActiveSalespersons() {
     dbReader: async () => {
       const rows: SalespersonDbRow[] = await prisma.salespersons.findMany({
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
-        select: { active: true, commission_eligible: true, code: true, id: true, name: true, phone: true },
+        select: { active: true, commission_eligible: true, commission_pct: true, code: true, id: true, name: true, phone: true },
         where: { active: true },
       })
       return rows.map((row) => ({
         active: row.active ?? true,
         commissionEligible: row.commission_eligible ?? false,
+        commissionPct: Number(row.commission_pct?.toString() ?? 0) || 0,
         code: requireBusinessCode(row.code, `พนักงานขาย ${row.id}`),
         id: row.id,
         name: row.name,
