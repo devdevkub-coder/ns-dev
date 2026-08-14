@@ -2387,6 +2387,7 @@ export function WeightTicketFormCore({
 
     saveInFlightRef.current = 'auto_save'
     beginSaveStage('auto_save')
+    let submittedErrorLines = snapshot.lines
     try {
       await waitForPendingAttachmentUploads()
       const latestForm = formRef.current
@@ -2406,6 +2407,7 @@ export function WeightTicketFormCore({
         })),
         vehicleImageFiles: latestForm.vehicleImageFiles,
       }
+      submittedErrorLines = snapshotToSave.lines
       const baselineLineIds = Array.from(baselineLines.keys())
       const isScopedAdd = persistLineIds.size > 0
       const deletedLineIds = isScopedAdd ? new Set<string>() : new Set(deletedLineIdsRef.current)
@@ -2504,7 +2506,13 @@ export function WeightTicketFormCore({
       setLoadError('')
       return nextForm
     } catch (caught) {
-      if (!applyApiFieldErrors(caught, formRef.current, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้')) {
+      // The API reports line validation paths against the exact compact line
+      // array sent in this background request. The live form can already have
+      // another temporary lot (or a remapped persisted ID), so mapping those
+      // indexes against formRef.current can attach the error to the wrong lot.
+      // Keep focus on the live form, but resolve indexed field errors against
+      // the submitted snapshot that produced the response.
+      if (!applyApiFieldErrors(caught, formRef.current, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้', submittedErrorLines)) {
         setLoadError(getErrorMessage(caught, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้'))
       }
       return null
@@ -2609,13 +2617,19 @@ export function WeightTicketFormCore({
     // instead of showing that stale server message on a completed lot.
     setServerFieldErrors({})
     const firstHeaderError = ['branchId', 'partyId', 'vehicleNo', 'godownName'].find((key) => errors[key])
-    const firstLineError = Object.keys(errors).find((key) => key === 'lines' || key.startsWith('line-'))
-    // Auto-save must not block the local lot editor. Only the explicit final
-    // save may prevent a new lot from being added because it replaces the form
-    // with the persisted response when it completes.
+    const currentSectionLineIds = getWeightTicketRelatedLineIds(form.lines, sourceLine.id)
+    const firstLineError = Object.keys(errors).find((key) => {
+      if (key === 'lines') return true
+      const parsed = parseWeightTicketValidationKey(key)
+      return Boolean(parsed && currentSectionLineIds.has(parsed.lineId))
+    })
     const isFinalSaveInFlight = saveInFlightRef.current === 'save'
-    if (firstHeaderError || isFinalSaveInFlight || isLoadingTicket) {
+    if (firstHeaderError || firstLineError || isFinalSaveInFlight || isLoadingTicket) {
       if (firstHeaderError) void saveDraftBeforeAdding()
+      else if (firstLineError) {
+        setTouched((current) => ({ ...current, [firstLineError]: true }))
+        prepareValidationFocus(firstLineError)
+      }
       return
     }
     if (shouldIgnoreRapidAdd(`lot:${sourceLine.id}`)) return
@@ -2643,14 +2657,16 @@ export function WeightTicketFormCore({
     setPendingFocusField(`line-${nextLine.id}-gross`)
 
     if (!firstLineError) {
+      // Persist only the existing product/lot lines before opening the new
+      // editor. The newly created lot is intentionally local-only until the
+      // user fills its required weight and evidence fields.
       const draftSave = saveDraftBeforeAdding({
         ...draftSnapshot,
-        lines: [...draftSnapshot.lines, nextLine],
-      }, new Set([sourceLine.id, nextLine.id]), new Set([nextLine.id]))
+      }, currentSectionLineIds)
       void draftSave.then((savedForm) => {
         if (!savedForm) return
         const lineIdMap = lastBackgroundLineIdMapRef.current
-        if (!lineIdMap[nextLine.id]) return
+        if (Object.keys(lineIdMap).length === 0) return
 
         setForm((current) => ({
           ...current,

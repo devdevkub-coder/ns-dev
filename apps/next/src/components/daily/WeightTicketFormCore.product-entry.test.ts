@@ -92,11 +92,13 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain("if (shouldIgnoreRapidAdd('product')) return")
     expect(formSource).toContain('if (shouldIgnoreRapidAdd(`lot:${sourceLine.id}`)) return')
     expect(formSource).toContain('if (shouldIgnoreRapidAdd(`impurity:${sourceLine.id}`)) return')
-    expect(formSource).toContain('new Set([sourceLine.id, nextLine.id])')
+    expect(formSource).toContain('saveDraftBeforeAdding({')
+    expect(formSource).toContain('}, currentSectionLineIds)')
     expect(formSource).toContain('lastBackgroundLineIdMapRef.current = ticket.lineIdMap')
     expect(formSource).toContain('loadedTicketRef.current = ticket')
     expect(formSource).toContain('savedTicketRef.current = ticket')
     expect(formSource).toContain('draftLineIds: Array.from(draftLineIds)')
+    expect(formSource).toContain("applyApiFieldErrors(caught, formRef.current, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้', submittedErrorLines)")
   })
 
   it('uses the ticket returned by the header save as the section-save identity', () => {
@@ -116,6 +118,7 @@ describe('weight-ticket product entry start contract', () => {
 
   it('keeps blank child lots limited to explicitly marked incremental saves', () => {
     expect(weightTicketApiSource).toContain('isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)')
+    expect(weightTicketApiSource).toContain('(!baselineLineIds.has(line.id) || changedLineIds.has(line.id))')
     expect(weightTicketCreateApiSource).toContain('isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)')
     expect(formSource).toContain('const linesForFingerprint = isScopedAdd')
     expect(formSource).toContain('if (!isScopedAdd) {')

@@ -60,6 +60,31 @@ class WeightTicketCollaborationConflictError extends Error {
   }
 }
 
+function logWeightTicketValidationFailure(context: {
+  documentId: string
+  documentNo?: string
+  code?: string
+  message: string
+  fieldKeys?: string[]
+  lineIds?: string[]
+  draftLineIds?: string[]
+  changedLineIds?: string[]
+}) {
+  // Keep diagnostics useful without logging weights, image names, party data,
+  // or any other business payload. This is intentionally structured so the
+  // same case can be correlated in local/Vercel function logs.
+  console.warn('[weight-ticket-validation]', {
+    changedLineIds: context.changedLineIds ?? [],
+    code: context.code ?? 'BAD_REQUEST',
+    documentId: context.documentId,
+    documentNo: context.documentNo,
+    draftLineIds: context.draftLineIds ?? [],
+    fieldKeys: context.fieldKeys ?? [],
+    lineIds: context.lineIds ?? [],
+    message: context.message,
+  })
+}
+
 function weightTicketLineWriteFingerprint(line: {
   container_deduction_weight: unknown
   deduction_mode: unknown
@@ -279,18 +304,29 @@ async function updateWeightTicket(
   context: { params: Promise<{ id: string }> },
   auditRequest: Request = request,
 ) {
+  const { id } = await context.params
   try {
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'daily.weight_tickets.update')
 
-    const { id } = await context.params
     const rawBody = await request.json()
     const parsedValues = weightTicketFormSchema.parse(rawBody)
     const draftLineIds = new Set(parsedValues.draftLineIds ?? [])
+    const baselineLineIds = new Set(parsedValues.collaborationBaseLineIds ?? [])
+    const changedLineIds = new Set(parsedValues.collaborationChangedLineIds ?? parsedValues.lines.map((line) => line.id))
     const unmarkedDraftLot = parsedValues.lines.find((line) => (
       isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)
+      && (!baselineLineIds.has(line.id) || changedLineIds.has(line.id))
     ))
     if (unmarkedDraftLot) {
+      logWeightTicketValidationFailure({
+        changedLineIds: [...changedLineIds],
+        documentId: id,
+        documentNo: parsedValues.collaborationBaseDocumentNo,
+        draftLineIds: [...draftLineIds],
+        lineIds: [unmarkedDraftLot.id],
+        message: 'เต๋าใหม่ต้องกรอกน้ำหนักและแนบรูปภาพก่อนบันทึก',
+      })
       return NextResponse.json({
         code: 'BAD_REQUEST',
         error: 'เต๋าใหม่ต้องกรอกน้ำหนักและแนบรูปภาพก่อนบันทึก',
@@ -999,6 +1035,13 @@ async function updateWeightTicket(
     if (caught instanceof WeightTicketDataContractError) return apiErrorResponse(caught, 'ข้อมูลประวัติใบรับ-ส่งของไม่ครบ กรุณาแจ้งผู้ดูแลระบบ', caught.status)
     if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
+    }
+    if (caught instanceof WeightTicketWriteValidationError) {
+      logWeightTicketValidationFailure({
+        documentId: id,
+        message: caught.message,
+        fieldKeys: Object.keys(caught.fieldErrors),
+      })
     }
     if (caught instanceof WeightTicketCollaborationConflictError) {
       return NextResponse.json({ code: caught.code, error: caught.message, headerFields: caught.headerFields, lineIds: caught.lineIds }, { status: caught.status })
