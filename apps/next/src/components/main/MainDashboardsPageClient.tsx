@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -203,7 +205,23 @@ function today() {
 }
 
 export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
-  const [date, setDate] = useState(today())
+  // BUG #52: รองรับการข้ามมาพร้อมวันที่ผ่าน ?date=YYYY-MM-DD (จากลิงก์ข้ามหน้าอีกฝั่ง)
+  const [date, setDate] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const fromUrl = new URLSearchParams(window.location.search).get('date')
+      if (fromUrl && /^\d{4}-\d{2}-\d{2}$/.test(fromUrl)) return fromUrl
+    }
+    return today()
+  })
+  // BUG #52: sync วันที่จาก URL เมื่อ navigated มาแบบ client-side (Daily Report <-> Owner Daily)
+  // — key ที่ page เปลี่ยนไม่พอ เพราะ React อาจ reuse instance → state ค้างค่าเก่า
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const fromUrl = searchParams.get('date')
+    if (fromUrl && /^\d{4}-\d{2}-\d{2}$/.test(fromUrl)) {
+      setDate(fromUrl)
+    }
+  }, [searchParams])
   const [rangeFrom, setRangeFrom] = useState(() => {
     if (mode === 'dashboard') return `${today().slice(0, 4)}-01-01`
     if (mode === 'analytics-dashboard') {
@@ -240,7 +258,9 @@ export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
     const requestId = latestLoadRequestRef.current + 1
     latestLoadRequestRef.current = requestId
     const params = new URLSearchParams({ date })
-    if (mode === 'daily-report' || mode === 'dashboard' || mode === 'analytics-dashboard') {
+    // daily-report ไม่ส่ง from/to — ไม่งั้น range ค้างค่าแรก (วันนี้) ตอนเปลี่ยนวันที่
+    // แล้ว server จะโหลดเฉพาะช่วงค้าง → รายการวันที่เลือกว่าง (server fallback ใช้ dateLabel เอง)
+    if (mode === 'dashboard' || mode === 'analytics-dashboard') {
       params.set('from', rangeFrom)
       params.set('to', rangeTo)
     }
@@ -659,7 +679,7 @@ function DashboardView(props: {
               ) : null}
             </div>
             <div className="hidden overflow-x-auto sm:block">
-              <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: agingResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: agingResize.tableMinWidth, maxWidth: agingResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {dashboardAgingColumns.map((column) => (
                     <col key={column.key} style={agingResize.getColumnStyle(column.key)} />
@@ -758,7 +778,7 @@ function DashboardView(props: {
             ) : null}
           </div>
           <div className="hidden overflow-x-auto sm:block">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: stockGroupResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: stockGroupResize.tableMinWidth, maxWidth: stockGroupResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {dashboardStockGroupColumns.map((column) => (
                   <col key={column.key} style={stockGroupResize.getColumnStyle(column.key)} />
@@ -950,6 +970,7 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
         <DatePickerInput className="h-9 w-[140px]" value={date} onChange={setDate} />
         <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
         <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
+        <Link className="ml-auto h-9 inline-flex items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" href={`/daily-report?date=${date}`}>ดูยอดขายวันนี้ (Daily Report) →</Link>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1041,6 +1062,7 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
         <DatePickerInput className="h-9 w-[140px]" value={date} onChange={setDate} />
         <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
         <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
+        <Link className="ml-auto h-9 inline-flex items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" href={`/owner-daily?date=${date}`}>ดูยอดคาดรับวันนี้ (Owner Daily) →</Link>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <DailyBigCard icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money(purchaseAmount / Math.max(1, purchaseQty))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(purchaseAmount)} weight={money(purchaseQty)} />
@@ -1205,7 +1227,7 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
 
       {/* Desktop view */}
       <div className="hidden lg:block max-h-64 overflow-auto">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {columns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1305,7 +1327,7 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
 
       {/* Desktop view */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {ownerSmallColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1475,7 +1497,7 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
           ) : null}
         </div>
         <div className="overflow-x-auto">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {dailyGroupProductColumns.map((column) => (
                 <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1572,7 +1594,7 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
 
       {/* Desktop view */}
       <div className="hidden lg:block max-h-[300px] overflow-auto">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {dailyBillColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1702,7 +1724,7 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
         ))}
       </div>
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white sm:block">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {cashAccountColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1844,7 +1866,7 @@ function TopSimpleTable({ rows, title }: { rows: { amount: number; group: string
         ) : null}
       </div>
       <div className="min-w-0 overflow-x-auto">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topSimpleColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1966,7 +1988,7 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: Ra
 
       {/* Desktop view */}
       <div className="hidden min-w-0 overflow-x-auto sm:block">
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {columns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -2107,7 +2129,7 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
 
       {/* Desktop view */}
       <div className="hidden min-w-0 overflow-x-auto sm:block">
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {productRankColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -2227,7 +2249,7 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
 
       {/* Desktop view */}
       <div className="hidden sm:block overflow-x-auto">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {salespersonColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
