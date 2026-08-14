@@ -22,6 +22,7 @@ import {
   buildWeightTicketLineIdMap,
   buildWeightTicketLineRows,
   buildWeightTicketProductSummaryRows,
+  assignWeightTicketLotSequences,
   defaultTicketStatus,
   enteredByLabel,
   getWeightTicketUsageCounts,
@@ -314,7 +315,11 @@ export async function POST(request: Request) {
         },
       })
       const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
-      const lineRows = buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById, warehouseByCode)
+      const lineRows = await assignWeightTicketLotSequences(
+        tx,
+        createdTicket.id,
+        buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById, warehouseByCode).map((data) => ({ data })),
+      )
       if (values.type === 'WTO' && values.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
       }

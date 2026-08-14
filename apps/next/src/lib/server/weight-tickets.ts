@@ -598,6 +598,29 @@ export function buildWeightTicketLineRows(
   })
 }
 
+/**
+ * Assigns the immutable per-ticket lot sequence while the caller holds the
+ * ticket advisory lock. `line_no` is presentation order and may be renumbered;
+ * `lot_seq` is only assigned to physical lots and never reused after delete.
+ */
+export async function assignWeightTicketLotSequences<T extends { deduction_mode: string }>(
+  tx: Prisma.TransactionClient,
+  ticketId: bigint,
+  rows: Array<{ data: T; existingLotSeq?: number | null }>,
+) {
+  const currentMax = await tx.weight_ticket_lines.aggregate({
+    _max: { lot_seq: true },
+    where: { weight_ticket_id: ticketId },
+  })
+  let nextLotSeq = currentMax._max.lot_seq ?? 0
+  return rows.map(({ data, existingLotSeq }) => {
+    if (data.deduction_mode !== 'none') return { ...data, lot_seq: null }
+    if (existingLotSeq != null) return { ...data, lot_seq: existingLotSeq }
+    nextLotSeq += 1
+    return { ...data, lot_seq: nextLotSeq }
+  })
+}
+
 export function buildWeightTicketLineIdMap(
   submittedLines: Array<{ clientId: string; lineNo: number }>,
   persistedLines: Array<{ id: bigint; line_no: number }>,
@@ -1085,6 +1108,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     impuritySourceLineNo: line.impurity_source_line_no ?? null,
     impurityName: line.impurity_name ?? '',
     lineNo: line.line_no,
+    lotSeq: line.lot_seq ?? null,
     netWeight: toNumber(line.net_weight),
     parentLineNo: line.parent_line_no ?? null,
     productId: requireBusinessCode(line.products.code, `สินค้า ${line.products.id}`),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildWeightTicketLineIdMap, mergeWeightTicketSectionLines, selectWeightTicketRemovedLineIds } from './weight-tickets'
+import { assignWeightTicketLotSequences, buildWeightTicketLineIdMap, mergeWeightTicketSectionLines, selectWeightTicketRemovedLineIds } from './weight-tickets'
 
 describe('buildWeightTicketLineIdMap', () => {
   it('maps each submitted client ID to the persisted line with the same line number', () => {
@@ -27,6 +27,26 @@ describe('buildWeightTicketLineIdMap', () => {
       ],
       [{ id: 101n, line_no: 1 }],
     )).toThrow('ไม่พบ persisted line สำหรับรายการที่ 2')
+  })
+})
+
+describe('assignWeightTicketLotSequences', () => {
+  it('preserves existing sequence, assigns only physical lots, and never reuses deleted numbers', async () => {
+    const tx = {
+      weight_ticket_lines: {
+        aggregate: async () => ({ _max: { lot_seq: 4 } }),
+      },
+    } as never
+
+    await expect(assignWeightTicketLotSequences(tx, 1n, [
+      { data: { deduction_mode: 'none', name: 'existing' }, existingLotSeq: 2 },
+      { data: { deduction_mode: 'kg', name: 'impurity' } },
+      { data: { deduction_mode: 'none', name: 'new' } },
+    ])).resolves.toEqual([
+      { deduction_mode: 'none', name: 'existing', lot_seq: 2 },
+      { deduction_mode: 'kg', name: 'impurity', lot_seq: null },
+      { deduction_mode: 'none', name: 'new', lot_seq: 5 },
+    ])
   })
 })
 

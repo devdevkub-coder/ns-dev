@@ -23,6 +23,7 @@ import {
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import {
   branchScopeIds,
+  assignWeightTicketLotSequences,
   buildWeightTicketLineRows,
   buildWeightTicketProductSummaryRows,
   canEditWeightTicket,
@@ -158,6 +159,7 @@ function persistedLineToFormLine(
       : String(line.impurity_id),
     impurityProductId: impurityMeta.impurityProductId,
     impuritySourceLineId: line.impurity_source_line_no == null ? undefined : lineIdByLineNo.get(line.impurity_source_line_no),
+    lotSeq: line.lot_seq ?? null,
     note: impurityMeta.note,
     parentId: line.parent_line_no == null ? undefined : lineIdByLineNo.get(line.parent_line_no),
     productId: line.products.code ?? '',
@@ -728,6 +730,11 @@ async function updateWeightTicket(
               }
             : { clientId: valueLine.id, data, kind: 'create' as const }
         })
+        const sequencedLineRows = await assignWeightTicketLotSequences(
+          tx,
+          existing.id,
+          lineWriteSteps.map((step) => ({ data: step.data, existingLotSeq: step.kind === 'update' ? latestLineByClientId.get(step.clientId)?.lot_seq : undefined })),
+        )
         const maxCurrentLineNo = latestLines.reduce((max, line) => Math.max(max, line.line_no), 0)
         await Promise.all(lineWriteSteps.map((step, index) => (
           step.kind === 'update'
@@ -742,7 +749,7 @@ async function updateWeightTicket(
           if (step.kind === 'update') {
             await tx.weight_ticket_lines.update({
               data: {
-                ...step.data,
+                ...sequencedLineRows[index],
                 line_no: index + 1,
                 ...(step.isChanged ? { updated_at: new Date(), updated_by: actor, version: { increment: 1 } } : {}),
               },
@@ -750,7 +757,7 @@ async function updateWeightTicket(
             })
             persistedLinePairs.push([step.clientId, String(step.currentLineId)])
           } else {
-            const createdLine = await tx.weight_ticket_lines.create({ data: { ...step.data, line_no: index + 1 } })
+            const createdLine = await tx.weight_ticket_lines.create({ data: { ...sequencedLineRows[index], line_no: index + 1 } })
             persistedLinePairs.push([step.clientId, String(createdLine.id)])
           }
         }
@@ -777,6 +784,11 @@ async function updateWeightTicket(
               }
             : { clientId: effectiveValues.lines[index].id, data, kind: 'create' as const }
         })
+        const sequencedDeliveredLineRows = await assignWeightTicketLotSequences(
+          tx,
+          existing.id,
+          deliveredLineWriteSteps.map((step) => ({ data: step.data, existingLotSeq: step.kind === 'update' ? existingLineByLineNo.get(step.data.line_no)?.lot_seq : undefined })),
+        )
         const deliveredMaxLineNo = existing.weight_ticket_lines.reduce((max, line) => Math.max(max, line.line_no), 0)
         await Promise.all(deliveredLineWriteSteps.map((step, index) => (
           step.kind === 'update'
@@ -791,7 +803,7 @@ async function updateWeightTicket(
           if (step.kind === 'update') {
             await tx.weight_ticket_lines.update({
               data: {
-                ...step.data,
+                ...sequencedDeliveredLineRows[index],
                 line_no: index + 1,
                 ...(step.isChanged ? { updated_at: new Date(), updated_by: actor, version: { increment: 1 } } : {}),
               },
@@ -799,15 +811,21 @@ async function updateWeightTicket(
             })
             persistedLinePairs.push([step.clientId, String(step.currentLineId)])
           } else {
-            const createdLine = await tx.weight_ticket_lines.create({ data: { ...step.data, line_no: index + 1 } })
+            const createdLine = await tx.weight_ticket_lines.create({ data: { ...sequencedDeliveredLineRows[index], line_no: index + 1 } })
             persistedLinePairs.push([step.clientId, String(createdLine.id)])
           }
         }
         lineIdMap = Object.fromEntries(persistedLinePairs)
         createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
       } else {
+        const existingLineById = new Map(existing.weight_ticket_lines.map((line) => [String(line.id), line] as const))
+        const sequencedLineRows = await assignWeightTicketLotSequences(
+          tx,
+          existing.id,
+          lineRows.map((data, index) => ({ data, existingLotSeq: existingLineById.get(effectiveValues.lines[index].id)?.lot_seq })),
+        )
         await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
-        createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
+        createdLines = await Promise.all(sequencedLineRows.map((data) => tx.weight_ticket_lines.create({ data })))
         lineIdMap = Object.fromEntries(effectiveValues.lines.map((line, index) => [line.id, String(createdLines[index].id)]))
       }
       if (effectiveValues.type === 'WTO' && effectiveValues.saveScope !== 'header') {

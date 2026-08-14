@@ -31,6 +31,7 @@ export type WeightTicketLine = {
   impurityProductName?: string
   impuritySourceLineNo?: number | null
   lineNo?: number
+  lotSeq?: number | null
   note: string
   parentLineNo?: number | null
   productId: string
@@ -277,6 +278,8 @@ const weightTicketLinePayloadSchema = z.object({
   impurityId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
   impurityProductId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
   impuritySourceLineId: z.string().trim().optional(),
+  // Server-assigned display identity; incoming values are ignored on writes.
+  lotSeq: z.number().int().positive().nullable().optional(),
   note: z.preprocess(blankToEmpty, z.string().max(160, 'หมายเหตุรายการยาวเกินไป').default('')),
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
   warehouseId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
@@ -594,6 +597,7 @@ const weightTicketRecordLineSchema = z.object({
   impuritySourceLineNo: z.number().int().positive().nullable().default(null),
   impurityName: z.string(),
   lineNo: z.number().int().positive(),
+  lotSeq: z.number().int().positive().nullable().default(null),
   netWeight: z.number(),
   note: z.string(),
   parentLineNo: z.number().int().positive().nullable().default(null),
