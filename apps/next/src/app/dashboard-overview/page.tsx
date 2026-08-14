@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { MainDashboardsPageClient } from '@/components/main/MainDashboardsPageClient'
 
 export const metadata: Metadata = {
@@ -6,5 +7,9 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  return <MainDashboardsPageClient mode="dashboard" />
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-500">กำลังโหลด...</div>}>
+      <MainDashboardsPageClient mode="dashboard" />
+    </Suspense>
+  )
 }
