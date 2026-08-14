@@ -136,11 +136,10 @@ export function useResizableColumns<TKey extends string>(
   /** Exact pixel sum of all column widths, so resizable tables keep natural column spacing on any screen size. */
   const tableMinWidth = tableContentWidth
 
-  /** Tables fill their card up to this width, so columns never stretch more than 3× past
-      their natural width — typical desktops fill the card edge-to-edge (no empty band on
-      the right), while extreme screens or very few columns still can't space columns
-      absurdly far apart. */
-  const tableMaxWidth = tableContentWidth * 3
+  /** The table never grows past its container (width: 100% + max-width: 100%), so
+      resizable tables always fill their card edge-to-edge with no empty band on the
+      right, at any screen size. Columns stretch proportionally with the card instead. */
+  const tableMaxWidth = '100%'
 
   return {
     getColumnStyle,

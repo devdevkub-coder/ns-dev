@@ -327,7 +327,7 @@ function ImportedTable({
   isLoading: boolean
   rows: ImportedRow[]
   columnResize: {
-    tableMaxWidth: number
+    tableMaxWidth: number | string
     tableMinWidth: number
     getColumnStyle: (key: ImportedColumnKey) => React.CSSProperties
     getResizeHandleProps: (key: ImportedColumnKey, label: string) => any
@@ -439,7 +439,7 @@ function ErpTable({
   isLoading: boolean
   rows: ErpRow[]
   columnResize: {
-    tableMaxWidth: number
+    tableMaxWidth: number | string
     tableMinWidth: number
     getColumnStyle: (key: ErpColumnKey) => React.CSSProperties
     getResizeHandleProps: (key: ErpColumnKey, label: string) => any
