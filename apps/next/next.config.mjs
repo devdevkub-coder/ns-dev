@@ -131,6 +131,17 @@ const nextConfig = {
   allowedDevOrigins,
   poweredByHeader: false,
   reactStrictMode: true,
+  async redirects() {
+    return [
+      // เส้นทางฐานของหน้า detail เดิมไม่มีหน้าจริง (มีแค่ /purchase/payment-approvals/[...id])
+      // จึง 404 เสมอ — redirect ไปยังหน้ารายการที่ใช้งานจริงแทน (BUG #50)
+      {
+        source: '/purchase/payment-approvals',
+        destination: '/daily/payment-approval',
+        permanent: false,
+      },
+    ]
+  },
   async headers() {
     return [
       {

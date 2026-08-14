@@ -861,7 +861,7 @@ export function StockBalancePageClient() {
 
       {viewMode === 'summary' ? (
         <>
-          <StockCharts byStatus={matrixByStatus} matrixRows={matrixRows} totalValue={matrixTotalValue} />
+          <StockCharts byStatus={byStatus} matrixRows={matrixRows} totalValue={byStatus.reduce((sum, item) => sum + item.value, 0)} />
           <PaginationControls
             currentPage={matrixCurrentPage}
             label="หมวด"

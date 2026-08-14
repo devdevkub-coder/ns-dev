@@ -37,6 +37,29 @@ const buyColumns: Array<ResizableColumnDefinition<PoOutstandingBuyColumnKey>> = 
 
 type PoOutstandingSellColumnKey = 'docNo' | 'date' | 'partnerName' | 'productName' | 'qty' | 'unitPrice' | 'soldQty' | 'remainingQty' | 'remainingValue' | 'expectedDelivery' | 'status'
 
+function overdueDays(value: string) {
+  if (!value) return 0
+  const today = new Date()
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  if (value >= todayKey) return 0
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return 0
+  const due = new Date(Date.UTC(year, month - 1, day))
+  return Math.max(1, Math.floor((today.getTime() - due.getTime()) / 86400000))
+}
+
+function ExpectedDeliveryCell({ value }: { value: string }) {
+  const days = overdueDays(value)
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span className="text-slate-800">{formatDateDisplay(value)}</span>
+      {days > 0 ? (
+        <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-bold text-red-700">เกินกำหนด {days} วัน</span>
+      ) : null}
+    </span>
+  )
+}
+
 const sellColumns: Array<ResizableColumnDefinition<PoOutstandingSellColumnKey>> = [
   { key: 'docNo', defaultWidth: 140, minWidth: 115 },
   { key: 'date', defaultWidth: 110, minWidth: 95 },
@@ -301,9 +324,6 @@ export function PoOutstandingPageClient() {
 
       {tab === 'buy' ? (
         <div className="hidden overflow-x-auto lg:block">
-          <div className="rounded-t-md border-b border-amber-200 bg-amber-50/50 p-3 text-xs font-medium text-amber-800">
-            ตัดต้นทุนเป็น write/cost-pool side effect ใน legacy จึงแสดงเป็นคอลัมน์อ่านอย่างเดียวใน Next จนกว่าจะออกแบบ audit และ permission
-          </div>
           <table className="ns-table w-full text-xs" style={{ minWidth: buyResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {buyColumns.map((column) => (
@@ -445,7 +465,7 @@ export function PoOutstandingPageClient() {
                     <td className="p-3 text-right text-emerald-700 tabular-nums">{formatMoney(row.receivedQty ?? row.qty - row.remainingQty)}</td>
                     <td className="p-3 text-right font-bold text-amber-700 tabular-nums">{formatMoney(row.remainingQty)}</td>
                     <td className="p-3 text-right font-bold text-blue-700 tabular-nums">{formatMoney(row.remainingValue)}</td>
-                    <td className="whitespace-nowrap p-3 text-center text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
+                    <td className="whitespace-nowrap p-3 text-center text-slate-800"><ExpectedDeliveryCell value={row.expectedDelivery} /></td>
                     <td className="whitespace-nowrap p-3 text-center text-xs font-semibold text-slate-600">{row.status}</td>
                   </tr>
                 ))}
@@ -603,7 +623,7 @@ export function PoOutstandingPageClient() {
                     <td className="p-3 text-right text-blue-700 tabular-nums">{formatMoney(row.soldQty ?? row.qty - row.remainingQty)}</td>
                     <td className="p-3 text-right font-bold text-amber-700 tabular-nums">{formatMoney(row.remainingQty)}</td>
                     <td className="p-3 text-right font-bold text-emerald-700 tabular-nums">{formatMoney(row.remainingValue)}</td>
-                    <td className="whitespace-nowrap p-3 text-center text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
+                    <td className="whitespace-nowrap p-3 text-center text-slate-800"><ExpectedDeliveryCell value={row.expectedDelivery} /></td>
                     <td className="whitespace-nowrap p-3 text-center text-xs font-semibold text-slate-600">{row.status}</td>
                   </tr>
                 ))}
@@ -680,7 +700,8 @@ export function PoOutstandingPageClient() {
                 </div>
               </div>
               <div className="flex justify-between items-center text-xs text-slate-400 pt-1 border-t border-slate-100 mt-1">
-                <span className="text-center whitespace-nowrap">ส่งมอบ: {formatDateDisplay(row.expectedDelivery)}</span>
+                <span className="text-center whitespace-nowrap">ส่งมอบ:</span>
+                <ExpectedDeliveryCell value={row.expectedDelivery} />
                 <span className="font-semibold text-slate-500">{row.status}</span>
               </div>
             </div>

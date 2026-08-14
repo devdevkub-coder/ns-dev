@@ -33,5 +33,7 @@ export function GuardedLink({ href, onClick, replace = false, target, ...props }
     })
   }
 
-  return <Link href={href} replace={replace} target={target} {...props} onClick={handleClick} />
+  // BUG #51: ปิด prefetch — ทุกเมนูเป็น route ที่ proxy ต้องตรวจ session+สิทธิ์ทุกครั้ง
+  // การ prefetch ล่วงหน้าทำให้ยิง RPC/request ซ้ำเป็นจำนวนมากโดยที่ผู้ใช้ยังไม่คลิก
+  return <Link href={href} prefetch={false} replace={replace} target={target} {...props} onClick={handleClick} />
 }

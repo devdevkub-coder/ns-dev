@@ -1022,7 +1022,7 @@ export function DepreciationPageClient() {
     return filteredRows.filter((row) => row.status !== 'reversed').reduce((sum, row) => sum + row.depreciationAmount, 0)
   }, [filteredRows])
 
-  const periodDate = useMemo(() => month === 'all' ? '-' : new Date(Number(year), Number(month), 0).toISOString().slice(0, 10), [month, year])
+  const periodDate = useMemo(() => month === 'all' ? '-' : new Date(Date.UTC(Number(year), Number(month), 0)).toISOString().slice(0, 10), [month, year])
   const runPreview = async () => {
     setIsSaving(true)
     setError(null)

@@ -189,7 +189,6 @@ const exactPathPermissions: Record<string, string> = {
 }
 
 const masterDataPagePermissions: Record<string, string> = {
-  '/master-data/account-subtypes': 'master.account_subtypes.view',
   '/master-data/accounts': 'master.accounts.view',
   '/master-data/asset-categories': 'master.asset_categories.view',
   '/master-data/bank-names': 'master.bank_names.view',

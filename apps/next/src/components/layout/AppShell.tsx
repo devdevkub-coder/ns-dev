@@ -42,6 +42,37 @@ function waitForAuthRetry(attempt: number) {
   })
 }
 
+// BUG #51: cache ผล /api/auth/me ในหน่วยความจำต่อเซสชัน (ห้ามใช้ sessionStorage/localStorage
+// เพราะเก็บข้อมูล auth/permission ไว้ไม่ได้) — ลดการเรียกซ้ำเมื่อเปลี่ยนหน้า
+// proxy ยังตรวจ session + สิทธิ์สดทุก request อยู่เสมอ
+const AUTH_ME_CACHE_TTL_MS = 60_000
+type AuthMeCacheEntry = { at: number; summary: AuthContextSummary | null }
+let cachedAuthMe: AuthMeCacheEntry | null = null
+
+// BUG #51: รวม activity log เป็น batch — กัน request พุ่งเมื่อ navigate เร็วติดกัน
+let activityQueue: string[] = []
+let activityFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+function flushActivityQueue() {
+  activityFlushTimer = null
+  const pending = activityQueue
+  activityQueue = []
+  if (pending.length === 0) return
+  // Best-effort: ล้มเหลวก็ไม่บล็อกการนำทาง
+  void Promise.all(pending.map((body) => fetch('/api/activity', {
+    body,
+    cache: 'no-store',
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  }))).catch(() => {})
+}
+
+function enqueueActivity(body: Record<string, unknown>) {
+  activityQueue.push(JSON.stringify(body))
+  if (activityFlushTimer !== null) return
+  activityFlushTimer = setTimeout(flushActivityQueue, 2000)
+}
+
 async function fetchAuthContextWithRetry() {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
@@ -158,20 +189,13 @@ export function AppShell({ children }: AppShellProps) {
     if (isAuthPage || lastActivityPathRef.current === pathname) return
     lastActivityPathRef.current = pathname
 
-    void fetch('/api/activity', {
-      body: JSON.stringify({
-        key: 'page.view',
-        metadata: { pageTitle: title },
-        referrer: document.referrer || null,
-        routePath: pathname,
-        title,
-        type: 'page_view',
-      }),
-      cache: 'no-store',
-      headers: { 'content-type': 'application/json' },
-      method: 'POST',
-    }).catch(() => {
-      // Activity logging is best-effort and must not block normal navigation.
+    enqueueActivity({
+      key: 'page.view',
+      metadata: { pageTitle: title },
+      referrer: document.referrer || null,
+      routePath: pathname,
+      title,
+      type: 'page_view',
     })
   }, [isAuthPage, pathname, title])
 
@@ -181,18 +205,30 @@ export function AppShell({ children }: AppShellProps) {
     let mounted = true
 
     async function loadAuthContext() {
+      const cached = cachedAuthMe
+      if (cached && Date.now() - cached.at < AUTH_ME_CACHE_TTL_MS) {
+        if (mounted) {
+          setAuthLoadError(null)
+          setAuthContext(cached.summary)
+        }
+        return
+      }
+
       try {
         const response = await fetchAuthContextWithRetry()
         const payload = await response.json().catch(() => null)
 
         if (mounted && response.ok) {
-          setAuthLoadError(null)
-          setAuthContext({
+          const summary = {
             authUserEmail: typeof payload?.authUser?.email === 'string' ? payload.authUser.email : '',
             permissions: Array.isArray(payload?.permissions) ? payload.permissions : [],
             roles: normalizeAuthRoles(payload?.roles),
-          })
+          }
+          cachedAuthMe = { at: Date.now(), summary }
+          setAuthLoadError(null)
+          setAuthContext(summary)
         } else if (mounted && response.status === 401) {
+          cachedAuthMe = null
           const redirect = `${window.location.pathname}${window.location.search}`
           router.replace(`/login?redirect=${encodeURIComponent(redirect)}`)
         } else if (mounted) {
@@ -218,7 +254,7 @@ export function AppShell({ children }: AppShellProps) {
     return () => {
       mounted = false
     }
-  }, [isAuthPage, router])
+  }, [isAuthPage, pathname, router])
 
   useEffect(() => () => {
     if (menuSearchBlurTimerRef.current !== null) {
