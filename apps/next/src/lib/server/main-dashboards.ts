@@ -86,10 +86,19 @@ function activeStatus(status?: string | null) {
   return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
-function deltaValue(current: number, previous: number) {
+function deltaValue(current: number, previous: number): { amount: number; pct: number } | null {
+  if (previous === 0) return current === 0 ? { amount: 0, pct: 0 } : null
   const amount = current - previous
-  const pct = previous === 0 ? current === 0 ? 0 : 100 : amount / Math.abs(previous) * 100
+  const pct = amount / Math.abs(previous) * 100
   return { amount, pct }
+}
+
+function buildKpiDelta(entries: Record<string, { amount: number; pct: number } | null>) {
+  const result: Record<string, { amount: number; pct: number }> = {}
+  for (const [key, value] of Object.entries(entries)) {
+    if (value) result[key] = value
+  }
+  return result
 }
 
 type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
@@ -591,14 +600,14 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
         netProfit,
         revenue: salesAmount,
       },
-      kpiDelta: {
+      kpiDelta: buildKpiDelta({
         ar: deltaValue(currentReceivables.ar, previousReceivables.ar),
         ap: deltaValue(currentReceivables.ap, previousReceivables.ap),
         cashBalance: deltaValue(cashBalance, previousCashBalance),
         expenses: deltaValue(kpiExpenses, previousKpiExpenses),
         netProfit: deltaValue(netProfit, previousNetProfit),
         revenue: deltaValue(salesAmount, previousSalesAmount),
-      },
+      }),
       historical: {
         cogs: historicalCogs,
         expenses: historicalExpenses,

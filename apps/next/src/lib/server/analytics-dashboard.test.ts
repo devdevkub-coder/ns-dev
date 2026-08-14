@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   findManyExpenses: vi.fn(),
+  findManyHistoricalMonthly: vi.fn(),
   findManyPurchaseBills: vi.fn(),
   findManySalesBillLines: vi.fn(),
   findManySalesBills: vi.fn(),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/server/prisma', () => ({
   prisma: {
     expenses: { findMany: mocks.findManyExpenses },
+    historical_monthly: { findMany: mocks.findManyHistoricalMonthly },
     purchase_bills: { findMany: mocks.findManyPurchaseBills },
     sales_bill_lines: { findMany: mocks.findManySalesBillLines },
     sales_bills: { findMany: mocks.findManySalesBills },
@@ -28,6 +30,7 @@ import { buildAnalyticsDashboard } from './analytics-dashboard'
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.findManyExpenses.mockResolvedValue([])
+  mocks.findManyHistoricalMonthly.mockResolvedValue([])
   mocks.findManyPurchaseBills.mockResolvedValue([])
   mocks.findManySalesBillLines.mockResolvedValue([])
   mocks.listActiveSalespersons.mockResolvedValue([])
@@ -116,5 +119,30 @@ describe('buildAnalyticsDashboard range filtering', () => {
     // so they both land in the KPI — the assertion guards that expenses flow through
     // the same active-status + sum path as sales.
     expect(julyOnly.analytics.rangeKpi.expenseAmount).toBe(1000)
+  })
+
+  it('adds historical monthly rows within the range (BUG #15)', async () => {
+    mocks.findManySalesBills.mockResolvedValue([])
+    mocks.findManyPurchaseBills.mockResolvedValue([])
+    mocks.findManyExpenses.mockResolvedValue([])
+    mocks.findManyHistoricalMonthly.mockResolvedValue([
+      { year: 2023, month: 1, metric_type: 'pnl', category_id: 'revenue', amount: 100000 },
+      { year: 2023, month: 1, metric_type: 'pnl', category_id: 'cogs', amount: 70000 },
+      { year: 2023, month: 1, metric_type: 'expense', category_id: null, amount: 20000 },
+      // นอกช่วง — ต้องไม่ถูกนับ
+      { year: 2022, month: 12, metric_type: 'pnl', category_id: 'revenue', amount: 999999 },
+    ])
+
+    const result = await buildAnalyticsDashboard({
+      date: new Date('2023-01-31T00:00:00.000Z'),
+      dateFrom: '2023-01-01',
+      dateTo: '2023-01-31',
+    })
+
+    expect(result.analytics.rangeKpi.salesAmount).toBe(100000)
+    expect(result.analytics.rangeKpi.cogs).toBe(70000)
+    expect(result.analytics.rangeKpi.expenseAmount).toBe(20000)
+    expect(result.analytics.rangeKpi.gp).toBe(100000 - 70000)
+    expect(result.analytics.rangeKpi.netProfit).toBe(100000 - 70000 - 20000)
   })
 })

@@ -9,6 +9,9 @@ import { purchaseBillItemQty, purchaseBillItemRows } from '@/lib/server/purchase
 import { listActiveSalespersons, listProductReferences } from '@/lib/server/reference-master-cache'
 
 function activeStatus(status?: string | null) { return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase()) }
+function monthIndex(value: string) {
+  return Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7))
+}
 function itemRows(items: unknown) {
   if (!Array.isArray(items)) return []
   return items.flatMap((item) => {
@@ -62,12 +65,13 @@ export async function buildAnalyticsDashboard(filter: MainDashboardFilter): Prom
   const rangeStart = new Date(`${from}T00:00:00.000Z`)
   const rangeEnd = new Date(`${to}T23:59:59.999Z`)
   const purchaseRange = bangkokDateRange(from, to)
-  const [purchases, sales, expenses, products, salespersons] = await runBounded([
+  const [purchases, sales, expenses, products, salespersons, historicalRows] = await runBounded([
     () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { where: { item_status: 'active' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: purchaseRange } }),
     () => prisma.sales_bills.findMany({ include: { customers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: rangeStart, lte: rangeEnd } } }),
     () => prisma.expenses.findMany({ select: { amount: true, status: true }, take: 3000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
     async () => (await listProductReferences()).filter((row) => row.active).map((row) => ({ code: row.code, id: row.id, metal_group: row.metalGroup, name: row.name })),
     () => listActiveSalespersons(),
+    () => prisma.historical_monthly.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }], take: 5000 }),
   ])
   const activePurchases = purchases.filter((row) => activeStatus(row.status))
   const activeSales = sales.filter((row) => activeStatus(row.status))
@@ -85,11 +89,30 @@ export async function buildAnalyticsDashboard(filter: MainDashboardFilter): Prom
     linesByBill.set(line.sales_bill_id, current)
   }
   const productById = new Map(products.map((row) => [String(row.id), row]))
-  const purchaseAmount = activePurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
-  const salesAmount = activeSales.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
-  const cogs = activeSales.reduce((sum, row) => sum + toNumber(row.cogs_amount || row.total_cost), 0)
-  const expenseAmount = expenses.filter((row) => activeStatus(row.status)).reduce((sum, row) => sum + toNumber(row.amount), 0)
-  const grossProfit = activeSales.reduce((sum, row) => sum + (row.gross_profit != null ? toNumber(row.gross_profit) : toNumber(row.total_amount) - toNumber(row.cogs_amount ?? row.total_cost)), 0)
+  // BUG #15: ข้อมูลงวดเก่า (legacy) อยู่ใน historical_monthly ไม่ใช่ตารางเอกสาร —
+  // ต้องบวกเข้าเหมือน main dashboard ไม่งั้น ค่าใช้จ่าย = 0 และกำไร/COGS ขาดส่วน historical
+  const fromMonth = monthIndex(from.slice(0, 7))
+  const toMonth = monthIndex(to.slice(0, 7))
+  const scopedHistoricalRows = historicalRows.filter((row) => {
+    if (!row.year || !row.month) return false
+    const current = row.year * 12 + row.month
+    return current >= fromMonth && current <= toMonth
+  })
+  const historicalRevenue = scopedHistoricalRows.filter((row) => row.metric_type === 'pnl' && row.category_id === 'revenue').reduce((sum, row) => sum + toNumber(row.amount), 0)
+  const historicalCogs = scopedHistoricalRows.filter((row) => row.metric_type === 'pnl' && row.category_id === 'cogs').reduce((sum, row) => sum + toNumber(row.amount), 0)
+  const historicalExpenses = scopedHistoricalRows.filter((row) => row.metric_type === 'expense').reduce((sum, row) => sum + toNumber(row.amount), 0)
+  const livePurchaseAmount = activePurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
+  const liveSalesAmount = activeSales.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
+  const liveCogs = activeSales.reduce((sum, row) => sum + toNumber(row.cogs_amount || row.total_cost), 0)
+  const liveExpenseAmount = expenses.filter((row) => activeStatus(row.status)).reduce((sum, row) => sum + toNumber(row.amount), 0)
+  const anyStoredGrossProfit = activeSales.some((row) => row.gross_profit != null)
+  const purchaseAmount = livePurchaseAmount + historicalCogs
+  const salesAmount = liveSalesAmount + historicalRevenue
+  const cogs = liveCogs + historicalCogs
+  const expenseAmount = liveExpenseAmount + historicalExpenses
+  const grossProfit = (anyStoredGrossProfit
+    ? activeSales.reduce((sum, row) => sum + toNumber(row.gross_profit), 0)
+    : liveSalesAmount - liveCogs) + historicalRevenue - historicalCogs
   const productIn = new Map<string, { amount: number; code: string; group: string; id: string; name: string; qty: number }>()
   const productOut = new Map<string, { amount: number; code: string; group: string; id: string; name: string; qty: number }>()
   for (const bill of activePurchases) for (const item of itemRows(purchaseBillItemRows(bill))) { const product = productById.get(item.productId); const current = productIn.get(item.productId) ?? { amount: 0, code: product?.code ?? '', group: product?.metal_group ?? 'อื่นๆ', id: product?.code ?? '', name: product?.name ?? '-', qty: 0 }; current.amount += item.amount; current.qty += item.qty; productIn.set(item.productId, current) }
