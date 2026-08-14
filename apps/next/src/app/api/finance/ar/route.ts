@@ -131,7 +131,7 @@ export async function GET(request: Request) {
         })
       : null
 
-    const [bills, customers, branches, channels] = await Promise.all([
+    const [bills, allTimeBills, customers, branches, channels] = await Promise.all([
       prisma.sales_bills.findMany({
         include: {
           branches: { select: { code: true, id: true, name: true } },
@@ -141,6 +141,16 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
         where: billWhere(query, branch?.id ?? null, allowedBranchCodes, channel?.id ?? null, customer?.id ?? null),
+      }),
+      prisma.sales_bills.findMany({
+        include: {
+          branches: { select: { code: true, id: true, name: true } },
+          customers: { select: { code: true, credit_term: true, id: true, name: true, market_scope: true } },
+          sales_channels: { select: { code: true, id: true, name: true } },
+        },
+        orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
+        take: 10000,
+        where: billWhere({ ...query, from: null, to: null }, branch?.id ?? null, allowedBranchCodes, channel?.id ?? null, customer?.id ?? null),
       }),
       allowedBranchCodes === null
         ? listActiveCustomerBranchOptions()
@@ -163,7 +173,7 @@ export async function GET(request: Request) {
 
     const today = normalizeDate(toBangkokDateOnly(new Date()))
     const search = query.q?.trim().toLowerCase()
-    const allRows = bills
+    const mapRows = (sourceBills: typeof bills) => sourceBills
       .map((bill) => {
         const totalAmount = toNumber(bill.total_amount)
         const receivedAmount = toNumber(bill.received_amount)
@@ -202,6 +212,9 @@ export async function GET(request: Request) {
       .filter((row) => row.receivableBalance > 0.01)
       .filter((row) => !query.bucket || row.bucket === query.bucket)
       .filter((row) => !search || `${row.docNo} ${row.customerCode} ${row.customerName} ${row.channelName} ${row.branchName}`.toLowerCase().includes(search))
+
+    const allRows = mapRows(bills)
+    const allTimeRows = mapRows(allTimeBills)
 
     allRows.sort((left, right) => {
       const direction = query.sortDirection === 'asc' ? 1 : -1
@@ -389,6 +402,11 @@ export async function GET(request: Request) {
       },
       rows,
       summary: {
+        allTime: {
+          bills: allTimeRows.length,
+          customers: new Set(allTimeRows.map((row) => row.customerId)).size,
+          total: allTimeRows.reduce((sum, row) => sum + row.receivableBalance, 0),
+        },
         bills: allRows.length,
         customers: byCustomer.length,
         dueIn7: allRows.filter((row) => row.aging >= -7 && row.aging <= 0).reduce((sum, row) => sum + row.receivableBalance, 0),
