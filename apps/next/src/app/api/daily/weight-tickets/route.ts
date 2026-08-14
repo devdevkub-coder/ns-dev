@@ -118,7 +118,10 @@ export async function GET(request: Request) {
       prisma.weight_tickets.count({ where }),
     ])
 
-    const usageMap = await getWeightTicketUsageCountsByTicketIds(prisma, rows.map((row) => row.id))
+    const [usageMap, actorDisplayNames] = await Promise.all([
+      getWeightTicketUsageCountsByTicketIds(prisma, rows.map((row) => row.id)),
+      resolveWeightTicketActorDisplayNames(rows.flatMap((row) => [row.created_by, row.updated_by])),
+    ])
     const mappedRows: WeightTicketMappedRow[] = rows.map((row) => {
       const usage = usageMap.get(row.id.toString()) ?? {
         purchaseCount: 0,
@@ -130,7 +133,6 @@ export async function GET(request: Request) {
         ? mapWeightTicketRow(row as WeightTicketRow, usage)
         : mapWeightTicketListRow(row as WeightTicketListRow, usage)
     })
-    const actorDisplayNames = await resolveWeightTicketActorDisplayNames(mappedRows.flatMap((row) => [row.createdBy, row.updatedBy]))
     const displayMappedRows = mappedRows.map((row) => ({
       ...row,
       createdBy: weightTicketActorDisplayName(row.createdBy, actorDisplayNames),
