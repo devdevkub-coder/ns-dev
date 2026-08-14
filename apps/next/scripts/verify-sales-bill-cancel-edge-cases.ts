@@ -1,7 +1,8 @@
 import nextEnv from '@next/env'
+import { fileURLToPath } from 'node:url'
 import type { Prisma } from '../generated/prisma/client'
 
-const projectDir = new URL('..', import.meta.url).pathname
+const projectDir = fileURLToPath(new URL('..', import.meta.url))
 const { loadEnvConfig } = nextEnv
 loadEnvConfig(projectDir)
 
@@ -25,11 +26,15 @@ async function main() {
     { normalizeDate, toNumber },
     { activeSalesReceiptCount },
     { reversePoSellUsage },
+    { cancelSalesBillLineFacts },
+    { appendSalesBillStatusLog, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION },
   ] = await Promise.all([
     import('../src/lib/server/prisma'),
     import('../src/lib/server/daily'),
     import('../src/lib/server/sales-bill-cancel-policy'),
     import('../src/lib/server/sales-bill-po-sell-reversal'),
+    import('../src/lib/server/sales-bill-cancellation'),
+    import('../src/lib/server/sales-bill-history'),
   ])
 
   let assertions = 0
@@ -107,10 +112,13 @@ async function main() {
           warehouse_id: warehouse.id,
         },
       })
+      const originalLineNote = 'หมายเหตุสินค้าเดิม'
+      const cancelReason = 'ยกเลิกเพื่อทดสอบ'
       const line = await tx.sales_bill_lines.create({
         data: {
           line_amount: 400,
           line_no: 1,
+          notes: originalLineNote,
           product_code_snapshot: product.code,
           product_id: product.id,
           product_name_snapshot: product.name,
@@ -138,6 +146,8 @@ async function main() {
       await tx.sales_bill_customer_advance_allocations.create({
         data: {
           allocated_amount: 100,
+          allocated_subtotal_amount: 100,
+          allocated_total_amount: 100,
           customer_advance_doc_no: `${qaPrefix}-ADV`,
           customer_code_snapshot: customer.code,
           customer_id: customer.id,
@@ -227,6 +237,52 @@ async function main() {
       assertEqual('Customer advance allocation released by cancellation', await tx.sales_bill_customer_advance_allocations.count({ where: { sales_bill_id: bill.id, status: 'cancelled' } }), 1)
       assertEqual('PO Sell allocation fact cancelled', await tx.sales_bill_po_sell_allocations.count({ where: { sales_bill_id: bill.id, status: 'cancelled' } }), 1)
       assertions += 3
+
+      await cancelSalesBillLineFacts(tx, {
+        actor,
+        cancelledAt,
+        salesBillId: bill.id,
+      })
+
+      await tx.sales_bills.update({
+        data: {
+          cancel_note: cancelReason,
+          cancelled_at: cancelledAt,
+          cancelled_by: actor,
+          receivable_balance: 0,
+          status: SALES_BILL_STATUS.CANCELLED,
+        },
+        where: { id: bill.id },
+      })
+
+      await appendSalesBillStatusLog(tx, {
+        action: SALES_BILL_STATUS_ACTION.CANCELLED,
+        actor,
+        createdAt: cancelledAt,
+        fromStatus: bill.status,
+        meta: { reason: 'sales_bill_cancel' },
+        note: cancelReason,
+        salesBillId: bill.id,
+        toStatus: SALES_BILL_STATUS.CANCELLED,
+      })
+
+      const [cancelledLine, cancelledBill, cancellationLog] = await Promise.all([
+        tx.sales_bill_lines.findUniqueOrThrow({ where: { id: line.id } }),
+        tx.sales_bills.findUniqueOrThrow({ where: { id: bill.id } }),
+        tx.sales_bill_status_logs.findFirstOrThrow({
+          orderBy: { created_at: 'desc' },
+          where: {
+            action: SALES_BILL_STATUS_ACTION.CANCELLED,
+            sales_bill_id: bill.id,
+          },
+        }),
+      ])
+
+      assertEqual('line business note preserved', cancelledLine.notes, originalLineNote)
+      assertEqual('line state cancelled', cancelledLine.status, 'cancelled')
+      assertEqual('header cancellation reason stored', cancelledBill.cancel_note, cancelReason)
+      assertEqual('status timeline reason stored', cancellationLog.note, cancelReason)
+      assertions += 4
 
       throw rollbackSentinel
     })

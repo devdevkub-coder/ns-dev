@@ -11,6 +11,7 @@ import { appendSalesBillStatusLog, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION }
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
 import { activeSalesReceiptCount, isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
 import { reversePoSellUsage } from '@/lib/server/sales-bill-po-sell-reversal'
+import { cancelSalesBillLineFacts } from '@/lib/server/sales-bill-cancellation'
 import { reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
 import {
   correctTradingAllocationsSchema as tradingCorrectionSchema,
@@ -228,17 +229,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       })
 
       await Promise.all([
-        tx.sales_bill_lines.updateMany({
-          data: {
-            notes: `Cancelled from Sales Bill ${bill.doc_no}: ${values.note}`,
-            status: 'cancelled',
-            updated_at: cancelledAt,
-            updated_by: actor,
-          },
-          where: {
-            sales_bill_id: bill.id,
-            status: 'active',
-          },
+        cancelSalesBillLineFacts(tx, {
+          actor,
+          cancelledAt,
+          salesBillId: bill.id,
         }),
         tx.sales_bill_source_allocations.updateMany({
           data: {

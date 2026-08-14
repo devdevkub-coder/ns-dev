@@ -7,7 +7,6 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { formatThaiDateCE } from '@/lib/format'
 import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_ACTIVE_STATUSES, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
@@ -17,6 +16,7 @@ import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jo
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { activeSalesReceiptCount, activeSalesReceiptCountByBillId, isSalesBillActiveForCancel, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
+import { cancelSalesBillLineFacts } from '@/lib/server/sales-bill-cancellation'
 import { appendSalesBillStatusLog, isSalesBillActiveStatus, requireSalesBillStatus, salesBillStatusText, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { appendPoSellAllocationLogs, PO_SELL_ALLOCATION_ACTION } from '@/lib/server/po-sell-allocation-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
@@ -3794,14 +3794,15 @@ export async function PATCH(request: Request) {
       // 1. Mark status to cancelled and clear balances
       await tx.sales_bills.update({
         data: {
-          status: SALES_BILL_STATUS.CANCELLED,
+          cancel_note: reason,
+          cancelled_at: createdAt,
+          cancelled_by: actor,
+          paid_amount: 0,
           receivable_balance: 0,
           received_amount: 0,
-          paid_amount: 0,
+          status: SALES_BILL_STATUS.CANCELLED,
           updated_at: createdAt,
           updated_by: actor,
-          note: [bill.note, `ยกเลิกโดย ${actor} เมื่อ ${formatThaiDateCE(createdAt)} - เหตุผล: ${reason}`].filter(Boolean).join('\n'),
-          notes: [bill.notes, `ยกเลิกโดย ${actor} เมื่อ ${formatThaiDateCE(createdAt)} - เหตุผล: ${reason}`].filter(Boolean).join('\n'),
         },
         where: { id: bill.id },
       })
@@ -3882,17 +3883,10 @@ export async function PATCH(request: Request) {
         },
       })
       await Promise.all([
-        tx.sales_bill_lines.updateMany({
-          data: {
-            notes: `Cancelled from Sales Bill ${bill.doc_no}: ${reason}`,
-            status: 'cancelled',
-            updated_at: createdAt,
-            updated_by: actor,
-          },
-          where: {
-            sales_bill_id: bill.id,
-            status: 'active',
-          },
+        cancelSalesBillLineFacts(tx, {
+          actor,
+          cancelledAt: createdAt,
+          salesBillId: bill.id,
         }),
         tx.sales_bill_source_allocations.updateMany({
           data: {
