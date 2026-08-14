@@ -264,24 +264,30 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
-    const includeImagePreviews = new URL(request.url).searchParams.get('includeImagePreviews') !== 'false'
+    const searchParams = new URL(request.url).searchParams
+    const includeImagePreviews = searchParams.get('includeImagePreviews') !== 'false'
+    const includeHistory = searchParams.get('includeHistory') !== 'false'
     const responseMapped = includeImagePreviews
       ? await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
       : mapped
-    const [timeline, usageTimeline, downstreamAllocations, pendingOutEvents] = await Promise.all([
-      getWeightTicketTimeline(prisma, ticket.id),
-      getWeightTicketUsageTimeline(prisma, ticket.id),
-      getWeightTicketDownstreamAllocations(prisma, ticket.id),
-      getWeightTicketPendingOutEvents(prisma, ticket.id),
-    ])
-    const actorDisplayNames = await resolveWeightTicketActorDisplayNames([
-      responseMapped.createdBy,
-      responseMapped.enteredBy,
-      responseMapped.updatedBy,
-      ...downstreamAllocations.map((event) => event.createdBy),
-      ...timeline.map((event) => event.actorName),
-      ...usageTimeline.map((event) => event.createdBy),
-    ])
+    const [timeline, usageTimeline, downstreamAllocations, pendingOutEvents] = includeHistory
+      ? await Promise.all([
+        getWeightTicketTimeline(prisma, ticket.id),
+        getWeightTicketUsageTimeline(prisma, ticket.id),
+        getWeightTicketDownstreamAllocations(prisma, ticket.id),
+        getWeightTicketPendingOutEvents(prisma, ticket.id),
+      ])
+      : [await getWeightTicketTimeline(prisma, ticket.id), [], [], []] as const
+    const actorDisplayNames = includeHistory
+      ? await resolveWeightTicketActorDisplayNames([
+        responseMapped.createdBy,
+        responseMapped.enteredBy,
+        responseMapped.updatedBy,
+        ...downstreamAllocations.map((event) => event.createdBy),
+        ...timeline.map((event) => event.actorName),
+        ...usageTimeline.map((event) => event.createdBy),
+      ])
+      : new Map<string, string>()
     return withAuthNoStore(NextResponse.json({
       ...responseMapped,
       createdBy: weightTicketActorDisplayName(responseMapped.createdBy, actorDisplayNames),

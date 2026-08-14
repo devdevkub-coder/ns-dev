@@ -1339,8 +1339,11 @@ export async function listWeightTickets(params: {
   return readJsonResponse(response, weightTicketListResultSchema, 'โหลดรายการใบรับ-ส่งของไม่ได้')
 }
 
-export async function getWeightTicket(id: string, options: { includeImagePreviews?: boolean; signal?: AbortSignal } = {}) {
-  const query = options.includeImagePreviews === false ? '?includeImagePreviews=false' : ''
+export async function getWeightTicket(id: string, options: { includeHistory?: boolean; includeImagePreviews?: boolean; signal?: AbortSignal } = {}) {
+  const queryParams = new URLSearchParams()
+  if (options.includeImagePreviews === false) queryParams.set('includeImagePreviews', 'false')
+  if (options.includeHistory === false) queryParams.set('includeHistory', 'false')
+  const query = queryParams.toString() ? `?${queryParams.toString()}` : ''
   const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}${query}`, { cache: 'no-store', signal: options.signal })
   return readJsonResponse(response, weightTicketRecordSchema, 'โหลดใบรับ-ส่งของไม่ได้')
 }

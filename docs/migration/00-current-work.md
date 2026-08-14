@@ -1,14 +1,14 @@
-## WTI/WTO realtime preview request optimization — 2026-08-14
+## WTI/WTO detail-open latency optimization — 2026-08-14
 
-Active objective: ลดงานซ้ำระหว่างแท็บเมื่อมีการแก้ไข WTI/WTO พร้อมคงการอัปเดตรูปให้ถูกต้อง
+Active objective: ลดเวลารอเปิดหน้ารายละเอียด WTI/WTO โดยแยก core ticket จาก history และ signed thumbnail preview
 
-ล่าสุด: realtime event มี `imageChanged`; การแก้ตัวเลข/ข้อมูลที่ไม่เปลี่ยนรูปจะโหลดเฉพาะ ticket หลัก ส่วนการเปลี่ยนหรือลบรูปจึงโหลด signed preview ใหม่ การลบเต๋าที่มีรูปยัง refresh preview เพื่อเอารูปออกจากแท็บอื่นได้ เพิ่มการส่งเฉพาะ line ที่เปลี่ยน และ coalesce event ที่เข้ามาภายใน 50ms; ข้อมูล ticket/สิ่งเจือปน apply ก่อน preview. PATCH ที่ใช้ collaboration baseline คง summary ID เดิมด้วย upsert ตาม ticket/product และลบเฉพาะ summary สินค้าที่หายไป. แก้ทุกจุด publish ของ WTI/WTO จาก fire-and-forget เป็น Next.js `after()` หลัง transaction เพื่อไม่ให้ Vercel ตัดงาน broadcast ก่อนส่ง event. Local follow-up ให้แถวสิ่งเจือปนใหม่เริ่มด้วยค่า impurity ว่างและ focus น้ำหนักหัก โดยไม่เปิด dropdown อัตโนมัติ; validation เดิมยังบล็อกการเพิ่มรายการถัดไปเมื่อแถวก่อนหน้าไม่ครบ
+ล่าสุด: endpoint รายละเอียดรองรับ `includeHistory=false` เพื่อตัด usage timeline, downstream allocations และ pending-out history ออกจาก critical path (ยังโหลด timeline ขั้นต่ำเพื่อคำนวณ timer WTI). หน้าแก้ไขเรียก core ticket แบบไม่รวม history/preview แล้วแสดงฟอร์มทันที จากนั้นโหลด signed thumbnail แบบ background และ merge เฉพาะฟิลด์รูป เพื่อไม่ทับการแก้ไขของผู้ใช้ระหว่างโหลด. งาน realtime เดิมยังคงใช้ข้อมูลเต็มตามเดิม.
 
-Validation: type-check, targeted ESLint, production build 338 pages, WTI/WTO calculation and collaboration tests 35/35, realtime/attachment/preview/rebuild tests 25/25 และ focused product-entry tests 49/49 ผ่าน พร้อม `git diff --check`; ปรับ source-contract expectation ให้ตรวจ contract ปัจจุบันแทนรูปแบบโค้ดเดิม
+Validation: type-check, targeted ESLint, preview route tests 3/3, product-entry tests 49/49 และ `git diff --check` ผ่าน
 
-Remaining risk: ยังไม่ได้ทำ browser UAT และยังไม่ได้ push batch นี้ขึ้น SIT
+Remaining risk: ยังไม่ได้วัด waterfall ใน browser ที่ authenticated และยังไม่ได้ push batch นี้ขึ้น SIT
 
-Immediate next: code review แล้วค่อย commit/push เมื่อผู้ใช้สั่ง
+Immediate next: code review, ตรวจ browser network timing แล้ว commit/push เมื่อผู้ใช้สั่ง
 
 ## Print performance optimization batch 2 (A+B) — 2026-08-12
 
