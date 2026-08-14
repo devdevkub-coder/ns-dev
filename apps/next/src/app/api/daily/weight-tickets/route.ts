@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { calculateTicketTotals, displayWeightTicketStatus, isWeightTicketDraftLotSkeleton, type WeightTicketStatus, type WeightTicketType, weightTicketFormSchema } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -409,7 +409,7 @@ export async function POST(request: Request) {
         targetLabel: created.doc_no,
         targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'created', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
+    after(() => publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'created', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt }))
     return NextResponse.json({
       ...displayMapped,
       lineIdMap: createResult.lineIdMap,

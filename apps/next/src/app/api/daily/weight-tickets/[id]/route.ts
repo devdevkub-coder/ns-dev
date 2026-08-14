@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { calculateTicketTotals, isOtherProductImpurityLabel, isWeightTicketDraftLotSkeleton, OTHER_PRODUCT_IMPURITY_ID, parseImpurityProductMeta, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketDeleteLinesSchema, weightTicketFormSchema, weightTicketIncrementalPatchSchema, type WeightTicketFormValues, type WeightTicketIncrementalPatch } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -1070,7 +1070,7 @@ async function updateWeightTicket(
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: eventLineIds, imageChanged })
+    after(() => publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: eventLineIds, imageChanged }))
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.enteredBy, mapped.updatedBy])
     return NextResponse.json({
       ...mapped,
@@ -1152,14 +1152,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
       const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
       const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
-      void publishWeightTicketChange({
+      after(() => publishWeightTicketChange({
         branchId: mapped.branchId,
         changeType: 'deleted_lines',
         documentNo: mapped.documentNo,
         updatedAt: mapped.updatedAt,
         lineIds: deleteLines.data.deletedLineIds,
         imageChanged: deleteLines.data.deletedLineIds.some((lineId) => (existing.weight_ticket_lines.find((line) => String(line.id) === lineId)?.image_names?.length ?? 0) > 0),
-      })
+      }))
       return NextResponse.json({ ...mapped, createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames), lineIdMap: {}, updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames) })
     }
 
@@ -1294,7 +1294,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
       })
-      void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'confirmed', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
+      after(() => publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'confirmed', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt }))
       const autoSendKey = mapped.type === 'WTI' ? 'LINE_AUTO_SEND_WTI' : 'LINE_AUTO_SEND_WTO'
       const autoSendConfig = await prisma.system_settings.findUnique({ where: { key: autoSendKey } })
       if (autoSendConfig?.value === 'true') {
@@ -1422,7 +1422,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       targetLabel: updated.doc_no,
       targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'cancelled', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt })
+    after(() => publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'cancelled', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt }))
     const [timeline, pendingOutEvents] = await Promise.all([
       getWeightTicketTimeline(prisma, updated.id),
       getWeightTicketPendingOutEvents(prisma, updated.id),
