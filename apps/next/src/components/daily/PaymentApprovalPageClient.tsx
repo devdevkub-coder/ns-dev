@@ -754,6 +754,11 @@ export function PaymentApprovalPageClient() {
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      {data.apRows.some((row) => row.approvalStatus === 'pending') ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          รายการที่แสดงอยู่ยังอยู่ในสถานะ <strong>รออนุมัติ</strong> จึงยังไม่เข้าเมนูจ่ายเงิน
+        </div>
+      ) : null}
       {notice ? <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{notice}</div> : null}
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4 text-sm">

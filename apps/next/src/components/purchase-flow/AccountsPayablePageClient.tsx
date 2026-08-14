@@ -53,7 +53,7 @@ type ApPayload = {
   filters: { branches: SelectOption[]; statuses: string[]; suppliers: SelectOption[] }
   pagination: { page: number; pageSize: number; totalPages: number; totalRows: number }
   rows: ApRow[]
-  summary: { bills: number; dueIn7: number; overdue: number; suppliers: number; total: number }
+  summary: { allBills: number; allSuppliers: number; allTotal: number; approvedWaitingPaymentAmount: number; approvedWaitingPaymentItems: number; bills: number; dueIn7: number; overdue: number; overdueBills: number; overdueSuppliers: number; pendingApprovalBills: number; pendingApprovalTotal: number; suppliers: number; total: number }
 }
 
 type SortKey = 'date' | 'docNo' | 'dueDate' | 'payableBalance' | 'supplierName' | 'aging'
@@ -248,7 +248,8 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
   const totalPages = data?.pagination.totalPages ?? 1
   const bucketRows = data?.byBucket ?? []
   const topSuppliers = (data?.bySupplier ?? []).slice(0, 5)
-  const totalAp = data?.summary.total ?? 0
+  const totalAp = data?.summary.allTotal ?? 0
+  const filteredAp = data?.summary.total ?? 0
   const overdueAp = data?.summary.overdue ?? 0
   const dueIn7 = data?.summary.dueIn7 ?? 0
   const overduePercent = totalAp > 0 ? ((overdueAp / totalAp) * 100).toFixed(1) : '0.0'
@@ -296,12 +297,16 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-rose-700 to-pink-800 p-6 text-white shadow-lg">
           <div className="absolute -right-8 -top-8 text-8xl opacity-15">📤</div>
           <div className="relative">
-            <div className="text-sm uppercase tracking-wider opacity-80">💸 ค้างจ่าย Supplier รวม</div>
+            <div className="text-sm uppercase tracking-wider opacity-80">💸 ค้างจ่ายทั้งหมด</div>
             <div className="mt-2 text-4xl font-bold">{formatMoney(totalAp)}</div>
-            <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} บิล · {data?.summary.suppliers ?? 0} Supplier</div>
+            <div className="mt-1 text-sm opacity-90">{data?.summary.allBills ?? 0} บิล · {data?.summary.allSuppliers ?? 0} Supplier</div>
             <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/20 pt-4">
-              <div><div className="text-[10px] opacity-75">⚠ เกินกำหนด</div><div className="text-lg font-bold text-amber-200">{formatMoney(overdueAp)}</div></div>
-              <div><div className="text-[10px] opacity-75">⏰ ครบใน 7 วัน</div><div className="text-lg font-bold text-yellow-200">{formatMoney(dueIn7)}</div></div>
+              <div><div className="text-[10px] opacity-75">📅 ยอดค้างตามช่วงเวลา</div><div className="text-lg font-bold text-white">{formatMoney(filteredAp)}</div><div className="text-[10px] opacity-75">{data?.summary.bills ?? 0} บิล · {data?.summary.suppliers ?? 0} Supplier</div></div>
+              <div><div className="text-[10px] opacity-75">⚠ ยอดค้างที่เลยกำหนดชำระ</div><div className="text-lg font-bold text-amber-200">{formatMoney(overdueAp)}</div><div className="text-[10px] opacity-75">{data?.summary.overdueBills ?? 0} บิล · {data?.summary.overdueSuppliers ?? 0} Supplier</div></div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/20 pt-3">
+              <div><div className="text-[10px] opacity-75">🕘 บิลรออนุมัติจ่าย</div><div className="text-lg font-bold text-white">{formatMoney(data?.summary.pendingApprovalTotal ?? 0)}</div><div className="text-[10px] opacity-75">{data?.summary.pendingApprovalBills ?? 0} บิล</div></div>
+              <div><div className="text-[10px] opacity-75">✅ PMA อนุมัติแล้วรอทำจ่าย</div><div className="text-lg font-bold text-emerald-200">{formatMoney(data?.summary.approvedWaitingPaymentAmount ?? 0)}</div><div className="text-[10px] opacity-75">{data?.summary.approvedWaitingPaymentItems ?? 0} PMA</div></div>
             </div>
           </div>
         </div>

@@ -120,7 +120,7 @@ export async function GET(request: Request) {
     }
     const supplier = query.supplierId ? await findActiveSupplierReferenceByCodeOrId(query.supplierId) : null
 
-    const [bills, suppliers, branches] = await Promise.all([
+    const [bills, allBills, allPaymentApprovals, suppliers, branches] = await Promise.all([
       prisma.purchase_bills.findMany({
         include: {
           branches: { select: { code: true, id: true, name: true } },
@@ -129,6 +129,20 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
         where: billWhere(query, branch?.id ?? null, allowedBranchCodes, supplier?.id ?? null),
+      }),
+      prisma.purchase_bills.findMany({
+        select: { id: true, payable_balance: true, supplier_id: true },
+        take: 10000,
+        where: billWhere({ ...query, from: null, to: null }, branch?.id ?? null, allowedBranchCodes, supplier?.id ?? null),
+      }),
+      prisma.payment_approvals.findMany({
+        include: {
+          payments: {
+            select: { amount: true, discount: true, withholding_tax: true, status: true },
+            where: { status: { not: 'cancelled' } },
+          },
+        },
+        where: { source_type: 'purchase_bill', status: { in: ['approved', 'paid'] } },
       }),
       allowedBranchCodes === null
         ? listActiveSupplierBranchOptions()
@@ -232,6 +246,34 @@ export async function GET(request: Request) {
     })
 
     const bySupplier = Array.from(supplierMap.values()).sort((left, right) => right.total - left.total)
+    const allOutstandingBills = allBills.filter((bill) => toNumber(bill.payable_balance) > 0.01)
+    const allOutstandingSupplierIds = new Set(allOutstandingBills.map((bill) => bill.supplier_id?.toString() ?? '').filter(Boolean))
+    const allOutstandingBillIds = new Set(allOutstandingBills.map((bill) => bill.id.toString()))
+    const approvalsByBillId = new Map<string, typeof allPaymentApprovals>()
+    allPaymentApprovals.forEach((approval) => {
+      if (!allOutstandingBillIds.has(approval.source_id)) return
+      approvalsByBillId.set(approval.source_id, [...(approvalsByBillId.get(approval.source_id) ?? []), approval])
+    })
+    const paymentApprovalSummary = allOutstandingBills.reduce((summary, bill) => {
+      const payableBalance = toNumber(bill.payable_balance)
+      const approvals = approvalsByBillId.get(bill.id.toString()) ?? []
+      const approvedAmount = approvals.reduce((sum, approval) => sum + toNumber(approval.approved_amount), 0)
+      const pendingAmount = Math.max(0, payableBalance - approvedAmount)
+      if (pendingAmount > 0.01) {
+        summary.pendingBills += 1
+        summary.pendingAmount += pendingAmount
+      }
+      approvals.forEach((approval) => {
+        if (approval.status !== 'approved') return
+        const paidAmount = approval.payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.discount) + toNumber(payment.withholding_tax), 0)
+        const waitingAmount = Math.max(0, toNumber(approval.approved_amount) - paidAmount)
+        if (waitingAmount > 0.01) {
+          summary.approvedWaitingPaymentItems += 1
+          summary.approvedWaitingPaymentAmount += waitingAmount
+        }
+      })
+      return summary
+    }, { approvedWaitingPaymentAmount: 0, approvedWaitingPaymentItems: 0, pendingAmount: 0, pendingBills: 0 })
     const byBucket = ['Current', '1-30', '31-60', '61-90', '>90'].map((bucket) => ({
       bills: allRows.filter((row) => row.bucket === bucket).length,
       bucket,
@@ -392,9 +434,18 @@ export async function GET(request: Request) {
       },
       rows,
       summary: {
+        allBills: allOutstandingBills.length,
+        allSuppliers: allOutstandingSupplierIds.size,
+        allTotal: allOutstandingBills.reduce((sum, bill) => sum + toNumber(bill.payable_balance), 0),
+        approvedWaitingPaymentAmount: paymentApprovalSummary.approvedWaitingPaymentAmount,
+        approvedWaitingPaymentItems: paymentApprovalSummary.approvedWaitingPaymentItems,
         bills: allRows.length,
         dueIn7: allRows.filter((row) => row.aging >= 0 && row.aging <= 7).reduce((sum, row) => sum + row.payableBalance, 0),
+        overdueBills: allRows.filter((row) => row.aging > 0).length,
         overdue: allRows.filter((row) => row.aging > 0).reduce((sum, row) => sum + row.payableBalance, 0),
+        overdueSuppliers: new Set(allRows.filter((row) => row.aging > 0).map((row) => row.supplierId)).size,
+        pendingApprovalBills: paymentApprovalSummary.pendingBills,
+        pendingApprovalTotal: paymentApprovalSummary.pendingAmount,
         suppliers: bySupplier.length,
         total: allRows.reduce((sum, row) => sum + row.payableBalance, 0),
       },

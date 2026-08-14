@@ -639,7 +639,7 @@ function DashboardView(props: {
           <DashboardKpi delta={dashboardDelta(kpiDelta.netProfit)} label="กำไรสุทธิ" sub="หลังหักต้นทุนและค่าใช้จ่าย" tone={(k.netProfit ?? 0) >= 0 ? 'emerald' : 'red'} value={money(k.netProfit)} />
           <DashboardKpi delta={dashboardDelta(kpiDelta.cashBalance)} label="ยอดเงินสดและธนาคาร" sub="เงินสด/ธนาคาร" tone="cyan" value={money(k.cashBalance)} />
           <DashboardKpi delta={dashboardDelta(kpiDelta.ar, false)} label="ลูกหนี้การค้า" sub="ยอดลูกหนี้ (AR)" tone="purple" value={money(k.ar)} />
-          <DashboardKpi delta={dashboardDelta(kpiDelta.ap, false)} label="เจ้าหนี้การค้า" sub="ยอดเจ้าหนี้ (AP)" tone="orange" value={money(k.ap)} />
+          <DashboardKpi delta={dashboardDelta(kpiDelta.ap, false)} label="เจ้าหนี้การค้า" sub="AP ค้างตามบิล ณ วันที่เลือก" tone="orange" value={money(k.ap)} />
         </div>
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
           <DashboardChartCard title="รายได้เทียบค่าใช้จ่ายรายเดือน">

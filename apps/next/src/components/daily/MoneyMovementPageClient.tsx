@@ -3373,7 +3373,7 @@ export function MoneyMovementPageClient({
 
       {mode === 'payment' && showEntrySection ? (
         <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4">
-          <KpiCard label="ยอดรอจ่าย" value={formatMoney(paymentQueueMetrics.outstanding)} tone="violet" />
+          <KpiCard label="ยอดพร้อมจ่าย (อนุมัติแล้ว)" value={formatMoney(paymentQueueMetrics.outstanding)} tone="violet" />
           <KpiCard label="อายุเอกสารสูงสุด" value={`${paymentQueueMetrics.maxAgeDays.toLocaleString('th-TH')} วัน`} tone="amber" />
         </div>
       ) : mode === 'payment' ? (
@@ -4668,7 +4668,10 @@ export function MoneyMovementPageClient({
                 )
               })}
               {!isLoading && historyPageRows.length === 0 ? (
-                <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ยังไม่มีรายการ</div>
+                <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">
+                  <div>ยังไม่มีรายการที่อนุมัติแล้วและพร้อมจ่าย</div>
+                  <div className="mt-1 text-xs text-slate-400">หากมีรายการรออนุมัติ ให้ดำเนินการที่หน้าอนุมัติจ่ายเงินก่อน</div>
+                </div>
               ) : null}
             </div>
 
