@@ -2889,6 +2889,18 @@ export function WeightTicketFormCore({
 
   function addImpurityLine(sourceLine: FormWeightTicketLine) {
     if (isLoadingTicket || saveInFlightRef.current === 'save') return
+    setServerFieldErrors({})
+    const currentSectionLineIds = getWeightTicketRelatedLineIds(form.lines, sourceLine.id)
+    const firstLineError = Object.keys(errors).find((key) => {
+      if (key === 'lines') return true
+      const parsed = parseWeightTicketValidationKey(key)
+      return Boolean(parsed && currentSectionLineIds.has(parsed.lineId))
+    })
+    if (firstLineError) {
+      setTouched((current) => ({ ...current, [firstLineError]: true }))
+      prepareValidationFocus(firstLineError)
+      return
+    }
     const sourceSummary = calculateRealLotSummary(sourceLine, form.lines)
     const purchaseSourceWeight = Math.max(
       0,
@@ -2928,11 +2940,10 @@ export function WeightTicketFormCore({
     const draftSnapshot = form
     void saveDraftBeforeAdding({
       ...draftSnapshot,
-      lines: [...draftSnapshot.lines, nextLine],
-    }, new Set([sourceLine.id, nextLine.id]), new Set([nextLine.id])).then((savedForm) => {
+    }, currentSectionLineIds, new Set(), currentSectionLineIds).then((savedForm) => {
       if (!savedForm) return
       const lineIdMap = lastBackgroundLineIdMapRef.current
-      if (!lineIdMap[nextLine.id]) return
+      if (Object.keys(lineIdMap).length === 0) return
       setForm((current) => ({
         ...current,
         lines: remapWeightTicketLineIds(current.lines, lineIdMap),

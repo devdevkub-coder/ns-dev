@@ -110,7 +110,7 @@ What is what: `pending_out` คือ reservation ของ stock ที่ย�
 
 ## Scoped add performance (2026-08-14)
 
-เมื่อกด `เพิ่มเต๋า` ระบบยัง validate และ persist เต๋าปัจจุบันก่อนเปิดแถวใหม่ แต่ PATCH แบบ scoped จะคำนวณ fingerprint กับ baseline แล้วส่งเฉพาะ line ที่เปลี่ยนจริงหรือเป็น line ใหม่ ไม่ส่งซ้ำทั้ง section ที่ไม่ได้แก้. ระหว่างรอ save จะรอเฉพาะ upload รูปของ line ใน section เดียวกัน ไม่บล็อกด้วย upload ของรถหรือสินค้าอื่น.
+เมื่อกด `เพิ่มเต๋า`, `เพิ่มสิ่งเจือปน` หรือ `หักสิ่งเจือปนต่อ` ระบบจะ validate และ persist ข้อมูลเดิมของ section ปัจจุบันก่อนเปิดแถวใหม่. PATCH แบบ scoped จะคำนวณ fingerprint กับ baseline แล้วส่งเฉพาะ line ที่เปลี่ยนจริงหรือเป็น line ใหม่ ไม่ส่งซ้ำทั้ง section ที่ไม่ได้แก้. ระหว่างรอ save จะรอเฉพาะ upload รูปของ line ใน section เดียวกัน ไม่บล็อกด้วย upload ของรถหรือสินค้าอื่น. WTI และ WTO ใช้ boundary เดียวกัน แต่ server ยังคงบังคับความต่างของเอกสาร เช่น WTO ต้องมีคลังและห้าม impurity แบบสินค้าอื่น.
 
 What is what: `persistLineIds` คือขอบเขตข้อมูลที่ operation นี้อนุญาตให้เขียน และ `attachmentOwnerIds` คือขอบเขต upload ที่ต้องรอให้เสร็จก่อน persist. Why it has to be like this: server ยังคงเป็น source of truth และตรวจ validation/version ของ line ที่ส่งมา แต่ payload และเวลารอไม่ขยายไปแตะข้อมูลของ section อื่น จึงลด request body และ latency โดยไม่เปลี่ยนลำดับหรือ contract ของ WTI/WTO.
 

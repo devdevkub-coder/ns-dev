@@ -700,6 +700,51 @@ describe('weight-ticket product editor behavior', () => {
     })
   }
 
+  async function completeSelectedProductLine() {
+    const grossInput = container.querySelector<HTMLInputElement>('[id^="weight-gross-"]')
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(grossInput, '100')
+      grossInput?.dispatchEvent(new Event('input', { bubbles: true }))
+      grossInput?.dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:proof') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/attachments') && init?.method === 'GET') {
+        return { ok: true, status: 200, json: async () => ({ maxUploadBytes: 10_000_000, uploadConcurrency: 1 }) }
+      }
+      if (url.endsWith('/attachments') && init?.method === 'POST') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            bucket: 'weight-ticket-images',
+            fileName: 'proof.jpg',
+            storageKey: 'original/proof.jpg',
+            thumbnailStorageKey: 'thumbnail/proof.webp',
+            thumbnailStatus: 'queued',
+          }),
+        }
+      }
+      return { ok: true, status: 200, json: async () => ({}) }
+    }))
+    const imageInput = Array.from(container.querySelectorAll<HTMLInputElement>('input[data-image-source="gallery"]')).at(-1)
+    const proof = new File(['proof'], 'proof.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(imageInput, 'files', {
+      configurable: true,
+      value: { 0: proof, item: (index: number) => index === 0 ? proof : null, length: 1 },
+    })
+    await act(async () => {
+      imageInput?.dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => expect(container.textContent).toContain('proof.jpg'))
+    await vi.waitFor(() => expect(container.textContent).not.toContain('แนบรูปภาพบรรทัดที่ 1 อย่างน้อย 1 รูป'))
+  }
+
   it('waits for an off-screen frame before entering even when reduced motion is requested', async () => {
     const queuedFrames = new Map<number, FrameRequestCallback>()
     let nextFrameId = 1
@@ -789,6 +834,7 @@ describe('weight-ticket product editor behavior', () => {
       productOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
       await Promise.resolve()
     })
+    await completeSelectedProductLine()
 
     await vi.waitFor(() => {
       expect(container.querySelector<HTMLInputElement>('[id^="weight-product-"]')?.value).toContain('เหล็ก')
@@ -850,6 +896,7 @@ describe('weight-ticket product editor behavior', () => {
       productOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
       await Promise.resolve()
     })
+    await completeSelectedProductLine()
     await vi.waitFor(() => expect(container.querySelector<HTMLInputElement>('[id^="weight-product-"]')?.value).toContain('เหล็ก'))
 
     const addImpurityButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'เพิ่มสิ่งเจือปน')
