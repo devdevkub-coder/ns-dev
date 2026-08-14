@@ -684,12 +684,12 @@ function CostSourceModal({
               </button>
             </div>
             <div className="overflow-x-auto p-4 overflow-hidden">
-              <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-                {columnResize.hasCustomWidths ? (
+              {columnResize.hasCustomWidths ? (
+                <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
                   <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-                ) : null}
-              </div>
-              <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                </div>
+              ) : null}
+              <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {costSourceColumns.map((col) => (
                     <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -767,12 +767,12 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
       <div className="p-4">
         {/* Desktop View Table */}
         <div className="hidden lg:block overflow-x-auto overflow-hidden">
-          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-            {columnResize.hasCustomWidths ? (
+          {columnResize.hasCustomWidths ? (
+            <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
               <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-            ) : null}
-          </div>
-          <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            </div>
+          ) : null}
+          <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {readinessColumns.map((col) => (
                 <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -881,12 +881,12 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
     <div className="p-4">
       {/* Desktop view */}
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-          {columnResize.hasCustomWidths ? (
+        {columnResize.hasCustomWidths ? (
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-          ) : null}
-        </div>
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          </div>
+        ) : null}
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {productColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -972,12 +972,12 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
     <div className="p-4">
       {/* Desktop view */}
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-          {columnResize.hasCustomWidths ? (
+        {columnResize.hasCustomWidths ? (
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-          ) : null}
-        </div>
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          </div>
+        ) : null}
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {purchaseColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1059,12 +1059,12 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
     <div className="p-4">
       {/* Desktop view */}
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-          {columnResize.hasCustomWidths ? (
+        {columnResize.hasCustomWidths ? (
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-          ) : null}
-        </div>
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          </div>
+        ) : null}
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {salesColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />

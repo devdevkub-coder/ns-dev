@@ -609,7 +609,7 @@ export function ProductTrackingPageClient({
           ))}
         </div>
         <div className="hidden overflow-x-auto rounded-md bg-white border border-slate-200/60 shadow lg:block overflow-hidden">
-          <table className="ns-table w-full text-sm border-collapse" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table w-full text-sm border-collapse" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {trackingColumns.map((col) => (
                 <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -646,7 +646,7 @@ export function ProductTrackingPageClient({
                   <td className="whitespace-nowrap p-3 text-right font-mono font-semibold tabular-nums text-orange-700 overflow-hidden truncate">{formatMoney(row.revenue ?? row.salesAmount ?? 0)}</td>
                   <td className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(row.avgSell ?? 0)}</td>
                   <td className="whitespace-nowrap p-3 text-right font-mono tabular-nums text-red-600 overflow-hidden truncate">{formatMoney(row.cogs ?? 0)}</td>
-                  <td className={`whitespace-nowrap p-3 text-right font-mono font-semibold tabular-nums ${(row.gp ?? 0) >= 0 ? 'text-orange-700' : 'text-red-600'}`}>{formatMoney(row.gp ?? 0)}</td>
+                  <td className={`whitespace-nowrap p-3 text-right font-mono font-semibold tabular-nums overflow-hidden truncate ${(row.gp ?? 0) >= 0 ? 'text-orange-700' : 'text-red-600'}`}>{formatMoney(row.gp ?? 0)}</td>
                   <td className="whitespace-nowrap p-3 pr-4 text-right font-mono tabular-nums text-slate-700 overflow-hidden truncate">{(row.gpPct ?? 0).toFixed(2)}%</td>
                 </tr>
               ))}
@@ -1023,7 +1023,7 @@ function YearCompare({ rows }: { rows: ProductTrackingRow[] }) {
       </div>
 
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {productYearCompareColumns.map((column) => (
               <col

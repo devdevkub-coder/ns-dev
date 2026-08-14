@@ -310,7 +310,7 @@ export function TradingMatchingPageClient() {
                   </button>
                 ) : null}
               </div>
-              <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {allocationColumns.map((col) => (
                     <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -428,7 +428,7 @@ function RemainingPurchaseTable({
         ) : null}
       </div>
       <div className="overflow-x-auto">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {remainingColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />

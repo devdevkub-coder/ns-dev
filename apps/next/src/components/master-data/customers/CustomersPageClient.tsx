@@ -658,7 +658,7 @@ export function CustomersPageClient() {
           {/* Desktop Table View */}
           <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm hidden lg:block">
             <div className="overflow-x-auto">
-              <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {customerColumns.map((column) => (
                     <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

@@ -401,7 +401,7 @@ function WaitingAllocationsView() {
       >
         {/* Desktop View */}
         <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-          <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: summaryResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: summaryResize.tableMinWidth, maxWidth: summaryResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {waitingSummaryColumns.map((column) => (
                 <col key={column.key} style={summaryResize.getColumnStyle(column.key)} />
@@ -585,7 +585,7 @@ function WaitingAllocationsView() {
 
       {/* Desktop View */}
       <div className="hidden overflow-x-auto lg:block" style={{ width: '100%', overflowX: 'auto' }}>
-        <table className="ns-table w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {currentColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1086,7 +1086,7 @@ function AllocationLedgerView() {
 
         {/* Desktop View */}
         <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table min-w-full text-sm" style={{ minWidth: ledgerResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full text-sm" style={{ minWidth: ledgerResize.tableMinWidth, maxWidth: ledgerResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {ledgerColumns.map((column) => (
                 <col key={column.key} style={ledgerResize.getColumnStyle(column.key)} />
@@ -1473,7 +1473,7 @@ function DualCostingReportView() {
                   titleAction={allocatedDetailResize.hasCustomWidths ? <Button className="h-9 px-3 text-sm" size="sm" type="button" variant="outline" onClick={allocatedDetailResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
                 >
                   <div className="min-w-0 overflow-x-auto">
-                    <Table className="min-w-full text-sm" style={{ minWidth: allocatedDetailResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                    <Table className="min-w-full text-sm" style={{ minWidth: allocatedDetailResize.tableMinWidth, maxWidth: allocatedDetailResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                       <colgroup>
                         {reportAllocatedDetailColumns.map((column) => <col key={column.key} style={allocatedDetailResize.getColumnStyle(column.key)} />)}
                       </colgroup>
@@ -1522,7 +1522,7 @@ function DualCostingReportView() {
                   titleAction={pendingDetailResize.hasCustomWidths ? <Button className="h-9 px-3 text-sm" size="sm" type="button" variant="outline" onClick={pendingDetailResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
                 >
                   <div className="min-w-0 overflow-x-auto">
-                    <Table className="min-w-full text-sm" style={{ minWidth: pendingDetailResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                    <Table className="min-w-full text-sm" style={{ minWidth: pendingDetailResize.tableMinWidth, maxWidth: pendingDetailResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                       <colgroup>
                         {reportPendingDetailColumns.map((column) => <col key={column.key} style={pendingDetailResize.getColumnStyle(column.key)} />)}
                       </colgroup>
@@ -1650,7 +1650,7 @@ function DualCostingReportView() {
           >
             {/* Desktop View */}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-              <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: reportResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: reportResize.tableMinWidth, maxWidth: reportResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {reportColumns.map((column) => (
                     <col key={column.key} style={reportResize.getColumnStyle(column.key)} />

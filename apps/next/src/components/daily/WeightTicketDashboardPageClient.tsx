@@ -524,7 +524,7 @@ function ProductPanel({ isLoading, rows }: { isLoading: boolean; rows: ProductRo
       </div>
 
       <div className="hidden overflow-x-auto lg:block">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {productColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
           </colgroup>
@@ -652,7 +652,7 @@ function FlowTablePanel({
       </div>
 
       <div className="hidden overflow-x-auto lg:block">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {flowColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
           </colgroup>

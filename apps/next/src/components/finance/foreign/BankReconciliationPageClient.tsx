@@ -327,7 +327,8 @@ function ImportedTable({
   isLoading: boolean
   rows: ImportedRow[]
   columnResize: {
-    tableMinWidth: string
+    tableMaxWidth: number
+    tableMinWidth: number
     getColumnStyle: (key: ImportedColumnKey) => React.CSSProperties
     getResizeHandleProps: (key: ImportedColumnKey, label: string) => any
   }
@@ -337,7 +338,7 @@ function ImportedTable({
 }) {
   return (
     <>
-      <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
         <colgroup>
           {importedColumns.map((column) => (
             <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -438,7 +439,8 @@ function ErpTable({
   isLoading: boolean
   rows: ErpRow[]
   columnResize: {
-    tableMinWidth: string
+    tableMaxWidth: number
+    tableMinWidth: number
     getColumnStyle: (key: ErpColumnKey) => React.CSSProperties
     getResizeHandleProps: (key: ErpColumnKey, label: string) => any
   }
@@ -448,7 +450,7 @@ function ErpTable({
 }) {
   return (
     <>
-      <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
         <colgroup>
           {erpColumns.map((column) => (
             <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

@@ -466,7 +466,7 @@ export function StockLedgerPageClient() {
       {/* Desktop Table View */}
       <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <div className="overflow-x-auto">
-        <table className="ns-table w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {stockLedgerColumns.map((column) => {
               const style = columnResize.getColumnStyle(column.key);

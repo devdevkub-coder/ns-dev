@@ -496,7 +496,7 @@ export function CostPoolPageClient() {
 
       <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
         <div className="overflow-x-auto">
-          <table className="ns-table min-w-full text-sm" style={{ minWidth: groupColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table min-w-full text-sm" style={{ minWidth: groupColumnResize.tableMinWidth, maxWidth: groupColumnResize.tableMaxWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {costPoolGroupColumns.map((column) => (
                 <col key={column.key} style={groupColumnResize.getColumnStyle(column.key)} />
@@ -614,7 +614,7 @@ export function CostPoolPageClient() {
 
                 <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
                   <div className="overflow-x-auto">
-                    <table className="ns-table min-w-full text-sm" style={{ minWidth: lotColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                    <table className="ns-table min-w-full text-sm" style={{ minWidth: lotColumnResize.tableMinWidth, maxWidth: lotColumnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                       <colgroup>
                         {costPoolLotColumns.map((column) => (
                           <col key={column.key} style={lotColumnResize.getColumnStyle(column.key)} />

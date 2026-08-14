@@ -1102,7 +1102,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
         <h3 className="font-bold text-slate-800">รายละเอียดตัวชี้วัด</h3>
         {columnResize.hasCustomWidths ? (
           <button
-            className="hidden h-8 items-center rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200 md:inline-flex"
+            className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 md:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -1112,7 +1112,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
       </div>
 
       <div className="hidden overflow-x-auto md:block">
-        <table className="ns-table min-w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {detailColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1314,7 +1314,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
         <span> ต้องเร่งเก็บลูกค้าค้างเกินกำหนด (Top 10)</span>
         {columnResize.hasCustomWidths ? (
           <button
-            className="hidden h-8 rounded-md bg-white/70 px-3 text-xs font-semibold text-emerald-700 hover:bg-white lg:inline-flex"
+            className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -1325,7 +1325,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
       
       {/* Desktop Table View */}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topPartyColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1392,7 +1392,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
         <span> อาจต้องเลื่อนจ่ายซัพพลายเออร์ (Top 10 ยอดสูง)</span>
         {columnResize.hasCustomWidths ? (
           <button
-            className="hidden h-8 rounded-md bg-white/70 px-3 text-xs font-semibold text-red-700 hover:bg-white lg:inline-flex"
+            className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -1403,7 +1403,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
       
       {/* Desktop Table View */}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topPartyColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1473,7 +1473,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
         {columnResize.hasCustomWidths ? (
           <div className="hidden justify-end border-b border-slate-100 bg-white px-3 py-2 lg:flex">
             <button
-              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              className="h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
@@ -1484,7 +1484,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
         <div className="flex-1 overflow-auto bg-white">
           {/* Desktop Table View */}
           <div className="hidden lg:block">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {dayEventColumns.map((column) => (
                   <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

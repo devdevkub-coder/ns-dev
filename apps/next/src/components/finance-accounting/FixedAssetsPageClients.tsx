@@ -731,7 +731,7 @@ export function AssetRegisterPageClient() {
 
       {/* Desktop View Table */}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {assetRegisterColumns.map((column) => (
                 <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1287,7 +1287,7 @@ export function DepreciationPageClient() {
           <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         {/* Desktop view */}
         <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {depreciationColumns.map((column) => (
                 <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1701,7 +1701,7 @@ export function AssetDisposalPageClient() {
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         {/* Desktop view */}
         <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {disposalColumns.map((column) => (
                 <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -2197,7 +2197,7 @@ function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: Depreci
             </button>
           </div>
         ) : null}
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {pendingAssetColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

@@ -1550,7 +1550,7 @@ export function SalesPlanPageClient() {
         />
         {/* Desktop view */}
         <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: planResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: planResize.tableMinWidth, maxWidth: planResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {salesPlanColumns.map((column) => (
                 <col key={column.key} style={planResize.getColumnStyle(column.key)} />
@@ -1709,7 +1709,7 @@ export function SalesPlanPageClient() {
           onResetWidths={pendingSaleResize.hasCustomWidths ? pendingSaleResize.resetColumnWidths : undefined}
         />
         <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: pendingSaleResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: pendingSaleResize.tableMinWidth, maxWidth: pendingSaleResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {salesPlanPendingColumns.map((column) => (
                 <col key={column.key} style={pendingSaleResize.getColumnStyle(column.key)} />
@@ -2169,7 +2169,7 @@ export function SalesCommissionPageClient() {
               </div>
             ) : null}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table1Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table1Resize.tableMinWidth, maxWidth: table1Resize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {commissionCategoryColumns.map((column) => (
                     <col key={column.key} style={table1Resize.getColumnStyle(column.key)} />
@@ -2235,7 +2235,7 @@ export function SalesCommissionPageClient() {
               </div>
             ) : null}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table2Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table2Resize.tableMinWidth, maxWidth: table2Resize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {commissionCategoryColumns.map((column) => (
                     <col key={column.key} style={table2Resize.getColumnStyle(column.key)} />
@@ -2301,7 +2301,7 @@ export function SalesCommissionPageClient() {
             </div>
           ) : null}
           <div className="mb-3 hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table3Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table3Resize.tableMinWidth, maxWidth: table3Resize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {commissionSupplierColumns.map((column) => (
                   <col key={column.key} style={table3Resize.getColumnStyle(column.key)} />
@@ -2408,7 +2408,7 @@ export function SalesCommissionPageClient() {
             </div>
           ) : null}
           <div className="mb-3 hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table4Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table4Resize.tableMinWidth, maxWidth: table4Resize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {commissionBillColumns.map((column) => (
                   <col key={column.key} style={table4Resize.getColumnStyle(column.key)} />
@@ -2662,7 +2662,7 @@ export function SalesCommissionPageClient() {
           </div>
         ) : null}
         <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: summaryResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: summaryResize.tableMinWidth, maxWidth: summaryResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {commissionSummaryColumns.map((column) => (
                 <col key={column.key} style={summaryResize.getColumnStyle(column.key)} />

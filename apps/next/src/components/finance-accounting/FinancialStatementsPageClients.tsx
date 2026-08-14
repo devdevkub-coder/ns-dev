@@ -1767,7 +1767,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
       </div>
       <div className="overflow-x-auto">
         {/* Desktop Table View */}
-        <table className="ns-table hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {statementColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1882,7 +1882,7 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
         ) : null}
         <div className="flex-1 overflow-auto bg-white">
           {/* Desktop Table View */}
-          <table className="ns-table hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {drillColumns.map((column) => (
                 <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

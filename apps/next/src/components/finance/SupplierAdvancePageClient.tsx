@@ -154,14 +154,14 @@ export function SupplierAdvancePageClient() {
       </div>
 
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-          {columnResize.hasCustomWidths ? (
+        {columnResize.hasCustomWidths ? (
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
             <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
-          ) : null}
-        </div>
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          </div>
+        ) : null}
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {supplierAdvanceColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />

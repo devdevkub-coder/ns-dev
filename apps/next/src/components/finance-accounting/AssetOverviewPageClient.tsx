@@ -316,7 +316,7 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
             </button>
           </div>
         ) : null}
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {cashColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

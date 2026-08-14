@@ -83,26 +83,34 @@ export function TaxVatWhtPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">งวด</label>
+      <div className="hidden flex-wrap items-end gap-x-3 gap-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-600">เดือน</label>
           <Select
-            className="rounded-md border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer"
-            value={month} 
+            aria-label="เลือกเดือน"
+            className="h-9 w-full min-w-[110px] rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
+            value={month}
             onChange={(event) => setMonth(event.target.value)}
           >
-            {MONTHS.map((item) => <option key={item} value={item}>เดือน {item}</option>)}
+            {MONTHS.map((item) => <option key={item} value={item}>{item}</option>)}
           </Select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-600">ปี</label>
           <Select
-            className="rounded-md border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer"
-            value={year} 
+            aria-label="เลือกปี"
+            className="h-9 w-full min-w-[110px] rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
+            value={year}
             onChange={(event) => setYear(event.target.value)}
           >
-            {YEARS.map((item) => <option key={item} value={String(item)}>ปี {item}</option>)}
+            {YEARS.map((item) => <option key={item} value={String(item)}>{item}</option>)}
           </Select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
           <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-3 pb-2">
           <span className="text-xs text-slate-500">{periodLabel} · {selectedBranch}</span>
           <span className="text-xs text-slate-400">ช่วง {data?.filters.periodStart ?? `${year}-${month}-01`} ถึง {data?.filters.periodEnd ?? '-'}</span>
         </div>
@@ -168,7 +176,7 @@ export function TaxVatWhtPageClient() {
                 value={mobileMonth}
                 onChange={(event) => setMobileMonth(event.target.value)}
               >
-                {MONTHS.map((item) => <option key={item} value={item}>เดือน {item}</option>)}
+                {MONTHS.map((item) => <option key={item} value={item}>{item}</option>)}
               </Select>
             </div>
             <div>
@@ -179,7 +187,7 @@ export function TaxVatWhtPageClient() {
                 value={mobileYear}
                 onChange={(event) => setMobileYear(event.target.value)}
               >
-                {YEARS.map((item) => <option key={item} value={String(item)}>ปี {item}</option>)}
+                {YEARS.map((item) => <option key={item} value={String(item)}>{item}</option>)}
               </Select>
             </div>
           </div>
@@ -545,7 +553,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
 
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {columns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -567,7 +575,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
               <tr key={`${item.source}-${item.no}`} className="hover:bg-slate-50/50 transition-colors">
                 <Td align="center">{item.date}</Td>
                 <Td align="center"><span className="font-mono text-xs text-slate-600">{item.no}</span></Td>
-                <Td align="left" className="whitespace-normal max-w-[200px]">{item.party}</Td>
+                <Td align="left" className="!whitespace-normal break-words max-w-[200px]">{item.party}</Td>
                 <Td align="right">{money(item.base)}</Td>
                 <Td align="right"><span className={`font-bold ${valueColor}`}>{money(item[valueKey])}</span></Td>
                 {hasDoc ? <Td align="center">{item.hasDoc ? '✓' : '✗ ขาด'}</Td> : null}
@@ -670,7 +678,7 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
 
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {calendarColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

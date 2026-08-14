@@ -93,7 +93,7 @@ const loanContractColumns: Array<ResizableColumnDefinition<LoanContractColumnKey
   { key: 'contractNo', defaultWidth: 145, minWidth: 120 },
   { key: 'lenderName', defaultWidth: 210, minWidth: 150 },
   { key: 'loanType', defaultWidth: 120, minWidth: 100 },
-  { key: 'asset', defaultWidth: 100, minWidth: 80 },
+  { key: 'asset', defaultWidth: 175, minWidth: 150 },
   { key: 'principalAmount', defaultWidth: 155, minWidth: 130 },
   { key: 'outstanding', defaultWidth: 155, minWidth: 130 },
   { key: 'installment', defaultWidth: 145, minWidth: 120 },
@@ -234,8 +234,8 @@ export function LoanContractsPageClient() {
       {/* Desktop Filter Panel */}
       <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
-          <input autoComplete="off" className="min-w-[260px] flex-1 h-9 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition" placeholder="ค้นหาเลขที่สัญญา / ผู้ให้กู้..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <Select className="h-9 px-3 py-1.5 text-sm" value={type} onChange={(event) => setType(event.target.value)}>
+          <input autoComplete="off" className="min-w-[260px] flex-1 max-w-[340px] h-9 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition" placeholder="ค้นหาเลขที่สัญญา / ผู้ให้กู้..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <Select className="h-9 w-44 px-3 py-1.5 text-sm" value={type} onChange={(event) => setType(event.target.value)}>
           <option value="all">ทุกประเภท</option>
           {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
         </Select>
@@ -345,7 +345,7 @@ export function LoanContractsPageClient() {
         <div className="flex flex-wrap items-center gap-2">
           {columnResize.hasCustomWidths ? (
             <button
-              className="hidden h-9 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200 lg:inline-flex"
+              className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
@@ -377,7 +377,7 @@ export function LoanContractsPageClient() {
       <div className="hidden lg:block">
         <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {loanContractColumns.map((column) => (
                   <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -792,7 +792,7 @@ export function OpeningBalancePageClient() {
           {columnResize.hasCustomWidths ? (
             <div className="flex justify-end border-b border-slate-100 bg-white px-3 py-2">
               <button
-                className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                className="h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
                 type="button"
                 onClick={columnResize.resetColumnWidths}
               >
@@ -801,7 +801,7 @@ export function OpeningBalancePageClient() {
             </div>
           ) : null}
           <div className="overflow-x-auto">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {openingAccountColumns.map((column) => (
                   <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -901,7 +901,7 @@ export function HistoricalDataPageClient() {
           {columnResize.hasCustomWidths ? (
             <div className="flex justify-end border-b border-slate-100 bg-white px-3 py-2">
               <button
-                className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                className="h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
                 type="button"
                 onClick={columnResize.resetColumnWidths}
               >
@@ -910,7 +910,7 @@ export function HistoricalDataPageClient() {
             </div>
           ) : null}
           <div className="overflow-x-auto">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {historicalColumns.map((column) => (
                   <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1006,7 +1006,7 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
         <span>{title} ({rows.length})</span>
         {columnResize.hasCustomWidths ? (
           <button
-            className="hidden h-8 rounded-md bg-white/70 px-3 text-xs font-semibold text-slate-700 hover:bg-white lg:inline-flex"
+            className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -1017,7 +1017,7 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
       
       {/* Desktop Table View */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {dueColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

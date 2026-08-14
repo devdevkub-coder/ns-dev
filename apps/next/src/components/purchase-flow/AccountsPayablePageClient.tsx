@@ -775,7 +775,7 @@ function SummaryTable({
     <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
       <TableToolbar pagination={pagination} onResetWidths={columnResize.hasCustomWidths ? columnResize.resetColumnWidths : undefined} />
       <div className="overflow-x-auto">
-      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
         <colgroup>
           {summaryColumns.map((column) => (
             <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -867,7 +867,7 @@ function DetailTable({
     <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
       <TableToolbar pagination={pagination} onResetWidths={columnResize.hasCustomWidths ? columnResize.resetColumnWidths : undefined} />
       <div className="overflow-x-auto">
-      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
         <colgroup>
           {detailColumns.map((column) => (
             <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

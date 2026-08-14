@@ -3547,7 +3547,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
       {/* Desktop Table (Hidden on Mobile) */}
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {tableColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

@@ -31,8 +31,8 @@ const buyColumns: Array<ResizableColumnDefinition<PoOutstandingBuyColumnKey>> = 
   { key: 'receivedQty', defaultWidth: 125, minWidth: 105 },
   { key: 'remainingQty', defaultWidth: 125, minWidth: 105 },
   { key: 'remainingValue', defaultWidth: 145, minWidth: 125 },
-  { key: 'expectedDelivery', defaultWidth: 130, minWidth: 110 },
-  { key: 'status', defaultWidth: 100, minWidth: 90 },
+  { key: 'expectedDelivery', defaultWidth: 190, minWidth: 190 },
+  { key: 'status', defaultWidth: 140, minWidth: 140 },
 ]
 
 type PoOutstandingSellColumnKey = 'docNo' | 'date' | 'partnerName' | 'productName' | 'qty' | 'unitPrice' | 'soldQty' | 'remainingQty' | 'remainingValue' | 'expectedDelivery' | 'status'
@@ -70,8 +70,8 @@ const sellColumns: Array<ResizableColumnDefinition<PoOutstandingSellColumnKey>> 
   { key: 'soldQty', defaultWidth: 125, minWidth: 105 },
   { key: 'remainingQty', defaultWidth: 125, minWidth: 105 },
   { key: 'remainingValue', defaultWidth: 145, minWidth: 125 },
-  { key: 'expectedDelivery', defaultWidth: 130, minWidth: 110 },
-  { key: 'status', defaultWidth: 100, minWidth: 90 },
+  { key: 'expectedDelivery', defaultWidth: 190, minWidth: 190 },
+  { key: 'status', defaultWidth: 140, minWidth: 140 },
 ]
 
 export function PoOutstandingPageClient() {
@@ -324,7 +324,7 @@ export function PoOutstandingPageClient() {
 
       {tab === 'buy' ? (
         <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table w-full text-xs" style={{ minWidth: buyResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table w-full text-xs" style={{ minWidth: buyResize.tableMinWidth, maxWidth: buyResize.tableMaxWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {buyColumns.map((column) => (
                 <col key={column.key} style={buyResize.getColumnStyle(column.key)} />
@@ -494,7 +494,7 @@ export function PoOutstandingPageClient() {
         </div>
       ) : (
         <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table w-full text-xs" style={{ minWidth: sellResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table w-full text-xs" style={{ minWidth: sellResize.tableMinWidth, maxWidth: sellResize.tableMaxWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {sellColumns.map((column) => (
                 <col key={column.key} style={sellResize.getColumnStyle(column.key)} />

@@ -1339,13 +1339,13 @@ function LegendRow({ color, label, value, qty }: { color: string; label: string;
 
 const matrixColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'group', defaultWidth: 180, minWidth: 160 },
-  { key: 'rmQty', defaultWidth: 120, minWidth: 105 },
+  { key: 'rmQty', defaultWidth: 185, minWidth: 160 },
   { key: 'rmVal', defaultWidth: 130, minWidth: 115 },
   { key: 'rmAvgCost', defaultWidth: 160, minWidth: 140 },
-  { key: 'wipQty', defaultWidth: 130, minWidth: 115 },
+  { key: 'wipQty', defaultWidth: 185, minWidth: 160 },
   { key: 'wipVal', defaultWidth: 130, minWidth: 115 },
   { key: 'wipAvgCost', defaultWidth: 170, minWidth: 150 },
-  { key: 'fgQty', defaultWidth: 130, minWidth: 115 },
+  { key: 'fgQty', defaultWidth: 185, minWidth: 160 },
   { key: 'fgVal', defaultWidth: 130, minWidth: 115 },
   { key: 'fgAvgCost', defaultWidth: 160, minWidth: 140 },
   { key: 'totalQty', defaultWidth: 120, minWidth: 105 },
@@ -1380,14 +1380,14 @@ function MatrixTable({
     <>
       {/* Desktop View (Table) */}
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-          {columnResize.hasCustomWidths ? (
+        {columnResize.hasCustomWidths ? (
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
             <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
-          ) : null}
-        </div>
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          </div>
+        ) : null}
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {matrixColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1715,14 +1715,14 @@ function DetailTable({
 
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-          {columnResize.hasCustomWidths ? (
+        {columnResize.hasCustomWidths ? (
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
             <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
-          ) : null}
-        </div>
-        <table className="ns-table w-full text-sm text-slate-700" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          </div>
+        ) : null}
+        <table className="ns-table w-full text-sm text-slate-700" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {detailColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />

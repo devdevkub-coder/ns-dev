@@ -863,7 +863,7 @@ export function WeightTicketListPageClient() {
       {/* Desktop Tables (Hidden on Mobile) */}
       <div className="hidden md:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {weightTicketColumns.map((column) => (
                 <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

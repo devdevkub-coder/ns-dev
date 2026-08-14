@@ -476,6 +476,14 @@ table.ns-table {
   line-height: var(--text-sm--line-height);
 }
 
+/* Resizable tables (those with a <colgroup>) fill their card width but never shrink
+   below their natural column widths. Each table's inline max-width (from the
+   useResizableColumns hook) bounds how far columns can stretch on very wide screens. */
+table.ns-table:has(> colgroup) {
+  width: 100%;
+  min-width: fit-content;
+}
+
 table.ns-table :where(thead) {
   background: var(--color-slate-100) !important;
   color: var(--color-slate-700);

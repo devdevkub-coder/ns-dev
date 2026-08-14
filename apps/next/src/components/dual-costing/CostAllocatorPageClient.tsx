@@ -688,7 +688,7 @@ export function CostAllocatorPageClient() {
               </div>
             ) : null}
             <div className="overflow-x-auto">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: poolColumnResize.tableMinWidth, width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: poolColumnResize.tableMinWidth }}>
               <colgroup>
                 {poolColumns.map((column) => (
                   <col key={column.key} style={poolColumnResize.getColumnStyle(column.key)} />

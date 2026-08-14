@@ -3557,7 +3557,7 @@ export function MoneyMovementPageClient({
           </div>
 
           <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-            <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: receiptQueueColumnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: receiptQueueColumnResize.tableMinWidth, maxWidth: receiptQueueColumnResize.tableMaxWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {receiptQueueColumns.map((column) => (
                   <col key={column.key} style={receiptQueueColumnResize.getColumnStyle(column.key)} />
@@ -3776,7 +3776,7 @@ export function MoneyMovementPageClient({
 
           {/* Desktop Table */}
           <div className="hidden lg:block">
-            <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: paymentQueueColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: paymentQueueColumnResize.tableMinWidth, maxWidth: paymentQueueColumnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {paymentQueueColumns.map((column) => (
                     <col key={column.key} style={paymentQueueColumnResize.getColumnStyle(column.key)} />
@@ -4677,7 +4677,7 @@ export function MoneyMovementPageClient({
 
             {/* Desktop Table */}
             <div className="mt-3 hidden lg:block">
-              <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: historyColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: historyColumnResize.tableMinWidth, maxWidth: historyColumnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? (
                     <col style={{ width: '40px' }} />

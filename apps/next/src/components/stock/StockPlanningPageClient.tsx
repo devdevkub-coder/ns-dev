@@ -835,7 +835,7 @@ function UrgentPurchasePanel({
           <div className="overflow-x-auto">
             <table
               className="ns-table w-full text-sm"
-              style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}
+              style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}
             >
               <colgroup>
                 {purchaseColumns.map((column) => (
@@ -1054,7 +1054,7 @@ function PlanDataSurface({
           <div className="overflow-x-auto">
             <table
               className="ns-table w-full text-sm"
-              style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}
+              style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}
             >
               <colgroup>
                 {overviewColumns.map((column) => (
@@ -1213,7 +1213,7 @@ function PlanDetailDesktopTable({
       <div className="overflow-x-auto">
         <table
           className="ns-table w-full text-sm"
-          style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}
+          style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}
         >
           <colgroup>
             {detailColumns.map((column) => (
@@ -1452,7 +1452,7 @@ function CalendarView({
             <div className="overflow-x-auto">
               <table
                 className="ns-table w-full text-sm"
-                style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}
+                style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}
               >
                 <colgroup>
                   {calendarDayColumns.map((column) => (

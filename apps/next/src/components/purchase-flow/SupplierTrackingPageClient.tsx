@@ -610,7 +610,7 @@ export function SupplierTrackingPageClient() {
           </div>
 
           <div className="hidden lg:block overflow-x-auto rounded-md bg-white border border-slate-200 shadow-sm mb-4">
-            <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {trackingColumns.map((column) => (
                   <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -795,7 +795,7 @@ export function SupplierTrackingPageClient() {
               ) : null}
             </div>
             <div className="overflow-x-auto">
-              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productBreakdownResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productBreakdownResize.tableMinWidth, maxWidth: productBreakdownResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {productBreakdownColumns.map((column) => (
                     <col
@@ -1144,7 +1144,7 @@ function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
       </div>
 
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {supplierYearCompareColumns.map((column) => (
               <col

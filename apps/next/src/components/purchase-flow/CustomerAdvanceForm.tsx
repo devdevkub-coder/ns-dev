@@ -819,7 +819,7 @@ export function CustomerAdvanceForm() {
           </div>
           <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="ns-table min-w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table min-w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {customerAdvanceColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
                 </colgroup>

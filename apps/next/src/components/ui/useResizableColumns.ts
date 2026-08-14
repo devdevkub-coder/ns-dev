@@ -128,15 +128,19 @@ export function useResizableColumns<TKey extends string>(
     () => columns.some((column) => (widths[column.key] ?? column.defaultWidth) !== column.defaultWidth),
     [columns, widths],
   )
-  const tableMinWidth = useMemo(() => {
-    const contentWidth = columns.reduce((sum, column) => sum + (widths[column.key] ?? column.defaultWidth), 0)
-    return `max(${contentWidth}px, 100%)`
-  }, [columns, widths])
-
-  /** Exact pixel sum of all column widths — use this with `tableLayout: 'fixed'` to avoid stretching gaps. */
+  /** Exact pixel sum of all column widths — with `tableLayout: 'fixed'` the table never stretches past its columns. */
   const tableContentWidth = useMemo(() => {
     return columns.reduce((sum, column) => sum + (widths[column.key] ?? column.defaultWidth), 0)
   }, [columns, widths])
+
+  /** Exact pixel sum of all column widths, so resizable tables keep natural column spacing on any screen size. */
+  const tableMinWidth = tableContentWidth
+
+  /** Tables fill their card up to this width, so columns never stretch more than 3× past
+      their natural width — typical desktops fill the card edge-to-edge (no empty band on
+      the right), while extreme screens or very few columns still can't space columns
+      absurdly far apart. */
+  const tableMaxWidth = tableContentWidth * 3
 
   return {
     getColumnStyle,
@@ -144,6 +148,7 @@ export function useResizableColumns<TKey extends string>(
     hasCustomWidths,
     resetColumnWidths,
     tableContentWidth,
+    tableMaxWidth,
     tableMinWidth,
   }
 }

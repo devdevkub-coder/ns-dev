@@ -164,11 +164,11 @@ function paymentMethodForSupplier(supplier: SupplierOption | undefined, currentP
 }
 
 const receiptVoucherColumns: Array<ResizableColumnDefinition<ReceiptVoucherColumnKey>> = [
-  { key: 'docNo', defaultWidth: 110, minWidth: 90 },
-  { key: 'date', defaultWidth: 90, minWidth: 80 },
+  { key: 'docNo', defaultWidth: 140, minWidth: 120 },
+  { key: 'date', defaultWidth: 135, minWidth: 115 },
   { key: 'sellerName', defaultWidth: 260, minWidth: 140 },
-  { key: 'sellerTaxId', defaultWidth: 130, minWidth: 110 },
-  { key: 'purchaseBillDocNo', defaultWidth: 110, minWidth: 90 },
+  { key: 'sellerTaxId', defaultWidth: 165, minWidth: 145 },
+  { key: 'purchaseBillDocNo', defaultWidth: 135, minWidth: 115 },
   { key: 'licensePlate', defaultWidth: 100, minWidth: 80 },
   { key: 'status', defaultWidth: 96, minWidth: 80 },
   { key: 'totalQty', defaultWidth: 110, minWidth: 90 },
@@ -821,7 +821,7 @@ export function ReceiptVouchersPageClient() {
         </div>
 
         <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-          <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {receiptVoucherColumns.map((column) => (
                 <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

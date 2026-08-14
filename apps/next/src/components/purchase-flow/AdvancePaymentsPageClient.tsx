@@ -165,7 +165,7 @@ const advancePaymentColumns: Array<ResizableColumnDefinition<AdvancePaymentColum
   { key: 'netWeight', defaultWidth: 110, minWidth: 90 },
   { key: 'amount', defaultWidth: 110, minWidth: 90 },
   { key: 'subtotalAmount', defaultWidth: 110, minWidth: 90 },
-  { key: 'remainingAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'remainingAmount', defaultWidth: 155, minWidth: 130 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
   { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
@@ -1070,7 +1070,7 @@ export function AdvancePaymentsPageClient() {
 
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
             <div className="overflow-x-auto">
-            <table className="ns-table min-w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {advancePaymentColumns.map((column) => {
                   const style = columnResize.getColumnStyle(column.key);

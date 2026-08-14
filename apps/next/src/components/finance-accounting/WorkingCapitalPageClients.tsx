@@ -212,7 +212,7 @@ export function WorkingCapitalPageClient() {
       {/* Desktop Filter Panel */}
       <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <span className="text-sm">ช่วงวิเคราะห์</span>
-        <Select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
+        <Select className="h-9 w-auto rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
           {[30, 60, 90, 180, 365].map((days) => <option key={days} value={days}>{days} วันล่าสุด{days === 90 ? ' (แนะนำ)' : ''}</option>)}
         </Select>
         <DateInput label="ถึง" value={asOf} onChange={setAsOf} />
@@ -872,7 +872,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPay
       </div>
       <div className="overflow-x-auto">
         {/* Desktop View */}
-        <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {detailColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1339,7 +1339,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
       ) : null}
 
       <div className="hidden overflow-x-auto bg-white lg:block">
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {slowMovingColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1361,7 +1361,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
             {pagedRows.map((row) => (
               <tr className="border-t border-slate-100 transition hover:bg-slate-50/50" key={row.id}>
                 <Td align="center" mono className="font-bold text-slate-700">{row.code}</Td>
-                <Td className="whitespace-normal font-semibold text-slate-900">{row.name}</Td>
+                <Td className="!whitespace-normal break-words font-semibold text-slate-900">{row.name}</Td>
                 <Td className="whitespace-normal">{row.metalGroup}</Td>
                 <Td align="right">{money(row.qty)}</Td>
                 <Td align="right">{money(row.wac)}</Td>
@@ -1648,7 +1648,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
 
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto bg-white">
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {stockProductColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1670,7 +1670,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
             {pagedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td align="center" mono className="font-bold text-amber-700">{row.code}</Td>
-                <Td className="whitespace-normal font-semibold text-slate-900">{row.name}</Td>
+                <Td className="!whitespace-normal break-words font-semibold text-slate-900">{row.name}</Td>
                 <Td className="whitespace-normal">{row.metalGroup}</Td>
                 <Td align="right">{money(row.qty)}</Td>
                 <Td align="right">{money(row.wac)}</Td>
@@ -1768,7 +1768,7 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
       
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {negMarginColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1792,7 +1792,7 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
                 <Td align="center">{row.date}</Td>
                 <Td align="center" mono className="font-semibold text-slate-800">{row.docNo}</Td>
                 <Td className="whitespace-normal">{row.customer}</Td>
-                <Td className="whitespace-normal font-medium text-slate-900">{row.productName}</Td>
+                <Td className="!whitespace-normal break-words font-medium text-slate-900">{row.productName}</Td>
                 <Td align="right">{money(row.qty)}</Td>
                 <Td align="right">{money(row.price)}</Td>
                 <Td align="right">{money(row.unitCost)}</Td>
@@ -1884,7 +1884,7 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
       
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {lowMarginColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1987,7 +1987,7 @@ function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
       
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {lowCustomerColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -2093,7 +2093,7 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
       
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {highSupplierColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -2110,8 +2110,8 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
           <tbody>
             {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
-                <Td className="font-semibold text-slate-800">{row.supplierName}</Td>
-                <Td className="whitespace-normal">{row.productName}</Td>
+                <Td className="!whitespace-normal break-words font-semibold text-slate-800">{row.supplierName}</Td>
+                <Td className="!whitespace-normal break-words">{row.productName}</Td>
                 <Td align="right" className="font-semibold text-red-600">{row.premiumPct.toFixed(1)}%</Td>
                 <Td align="right" className="font-bold text-red-600">{money(row.premium * row.qty)}</Td>
               </tr>
@@ -2195,7 +2195,7 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
       </div>
       <div className="overflow-x-auto">
         {/* Desktop View */}
-        <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {outlierColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

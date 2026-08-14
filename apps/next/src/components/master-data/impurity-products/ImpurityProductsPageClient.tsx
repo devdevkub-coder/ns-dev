@@ -638,7 +638,7 @@ export function ImpurityProductsPageClient() {
           {/* Desktop Table View */}
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
             <div className="overflow-x-auto">
-              <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {productColumns.map((column) => (
                     <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

@@ -250,7 +250,7 @@ export function CashPositionPageClient() {
             </button>
           ) : null}
         </div>
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {cashPositionColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

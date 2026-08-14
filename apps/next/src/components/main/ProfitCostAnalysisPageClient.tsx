@@ -706,7 +706,7 @@ function ProductTable({ onSelect, onSort, rows, sortDirection, sortKey }: {
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className={`${profitTableFont.variable} profit-analysis-table ns-table min-w-full divide-y divide-slate-200 text-sm`} style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className={`${profitTableFont.variable} profit-analysis-table ns-table min-w-full divide-y divide-slate-200 text-sm`} style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {productColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -858,7 +858,7 @@ function SimpleTable({ alignments, headers, onSort, rows, sortDirection, sortKey
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className={`${profitTableFont.variable} profit-analysis-table ns-table min-w-full divide-y divide-slate-200 text-sm`} style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className={`${profitTableFont.variable} profit-analysis-table ns-table min-w-full divide-y divide-slate-200 text-sm`} style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {columns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
