@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-08-09
+updated: 2026-08-14
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
@@ -107,6 +107,12 @@ What is what: `pending_out` คือ reservation ของ stock ที่ย�
 การแสดงสถานะเป็น `role=status`, `aria-live=polite` และปิดปุ่มที่เรียก operation เดิมระหว่างรอ เพื่อป้องกันการกดซ้ำ. หลัง auto-save สำเร็จ การบันทึกปุ่มสุดท้ายต้อง update ticket เดิมผ่าน `savedTicket.id` ไม่สร้างเอกสารซ้ำ. Server/database ยังคงเป็น source of truth และ UI ไม่ใช้ข้อมูลสำรองแบบ hard-code.
 
 เหตุผล: event การเพิ่มแถวกับ event การ persist ต้องแยกกันเพื่อให้ผู้ใช้กรอกต่อได้ทันที ขณะที่ข้อมูลหัวเอกสารยังถูกเก็บเป็น draft แบบ background. เมื่อ server ตอบกลับแล้วจึงผูก `ticket_id` เดิม และ final save update เอกสารเดียวกัน. WTI ยังคงใช้ contract เดิมที่อนุญาตให้บันทึกโดยไม่มีรายการสินค้า.
+
+## Scoped add performance (2026-08-14)
+
+เมื่อกด `เพิ่มเต๋า` ระบบยัง validate และ persist เต๋าปัจจุบันก่อนเปิดแถวใหม่ แต่ PATCH แบบ scoped จะคำนวณ fingerprint กับ baseline แล้วส่งเฉพาะ line ที่เปลี่ยนจริงหรือเป็น line ใหม่ ไม่ส่งซ้ำทั้ง section ที่ไม่ได้แก้. ระหว่างรอ save จะรอเฉพาะ upload รูปของ line ใน section เดียวกัน ไม่บล็อกด้วย upload ของรถหรือสินค้าอื่น.
+
+What is what: `persistLineIds` คือขอบเขตข้อมูลที่ operation นี้อนุญาตให้เขียน และ `attachmentOwnerIds` คือขอบเขต upload ที่ต้องรอให้เสร็จก่อน persist. Why it has to be like this: server ยังคงเป็น source of truth และตรวจ validation/version ของ line ที่ส่งมา แต่ payload และเวลารอไม่ขยายไปแตะข้อมูลของ section อื่น จึงลด request body และ latency โดยไม่เปลี่ยนลำดับหรือ contract ของ WTI/WTO.
 
 ## Read performance and private image preview boundary (2026-08-06)
 

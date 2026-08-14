@@ -1229,7 +1229,7 @@ export function WeightTicketFormCore({
   const deletedLineIdsRef = useRef<Set<string>>(new Set())
   const dirtyHeaderFieldsRef = useRef<Set<CollaborationHeaderField>>(new Set())
   const remoteSyncInFlightRef = useRef(false)
-  const pendingAttachmentUploadsRef = useRef<Set<Promise<unknown>>>(new Set())
+  const pendingAttachmentUploadsRef = useRef<Map<Promise<unknown>, string | undefined>>(new Map())
   const attachmentUploadConfigRef = useRef<Promise<AttachmentUploadConfig> | null>(null)
   const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
@@ -1259,12 +1259,12 @@ export function WeightTicketFormCore({
     current.lines.flatMap(getLineImages).forEach(revokeLocalAttachmentPreview)
   }, [])
 
-  function trackAttachmentUpload<T>(promise: Promise<T>) {
+  function trackAttachmentUpload<T>(promise: Promise<T>, ownerKey?: string) {
     let trackedPromise!: Promise<T>
     trackedPromise = promise.finally(() => {
       pendingAttachmentUploadsRef.current.delete(trackedPromise)
     })
-    pendingAttachmentUploadsRef.current.add(trackedPromise)
+    pendingAttachmentUploadsRef.current.set(trackedPromise, ownerKey)
     return trackedPromise
   }
 
@@ -1300,6 +1300,7 @@ export function WeightTicketFormCore({
     errorLabel: string,
     onPreviewsReady?: (previews: AttachmentPreview[]) => void,
     onUploadComplete?: (previewIds: string[], nextFiles: AttachmentPreview[]) => void,
+    ownerKey?: string,
   ) {
     let uploadConfig: AttachmentUploadConfig
     try {
@@ -1328,7 +1329,7 @@ export function WeightTicketFormCore({
         const index = nextIndex
         nextIndex += 1
         try {
-          const value = await trackAttachmentUpload(createAttachmentPreviewFromFile(files[index], uploadConfig.maxUploadBytes, localPreviews[index]))
+          const value = await trackAttachmentUpload(createAttachmentPreviewFromFile(files[index], uploadConfig.maxUploadBytes, localPreviews[index]), ownerKey)
           results[index] = { status: 'fulfilled', value }
         } catch (reason) {
           results[index] = { status: 'rejected', reason }
@@ -1351,8 +1352,10 @@ export function WeightTicketFormCore({
     }
   }
 
-  async function waitForPendingAttachmentUploads() {
-    const pending = Array.from(pendingAttachmentUploadsRef.current)
+  async function waitForPendingAttachmentUploads(ownerKeys?: ReadonlySet<string>) {
+    const pending = Array.from(pendingAttachmentUploadsRef.current.entries())
+      .filter(([, ownerKey]) => !ownerKeys || (ownerKey != null && ownerKeys.has(ownerKey)))
+      .map(([promise]) => promise)
     if (pending.length > 0) await Promise.allSettled(pending)
   }
 
@@ -2350,6 +2353,7 @@ export function WeightTicketFormCore({
     snapshot: FormState = form,
     persistLineIds: ReadonlySet<string> = new Set(),
     draftLineIds: ReadonlySet<string> = new Set(),
+    attachmentOwnerIds?: ReadonlySet<string>,
   ): Promise<FormState | null> {
     // Save the current document before opening another product entry so the
     // draft has a stable ticket identity and existing data is not lost.
@@ -2389,7 +2393,7 @@ export function WeightTicketFormCore({
     beginSaveStage('auto_save')
     let submittedErrorLines = snapshot.lines
     try {
-      await waitForPendingAttachmentUploads()
+      await waitForPendingAttachmentUploads(attachmentOwnerIds)
       const latestForm = formRef.current
       const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
       const baselineTicket = savedTicket ?? loadedTicket
@@ -2414,7 +2418,10 @@ export function WeightTicketFormCore({
       if (!isScopedAdd) {
         baselineLineIds.filter((lineId) => !snapshotToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
       }
-      const changedLineIds = isScopedAdd ? new Set(persistLineIds) : new Set(changedLineIdsRef.current)
+      // For a scoped add, start empty and let the fingerprint comparison add
+      // only genuinely changed/new lines. Initialising with every section ID
+      // sends the whole section over PATCH even when one lot changed.
+      const changedLineIds = isScopedAdd ? new Set<string>() : new Set(changedLineIdsRef.current)
       if (!isScopedAdd) deletedLineIds.forEach((lineId) => changedLineIds.add(lineId))
       const linesForFingerprint = isScopedAdd
         ? snapshotToSave.lines.filter((line) => persistLineIds.has(line.id))
@@ -2662,7 +2669,7 @@ export function WeightTicketFormCore({
       // user fills its required weight and evidence fields.
       const draftSave = saveDraftBeforeAdding({
         ...draftSnapshot,
-      }, currentSectionLineIds)
+      }, currentSectionLineIds, new Set(), currentSectionLineIds)
       void draftSave.then((savedForm) => {
         if (!savedForm) return
         const lineIdMap = lastBackgroundLineIdMapRef.current
@@ -3026,7 +3033,7 @@ export function WeightTicketFormCore({
   async function appendLineImages(lineId: string, files: FileList | null) {
     if (!files?.length) return
     setAttachmentError('')
-    const { failures, nextFiles } = await trackAttachmentUpload(uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปสินค้าไม่สำเร็จ', (previews) => {
+    const { failures, nextFiles } = await uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปสินค้าไม่สำเร็จ', (previews) => {
       const currentForm = formRef.current
       formRef.current = {
         ...currentForm,
@@ -3049,7 +3056,7 @@ export function WeightTicketFormCore({
       formRef.current = { ...formRef.current, lines: nextLines }
       setForm((current) => ({ ...current, lines: nextLines }))
       markTouched(`line-${lineId}-images`)
-    }))
+    }, lineId)
     if (failures.length > 0) {
       setAttachmentError(
         nextFiles.length > 0
@@ -3062,7 +3069,7 @@ export function WeightTicketFormCore({
   async function appendVehicleImages(files: FileList | null) {
     if (!files?.length) return
     setAttachmentError('')
-    const { failures, nextFiles } = await trackAttachmentUpload(uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปรถไม่สำเร็จ', (previews) => {
+    const { failures, nextFiles } = await uploadAttachmentFiles(Array.from(files), 'อัปโหลดรูปรถไม่สำเร็จ', (previews) => {
       const currentForm = formRef.current
       formRef.current = {
         ...currentForm,
@@ -3083,7 +3090,7 @@ export function WeightTicketFormCore({
         .concat(retainedUploadedFiles)
       formRef.current = { ...formRef.current, vehicleImageFiles: nextVehicleImages }
       setForm((current) => ({ ...current, vehicleImageFiles: nextVehicleImages }))
-    }))
+    }, 'vehicle')
     if (failures.length > 0) {
       setAttachmentError(
         nextFiles.length > 0
