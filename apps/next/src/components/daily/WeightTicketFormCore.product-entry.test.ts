@@ -34,7 +34,7 @@ vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   patchWeightTicketChanges: mocks.patchWeightTicketChanges,
 }))
 
-import { changeWeightTicketProduct, getProductCardImages, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -58,6 +58,15 @@ const weightTicketClientSource = readFileSync(
 )
 
 describe('weight-ticket product entry start contract', () => {
+  it('creates a blank impurity selection without opening its picker', () => {
+    const line = createNewWeightTicketImpurityLine({ id: 'lot-1', productId: 'SKU-1', warehouseId: 'WH-1' }, 'impurity-1')
+    expect(line.impurityId).toBe('')
+    expect(line.parentId).toBe('lot-1')
+    expect(line.deductionMode).toBe('kg')
+    expect(formSource).toContain("setPendingFocusField(`line-${nextLine.id}-deduction`)")
+    expect(formSource).not.toContain("setPendingFocusField(`line-${nextLine.id}-impurity`)")
+  })
+
   it('starts with no product line until the user explicitly adds one', () => {
     expect(formSource).toMatch(/function initialForm[\s\S]*?lines:\s*\[\],/)
     expect(formSource).toContain("if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
@@ -304,7 +313,7 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('cancelMobileProductEditorOpenAnimation()')
     expect(formSource).toContain("setMobileProductView('editor')")
     expect(formSource).toContain('setPendingFocusField(`line-${nextLine.id}-gross`)')
-    expect(formSource).toContain('setPendingFocusField(`line-${nextLine.id}-impurity`)')
+    expect(formSource).toContain('setPendingFocusField(`line-${nextLine.id}-deduction`)')
     expect(formSource).not.toContain('transition-opacity duration-300 ease-out')
     expect(formSource).not.toContain("isMobileProductEditorVisible ? 'opacity-100' : 'opacity-0'")
     expect(formSource).not.toContain("window.matchMedia('(prefers-reduced-motion: reduce)').matches")
@@ -910,7 +919,19 @@ describe('weight-ticket product editor behavior', () => {
 
     const firstImpurityInput = container.querySelector<HTMLInputElement>('[id^="weight-impurity-"]')
     expect(firstImpurityInput).not.toBeNull()
-    await vi.waitFor(() => expect(firstImpurityInput?.value).toContain('ฝุ่น'))
+    expect(firstImpurityInput?.value).toBe('')
+    await act(async () => {
+      firstImpurityInput?.click()
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => {
+      expect(Array.from(document.querySelectorAll('[role="option"]')).some((option) => option.textContent?.includes('ฝุ่น'))).toBe(true)
+    })
+    const impurityOption = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((button) => button.textContent?.includes('ฝุ่น'))
+    await act(async () => {
+      impurityOption?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+      await Promise.resolve()
+    })
     const firstDeductionInput = container.querySelector<HTMLInputElement>('[id^="weight-deduction-"]')
     expect(firstDeductionInput).not.toBeNull()
     const firstImpurityId = firstDeductionInput?.id.replace('weight-deduction-', '') ?? ''

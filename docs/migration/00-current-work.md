@@ -4,7 +4,7 @@ Active objective: ลดงานซ้ำระหว่างแท็บเ�
 
 ล่าสุด: realtime event มี `imageChanged`; การแก้ตัวเลข/ข้อมูลที่ไม่เปลี่ยนรูปจะโหลดเฉพาะ ticket หลัก ส่วนการเปลี่ยนหรือลบรูปจึงโหลด signed preview ใหม่ การลบเต๋าที่มีรูปยัง refresh preview เพื่อเอารูปออกจากแท็บอื่นได้ เพิ่มการส่งเฉพาะ line ที่เปลี่ยน และ coalesce event ที่เข้ามาภายใน 50ms; ข้อมูล ticket/สิ่งเจือปน apply ก่อน preview. PATCH ที่ใช้ collaboration baseline คง summary ID เดิมด้วย upsert ตาม ticket/product และลบเฉพาะ summary สินค้าที่หายไป. แก้ทุกจุด publish ของ WTI/WTO จาก fire-and-forget เป็น Next.js `after()` หลัง transaction เพื่อไม่ให้ Vercel ตัดงาน broadcast ก่อนส่ง event. Local follow-up ให้แถวสิ่งเจือปนใหม่เริ่มด้วยค่า impurity ว่างและ focus น้ำหนักหัก โดยไม่เปิด dropdown อัตโนมัติ; validation เดิมยังบล็อกการเพิ่มรายการถัดไปเมื่อแถวก่อนหน้าไม่ครบ
 
-Validation: type-check, targeted ESLint, production build 338 pages, WTI/WTO calculation and collaboration tests 35/35, realtime/attachment/preview/rebuild tests 25/25 และ `git diff --check` ผ่าน; ปรับ source-contract expectation ให้ตรวจ contract ปัจจุบันแทนรูปแบบโค้ดเดิม
+Validation: type-check, targeted ESLint, production build 338 pages, WTI/WTO calculation and collaboration tests 35/35, realtime/attachment/preview/rebuild tests 25/25 และ focused product-entry tests 49/49 ผ่าน พร้อม `git diff --check`; ปรับ source-contract expectation ให้ตรวจ contract ปัจจุบันแทนรูปแบบโค้ดเดิม
 
 Remaining risk: ยังไม่ได้ทำ browser UAT และยังไม่ได้ push batch นี้ขึ้น SIT
 

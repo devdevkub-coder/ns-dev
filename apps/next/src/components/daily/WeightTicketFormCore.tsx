@@ -171,6 +171,24 @@ function createFormWeightTicketLine(id?: string): FormWeightTicketLine {
   }
 }
 
+export function createNewWeightTicketImpurityLine(
+  sourceLine: Pick<FormWeightTicketLine, 'id' | 'productId' | 'warehouseId'>,
+  id?: string,
+) {
+  const nextLine = createFormWeightTicketLine(id)
+  nextLine.productId = sourceLine.productId
+  nextLine.warehouseId = sourceLine.warehouseId
+  nextLine.grossWeight = '0'
+  nextLine.containerDeductionWeight = '0'
+  nextLine.deductionMode = 'kg'
+  nextLine.deductionValue = ''
+  nextLine.impurityId = ''
+  nextLine.impurityPurchaseAction = 'none'
+  nextLine.note = ADDED_IMPURITY_NOTE
+  nextLine.parentId = sourceLine.id
+  return nextLine
+}
+
 export function resolvePersistedWeightTicketLotSource(
   sourceLine: Pick<FormWeightTicketLine, 'productId' | 'warehouseId'>,
   persistedLines: Array<Pick<FormWeightTicketLine, 'id' | 'productId' | 'warehouseId'>>,
@@ -2961,20 +2979,7 @@ export function WeightTicketFormCore({
       ? purchaseSourceWeight <= 0
       : sourceSummary.lotCount === 0) return
     if (shouldIgnoreRapidAdd(`impurity:${sourceLine.id}`)) return
-    const nextLine = createFormWeightTicketLine()
-    nextLine.productId = sourceLine.productId
-    nextLine.warehouseId = sourceLine.warehouseId
-    nextLine.grossWeight = '0'
-    nextLine.containerDeductionWeight = '0'
-    nextLine.deductionMode = 'kg'
-    nextLine.deductionValue = ''
-    // Leave the impurity unset until the user explicitly chooses it. The
-    // controlled dropdown uses an empty string as its null-equivalent, so the
-    // existing validation can surface the missing required selection.
-    nextLine.impurityId = ''
-    nextLine.impurityPurchaseAction = 'none'
-    nextLine.note = ADDED_IMPURITY_NOTE
-    nextLine.parentId = sourceLine.id
+    const nextLine = createNewWeightTicketImpurityLine(sourceLine)
     if (!isOtherProductImpurityOption(nextLine.impurityId)) {
       const existingNormalImpurityIds = form.lines
         .filter((line) => (
@@ -2990,9 +2995,8 @@ export function WeightTicketFormCore({
       }))
     }
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
-    // Keep the new row visible without opening the impurity combobox. The
-    // impurity is initialized from the master option; focus the editable
-    // deduction field instead, matching the add-lot flow.
+    // Keep the new row visible without opening the impurity combobox. Focus
+    // the editable deduction field instead, matching the add-lot flow.
     setPendingFocusField(`line-${nextLine.id}-deduction`)
     const draftSnapshot = form
     void saveDraftBeforeAdding({
