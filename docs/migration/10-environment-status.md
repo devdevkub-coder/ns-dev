@@ -1,5 +1,11 @@
 # 10 Environment Status
 
+### WTI/WTO Realtime Branch Policy Repair — 2026-08-14
+
+- SIT (`vbjlkxbytccklhqvxjuu`) had the private-channel policy from `20260806150000`, but it compared the topic branch code (`01`/`02`) directly with `app_user_branch_access.branch_id` (`1`/`2`) and evaluated RLS-protected access tables inline. Browser subscriptions therefore returned `CHANNEL_ERROR` while the server publisher still returned `ok`.
+- Applied and recorded `20260814100000_fix_weight_ticket_realtime_branch_policy` on SIT only. The policy now calls a narrowly scoped `SECURITY DEFINER` function that resolves `branches.code` to the internal branch id and preserves the existing unrestricted-versus-assigned branch semantics. No WTI/WTO business rows were changed.
+- Production was not modified.
+
 ### WTI/WTO Immutable Lot Sequence — 2026-08-14
 
 - Applied and recorded `20260814120000_add_weight_ticket_lot_sequence` on SIT (`vbjlkxbytccklhqvxjuu`) only. The additive migration adds `weight_ticket_lines.lot_seq`, backfills 132 existing physical lots from 151 lines, and enforces a per-ticket unique sequence for non-null values; no impurity line received a lot sequence and no business row was deleted.

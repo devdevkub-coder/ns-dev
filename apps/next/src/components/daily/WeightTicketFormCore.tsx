@@ -1443,14 +1443,20 @@ export function WeightTicketFormCore({
     if (saveInFlightRef.current) return
     if (event.updatedAt && event.updatedAt === (savedTicket ?? loadedTicket)?.updatedAt) return
     const changedLines = event.lineIds?.length ? ` (${event.lineIds.length} เต๋า)` : ''
+    const changeMessage = event.changeType === 'deleted_lines' ? 'ลบเต๋า' : 'บันทึกข้อมูล'
     setRemoteChangedLineIds(new Set(event.lineIds ?? []))
-    setMergeNotice(`มีผู้ใช้อื่นบันทึก${changedLines} ระบบคงข้อมูลที่กำลังกรอกไว้ กรุณาตรวจสอบก่อนบันทึก`)
+    setMergeNotice(`มีผู้ใช้อื่น${changeMessage}${changedLines} ระบบคงข้อมูลที่กำลังกรอกไว้ กรุณาตรวจสอบก่อนบันทึก`)
 
     if (remoteSyncInFlightRef.current) return
     remoteSyncInFlightRef.current = true
-    void getWeightTicket(editingTicketId, { includeImagePreviews: false })
-      .then((latestTicket) => {
-        const latestForm = ticketToFormState(latestTicket)
+    const latestTicketPromise = getWeightTicket(editingTicketId, { includeImagePreviews: false })
+    const latestImagePreviewsPromise = getWeightTicketImagePreviews(editingTicketId).catch(() => null)
+    void Promise.all([latestTicketPromise, latestImagePreviewsPromise])
+      .then(([latestTicket, latestImagePreviews]) => {
+        const latestTicketWithPreviews = latestImagePreviews
+          ? mergeWeightTicketImagePreviews(latestTicket, latestImagePreviews)
+          : latestTicket
+        const latestForm = ticketToFormState(latestTicketWithPreviews)
         const latestById = new Map(latestForm.lines.map((line) => [line.id, line] as const))
         const baselineTicket = savedTicket ?? loadedTicket
         const currentForm = formRef.current
@@ -1476,6 +1482,10 @@ export function WeightTicketFormCore({
         setLoadedTicket(latestTicket)
         setSavedTicket(mergedBaseline)
         setFormBaseline(formSafetySnapshot(latestForm))
+        if (latestImagePreviews) {
+          setImagePreviewRefreshMs(latestImagePreviews.refreshAfterMs)
+          setImagePreviewPollRevision((current) => current + 1)
+        }
         setForm((current) => {
           const localById = new Map(current.lines.map((line) => [line.id, line] as const))
           const mergedLines = latestForm.lines.map((latestLine) => {

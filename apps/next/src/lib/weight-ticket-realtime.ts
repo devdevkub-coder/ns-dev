@@ -1,4 +1,4 @@
-export type WeightTicketChangeType = 'created' | 'updated' | 'confirmed' | 'cancelled'
+export type WeightTicketChangeType = 'created' | 'updated' | 'deleted_lines' | 'confirmed' | 'cancelled'
 
 export type WeightTicketChangeEvent = {
   branchId: string
@@ -19,6 +19,7 @@ export function isWeightTicketChangeEvent(value: unknown): value is WeightTicket
     && event.documentNo.length <= 100
     && (event.changeType === 'created'
       || event.changeType === 'updated'
+      || event.changeType === 'deleted_lines'
       || event.changeType === 'confirmed'
       || event.changeType === 'cancelled')
     && (event.updatedAt === null

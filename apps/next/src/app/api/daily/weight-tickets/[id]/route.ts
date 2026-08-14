@@ -1103,6 +1103,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
       const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
       const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
+      void publishWeightTicketChange({
+        branchId: mapped.branchId,
+        changeType: 'deleted_lines',
+        documentNo: mapped.documentNo,
+        updatedAt: mapped.updatedAt,
+        lineIds: deleteLines.data.deletedLineIds,
+      })
       return NextResponse.json({ ...mapped, createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames), lineIdMap: {}, updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames) })
     }
 

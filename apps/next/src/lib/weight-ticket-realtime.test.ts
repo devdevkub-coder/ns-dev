@@ -8,6 +8,7 @@ describe('weight-ticket realtime contract', () => {
 
   it('rejects malformed or spoofed payloads', () => {
     expect(isWeightTicketChangeEvent({ branchId: '1', changeType: 'updated', documentNo: 'WTI-001', updatedAt: '2026-08-06T10:00:00.000Z', lineIds: ['101', '102'] })).toBe(true)
+    expect(isWeightTicketChangeEvent({ branchId: '1', changeType: 'deleted_lines', documentNo: 'WTI-001', updatedAt: '2026-08-06T10:00:00.000Z', lineIds: ['101'] })).toBe(true)
     expect(isWeightTicketChangeEvent({ branchId: '1', changeType: 'updated', documentNo: 'WTI-001', updatedAt: '2026-08-06T10:00:00.000Z', lineIds: [123] })).toBe(false)
     expect(isWeightTicketChangeEvent({ branchId: '1', changeType: 'spoofed', documentNo: 'WTI-001', updatedAt: null })).toBe(false)
     expect(isWeightTicketChangeEvent({ branchId: '1', changeType: 'updated', documentNo: 'WTI-001', updatedAt: 'not-a-date' })).toBe(false)
