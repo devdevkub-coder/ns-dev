@@ -1,6 +1,7 @@
 import nextEnv from '@next/env'
+import { fileURLToPath } from 'node:url'
 
-const projectDir = new URL('..', import.meta.url).pathname
+const projectDir = fileURLToPath(new URL('..', import.meta.url))
 const { loadEnvConfig } = nextEnv
 loadEnvConfig(projectDir)
 
@@ -41,6 +42,9 @@ async function main() {
       const branch = await tx.branches.create({
         data: { code: `${qaPrefix}-BR`, name: `${qaPrefix} Branch` },
       })
+      const salesChannel = await tx.sales_channels.create({
+        data: { code: `${qaPrefix}-SC`, name: `${qaPrefix} Sales Channel` },
+      })
       const supplier = await tx.suppliers.create({
         data: { branch_id: branch.id, code: `${qaPrefix}-SU`, name: `${qaPrefix} Supplier` },
       })
@@ -59,6 +63,7 @@ async function main() {
           branch_id: branch.id,
           date: today,
           doc_no: `${qaPrefix}-PB`,
+          status: 'partial',
           supplier_id: supplier.id,
           supplier_name_snapshot: supplier.name,
           total_amount: 1000,
@@ -120,6 +125,7 @@ async function main() {
       const successBill = await tx.sales_bills.create({
         data: {
           branch_id: branch.id,
+          channel_id: salesChannel.id,
           customer_id: customer.id,
           date: today,
           doc_no: `${qaPrefix}-SB`,
@@ -132,6 +138,45 @@ async function main() {
           total_amount: 1000,
           transaction_mode: 'TRADING',
         },
+      })
+
+      await tx.sales_bill_lines.createMany({
+        data: [
+          {
+            cogs_amount: 999,
+            gross_profit: -499,
+            gross_weight: 25,
+            line_amount: 500,
+            line_no: 1,
+            meta: { tradingCostSourceId: `PB:${pb.doc_no}:1` },
+            net_weight: 25,
+            product_code_snapshot: product.code,
+            product_id: product.id,
+            product_name_snapshot: product.name,
+            qty: 25,
+            sales_bill_id: successBill.id,
+            status: 'active',
+            unit_price: 20,
+            unit_snapshot: 'กก.',
+          },
+          {
+            cogs_amount: 999,
+            gross_profit: -499,
+            gross_weight: 30,
+            line_amount: 500,
+            line_no: 2,
+            meta: { tradingCostSourceId: `SRC:${manualSource.source_no}:1` },
+            net_weight: 30,
+            product_code_snapshot: product.code,
+            product_id: product.id,
+            product_name_snapshot: product.name,
+            qty: 30,
+            sales_bill_id: successBill.id,
+            status: 'active',
+            unit_price: 20,
+            unit_snapshot: 'กก.',
+          },
+        ],
       })
 
       await tx.trading_allocation_facts.createMany({
@@ -230,6 +275,7 @@ async function main() {
       const capacityBill = await tx.sales_bills.create({
         data: {
           branch_id: branch.id,
+          channel_id: salesChannel.id,
           customer_id: customer.id,
           date: today,
           doc_no: `${qaPrefix}-SB-CAP`,
@@ -238,6 +284,21 @@ async function main() {
           status: 'unreceived',
           total_amount: 2000,
           transaction_mode: 'TRADING',
+        },
+      })
+      await tx.sales_bill_lines.create({
+        data: {
+          line_amount: 2000,
+          line_no: 1,
+          net_weight: 90,
+          product_code_snapshot: product.code,
+          product_id: product.id,
+          product_name_snapshot: product.name,
+          qty: 90,
+          sales_bill_id: capacityBill.id,
+          status: 'active',
+          unit_price: 20,
+          unit_snapshot: 'กก.',
         },
       })
       await expectRejects(
@@ -258,6 +319,7 @@ async function main() {
           branch_id: branch.id,
           date: today,
           doc_no: `${qaPrefix}-PB-MIS`,
+          status: 'partial',
           supplier_id: supplier.id,
           supplier_name_snapshot: supplier.name,
           total_amount: 300,
@@ -279,6 +341,7 @@ async function main() {
       const mismatchBill = await tx.sales_bills.create({
         data: {
           branch_id: branch.id,
+          channel_id: salesChannel.id,
           customer_id: customer.id,
           date: today,
           doc_no: `${qaPrefix}-SB-MIS`,
@@ -287,6 +350,21 @@ async function main() {
           status: 'unreceived',
           total_amount: 200,
           transaction_mode: 'TRADING',
+        },
+      })
+      await tx.sales_bill_lines.create({
+        data: {
+          line_amount: 200,
+          line_no: 1,
+          net_weight: 10,
+          product_code_snapshot: product.code,
+          product_id: product.id,
+          product_name_snapshot: product.name,
+          qty: 10,
+          sales_bill_id: mismatchBill.id,
+          status: 'active',
+          unit_price: 20,
+          unit_snapshot: 'กก.',
         },
       })
       await expectRejects(
@@ -302,8 +380,223 @@ async function main() {
       )
       assertions += 1
 
+      const mixedBill = await tx.sales_bills.create({
+        data: {
+          branch_id: branch.id,
+          channel_id: salesChannel.id,
+          customer_id: customer.id,
+          date: today,
+          doc_no: `${qaPrefix}-SB-MIX`,
+          gross_profit: 603.5,
+          items: [
+            {
+              amount: 500,
+              lineNo: 1,
+              productCode: product.code,
+              productId: product.code,
+              productName: product.name,
+              qty: 25,
+              tradingCostSourceId: `PB:${pb.doc_no}:1`,
+              unitPrice: 20,
+            },
+            {
+              amount: 1000,
+              deliveryTicketDocNo: `${qaPrefix}-WTO`,
+              deliveryTicketId: `${qaPrefix}-WTO`,
+              lineNo: 2,
+              productCode: otherProduct.code,
+              productId: otherProduct.code,
+              productName: otherProduct.name,
+              qty: 25,
+              tradingCostSourceId: null,
+              unitPrice: 40,
+            },
+          ],
+          receivable_balance: 1500,
+          status: 'unreceived',
+          total_amount: 1500,
+          total_cost: 896.5,
+          transaction_mode: 'TRADING',
+        },
+      })
+
+      await tx.sales_bill_lines.createMany({
+        data: [
+          {
+            cogs_amount: 250,
+            gross_profit: 250,
+            gross_weight: 25,
+            line_amount: 500,
+            line_no: 1,
+            meta: { tradingCostSourceId: `PB:${pb.doc_no}:1` },
+            net_weight: 25,
+            product_code_snapshot: product.code,
+            product_id: product.id,
+            product_name_snapshot: product.name,
+            qty: 25,
+            sales_bill_id: mixedBill.id,
+            status: 'active',
+            unit_price: 20,
+            unit_snapshot: 'กก.',
+          },
+          {
+            cogs_amount: 646.5,
+            gross_profit: 353.5,
+            gross_weight: 25,
+            line_amount: 1000,
+            line_no: 2,
+            meta: { deliveryTicketId: `${qaPrefix}-WTO` },
+            net_weight: 25,
+            product_code_snapshot: otherProduct.code,
+            product_id: otherProduct.id,
+            product_name_snapshot: otherProduct.name,
+            qty: 25,
+            sales_bill_id: mixedBill.id,
+            status: 'active',
+            unit_price: 40,
+            unit_snapshot: 'ลัง',
+          },
+        ],
+      })
+      const mixedLines = await tx.sales_bill_lines.findMany({
+        orderBy: { line_no: 'asc' },
+        where: { sales_bill_id: mixedBill.id },
+      })
+      const mixedLine2 = mixedLines.find((line) => line.line_no === 2)
+      if (!mixedLine2) throw new Error('mixed line 2 fixture missing')
+
+      await tx.sales_bill_source_allocations.create({
+        data: {
+          allocated_gross_weight: 25,
+          allocated_net_weight: 25,
+          allocated_qty: 25,
+          movement_owner: 'SALES_BILL',
+          product_code_snapshot: otherProduct.code,
+          product_id: otherProduct.id,
+          product_name_snapshot: otherProduct.name,
+          sales_bill_id: mixedBill.id,
+          sales_bill_line_id: mixedLine2.id,
+          sales_line_no: 2,
+          source_doc_no: `${qaPrefix}-WTO`,
+          source_line_no: 1,
+          source_type: 'WTO',
+          status: 'active',
+          stock_ledger_ref_type: 'SB',
+        },
+      })
+      await tx.stock_ledger.create({
+        data: {
+          branch_id: branch.id,
+          date: today,
+          movement_type: 'ขายออก',
+          not_available_for_sale: false,
+          output_category: 'FG',
+          product_id: otherProduct.id,
+          qty_in: 0,
+          qty_out: 25,
+          ref_no: mixedBill.doc_no,
+          ref_type: 'SB',
+          unit_cost: 25.86,
+          value_in: 0,
+          value_out: 646.5,
+        },
+      })
+
+      await tx.trading_allocation_facts.create({
+        data: {
+          allocation_method: 'RECORDED_LINE',
+          allocation_no: `${qaPrefix}-MIX-OLD-1`,
+          customer_id: customer.id,
+          date: today,
+          matched_cogs: 250,
+          product_code_snapshot: product.code,
+          product_id: product.id,
+          product_name_snapshot: product.name,
+          purchase_bill_id: pb.id,
+          qty: 25,
+          sales_amount: 500,
+          sales_bill_id: mixedBill.id,
+          sales_doc_no: mixedBill.doc_no,
+          sales_line_no: 1,
+          source_doc_no: pb.doc_no,
+          source_line_no: 1,
+          source_type: 'TRADING_PURCHASE_BILL',
+          status: 'active',
+          supplier_id: supplier.id,
+          supplier_name_snapshot: supplier.name,
+        },
+      })
+
+      const mixedResult = await correctTradingSalesBillAllocations(tx, {
+        actor: 'qa-script',
+        allocations: [
+          { salesLineNo: 1, tradingCostSourceId: `PB:${pb.doc_no}:1` },
+        ],
+        billRef: mixedBill.doc_no,
+        correctedAt: new Date('2026-06-14T01:15:00.000Z'),
+        note: 'qa mixed trading allocation correction',
+      })
+      assertEqual('mixed correction docNo', mixedResult.docNo, mixedBill.doc_no)
+      assertions += 1
+
+      const [mixedUpdatedLines, mixedActiveFacts, mixedHeader, mixedLedger, mixedProjectedFacts] = await Promise.all([
+        tx.sales_bill_lines.findMany({
+          orderBy: { line_no: 'asc' },
+          where: { sales_bill_id: mixedBill.id, status: 'active' },
+        }),
+        tx.trading_allocation_facts.findMany({
+          where: { sales_bill_id: mixedBill.id, status: 'active' },
+        }),
+        tx.sales_bills.findUniqueOrThrow({ where: { id: mixedBill.id } }),
+        tx.stock_ledger.findFirstOrThrow({
+          where: { ref_no: mixedBill.doc_no, ref_type: 'SB' },
+        }),
+        tx.report_profit_cost_facts.findMany({
+          orderBy: { source_line_no: 'asc' },
+          where: {
+            fact_type: 'SALE',
+            source_doc_no: mixedBill.doc_no,
+            source_type: 'SALES_BILL',
+          },
+        }),
+      ])
+      const mixedWtoLine = mixedUpdatedLines.find((line) => line.line_no === 2)
+      const correctedTradingFact = mixedActiveFacts.find((fact) => fact.sales_line_no === 1)
+      if (!mixedWtoLine || !correctedTradingFact) throw new Error('mixed correction result missing')
+      const correctedTradingCogs = Number(correctedTradingFact.matched_cogs)
+      const mixedLineCostTotal = mixedUpdatedLines.reduce(
+        (sum, line) => sum + Number(line.cogs_amount ?? 0),
+        0,
+      )
+
+      assertNear('mixed WTO line COGS preserved', Number(mixedWtoLine.cogs_amount), 646.5)
+      assertEqual('mixed WTO line has no Trading fact', mixedActiveFacts.some((fact) => fact.sales_line_no === 2), false)
+      assertNear('mixed header includes Trading plus WTO COGS', Number(mixedHeader.total_cost), correctedTradingCogs + 646.5)
+      assertNear('mixed return includes Trading plus WTO COGS', mixedResult.totalCost, correctedTradingCogs + 646.5)
+      assertNear('mixed line/header COGS reconcile', mixedLineCostTotal, Number(mixedHeader.total_cost))
+      assertNear('mixed stock ledger unchanged', Number(mixedLedger.value_out), 646.5)
+      assertEqual('mixed projector line count', mixedProjectedFacts.length, 2)
+      assertNear('mixed projector Trading COGS', Number(mixedProjectedFacts[0]?.cogs_amount ?? 0), correctedTradingCogs)
+      assertNear('mixed projector WTO COGS', Number(mixedProjectedFacts[1]?.cogs_amount ?? 0), 646.5)
+      assertions += 9
+
+      await expectRejects(
+        'mixed WTO line correction guard',
+        () => correctTradingSalesBillAllocations(tx, {
+          actor: 'qa-script',
+          allocations: [
+            { salesLineNo: 2, tradingCostSourceId: `PB:${pb.doc_no}:1` },
+          ],
+          billRef: mixedBill.doc_no,
+          correctedAt: new Date('2026-06-14T01:20:00.000Z'),
+          note: 'qa must reject WTO correction',
+        }),
+        'รายการ WTO/Stock ไม่สามารถแก้เป็น Trading allocation',
+      )
+      assertions += 1
+
       throw rollbackSentinel
-    }, { timeout: 20_000 })
+    }, { timeout: 60_000 })
   } catch (caught) {
     if (caught !== rollbackSentinel) throw caught
   } finally {

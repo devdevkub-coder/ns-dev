@@ -7,6 +7,7 @@ function readSource(relativePath: string) {
 }
 
 const transactionBillsSource = readSource('./TransactionBillsPageClient.tsx')
+const transactionBillsDetailModalsSource = readSource('./TransactionBillsDetailModals.tsx')
 const purchaseBillsSource = readSource('../purchase-flow/PurchaseBillsPageClient.tsx')
 const receiptVouchersSource = readSource('./ReceiptVouchersPageClient.tsx')
 const weightTicketDashboardSource = readSource('./WeightTicketDashboardPageClient.tsx')
@@ -77,12 +78,14 @@ function expectCenteredNoWrapColumn({
 
 describe('transaction bill detail table', () => {
   it('shows the captured unit cost between net quantity and sale price', () => {
-    const netQuantityHeader = transactionBillsSource.indexOf('>จำนวนสุทธิ</th>')
-    const unitCostHeader = transactionBillsSource.indexOf('>ต้นทุน/หน่วย</th>')
-    const salePriceHeader = transactionBillsSource.indexOf('>ราคาขาย/หน่วย</th>', netQuantityHeader)
-    const detailTableStart = transactionBillsSource.lastIndexOf('<table', netQuantityHeader)
-    const detailTableEnd = transactionBillsSource.indexOf('</table>', netQuantityHeader)
-    const detailTableSource = transactionBillsSource.slice(detailTableStart, detailTableEnd)
+    // The bill detail table lives in the detail modals, not the list page client.
+    const detailSource = transactionBillsDetailModalsSource
+    const netQuantityHeader = detailSource.indexOf('>จำนวนสุทธิ</th>')
+    const unitCostHeader = detailSource.indexOf('>ต้นทุน/หน่วย</th>')
+    const salePriceHeader = detailSource.indexOf('>ราคาขาย/หน่วย</th>', netQuantityHeader)
+    const detailTableStart = detailSource.lastIndexOf('<table', netQuantityHeader)
+    const detailTableEnd = detailSource.indexOf('</table>', netQuantityHeader)
+    const detailTableSource = detailSource.slice(detailTableStart, detailTableEnd)
 
     expect(netQuantityHeader).toBeGreaterThan(-1)
     expect(unitCostHeader).toBeGreaterThan(netQuantityHeader)
@@ -126,7 +129,7 @@ describe('accepted semantic table alignment', () => {
     const actionBodyTag = openingTag(
       transactionBillsSource,
       'td',
-      '<TableActionButton menu={(\n                      <>\n                        <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>',
+      '<TableActionButton menu={(\n                      <>\n                        <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onMouseEnter={() => warmBillPrintDetail(row, \'purchase\')} onFocus={() => warmBillPrintDetail(row, \'purchase\')} onSelect={() => void printPurchaseBill(row)}>',
     )
     expect(actionBodyTag).toContain('text-center')
     expect(actionBodyTag).toContain('whitespace-nowrap')
@@ -242,5 +245,23 @@ describe('accepted semantic table alignment', () => {
 
     expect(documentTag).toContain('whitespace-nowrap')
     expect(paymentDateTag).toContain('whitespace-nowrap')
+  })
+
+  it('limits Trading correction to active Trading-owned rows', () => {
+    expect(transactionBillsDetailModalsSource).toContain(
+      'function isCorrectableTradingDetailItem',
+    )
+    expect(transactionBillsDetailModalsSource).toContain(
+      '!item.deliveryTicketDocNo',
+    )
+    expect(transactionBillsDetailModalsSource).toContain(
+      '!isCancelledBillStatus(detail.status)',
+    )
+    expect(transactionBillsDetailModalsSource).toContain(
+      'detail.items.filter(isCorrectableTradingDetailItem)',
+    )
+    expect(transactionBillsDetailModalsSource).toContain(
+      '{canCorrectTradingAllocation ? (',
+    )
   })
 })

@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import { normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
+import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { appendSalesBillStatusLog, requireSalesBillStatus, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
+import { normalizeSalesBillProfitCostSource } from './sales-bill-profit-cost-source'
 import type { Prisma } from '../../../generated/prisma/client'
 
 const safeSourceIdPattern = /^[A-Za-z0-9_.:-]+$/
@@ -22,51 +23,6 @@ export const correctTradingAllocationsSchema = z.object({
     .max(500, 'เหตุผลการแก้ไข allocation ยาวเกินไป'),
 })
 
-function itemNumber(record: Record<string, unknown>, key: string) {
-  const value = record[key]
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
-  if (typeof value === 'string') {
-    const parsed = Number(value.replace(/,/g, ''))
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-  return toNumber(value as { toNumber: () => number } | null | undefined)
-}
-
-function salesItemUnitPrice(record: Record<string, unknown>) {
-  const explicitPrice = itemNumber(record, 'price')
-  if (explicitPrice > 0) return explicitPrice
-  return itemNumber(record, 'unitPrice')
-}
-
-function itemText(record: Record<string, unknown>, key: string) {
-  const value = record[key]
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function itemProductCode(record: Record<string, unknown>) {
-  return itemText(record, 'productCode') || itemText(record, 'productId')
-}
-
-function itemProductName(record: Record<string, unknown>) {
-  return itemText(record, 'productName') || itemText(record, 'name') || itemProductCode(record)
-}
-
-function itemQty(record: Record<string, unknown>) {
-  const explicitQty = itemNumber(record, 'qty')
-  if (explicitQty > 0) return explicitQty
-  return itemNumber(record, 'netWeight')
-}
-
-function itemAmount(record: Record<string, unknown>) {
-  const explicitAmount = itemNumber(record, 'amount')
-  if (explicitAmount > 0) return explicitAmount
-  return Math.max(0, itemQty(record) * salesItemUnitPrice(record))
-}
-
-function itemGrossAmountBeforeDiscount(record: Record<string, unknown>) {
-  return Math.max(0, itemQty(record) * salesItemUnitPrice(record))
-}
-
 function parseTradingCostSourceId(sourceId: string) {
   const parts = sourceId.split(':')
   const sourceType = parts[0] === 'SRC' ? 'MANUAL' : 'PB'
@@ -76,8 +32,13 @@ function parseTradingCostSourceId(sourceId: string) {
   return { docNo, lineNo, sourceType }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+type TradingCorrectionSalesLine = {
+  amount: number
+  lineNo: number
+  productCode: string
+  productId: bigint | null
+  productName: string
+  qty: number
 }
 
 type TradingCorrectionSource = {
@@ -103,7 +64,7 @@ async function resolveTradingCorrectionSources(
   params: {
     allocations: z.infer<typeof correctTradingAllocationsSchema>['allocations']
     billId: bigint
-    billItems: Record<string, unknown>[]
+    salesLines: Map<number, TradingCorrectionSalesLine>
   },
 ) {
   const parsedSources = params.allocations.map((allocation, index) => {
@@ -203,10 +164,10 @@ async function resolveTradingCorrectionSources(
   const resolved = new Map<number, { matchedCogs: number; source: TradingCorrectionSource }>()
 
   for (const parsed of parsedSources) {
-    const item = params.billItems[parsed.salesLineNo - 1]
+    const item = params.salesLines.get(parsed.salesLineNo)
     if (!item) throw new Error(`ไม่พบรายการบิลขายแถวที่ ${parsed.salesLineNo}`)
-    const itemCode = itemProductCode(item)
-    const requestedQty = itemQty(item)
+    const itemCode = item.productCode
+    const requestedQty = item.qty
     if (!itemCode || requestedQty <= 0.0001) throw new Error(`รายการบิลขายแถวที่ ${parsed.salesLineNo} ไม่มีสินค้า/จำนวนที่ถูกต้อง`)
 
     if (parsed.sourceType === 'MANUAL') {
@@ -241,7 +202,7 @@ async function resolveTradingCorrectionSources(
           lineNo: 1,
           productCode: sourceProductCode,
           productId: manualSource.product_id,
-          productName: manualSource.product_name_snapshot ?? manualSource.products?.name ?? itemProductName(item),
+          productName: manualSource.product_name_snapshot ?? manualSource.products?.name ?? item.productName,
           qty: sourceQty,
           remainingAmount,
           remainingQty,
@@ -285,7 +246,7 @@ async function resolveTradingCorrectionSources(
         lineNo: parsed.lineNo,
         productCode: sourceProductCode,
         productId: sourceLine.product_id,
-        productName: sourceLine.product_name ?? itemProductName(item),
+        productName: sourceLine.product_name ?? item.productName,
         qty: sourceQty,
         remainingAmount,
         remainingQty,
@@ -321,23 +282,66 @@ export async function correctTradingSalesBillAllocations(
   if (!bill) throw new Error('ไม่พบบิลขายที่ต้องการแก้ไข allocation')
   if ((bill.transaction_mode ?? 'STOCK') !== 'TRADING') throw new Error('แก้ไข Trading allocation ได้เฉพาะบิลขาย Trading')
   if (!isSalesBillActiveForCancel(bill.status, bill.doc_no)) throw new Error('บิลขายนี้ถูกยกเลิกแล้ว แก้ไข allocation ไม่ได้')
-  if (!Array.isArray(bill.items)) throw new Error('บิลขายนี้ไม่มีรายการสินค้าให้แก้ไข allocation')
 
-  const rawBillItems = bill.items as unknown[]
-  const billItems = rawBillItems.filter(isRecord)
-  if (billItems.length !== rawBillItems.length) throw new Error('รายการสินค้าในบิลขายมีรูปแบบไม่ถูกต้อง')
+  const salesLines = await tx.sales_bill_lines.findMany({
+    include: {
+      sales_bill_source_allocations: {
+        where: {
+          movement_owner: 'SALES_BILL',
+          status: 'active',
+        },
+      },
+    },
+    orderBy: { line_no: 'asc' },
+    where: { sales_bill_id: bill.id, status: 'active' },
+  })
+  if (salesLines.length === 0) {
+    throw new Error('บิลขายนี้ไม่มี durable line facts ให้แก้ไข allocation')
+  }
+  const correctableLines = salesLines.filter(
+    (line) => line.sales_bill_source_allocations.length === 0,
+  )
+  const correctableLineNos = new Set(correctableLines.map((line) => line.line_no))
+  const allLineNos = new Set(salesLines.map((line) => line.line_no))
+  const stockOwnedLineNos = new Set(
+    salesLines
+      .filter((line) => line.sales_bill_source_allocations.length > 0)
+      .map((line) => line.line_no),
+  )
   const requestedLines = new Set(params.allocations.map((allocation) => allocation.salesLineNo))
-  if (requestedLines.size !== params.allocations.length) throw new Error('มีรายการแก้ไข allocation ซ้ำแถว')
-  if (requestedLines.size !== billItems.length || billItems.some((_, index) => !requestedLines.has(index + 1))) {
-    throw new Error('ต้องระบุ Trading Cost Source ให้ครบทุกรายการในบิลขาย')
+  if (requestedLines.size !== params.allocations.length) {
+    throw new Error('มีรายการแก้ไข allocation ซ้ำแถว')
+  }
+  for (const lineNo of requestedLines) {
+    if (!allLineNos.has(lineNo)) {
+      throw new Error(`ไม่พบรายการบิลขายแถวที่ ${lineNo}`)
+    }
+    if (stockOwnedLineNos.has(lineNo)) {
+      throw new Error(`รายการ WTO/Stock ไม่สามารถแก้เป็น Trading allocation (แถวที่ ${lineNo})`)
+    }
+  }
+  if (
+    requestedLines.size !== correctableLineNos.size
+    || [...correctableLineNos].some((lineNo) => !requestedLines.has(lineNo))
+  ) {
+    throw new Error('ต้องระบุ Trading Cost Source ให้ครบทุกรายการ Trading ในบิลขาย')
   }
 
+  const correctionLineByNo = new Map<number, TradingCorrectionSalesLine>(
+    correctableLines.map((line) => [line.line_no, {
+      amount: toNumber(line.line_amount),
+      lineNo: line.line_no,
+      productCode: line.product_code_snapshot,
+      productId: line.product_id,
+      productName: line.product_name_snapshot,
+      qty: toNumber(line.qty) || toNumber(line.net_weight),
+    }]),
+  )
   const resolvedSources = await resolveTradingCorrectionSources(tx, {
     allocations: params.allocations,
     billId: bill.id,
-    billItems,
+    salesLines: correctionLineByNo,
   })
-  const totalCost = [...resolvedSources.values()].reduce((sum, row) => sum + row.matchedCogs, 0)
 
   await tx.trading_allocation_facts.updateMany({
     data: {
@@ -353,13 +357,12 @@ export async function correctTradingSalesBillAllocations(
   })
 
   await tx.trading_allocation_facts.createMany({
-    data: billItems.map((item, index) => {
-      const salesLineNo = index + 1
-      const resolved = resolvedSources.get(salesLineNo)
-      if (!resolved) throw new Error(`ไม่พบ Trading allocation สำหรับแถวที่ ${salesLineNo}`)
+    data: correctableLines.map((line) => {
+      const resolved = resolvedSources.get(line.line_no)
+      if (!resolved) throw new Error(`ไม่พบ Trading allocation สำหรับแถวที่ ${line.line_no}`)
       return {
         allocation_method: 'RECORDED_LINE',
-        allocation_no: `TAF-${bill.doc_no}-COR-${revisionKey}-${String(salesLineNo).padStart(3, '0')}`,
+        allocation_no: `TAF-${bill.doc_no}-COR-${revisionKey}-${String(line.line_no).padStart(3, '0')}`,
         created_at: correctedAt,
         created_by: params.actor,
         customer_id: bill.customer_id,
@@ -367,18 +370,20 @@ export async function correctTradingSalesBillAllocations(
         date: normalizeDate(toDateOnly(bill.date)),
         matched_cogs: resolved.matchedCogs,
         notes: `Sales Bill allocation correction: ${params.note}`,
-        product_code_snapshot: resolved.source.productCode || itemProductCode(item),
-        product_id: resolved.source.productId,
-        product_name_snapshot: resolved.source.productName || itemProductName(item),
+        product_code_snapshot: resolved.source.productCode || line.product_code_snapshot,
+        product_id: resolved.source.productId ?? line.product_id,
+        product_name_snapshot: resolved.source.productName || line.product_name_snapshot,
         purchase_bill_id: resolved.source.billId,
-        qty: itemQty(item),
-        sales_amount: itemAmount(item),
+        qty: line.qty,
+        sales_amount: line.line_amount,
         sales_bill_id: bill.id,
         sales_doc_no: bill.doc_no,
-        sales_line_no: salesLineNo,
+        sales_line_no: line.line_no,
         source_doc_no: resolved.source.docNo,
         source_line_no: resolved.source.lineNo,
-        source_type: resolved.source.type === 'MANUAL' ? 'TRADING_COST_SOURCE' : 'TRADING_PURCHASE_BILL',
+        source_type: resolved.source.type === 'MANUAL'
+          ? 'TRADING_COST_SOURCE'
+          : 'TRADING_PURCHASE_BILL',
         status: 'active',
         supplier_id: resolved.source.supplierId,
         supplier_name_snapshot: resolved.source.supplierName,
@@ -389,17 +394,22 @@ export async function correctTradingSalesBillAllocations(
     }),
   })
 
-  const grossProfitBase = roundMoney(billItems.reduce((sum, item) => sum + itemGrossAmountBeforeDiscount(item), 0))
+  await normalizeSalesBillProfitCostSource(tx, {
+    actor: params.actor,
+    salesBillDocNo: bill.doc_no,
+    salesBillId: bill.id,
+  })
+  await tx.sales_bill_lines.updateMany({
+    data: { updated_at: correctedAt, updated_by: params.actor },
+    where: { id: { in: salesLines.map((line) => line.id) } },
+  })
   const updated = await tx.sales_bills.update({
-    data: {
-      gross_profit: roundMoney(grossProfitBase - totalCost),
-      total_cost: totalCost,
-      updated_at: correctedAt,
-      updated_by: params.actor,
-    },
-    select: { doc_no: true, id: true },
+    data: { updated_at: correctedAt, updated_by: params.actor },
+    select: { doc_no: true, id: true, total_cost: true },
     where: { id: bill.id },
   })
+  await tx.$executeRaw`select public.project_profit_cost_sales_bill(${bill.id})`
+
   await appendSalesBillStatusLog(tx, {
     action: SALES_BILL_STATUS_ACTION.ALLOCATION_CORRECTED,
     actor: params.actor,
@@ -411,5 +421,5 @@ export async function correctTradingSalesBillAllocations(
     toStatus: requireSalesBillStatus(bill.status, bill.doc_no),
   })
 
-  return { docNo: updated.doc_no, totalCost }
+  return { docNo: updated.doc_no, totalCost: toNumber(updated.total_cost) }
 }

@@ -2,7 +2,6 @@ import { actorDisplayName, resolveActorDisplayNames } from '@/lib/server/actor-d
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { requireSalesBillStatus, salesBillStatusText } from '@/lib/server/sales-bill-history'
-import { salesBillLineFactsForBills } from '@/lib/server/sales-bill-line-facts'
 import { salesBillDisplayProductName } from '@/lib/server/sales-bill-display-product'
 import type { Prisma } from '../../../generated/prisma/client'
 
@@ -136,6 +135,40 @@ type SalesBillLineFact = Prisma.sales_bill_linesGetPayload<{
   }
 }>
 
+export type SalesBillLineCostSourceKind =
+  | 'STOCK'
+  | 'TRADING_ALLOCATED'
+  | 'TRADING_PENDING'
+  | 'WTO_STOCK'
+
+export function resolveSalesBillLineCostDisplay(input: {
+  cogsAmount: number | null
+  hasStockSource: boolean
+  hasTradingAllocation: boolean
+  hasWtoSource: boolean
+  qty: number
+  transactionMode: string | null
+}): {
+  sourceKind: SalesBillLineCostSourceKind
+  unitCostSnapshot: number | null
+} {
+  const sourceKind: SalesBillLineCostSourceKind = input.hasStockSource
+    ? input.hasWtoSource ? 'WTO_STOCK' : 'STOCK'
+    : input.transactionMode === 'TRADING'
+      ? input.hasTradingAllocation
+        ? 'TRADING_ALLOCATED'
+        : 'TRADING_PENDING'
+      : 'STOCK'
+  const unitCostSnapshot = sourceKind !== 'TRADING_PENDING'
+    && input.cogsAmount != null
+    && input.cogsAmount > 0
+    && input.qty > 0
+    ? input.cogsAmount / input.qty
+    : null
+
+  return { sourceKind, unitCostSnapshot }
+}
+
 function salesBillStatusLabel(status: string | null | undefined) {
   return salesBillStatusText(status)
 }
@@ -252,6 +285,7 @@ function tradingSourceInfo(
       : 'Pending Trading Allocation'
     : ''
   return {
+    hasAllocation: Boolean(tradingFact),
     label,
     matchedCogs: toNumber(tradingFact?.matched_cogs),
     sourceDocNo,
@@ -264,7 +298,6 @@ function buildDurableItems(input: {
   bill: SalesBillDetailRow
   lineFacts: SalesBillLineFact[]
   poSellDocNoSet: Set<string>
-  stockUnitCostByLineNo: Map<number, number | null>
   deliverySummaryById: Map<string, {
     deductWeight: number
     grossWeight: number
@@ -295,11 +328,28 @@ function buildDurableItems(input: {
       return 'Spot Sale'
     })
     const salesSourceLabels = Array.from(new Set(poSourceLabels.length ? poSourceLabels : ['Spot Sale']))
-    const stockSourceLabel = firstSourceAllocation && firstSourceAllocation.source_type !== 'WTO'
-      ? `${firstSourceAllocation.source_type} ${firstSourceAllocation.source_doc_no}`
-      : ''
     const tradingSource = tradingSourceInfo(input.bill.transaction_mode, line.line_no, input.tradingFactByLineNo)
-    const sourceParts = input.bill.transaction_mode === 'TRADING'
+    const lineQty = toNumber(line.qty) || toNumber(line.net_weight)
+    const hasStockSource = sourceAllocations.some((allocation) => (
+      allocation.movement_owner === 'SALES_BILL'
+      && (allocation.source_type === 'WTO' || allocation.source_type === 'STOCK')
+    ))
+    const costDisplay = resolveSalesBillLineCostDisplay({
+      cogsAmount: line.cogs_amount == null ? null : toNumber(line.cogs_amount),
+      hasStockSource,
+      hasTradingAllocation: tradingSource.hasAllocation,
+      hasWtoSource: Boolean(wtoSource),
+      qty: lineQty,
+      transactionMode: input.bill.transaction_mode,
+    })
+    const usesTradingAllocation = costDisplay.sourceKind === 'TRADING_ALLOCATED'
+      || costDisplay.sourceKind === 'TRADING_PENDING'
+    const stockSourceLabel = wtoSource
+      ? `WTO ${wtoSource.source_doc_no}`
+      : firstSourceAllocation
+        ? `${firstSourceAllocation.source_type} ${firstSourceAllocation.source_doc_no}`
+        : ''
+    const sourceParts = usesTradingAllocation
       ? [tradingSource.label, ...salesSourceLabels]
       : [stockSourceLabel, ...salesSourceLabels]
     const deliveryTicketDocNo = wtoSource?.source_doc_no ?? ''
@@ -310,15 +360,21 @@ function buildDurableItems(input: {
       ? String(wtoSource.weight_ticket_product_summary_id)
       : ''
     const sourceSummary = sourceSummaryKey ? input.deliverySummaryById.get(sourceSummaryKey) ?? null : null
-    const sourceType = input.bill.transaction_mode === 'TRADING'
+    const sourceType = usesTradingAllocation
       ? tradingSource.sourceType
       : Array.from(new Set([
         ...sourceAllocations.map((allocation) => {
-          if (allocation.source_type === 'WTO') return allocation.movement_owner === 'SALES_BILL' ? 'WTO stock-out source' : 'WTO source'
+          if (allocation.source_type === 'WTO') {
+            return allocation.movement_owner === 'SALES_BILL'
+              ? 'WTO stock-out source'
+              : 'WTO source'
+          }
           if (allocation.source_type === 'STOCK') return 'System stock source'
           return allocation.source_type
         }),
-        ...poAllocations.map((allocation) => allocation.allocation_type === 'PO_SELL' ? 'PO Sell' : 'Spot Sale'),
+        ...poAllocations.map((allocation) => (
+          allocation.allocation_type === 'PO_SELL' ? 'PO Sell' : 'Spot Sale'
+        )),
       ])).join(' / ')
     const sourceProductCode = sourceSummary?.productCode || wtoSource?.product_code_snapshot || line.product_code_snapshot
     const sourceProductName = sourceSummary?.productName || wtoSource?.product_name_snapshot || line.product_name_snapshot || '-'
@@ -334,7 +390,7 @@ function buildDurableItems(input: {
       discount: toNumber(line.discount_amount),
       grossWeight: toNumber(line.gross_weight),
       lineNo: line.line_no,
-      matchedCogs: tradingSource.matchedCogs,
+      matchedCogs: usesTradingAllocation ? tradingSource.matchedCogs : 0,
       netWeight: toNumber(line.net_weight) || toNumber(line.qty),
       note: line.notes ?? '',
       poSellDocNo,
@@ -354,7 +410,7 @@ function buildDurableItems(input: {
       sourceType,
       tradingSourceDocNo: tradingSource.sourceDocNo,
       tradingSourceLineNo: tradingSource.sourceLineNo,
-      unitCostSnapshot: input.stockUnitCostByLineNo.get(line.line_no) ?? null,
+      unitCostSnapshot: costDisplay.unitCostSnapshot,
       unit: line.unit_snapshot || 'กก.',
     }
   })
@@ -560,21 +616,15 @@ export async function getSalesBillDetail(
     if (fact.sales_line_no == null) return
     tradingFactByLineNo.set(fact.sales_line_no, fact)
   })
-  const stockLineFacts = await salesBillLineFactsForBills([bill.id], {
-    lineStatuses: factStatuses,
-    tradingStatuses: factStatuses,
-  })
-  const stockCogsByLineNo = new Map(stockLineFacts.map((line) => [line.lineNo, line.cogs] as const))
-  const stockUnitCostByLineNo = new Map(stockLineFacts.map((line) => {
-    const qty = toNumber(line.qty) || toNumber(line.netWeight)
-    return [line.lineNo, qty > 0 && line.cogs > 0 ? line.cogs / qty : null] as const
-  }))
+  const lineCogsByLineNo = new Map(lineFacts.map((line) => [
+    line.line_no,
+    line.cogs_amount == null ? 0 : toNumber(line.cogs_amount),
+  ] as const))
   const items = buildDurableItems({
     bill,
     deliverySummaryById,
     lineFacts,
     poSellDocNoSet,
-    stockUnitCostByLineNo,
     tradingFactByLineNo,
     vehicleByDeliveryDocNo,
   })
@@ -587,7 +637,7 @@ export async function getSalesBillDetail(
   const stockCogsByUsageLogId = new Map<bigint, number>()
   weightTicketUsageLogs.forEach((log) => {
     if (log.target_line_no == null) return
-    const lineCogs = stockCogsByLineNo.get(log.target_line_no) ?? 0
+    const lineCogs = lineCogsByLineNo.get(log.target_line_no) ?? 0
     if (lineCogs <= 0) return
     const lineUsageQty = allocatedUsageQtyByLineNo.get(log.target_line_no) ?? 0
     const usageQty = toNumber(log.allocated_net_weight) || toNumber(log.allocated_qty)

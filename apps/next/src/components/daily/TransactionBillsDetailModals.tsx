@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Printer } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -82,6 +82,10 @@ type BillRow = {
 
 function isCancelledBillStatus(status: string | null | undefined) {
   return status === 'cancelled' || status === 'cancelled_supplier_swap'
+}
+
+function isCorrectableTradingDetailItem(item: SalesBillDetail['items'][number]) {
+  return !item.deliveryTicketDocNo && item.sourceType.includes('Trading')
 }
 
 type PurchaseBillDetailTimelineEvent = {
@@ -514,16 +518,26 @@ function SalesBillDetailModal({
   const [correctionSources, setCorrectionSources] = useState<Record<number, string>>({})
   const [isCorrecting, setIsCorrecting] = useState(false)
   const [showCorrection, setShowCorrection] = useState(false)
+  const correctableTradingItems = useMemo(() => (
+    detail?.transactionMode === 'TRADING'
+      ? detail.items.filter(isCorrectableTradingDetailItem)
+      : []
+  ), [detail])
+  const canCorrectTradingAllocation = Boolean(
+    detail
+    && !isCancelledBillStatus(detail.status)
+    && correctableTradingItems.length > 0
+  )
 
   useEffect(() => {
-    if (!detail || detail.transactionMode !== 'TRADING') {
+    if (!canCorrectTradingAllocation) {
       setShowCorrection(false)
       setCorrectionSources({})
       setCorrectionNote('')
       setCorrectionError(null)
       return
     }
-    setCorrectionSources(Object.fromEntries(detail.items.map((item) => {
+    setCorrectionSources(Object.fromEntries(correctableTradingItems.map((item) => {
       const sourceType = item.sourceType.toUpperCase()
       const sourceDocNo = item.tradingSourceDocNo
       const sourceLineNo = item.tradingSourceLineNo ?? 1
@@ -535,17 +549,17 @@ function SalesBillDetailModal({
       return [item.lineNo, sourceId]
     })))
     setCorrectionError(null)
-  }, [detail])
+  }, [canCorrectTradingAllocation, correctableTradingItems])
 
   const submitCorrection = async () => {
     if (!detail) return
     setCorrectionError(null)
-    const allocations = detail.items.map((item) => ({
+    const allocations = correctableTradingItems.map((item) => ({
       salesLineNo: item.lineNo,
       tradingCostSourceId: correctionSources[item.lineNo] ?? '',
     }))
     if (allocations.some((allocation) => !allocation.tradingCostSourceId)) {
-      setCorrectionError('เลือก Trading Cost Source ให้ครบทุกแถว')
+      setCorrectionError('เลือก Trading Cost Source ให้ครบทุกรายการ Trading')
       return
     }
     if (!correctionNote.trim()) {
@@ -650,18 +664,18 @@ function SalesBillDetailModal({
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-sm font-bold text-slate-800">รายการสินค้า / Source</div>
-                {detail.transactionMode === 'TRADING' ? (
+                {canCorrectTradingAllocation ? (
                   <Button className="h-9 px-3 text-xs font-normal" type="button" variant="outline" onClick={() => setShowCorrection((current) => !current)}>
                     {showCorrection ? 'ซ่อนแก้ allocation' : 'แก้ Trading allocation'}
                   </Button>
                 ) : null}
               </div>
-              {detail.transactionMode === 'TRADING' && showCorrection ? (
+              {canCorrectTradingAllocation && showCorrection ? (
                 <div className="mb-3 rounded-md border border-purple-100 bg-purple-50 p-3">
                   <div className="grid gap-3">
                     <div className="text-xs font-semibold text-purple-800">แก้เฉพาะ Cost Source ของบิลขาย Trading</div>
                     <div className="grid gap-2 md:grid-cols-2">
-                      {detail.items.map((item) => {
+                      {correctableTradingItems.map((item) => {
                         const selectedSourceId = correctionSources[item.lineNo] ?? ''
                         const sourceOptions = tradingCostSources.filter((source) => {
                           if (selectedSourceId === source.id) return true
