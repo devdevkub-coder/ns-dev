@@ -2,7 +2,7 @@
 
 Active objective: ลดเวลารอเปิดหน้ารายละเอียด WTI/WTO โดยแยก core ticket จาก history และ signed thumbnail preview
 
-ล่าสุด: endpoint รายละเอียดรองรับ `includeHistory=false` เพื่อตัด usage timeline, downstream allocations และ pending-out history ออกจาก critical path (ยังโหลด timeline ขั้นต่ำเพื่อคำนวณ timer WTI). หน้าแก้ไขเรียก core ticket แบบไม่รวม history/preview แล้วแสดงฟอร์มทันที จากนั้นโหลด signed thumbnail แบบ background และ merge เฉพาะฟิลด์รูป เพื่อไม่ทับการแก้ไขของผู้ใช้ระหว่างโหลด. งาน realtime เดิมยังคงใช้ข้อมูลเต็มตามเดิม.
+ล่าสุด: endpoint รายละเอียดรองรับ `includeHistory=false` เพื่อตัด usage timeline, downstream allocations และ pending-out history ออกจาก critical path (ยังโหลด timeline ขั้นต่ำเพื่อคำนวณ timer WTI). หน้าแก้ไขเรียก core ticket แบบไม่รวม history/preview แล้วแสดงฟอร์มทันที จากนั้นโหลด signed thumbnail แบบ background และ merge เฉพาะฟิลด์รูป เพื่อไม่ทับการแก้ไขของผู้ใช้ระหว่างโหลด. GET หลักเริ่ม usage count และ history query แบบขนาน ลดเวลารอรวมโดยไม่เปลี่ยนข้อมูลตอบกลับ. งาน realtime เดิมยังคงใช้ข้อมูลเต็มตามเดิม.
 
 Validation: type-check, targeted ESLint, preview route tests 3/3, product-entry tests 49/49 และ `git diff --check` ผ่าน
 

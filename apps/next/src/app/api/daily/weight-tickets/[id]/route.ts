@@ -262,22 +262,25 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const ticket = await findScopedTicket(id, branchScopeIds(auth))
     if (!ticket) return withAuthNoStore(NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 }))
 
-    const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
-    const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
     const searchParams = new URL(request.url).searchParams
     const includeImagePreviews = searchParams.get('includeImagePreviews') !== 'false'
     const includeHistory = searchParams.get('includeHistory') !== 'false'
-    const responseMapped = includeImagePreviews
-      ? await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
-      : mapped
-    const [timeline, usageTimeline, downstreamAllocations, pendingOutEvents] = includeHistory
-      ? await Promise.all([
+    const historyPromise = includeHistory
+      ? Promise.all([
         getWeightTicketTimeline(prisma, ticket.id),
         getWeightTicketUsageTimeline(prisma, ticket.id),
         getWeightTicketDownstreamAllocations(prisma, ticket.id),
         getWeightTicketPendingOutEvents(prisma, ticket.id),
       ])
-      : [await getWeightTicketTimeline(prisma, ticket.id), [], [], []] as const
+      : getWeightTicketTimeline(prisma, ticket.id).then((timeline) => [timeline, [], [], []] as const)
+    const [usage, [timeline, usageTimeline, downstreamAllocations, pendingOutEvents]] = await Promise.all([
+      getWeightTicketUsageCounts(prisma, ticket.id),
+      historyPromise,
+    ])
+    const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
+    const responseMapped = includeImagePreviews
+      ? await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
+      : mapped
     const actorDisplayNames = includeHistory
       ? await resolveWeightTicketActorDisplayNames([
         responseMapped.createdBy,
