@@ -9,6 +9,12 @@ function isPublicPath(pathname: string) {
   return publicPaths.has(pathname) || pathname.startsWith('/_next') || pathname.startsWith('/favicon')
 }
 
+function isCronAuthorized(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) return false
+  return request.headers.get('authorization') === `Bearer ${cronSecret}`
+}
+
 function loginRedirect(request: NextRequest) {
   const redirectUrl = request.nextUrl.clone()
   redirectUrl.pathname = '/login'
@@ -30,6 +36,13 @@ export async function proxy(request: NextRequest) {
 
   if (isPublicPath(pathname)) {
     return NextResponse.next()
+  }
+
+  // Vercel Cron เรียกด้วย Authorization: Bearer CRON_SECRET (ไม่มี session ของผู้ใช้)
+  if (pathname.startsWith('/api/cron/')) {
+    return isCronAuthorized(request)
+      ? NextResponse.next()
+      : authErrorResponse(NextResponse.next(), jsonError('Unauthorized', 401))
   }
 
   let response = NextResponse.next()

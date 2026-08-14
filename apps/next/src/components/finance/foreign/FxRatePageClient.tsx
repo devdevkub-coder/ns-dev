@@ -337,7 +337,8 @@ export function FxRatePageClient() {
           )}
 
         </div>
-        <div className="mt-2 hidden justify-end lg:flex">
+        <div className="mt-2 hidden items-center justify-between gap-3 lg:flex">
+          <p className="text-xs text-slate-500">อัปเดตอัตโนมัติทุกวันจาก Google Finance — แก้ไขมือได้ ถ้าแก้ค่าแล้วระบบจะไม่ทับของวันนั้น</p>
           <button className="flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700" type="button" onClick={openCreate}>+ เพิ่ม FX Rate</button>
         </div>
 
@@ -487,8 +488,8 @@ export function FxRatePageClient() {
       </div>
 
       {showForm ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10" onClick={closeForm}>
-          <div className="w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" data-ns-field-scope="entry" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" onClick={closeForm}>
+          <div className="my-auto w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" data-ns-field-scope="entry" onClick={(e) => e.stopPropagation()}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไข FX Rate' : 'เพิ่ม FX Rate'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
