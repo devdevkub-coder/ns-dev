@@ -73,6 +73,7 @@ updated: 2026-07-29
 |---|---|
 | Canonical profit calculation | `buildPlStatement()` owns the management Profit Before Tax calculation. Operational documents remain the fact sources; Cash Flow Analysis and Financial Dashboard consume the calculated PBT instead of rebuilding a second formula. |
 | Sales revenue | Use `sales_bills.total_amount - vat_amount` so the management revenue base is after header discount and before VAT. |
+| Dashboard / Business Calendar sales | Use the same pre-VAT sales revenue helper for sales KPIs, trends, customer summaries, daily report cards, GP, and calendar sales totals; AR remains gross receivable because it is the customer balance. |
 | Expense / cash basis | P&L uses `expenses.amount`. OCF uses active PMT `payments.net_amount` once, classified by `payment_approvals.source_type`; an Expense PMT is not subtracted again from `expenses.paid_at`, and duplicated `fee` / `bank_fee` storage is not double-counted. VAT/WHT settlement must not be folded into the P&L expense base. |
 | Asset disposal | Approved, non-reversed `asset_disposals.gain_loss` is part of PBT and follows `disposal_date`; branch scope comes through the asset. |
 | THB / FCD | Cash liquidity and projections include THB only. FCD is grouped by currency, uses opening balance until a foreign-movement source is approved, and is never added to a THB scalar. |

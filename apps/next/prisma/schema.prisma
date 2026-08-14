@@ -3397,6 +3397,7 @@ model weight_ticket_image_assets {
 
 model weight_ticket_lines {
   line_no                             Int
+  lot_seq                             Int?
   product_name                        String
   gross_weight                        Decimal                              @default(0) @db.Decimal(18, 2)
   deduct_weight                       Decimal                              @default(0) @db.Decimal(18, 2)
@@ -3427,6 +3428,7 @@ model weight_ticket_lines {
   weight_ticket_product_summary_lines weight_ticket_product_summary_lines?
 
   @@unique([weight_ticket_id, line_no], map: "uq_weight_ticket_lines_ticket_line")
+  @@index([weight_ticket_id, lot_seq], map: "idx_weight_ticket_lines_ticket_lot_seq")
   @@index([weight_ticket_id, impurity_source_line_no], map: "idx_weight_ticket_lines_impurity_source_line")
   @@index([weight_ticket_id, id, version], map: "idx_weight_ticket_lines_ticket_version")
   @@index([weight_ticket_id, parent_line_no], map: "idx_weight_ticket_lines_parent_line")

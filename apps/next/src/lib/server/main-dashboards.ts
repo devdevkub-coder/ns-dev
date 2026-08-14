@@ -10,6 +10,7 @@ import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemQty, purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 import { listActiveBranches, listActiveCustomers, listActiveSalespersons, listActiveSuppliers, listProductReferences } from '@/lib/server/reference-master-cache'
 import { salesBillAnalyticsLineTotals, salesBillAnalyticsLinesByBillId, type SalesBillAnalyticsLine } from '@/lib/server/sales-bill-analytics-lines'
+import { salesBillGrossProfitAmount, salesBillRevenueAmount } from '@/lib/server/sales-bill-amounts'
 import type { Prisma } from '../../../generated/prisma/client'
 
 export type MainDashboardFilter = {
@@ -344,9 +345,9 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   const previousHistoricalCogs = previousHistoricalRows.filter((row) => row.metric_type === 'pnl' && row.category_id === 'cogs').reduce((sum, row) => sum + toNumber(row.amount), 0)
   const previousHistoricalExpenses = previousHistoricalRows.filter((row) => row.metric_type === 'expense').reduce((sum, row) => sum + toNumber(row.amount), 0)
   const livePurchaseAmount = activePurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
-  const liveSalesAmount = activeSales.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
+  const liveSalesAmount = activeSales.reduce((sum, row) => sum + salesBillRevenueAmount(row), 0)
   const liveCogs = activeSales.reduce((sum, row) => sum + toNumber(row.cogs_amount || row.total_cost), 0)
-  const previousLiveSalesAmount = activePreviousSales.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
+  const previousLiveSalesAmount = activePreviousSales.reduce((sum, row) => sum + salesBillRevenueAmount(row), 0)
   const previousLiveCogs = activePreviousSales.reduce((sum, row) => sum + toNumber(row.cogs_amount || row.total_cost), 0)
   const previousSalesAmount = previousLiveSalesAmount + previousHistoricalRevenue
   const previousCogs = previousLiveCogs + previousHistoricalCogs
@@ -355,10 +356,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   const purchaseAmount = livePurchaseAmount + historicalCogs
   const salesAmount = liveSalesAmount + historicalRevenue
   const cogs = liveCogs + historicalCogs
-  const anyStoredGrossProfit = activeSales.some((row) => row.gross_profit != null)
-  const grossProfit = (anyStoredGrossProfit
-    ? activeSales.reduce((sum, row) => sum + toNumber(row.gross_profit), 0)
-    : liveSalesAmount - liveCogs) + historicalRevenue - historicalCogs
+  const grossProfit = activeSales.reduce((sum, row) => sum + salesBillGrossProfitAmount(row), 0) + historicalRevenue - historicalCogs
   const expenseAmount = expenses.filter((row) => activeStatus(row.status)).reduce((sum, row) => sum + toNumber(row.amount), 0) + historicalExpenses
   const cashBalance = currentCash.cash + currentCash.bank
   const kpiExpenses = expenseAmount + cogs
@@ -419,8 +417,8 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   for (const bill of activeSales) {
     const key = bill.customers?.code ? requireBusinessCode(bill.customers.code, `ลูกค้าบิลขาย ${bill.id}`) : '__unknown_customer__'
     const current = topCustomers.get(key) ?? { amount: 0, bills: 0, gp: 0, id: key === '__unknown_customer__' ? '' : key, name: bill.customers?.name ?? '-', qty: 0 }
-    current.amount += toNumber(bill.total_amount)
-    current.gp += toNumber(bill.gross_profit)
+    current.amount += salesBillRevenueAmount(bill)
+    current.gp += salesBillGrossProfitAmount(bill)
     current.qty += salesBillAnalyticsLineTotals(activeSalesLineFactsByBillId.get(bill.id)).qty
     current.bills += 1
     topCustomers.set(key, current)
@@ -463,7 +461,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   for (const bill of activeSales) {
     const label = dateOnly(bill.date)
     const current = dailyTrendMap.get(label) ?? { label, purchase: 0, sales: 0 }
-    current.sales += toNumber(bill.total_amount)
+    current.sales += salesBillRevenueAmount(bill)
     dailyTrendMap.set(label, current)
   }
   const expenseCategoryMap = new Map<string, { amount: number; count: number; name: string }>()
@@ -526,8 +524,8 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   activePurchases.forEach((row) => { ensureMonth(row.date).purchase += toNumber(row.total_amount) })
   activeSales.forEach((row) => {
     const month = ensureMonth(row.date)
-    month.sales += toNumber(row.total_amount)
-    month.gp += row.gross_profit != null ? toNumber(row.gross_profit) : toNumber(row.total_amount) - toNumber(row.cogs_amount ?? row.total_cost)
+    month.sales += salesBillRevenueAmount(row)
+    month.gp += salesBillGrossProfitAmount(row)
   })
   expenses.filter((row) => activeStatus(row.status)).forEach((row) => { ensureMonth(row.date).expense += toNumber(row.amount) })
   scopedHistoricalRows.forEach((row) => {
@@ -618,7 +616,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
       sections: {
         cash: { ...currentCash, netCash: currentCash.cash + currentCash.bank + currentReceivables.ar - currentReceivables.ap - currentCash.odUsed },
         purchase: { amount: purchaseAmount, count: activePurchases.length, qty: activePurchases.reduce((sum, row) => sum + purchaseBillItemQty(row), 0), today: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
-        sales: { amount: salesAmount, count: activeSales.length, gp: grossProfit, qty: activeSales.reduce((sum, row) => sum + salesBillAnalyticsLineTotals(activeSalesLineFactsByBillId.get(row.id)).qty, 0), today: todaySales.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
+        sales: { amount: salesAmount, count: activeSales.length, gp: grossProfit, qty: activeSales.reduce((sum, row) => sum + salesBillAnalyticsLineTotals(activeSalesLineFactsByBillId.get(row.id)).qty, 0), today: todaySales.reduce((sum, row) => sum + salesBillRevenueAmount(row), 0) },
         stock: { qty: stockQty, value: stockValue },
       },
       stockByBranch: Array.from(stockByBranchMap.values()).filter((row) => row.qty !== 0 || row.value !== 0).sort((a, b) => b.value - a.value),
@@ -671,12 +669,12 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
         sellQty: row.sellQty,
       })).sort((a, b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt)),
       purchaseBills: todayPurchases.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.suppliers?.name ?? '-', qty: purchaseBillItemQty(row) })),
-      salesBills: todaySales.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.customers?.name ?? '-', qty: salesBillAnalyticsLineTotals(activeSalesLineFactsByBillId.get(row.id)).qty })),
+      salesBills: todaySales.slice(0, 12).map((row) => ({ amount: salesBillRevenueAmount(row), docNo: row.doc_no, name: row.customers?.name ?? '-', qty: salesBillAnalyticsLineTotals(activeSalesLineFactsByBillId.get(row.id)).qty })),
       summary: {
         expenseAmount: todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0),
         purchaseAmount: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0),
         purchaseQty: todayPurchases.reduce((sum, row) => sum + purchaseBillItemQty(row), 0),
-        salesAmount: todaySales.reduce((sum, row) => sum + toNumber(row.total_amount), 0),
+        salesAmount: todaySales.reduce((sum, row) => sum + salesBillRevenueAmount(row), 0),
         salesQty: todaySales.reduce((sum, row) => sum + salesBillAnalyticsLineTotals(activeSalesLineFactsByBillId.get(row.id)).qty, 0),
       },
     },

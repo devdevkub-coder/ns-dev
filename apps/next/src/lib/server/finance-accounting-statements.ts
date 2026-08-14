@@ -6,6 +6,7 @@ import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches } from '@/lib/server/reference-master-cache'
+import { salesBillRevenueAmount } from '@/lib/server/sales-bill-amounts'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const PL_EXCLUDED_STATUSES = ['cancelled', 'canceled', 'void', 'voided', 'reversed', 'ยกเลิก']
@@ -383,7 +384,7 @@ async function loadPlInputs(filter: PeriodFilter) {
 }
 
 function billRevenueAmount(bill: SalesBillRow) {
-  return toNumber(bill.total_amount) - toNumber(bill.vat_amount)
+  return salesBillRevenueAmount(bill)
 }
 
 function billWacCostAmount(bill: SalesBillRow) {

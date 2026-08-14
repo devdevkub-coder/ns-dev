@@ -1,5 +1,10 @@
 # 10 Environment Status
 
+### WTI/WTO Immutable Lot Sequence — 2026-08-14
+
+- Applied and recorded `20260814120000_add_weight_ticket_lot_sequence` on SIT (`vbjlkxbytccklhqvxjuu`) only. The additive migration adds `weight_ticket_lines.lot_seq`, backfills 132 existing physical lots from 151 lines, and enforces a per-ticket unique sequence for non-null values; no impurity line received a lot sequence and no business row was deleted.
+- Runtime assigns new `lot_seq` values inside the existing per-ticket advisory-lock transaction and preserves them when `line_no` is renumbered or a line is edited/deleted. Production remains read-only and has not received this migration.
+
 ### SIT-to-Production Migration Parity Repair — 2026-08-10
 
 - Applied and recorded the four migrations that were present in SIT but missing or incomplete in Production: `20260806130000_add_stock_transfer_action_permissions`, `20260806150000_scope_weight_ticket_realtime_channels`, `20260808100000_repair_production_document_line_indexes`, and `20260808103000_drop_production_output_round_unique`.
