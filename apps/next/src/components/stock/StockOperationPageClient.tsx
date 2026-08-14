@@ -1496,7 +1496,7 @@ function OperationTable({
 
       {/* Desktop Table (Hidden on Mobile) */}
       <div key={`${mode}-${isLoading ? 'loading' : 'ready'}`} ref={desktopTableScrollRef} className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {columns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1806,8 +1806,8 @@ function AdjustDetailModal({
   const dotClass = adjustType === 'LOSS' ? 'bg-red-500' : adjustType === 'GAIN' ? 'bg-emerald-500' : 'bg-slate-400'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10">
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4">
+      <div className="my-auto flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none">
         <div data-ns-dialog-header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div className="min-w-0">
             <h3 className="text-base font-bold text-white">รายละเอียดปรับสต๊อก · {formatCell(detail.docNo)}</h3>
@@ -1975,7 +1975,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                   </button>
                 </div>
               ) : null}
-              <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {detailColumns.map((col) => (
                     <col key={col.key} style={columnResize.getColumnStyle(col.key)} />

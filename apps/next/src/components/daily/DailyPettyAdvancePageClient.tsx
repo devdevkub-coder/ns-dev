@@ -594,8 +594,8 @@ export function DailyPettyAdvancePageClient() {
       ) : null}
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseForm() }}>
-          <form ref={formRef} noValidate className="w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseForm() }}>
+          <form ref={formRef} noValidate className="my-auto w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไขรายการยืมเงิน' : 'บันทึกรายการยืมเงิน'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -657,8 +657,8 @@ export function DailyPettyAdvancePageClient() {
       ) : null}
 
       {returningRow ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseReturnForm() }}>
-          <form noValidate className="w-full max-w-md overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveReturn}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseReturnForm() }}>
+          <form noValidate className="my-auto w-full max-w-md overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveReturn}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">คืนเงิน — {returningRow.docNo} / {returningRow.recipientName}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -801,7 +801,7 @@ export function DailyPettyAdvancePageClient() {
         </div>
 
         <div className="hidden overflow-x-auto lg:block">
-        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {pettyAdvanceColumns.map((column) => {
               const style = columnResize.getColumnStyle(column.key);
@@ -862,8 +862,8 @@ function DetailModal({ onClose, onEdit, onReturn, row }: { onClose: () => void; 
   const canReturn = row.status === 'active' && row.remaining > 0 && row.pendingReturn <= 0
   const canEdit = row.status === 'active'
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onClick={onClose}>
-      <div className="w-full max-w-4xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" onClick={onClose}>
+      <div className="my-auto w-full max-w-4xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onClick={(event) => event.stopPropagation()}>
         <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
           <div>
             <h3 className="text-lg font-bold text-white">รายละเอียด {row.docNo} — {row.recipientName}</h3>

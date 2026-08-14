@@ -820,7 +820,7 @@ function DetailTable({
     <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
       <TableToolbar pagination={pagination} onResetWidths={columnResize.hasCustomWidths ? columnResize.resetColumnWidths : undefined} />
       <div className="overflow-x-auto">
-      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
         <colgroup>
           {detailColumns.map((col) => (
             <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -864,8 +864,8 @@ function DetailTable({
 
 function DetailModal({ onClose, row }: { onClose: () => void; row: ArRow }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onClick={onClose}>
-      <div className="w-full max-w-2xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" onClick={onClose}>
+      <div className="my-auto w-full max-w-2xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
         <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
           <div>
             <h2 className="text-xl font-bold text-white">{row.docNo}</h2>
@@ -1109,7 +1109,7 @@ function SummaryTable({
     <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
       <TableToolbar pagination={pagination} onResetWidths={columnResize.hasCustomWidths ? columnResize.resetColumnWidths : undefined} />
       <div className="overflow-x-auto">
-      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
         <colgroup>
           {summaryColumns.map((col) => (
             <col key={col.key} style={columnResize.getColumnStyle(col.key)} />

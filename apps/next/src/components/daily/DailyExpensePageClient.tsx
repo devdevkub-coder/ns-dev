@@ -946,12 +946,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 </div>
               </div>
             )
-          ) : (
-            <div className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-4 py-2.5 text-xs text-slate-600 shadow-sm">
-              <span className="text-sm">🌿</span>
-              <span>ไม่พบความผิดปกติของยอดใช้จ่ายในแต่ละหมวด</span>
-            </div>
-          )}
+          ) : null}
 
           {/* 📊 Heatmap Table */}
           <div className="space-y-3">
@@ -1044,7 +1039,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
             {/* 1. Desktop Layout (Large Heatmap Table) - Visible on lg screens */}
             <div className="expense-dashboard-heatmap hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
-              <table className="ns-table w-full text-xs" style={{ minWidth: dashboardColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table w-full text-xs" style={{ minWidth: dashboardColumnResize.tableMinWidth, maxWidth: dashboardColumnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {dashboardColumns.map((column) => {
                     const style = dashboardColumnResize.getColumnStyle(column.key);
@@ -1080,8 +1075,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       </td>
                       {dashboard.monthList.map((month) => {
                         const value = item.byMonth[month] ?? 0;
-                        const hot = item.avg > 0 && value > item.avg * 1.5;
-                        const low = item.avg > 0 && value > 0 && value < item.avg * 0.5;
+                        // ใช้เกณฑ์เดียวกับป้ายสถานะ (floor 5,000) เพื่อไม่ให้เซลล์แดงแต่สถานะปกติ
+                        const hot = item.avg > 0 && value > Math.max(item.avg * 1.5, 5000);
+                        const low = item.avg > 0 && value > 0 && value < item.avg * 0.3;
                         
                         return (
                           <td key={month} className="px-3 py-3 text-right tabular-nums">
@@ -1154,7 +1150,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
             {/* 2. Tablet Layout (Simplified Table) - Visible on md & lg screens */}
             <div className="expense-dashboard-heatmap hidden md:block lg:hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
-              <table className="ns-table w-full text-xs" style={{ minWidth: dashboardTabletColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table w-full text-xs" style={{ minWidth: dashboardTabletColumnResize.tableMinWidth, maxWidth: dashboardTabletColumnResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {dashboardTabletColumns.map((column) => {
                     const style = dashboardTabletColumnResize.getColumnStyle(column.key)
@@ -1687,8 +1683,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           </div>
 
           {formOpen ? (
-            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseExpenseForm() }}>
-              <form ref={formRef} noValidate className="w-full max-w-6xl overflow-hidden rounded-md bg-slate-900 shadow-xl" onSubmit={saveForm}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseExpenseForm() }}>
+              <form ref={formRef} noValidate className="my-auto w-full max-w-6xl overflow-hidden rounded-md bg-slate-900 shadow-xl" onSubmit={saveForm}>
                 <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 px-5 py-4 text-white rounded-t-md shrink-0">
                   <h3 className="font-bold text-white text-base">{form.id ? 'แก้ไขค่าใช้จ่าย' : 'เพิ่มค่าใช้จ่าย'}</h3>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -2023,7 +2019,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           </div>
 
           <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {expenseColumns.map((column) => (
                   <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
