@@ -336,6 +336,10 @@ export const navigationSections: Array<{ key: NavigationSectionKey; label: strin
   { key: 'admin', label: 'ระบบ' },
 ]
 
+// BUG #45: หน้า Accounting Periods ยังเป็น spec (ยังไม่ได้พัฒนา) — ซ่อนจากเมนู
+// จนกว่าจะเปิดผ่าน NEXT_PUBLIC_ENABLE_ACCOUNTING_PERIODS=true
+const accountingPeriodsEnabled = process.env.NEXT_PUBLIC_ENABLE_ACCOUNTING_PERIODS === 'true'
+
 export const navigationItems: NavigationItem[] = [
   { href: '/owner-daily', icon: '☀️', label: 'Owner Daily Control', section: 'main' },
   { href: '/daily-report', icon: '📰', label: 'Daily Report', section: 'main' },
@@ -426,7 +430,6 @@ export const navigationItems: NavigationItem[] = [
   { href: '/finance-accounting/asset-overview', icon: '💎', label: 'Net Worth / Track Asset', section: 'finance-accounting' },
   { href: '/finance-accounting/equity-maint', icon: '👑', label: 'Equity / ทุนจดทะเบียน', section: 'finance-accounting' },
   { href: '/finance-accounting/opening-balance', icon: '🚀', label: 'Opening Balance / ตั้งต้นยอด', section: 'finance-accounting' },
-  { href: '/finance-accounting/accounting-periods', icon: '🗓️', label: 'Accounting Periods', section: 'finance-accounting' },
   { href: '/finance-accounting/posting-rules', icon: '🧭', label: 'Posting Rules', section: 'finance-accounting' },
   { href: '/finance-accounting/historical-data', icon: '📅', label: 'ข้อมูลย้อนหลัง ม.ค.-เม.ย. 2026', section: 'finance-accounting' },
   // กลุ่มข้อมูลบริษัท
@@ -531,6 +534,9 @@ export const navigationItems: NavigationItem[] = [
       { href: '/admin/roles-permissions', icon: '🛡️', label: 'Roles & Permissions', section: 'admin' },
     ],
   },
+  ...(accountingPeriodsEnabled
+    ? [{ href: '/finance-accounting/accounting-periods', icon: '🗓️', label: 'Accounting Periods', section: 'finance-accounting' as NavigationSectionKey }]
+    : []),
 ]
 
 /**

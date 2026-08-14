@@ -5,6 +5,21 @@ export const metadata: Metadata = {
   title: 'งวดบัญชี | NS Scrap ERP',
 }
 
+// BUG #45: ฟีเจอร์ปิดงวดบัญชียังอยู่ในขั้นตอนออกแบบ — ปิดการเข้าถึงจนกว่าจะพัฒนาจริง
+// เปิดได้โดยตั้ง NEXT_PUBLIC_ENABLE_ACCOUNTING_PERIODS=true
+const accountingPeriodsEnabled = process.env.NEXT_PUBLIC_ENABLE_ACCOUNTING_PERIODS === 'true'
+
+function NotAvailable() {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <div className="text-4xl">🗓️</div>
+      <h1 className="text-lg font-bold text-slate-800">หน้าปิดงวดบัญชี (Accounting Periods)</h1>
+      <p className="max-w-md text-sm text-slate-500">ฟีเจอร์นี้ยังอยู่ระหว่างการพัฒนาและออกแบบ — ยังไม่เปิดใช้งาน
+        เอกสารทุกงวดยังบันทึก/แก้ไขได้ตามสิทธิ์ของแต่ละ flow ตามเดิม</p>
+    </div>
+  )
+}
+
 const periodStates = [
   {
     code: 'open',
@@ -94,6 +109,10 @@ const pendingWork = [
 ] as const
 
 export default function AccountingPeriodsPage() {
+  if (!accountingPeriodsEnabled) {
+    return <NotAvailable />
+  }
+
   return (
     <section className="space-y-4">
       <section className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
