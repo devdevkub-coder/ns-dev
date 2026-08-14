@@ -1809,14 +1809,27 @@ export function WeightTicketFormCore({
     }
 
     let cancelled = false
-    let previewController: AbortController | null = null
+    const requestController = new AbortController()
 
     async function loadTicket() {
       setIsLoadingTicket(true)
       setLoadError('')
       try {
-        const ticket = await getWeightTicket(editingTicketId, { includeHistory: false, includeImagePreviews: false })
+        // Load the ticket and its signed image previews together. The previous
+        // two-phase load rendered the edit form with empty image URLs first,
+        // then merged previews asynchronously; when the dialog/state changed
+        // during that window the merge could be discarded and the form kept
+        // showing the "รูปเดิม" placeholder even though detail already had
+        // valid previews.
+        const [ticketResult, previewsResult] = await Promise.allSettled([
+          getWeightTicket(editingTicketId, { includeHistory: false, includeImagePreviews: false, signal: requestController.signal }),
+          getWeightTicketImagePreviews(editingTicketId, { signal: requestController.signal }),
+        ])
         if (cancelled) return
+        if (ticketResult.status === 'rejected') throw ticketResult.reason
+        const ticketWithoutPreviews = ticketResult.value
+        const previews = previewsResult.status === 'fulfilled' ? previewsResult.value : null
+        const ticket = previews ? mergeWeightTicketImagePreviews(ticketWithoutPreviews, previews) : ticketWithoutPreviews
         const nextForm = ticketToFormState(ticket)
         setLoadedTicket(ticket)
         setForm(nextForm)
@@ -1831,20 +1844,7 @@ export function WeightTicketFormCore({
         setMobileLotDetailId(null)
         setTouched({})
 
-        // Do not block the first render on signed thumbnail URLs. Only merge
-        // image fields when they arrive so edits made while previews load are
-        // preserved.
-        previewController = new AbortController()
-        void getWeightTicketImagePreviews(editingTicketId, { signal: previewController.signal })
-          .then((previews) => {
-            if (cancelled) return
-            setImagePreviewRefreshMs(previews.refreshAfterMs)
-            const previewForm = ticketToFormState(mergeWeightTicketImagePreviews(ticket, previews))
-            setForm((current) => mergeFormImagePreviewUrls(current, previewForm))
-          })
-          .catch(() => {
-            if (!cancelled) setImagePreviewRefreshMs(null)
-          })
+        setImagePreviewRefreshMs(previews?.refreshAfterMs ?? null)
       } catch (caught) {
         if (!cancelled) setLoadError(getErrorMessage(caught, 'โหลดใบรับ-ส่งของที่ต้องการแก้ไขไม่ได้'))
       } finally {
@@ -1855,7 +1855,7 @@ export function WeightTicketFormCore({
     void loadTicket()
     return () => {
       cancelled = true
-      previewController?.abort()
+      requestController.abort()
     }
   }, [editingTicketId])
 
