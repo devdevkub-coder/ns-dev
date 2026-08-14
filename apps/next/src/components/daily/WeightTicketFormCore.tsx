@@ -1450,15 +1450,8 @@ export function WeightTicketFormCore({
     if (remoteSyncInFlightRef.current) return
     remoteSyncInFlightRef.current = true
     const latestTicketPromise = getWeightTicket(editingTicketId, { includeImagePreviews: false })
-    const latestImagePreviewsPromise = event.imageChanged
-      ? getWeightTicketImagePreviews(editingTicketId).catch(() => null)
-      : Promise.resolve(null)
-    void Promise.all([latestTicketPromise, latestImagePreviewsPromise])
-      .then(([latestTicket, latestImagePreviews]) => {
-        const latestTicketWithPreviews = latestImagePreviews
-          ? mergeWeightTicketImagePreviews(latestTicket, latestImagePreviews)
-          : latestTicket
-        const latestForm = ticketToFormState(latestTicketWithPreviews)
+    const applyLatestTicket = (latestTicket: WeightTicketRecord, latestImagePreviews: Awaited<ReturnType<typeof getWeightTicketImagePreviews>> | null) => {
+        const latestForm = ticketToFormState(latestImagePreviews ? mergeWeightTicketImagePreviews(latestTicket, latestImagePreviews) : latestTicket)
         const latestById = new Map(latestForm.lines.map((line) => [line.id, line] as const))
         const baselineTicket = savedTicket ?? loadedTicket
         const currentForm = formRef.current
@@ -1511,6 +1504,16 @@ export function WeightTicketFormCore({
             lines: [...mergedLines, ...localOnlyDraftLines],
           }
         })
+    }
+    void latestTicketPromise
+      .then((latestTicket) => {
+        // Apply authoritative ticket/line data immediately. Signed preview
+        // URLs are an enhancement and must not delay numeric or impurity sync.
+        applyLatestTicket(latestTicket, null)
+        if (!event.imageChanged) return
+        return getWeightTicketImagePreviews(editingTicketId)
+          .then((latestImagePreviews) => applyLatestTicket(latestTicket, latestImagePreviews))
+          .catch(() => undefined)
       })
       .catch(() => {
         // Realtime remains an accelerator; the next explicit save/load is authoritative.

@@ -647,7 +647,6 @@ async function updateWeightTicket(
           weightTicketId: existing.id,
         })
       }
-      await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
       if (
         !isDeliveredWtoEdit &&
         !shouldRebuildWtoPendingOut &&
@@ -948,8 +947,34 @@ async function updateWeightTicket(
         })
         : []
       const { summaryRows } = buildWeightTicketProductSummaryRows(existing.id, createdLines)
-      const createdSummaries = await Promise.all(summaryRows.map(({ lineIds, ...data }) => tx.weight_ticket_product_summaries.create({ data })))
-      const summaryIdByProductId = new Map(createdSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
+      // Preserve summary IDs for incremental edits. Downstream allocations and
+      // usage logs reference these rows, and recreating them adds avoidable DB
+      // work even when only one lot or impurity weight changed.
+      const summaryProductIds = summaryRows.map(({ product_id }) => product_id)
+      if (summaryProductIds.length) {
+        await tx.weight_ticket_product_summaries.deleteMany({
+          where: {
+            product_id: { notIn: summaryProductIds },
+            weight_ticket_id: existing.id,
+          },
+        })
+      } else {
+        await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
+      }
+      const persistedSummaries = await Promise.all(summaryRows.map(async ({ lineIds: _lineIds, ...data }) => {
+        const { created_at: _createdAt, ...upsertData } = data
+        return tx.weight_ticket_product_summaries.upsert({
+          create: data,
+          update: { ...upsertData, updated_at: new Date() },
+          where: {
+            weight_ticket_id_product_id: {
+              product_id: data.product_id,
+              weight_ticket_id: data.weight_ticket_id,
+            },
+          },
+        })
+      }))
+      const summaryIdByProductId = new Map(persistedSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
       const bridgeRows = summaryRows.flatMap(({ lineIds, product_id }) => {
         const summaryId = summaryIdByProductId.get(String(product_id))
         if (summaryId == null) return []
@@ -1018,6 +1043,13 @@ async function updateWeightTicket(
     const updated = updateResult.ticket
     const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
+    const persistedChangedLineIds = new Set(
+      [...collaborationChangedLineIds].map((lineId) => updateResult.lineIdMap[lineId] ?? lineId),
+    )
+    const eventLineIds = [
+      ...collaborationDeletedLineIds,
+      ...mapped.lines.filter((line) => persistedChangedLineIds.has(line.id)).map((line) => line.id),
+    ].filter((lineId, index, lineIds) => lineIds.indexOf(lineId) === index)
     await recordAuditLog({
         action: 'update',
         afterData: weightTicketAuditSnapshot(mapped),
@@ -1038,7 +1070,7 @@ async function updateWeightTicket(
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: mapped.lines.map((line) => line.id), imageChanged })
+    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: eventLineIds, imageChanged })
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.enteredBy, mapped.updatedBy])
     return NextResponse.json({
       ...mapped,

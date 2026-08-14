@@ -23,10 +23,30 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const startedAt = performance.now()
+    const pendingEvents = new Map<string, { event: WeightTicketChangeEvent; timeoutId: ReturnType<typeof setTimeout> }>()
 
     const debugLogging = process.env.NODE_ENV !== 'production'
     const logDebug = (message: string, details: Record<string, unknown>) => {
       if (debugLogging) console.info(message, details)
+    }
+
+    const emitChange = (payload: WeightTicketChangeEvent, branchId: string) => {
+      const key = `${branchId}:${payload.documentNo}`
+      const pending = pendingEvents.get(key)
+      if (pending) {
+        pending.event = {
+          ...payload,
+          lineIds: Array.from(new Set([...(pending.event.lineIds ?? []), ...(payload.lineIds ?? [])])),
+          imageChanged: pending.event.imageChanged === true || payload.imageChanged === true,
+        }
+        return
+      }
+      const timeoutId = setTimeout(() => {
+        const current = pendingEvents.get(key)
+        pendingEvents.delete(key)
+        if (!disposed && current) onChangeRef.current(current.event)
+      }, 50)
+      pendingEvents.set(key, { event: payload, timeoutId })
     }
 
     logDebug('[weight-ticket-realtime] subscribe.start', {
@@ -66,7 +86,7 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
               lineCount: payload.lineIds?.length ?? 0,
               imageChanged: payload.imageChanged === true,
             })
-            onChangeRef.current(payload)
+            emitChange(payload, branchId)
           })
         channels.push(channel)
         void channel.subscribe((status, error) => {
@@ -102,6 +122,8 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
 
     return () => {
       disposed = true
+      for (const { timeoutId } of pendingEvents.values()) clearTimeout(timeoutId)
+      pendingEvents.clear()
       logDebug('[weight-ticket-realtime] subscribe.cleanup', {
         subscriptionId,
         channelCount: channels.length,

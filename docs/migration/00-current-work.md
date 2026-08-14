@@ -2,9 +2,9 @@
 
 Active objective: ลดงานซ้ำระหว่างแท็บเมื่อมีการแก้ไข WTI/WTO พร้อมคงการอัปเดตรูปให้ถูกต้อง
 
-ล่าสุด: realtime event มี `imageChanged`; การแก้ตัวเลข/ข้อมูลที่ไม่เปลี่ยนรูปจะโหลดเฉพาะ ticket หลัก ส่วนการเปลี่ยนหรือลบรูปจึงโหลด signed preview ใหม่ การลบเต๋าที่มีรูปยัง refresh preview เพื่อเอารูปออกจากแท็บอื่นได้
+ล่าสุด: realtime event มี `imageChanged`; การแก้ตัวเลข/ข้อมูลที่ไม่เปลี่ยนรูปจะโหลดเฉพาะ ticket หลัก ส่วนการเปลี่ยนหรือลบรูปจึงโหลด signed preview ใหม่ การลบเต๋าที่มีรูปยัง refresh preview เพื่อเอารูปออกจากแท็บอื่นได้ เพิ่มการส่งเฉพาะ line ที่เปลี่ยน และ coalesce event ที่เข้ามาภายใน 50ms; ข้อมูล ticket/สิ่งเจือปน apply ก่อน preview. PATCH ที่ใช้ collaboration baseline คง summary ID เดิมด้วย upsert ตาม ticket/product และลบเฉพาะ summary สินค้าที่หายไป
 
-Validation: type-check, targeted ESLint, realtime contract tests 2/2 และ `git diff --check` ผ่าน
+Validation: type-check, targeted ESLint, production build 338 pages, WTI/WTO calculation and collaboration tests 35/35 และ `git diff --check` ผ่าน; ปรับ source-contract expectation ให้ตรวจ contract ปัจจุบันแทนรูปแบบโค้ดเดิม
 
 Remaining risk: ยังไม่ได้ทำ browser UAT และยังไม่ได้ push batch นี้ขึ้น SIT
 
