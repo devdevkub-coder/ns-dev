@@ -765,21 +765,36 @@ function getBoughtImpurityEntriesForLine(line: FormWeightTicketLine, allLines: F
   return [...byId.values()]
 }
 
-function getImpurityChildLines(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
+type WeightTicketLineIndex = {
+  byId: Map<string, FormWeightTicketLine>
+  childrenByParentId: Map<string, FormWeightTicketLine[]>
+  rootLines: FormWeightTicketLine[]
+}
+
+function createWeightTicketLineIndex(lines: FormWeightTicketLine[]): WeightTicketLineIndex {
+  const byId = new Map<string, FormWeightTicketLine>()
   const childrenByParentId = new Map<string, FormWeightTicketLine[]>()
-  allLines.forEach((entry) => {
-    if (!entry.parentId) return
+  const rootLines: FormWeightTicketLine[] = []
+  lines.forEach((entry) => {
+    byId.set(entry.id, entry)
+    if (!entry.parentId) {
+      rootLines.push(entry)
+      return
+    }
     const children = childrenByParentId.get(entry.parentId) ?? []
     children.push(entry)
     childrenByParentId.set(entry.parentId, children)
   })
+  return { byId, childrenByParentId, rootLines }
+}
 
+function getImpurityChildLines(line: FormWeightTicketLine, lineIndex: WeightTicketLineIndex) {
   const impurityLines: FormWeightTicketLine[] = []
   const visitedParentIds = new Set<string>()
   const visit = (parentId: string) => {
     if (visitedParentIds.has(parentId)) return
     visitedParentIds.add(parentId)
-    for (const child of childrenByParentId.get(parentId) ?? []) {
+    for (const child of lineIndex.childrenByParentId.get(parentId) ?? []) {
       if (isImpurityPurchaseLine(child) || child.deductionMode === 'none') continue
       impurityLines.push(child)
       visit(child.id)
@@ -790,23 +805,19 @@ function getImpurityChildLines(line: FormWeightTicketLine, allLines: FormWeightT
   return impurityLines
 }
 
-function getImpurityLineNumber(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
-  const lineById = new Map(allLines.map((entry) => [entry.id, entry] as const))
+function getImpurityLineNumber(line: FormWeightTicketLine, lineIndex: WeightTicketLineIndex) {
   const numberParts: string[] = []
   const visited = new Set<string>()
   let current: FormWeightTicketLine | undefined = line
 
   while (current?.parentId && !visited.has(current.id)) {
     visited.add(current.id)
-    const siblings = allLines.filter((entry) => (
-      entry.parentId === current?.parentId
-      && !isImpurityPurchaseLine(entry)
-      && entry.deductionMode !== 'none'
-    ))
+    const siblings = (lineIndex.childrenByParentId.get(current.parentId) ?? [])
+      .filter((entry) => !isImpurityPurchaseLine(entry) && entry.deductionMode !== 'none')
     const siblingIndex = siblings.findIndex((entry) => entry.id === current?.id)
     if (siblingIndex < 0) break
     numberParts.unshift(String(siblingIndex + 1))
-    current = lineById.get(current.parentId)
+    current = lineIndex.byId.get(current.parentId)
   }
 
   return numberParts.join('.') || '1'
@@ -1503,6 +1514,9 @@ export function WeightTicketFormCore({
     return options.filter((option) => option.branchIds?.includes(form.branchId))
   }, [customers, form.branchId, form.type, suppliers])
   const lineCalculation = useMemo(() => calculateWeightTicketLineTotals(form.lines), [form.lines])
+  const lineIndex = useMemo(() => createWeightTicketLineIndex(form.lines), [form.lines])
+  const mainParentLines = lineIndex.rootLines
+  const productById = useMemo(() => new Map(products.map((product) => [product.id, product] as const)), [products])
   const totals = lineCalculation.totals
 
   const isImpurityProduct = useCallback((p: OptionItem) => {
@@ -1547,17 +1561,16 @@ export function WeightTicketFormCore({
   const timerStartMs = parseTime(timerStartAt)
   const timerStopMs = parseTime(timerStopAt)
   const timerElapsedMs = timerStartMs === null ? 0 : (timerStopMs ?? timerNow) - timerStartMs
-  const weightTicketItemCount = getMainParentLines(form.lines).length
+  const weightTicketItemCount = mainParentLines.length
   const activeLine = useMemo(
     () => {
-      const parentLines = getMainParentLines(form.lines)
-      const found = form.lines.find((line) => line.id === activeLineId)
-      return found ?? parentLines[0] ?? null
+      const found = activeLineId ? lineIndex.byId.get(activeLineId) : undefined
+      return found ?? mainParentLines[0] ?? null
     },
-    [activeLineId, form.lines],
+    [activeLineId, lineIndex, mainParentLines],
   )
   const mobileLotDetailLine = mobileLotDetailId
-    ? form.lines.find((entry) => entry.id === mobileLotDetailId) ?? null
+    ? lineIndex.byId.get(mobileLotDetailId) ?? null
     : null
   const isMobileLotDetailMode = Boolean(
     mobileLotDetailLine
@@ -3690,7 +3703,7 @@ export function WeightTicketFormCore({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-5">
-              <MetricInline label="รายการ" value={`${getMainParentLines(form.lines).length} รายการ`} />
+              <MetricInline label="รายการ" value={`${mainParentLines.length} รายการ`} />
               <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
               <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
               <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
@@ -3835,8 +3848,8 @@ export function WeightTicketFormCore({
             )}>
               <div className="min-w-0 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-medium text-slate-700">รายการทั้งหมด {getMainParentLines(form.lines).length} รายการ</div>
-                  {getMainParentLines(form.lines).length > 0 ? (
+                  <div className="text-sm font-medium text-slate-700">รายการทั้งหมด {mainParentLines.length} รายการ</div>
+                  {mainParentLines.length > 0 ? (
                     <Button
                       className="h-9 border-emerald-600 bg-emerald-600 px-3 font-semibold text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
                       id="weight-ticket-add-product"
@@ -3851,7 +3864,7 @@ export function WeightTicketFormCore({
                 </div>
                 <div className="space-y-2">
                   {(() => {
-                    const parentLines = getMainParentLines(form.lines)
+                    const parentLines = mainParentLines
                     if (parentLines.length === 0) {
                       return (
                         <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
@@ -3878,7 +3891,7 @@ export function WeightTicketFormCore({
                     return parentLines.map((line, index) => {
                       const lineTotals = calculateAdjustedLineTotals(line, lineCalculation)
                       const cardImages = getProductCardImages(line, form.lines)
-                      const childIds = form.lines.filter((l) => l.parentId === line.id).map((l) => l.id)
+                      const childIds = (lineIndex.childrenByParentId.get(line.id) ?? []).map((child) => child.id)
                       const allRelatedIds = [line.id, ...childIds]
                       const hasError = allRelatedIds.some((id) =>
                         errors[`line-${id}-product`]
@@ -3915,7 +3928,7 @@ export function WeightTicketFormCore({
                                 <div className="min-w-0">
                                   <div className="text-sm text-slate-500 font-semibold">รายการ {index + 1}</div>
                                   <div className="mt-1 line-clamp-1 text-sm font-medium text-slate-900">
-                                    {products.find((option) => option.id === line.productId)?.name || 'ยังไม่ได้เลือกสินค้า'}
+                                    {productById.get(line.productId)?.name || 'ยังไม่ได้เลือกสินค้า'}
                                   </div>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-2">
@@ -3971,10 +3984,10 @@ export function WeightTicketFormCore({
                             <h3>{isMobileLotDetailMode ? 'รายละเอียดเต๋า' : activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
                           </div>
                           <div className="mt-1 flex min-w-0 items-center gap-2">
-                            <p className="shrink-0 text-xs font-medium text-slate-500">รายการ {getMainParentLines(form.lines).findIndex((entry) => entry.id === getWeightTicketRootLine(form.lines, activeLine).id) + 1}</p>
+                            <p className="shrink-0 text-xs font-medium text-slate-500">รายการ {mainParentLines.findIndex((entry) => entry.id === getWeightTicketRootLine(form.lines, activeLine).id) + 1}</p>
                             <span aria-hidden="true" className="shrink-0 text-xs text-slate-300">·</span>
                             <div className="min-w-0 truncate text-sm font-semibold text-slate-700">
-                              {isMobileLotDetailMode ? 'กรอกข้อมูลเต๋า แล้วกลับไปบันทึกสินค้านี้' : products.find((product) => product.id === activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
+                              {isMobileLotDetailMode ? 'กรอกข้อมูลเต๋า แล้วกลับไปบันทึกสินค้านี้' : productById.get(activeLine.productId)?.name || 'เลือกสินค้าเพื่อเริ่มกรอกข้อมูล'}
                             </div>
                           </div>
                         </div>
@@ -4006,7 +4019,7 @@ export function WeightTicketFormCore({
                     <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-3 py-3 xl:contents">
                       {(() => {
                 const line = activeLine
-                const parentLines = getMainParentLines(form.lines)
+                const parentLines = mainParentLines
                 const rootLine = getWeightTicketRootLine(form.lines, line)
                 const index = parentLines.findIndex((entry) => entry.id === rootLine.id)
                 const lineTotals = calculateAdjustedLineTotals(line, lineCalculation)
@@ -4020,7 +4033,7 @@ export function WeightTicketFormCore({
                 const canAddImpurityLine = hasSelectedProduct && (isPurchaseOnlyLine
                   ? purchaseSourceWeight > 0
                   : realLotSummary.lotCount > 0)
-                const impurityChildLines = getImpurityChildLines(line, form.lines)
+                const impurityChildLines = getImpurityChildLines(line, lineIndex)
                 const boughtImpurityLinesForLine = getBoughtImpurityEntriesForLine(line, form.lines)
                 const purchaseSourceLine = isPurchaseOnlyLine
                   ? form.lines.find((entry) => entry.id === line.impuritySourceLineId)
@@ -4030,11 +4043,11 @@ export function WeightTicketFormCore({
                   : ''
                 const isLineProductImpurity = (() => {
                   if (!line.productId) return false
-                  const p = products.find((prod) => prod.id === line.productId)
+                  const p = productById.get(line.productId)
                   return p ? isImpurityProduct(p) : false
                 })()
                 const productOptions = productOptionsForLine(isLineProductImpurity ? impurityProducts : normalProducts, line)
-                const selectedProduct = products.find((product) => product.id === line.productId)
+                const selectedProduct = productById.get(line.productId)
                 const stockKey = `${form.branchId}:${line.productId}`
                 const stock = stockOptions[stockKey]
                 const warehouseOptions = warehouseOptionsForLine(stock, line)
@@ -4471,7 +4484,7 @@ export function WeightTicketFormCore({
                                 <div>{hasOtherProductImpurity ? 'ซื้อ/ไม่ซื้อ' : ''}</div>
                               </div>
                               {childLines.map((child) => {
-                                const impurityLineNumber = getImpurityLineNumber(child, form.lines)
+                                const impurityLineNumber = getImpurityLineNumber(child, lineIndex)
                                 const selectedImpurityId = getLineImpurityId(child)
                                 const hasSelectedImpurity = Boolean(selectedImpurityId)
                                 const isOtherProductImpurity = isOtherProductImpurityOption(selectedImpurityId)
@@ -4799,7 +4812,7 @@ export function WeightTicketFormCore({
                 )
                       })()}
                     </div>
-                    {activeLine.productId || getMainParentLines(form.lines).length > 1 ? (
+                    {activeLine.productId || mainParentLines.length > 1 ? (
                       <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 xl:hidden">
                         <div className="grid gap-2">
                         {activeLine.productId ? (
@@ -4812,14 +4825,14 @@ export function WeightTicketFormCore({
                           บันทึกสินค้านี้
                         </Button>
                         ) : null}
-                        {getMainParentLines(form.lines).length > 1 && !isImpurityPurchaseLine(activeLine) ? (
+                        {mainParentLines.length > 1 && !isImpurityPurchaseLine(activeLine) ? (
                           <Button
                             className="h-9 border-rose-200 bg-white text-xs font-semibold text-rose-700 hover:bg-rose-50"
                             size="sm"
                             type="button"
                             variant="outline"
                             onClick={() => {
-                              const nextLineId = getMainParentLines(form.lines).find((entry) => entry.id !== activeLine.id)?.id
+                              const nextLineId = mainParentLines.find((entry) => entry.id !== activeLine.id)?.id
                               if (!nextLineId) return
                               closeMobileProductEditor(nextLineId, () => {
                                 setActiveLineId(nextLineId)
@@ -4870,12 +4883,12 @@ export function WeightTicketFormCore({
             ) : (
               <>
                 <div className="grid w-full grid-cols-3 gap-3 text-xs sm:hidden">
-                  <MetricInline label="รายการ" value={`${getMainParentLines(form.lines).length} รายการ`} />
+                  <MetricInline label="รายการ" value={`${mainParentLines.length} รายการ`} />
                   <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
                   <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
                 </div>
                 <div className="hidden flex-wrap items-center gap-x-8 gap-y-2 text-sm sm:flex">
-                  <MetricInline label="รายการ" value={`${getMainParentLines(form.lines).length} รายการ`} />
+                  <MetricInline label="รายการ" value={`${mainParentLines.length} รายการ`} />
                   <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
                   <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
                   <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
