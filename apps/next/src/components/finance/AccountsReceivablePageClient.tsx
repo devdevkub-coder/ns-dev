@@ -5,7 +5,6 @@ import { Download } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Button } from '@/components/ui/Button'
-import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -65,7 +64,7 @@ type ArPayload = {
   filters: { branches: SelectOption[]; channels: SelectOption[]; customers: SelectOption[]; statuses: string[] }
   pagination: { page: number; pageSize: number; totalPages: number; totalRows: number }
   rows: ArRow[]
-  summary: { bills: number; customers: number; domestic: number; dueIn7: number; overdue: number; overseas: number; total: number }
+  summary: { allTime?: { bills: number; customers: number; total: number }; bills: number; customers: number; domestic: number; dueIn7: number; overdue: number; overseas: number; total: number }
 }
 
 type SortKey = 'date' | 'docNo' | 'dueDate' | 'receivableBalance' | 'customerName' | 'aging'
@@ -319,6 +318,7 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
     return summaryRows.slice(start, start + summaryPageSize)
   }, [summaryRows, safeSummaryPage, summaryPageSize])
   const totalAr = data?.summary.total ?? 0
+  const allTimeAr = data?.summary.allTime?.total
   const overdueAr = data?.summary.overdue ?? 0
   const overduePercent = totalAr > 0 ? ((overdueAr / totalAr) * 100).toFixed(0) : '0'
 
@@ -326,36 +326,38 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 p-5 text-white shadow">
-        <h1 className="text-2xl font-bold">📥 ลูกหนี้ / Accounts Receivable</h1>
-        <p className="mt-1 text-sm opacity-90">สรุปยอดค้างรับลูกค้า · Aging Buckets · Detail per Bill</p>
-      </div>
+      <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+          <div className="relative grid gap-5">
+            <div>
+              <div className="text-sm font-semibold text-slate-600">📥 ลูกหนี้คงเหลือทั้งหมด</div>
+              <div className="mt-2 text-3xl font-bold tabular-nums text-slate-900">{allTimeAr == null ? 'กำลังโหลด...' : formatMoney(allTimeAr)}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">{data?.summary.allTime ? `ไม่ติดตัวกรองวันที่ · ${data.summary.allTime.bills} บิล · ${data.summary.allTime.customers} ลูกค้า` : 'กำลังโหลดข้อมูลทั้งหมด'}</div>
+            </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-cyan-600 to-teal-600 p-6 text-white shadow-lg">
-          <div className="absolute -right-8 -top-8 text-8xl opacity-15">📥</div>
-          <div className="relative">
-            <div className="text-sm uppercase tracking-wider opacity-80">📥 ลูกหนี้คงเหลือรวม</div>
-            <div className="mt-2 text-4xl font-bold">{formatMoney(totalAr)}</div>
-            <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} บิล · {data?.summary.customers ?? 0} ลูกค้า</div>
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/20 pt-4">
-              <div><div className="text-[10px] opacity-75">⚠ เกินกำหนด</div><div className="text-lg font-bold text-amber-200">{formatMoney(overdueAr)}</div><div className="text-[10px] opacity-75">{overduePercent}%</div></div>
-              <div><div className="text-[10px] opacity-75">📋 บิลค้างรับ</div><div className="text-lg font-bold">{data?.summary.bills ?? 0}</div><div className="text-[10px] opacity-75">รายการ</div></div>
+            <div className="border-t border-slate-200 pt-5">
+              <div className="text-sm font-semibold text-slate-600">🗓️ ลูกหนี้ตามช่วงวันที่</div>
+              <div className="mt-2 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(totalAr)}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">{from && to ? `${formatDateDisplay(from)} - ${formatDateDisplay(to)}` : 'ทุกช่วงวันที่'} · {data?.summary.bills ?? 0} บิล</div>
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-200 pt-4">
+                <div className="flex items-baseline justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 text-base"><span className="font-bold text-slate-700">⚠ เกินกำหนด</span><span className="text-lg font-bold tabular-nums text-amber-700">{overduePercent}%</span><span className="ml-auto text-sm font-semibold tabular-nums text-slate-600">{formatMoney(overdueAr)} บาท</span></div>
+                <div className="flex items-baseline justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 text-sm"><span className="font-normal text-slate-600">📋 บิลค้างรับ</span><span className="text-base font-normal tabular-nums text-slate-700">{data?.summary.bills ?? 0} รายการ</span></div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">📊 Aging Buckets</div>
+        <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+          <div className="mb-3 text-sm font-bold text-slate-700">📊 อายุลูกหนี้</div>
           <div className="space-y-2 text-xs">
             {bucketRows.map((row) => <div key={row.bucket}><div className="mb-0.5 flex justify-between"><span className={bucketTextClass(row.bucket)}>{bucketLabel(row.bucket)}</span><b>{formatMoney(row.total)}</b></div><div className="relative h-5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${bucketBarClass(row.bucket)}`} style={{ width: percentage(row.total, totalAr) }} /><span className="absolute right-2 top-0 leading-5 text-[10px] font-bold text-slate-700">{row.bills} บิล</span></div></div>)}
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 ลูกหนี้ค้างรับสูงสุด</div>
+        <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+          <div className="mb-3 text-sm font-bold text-slate-700">🏆 ลูกหนี้ค้างรับสูงสุด 5 อันดับ</div>
           {!isLoading && topCustomers.length === 0 ? <div className="py-4 text-center text-xs text-emerald-600">✅ ไม่มีลูกหนี้</div> : null}
-          <div className="space-y-2">{topCustomers.map((customer, index) => <div key={customer.customerName} className="text-xs"><div className="mb-0.5 flex items-center gap-2"><span className="w-4 text-center font-bold text-slate-400">{index + 1}</span><span className="flex-1 truncate">{customer.customerName}</span><span className="text-slate-400">{customer.bills} บิล</span><span className="w-24 text-right font-bold text-blue-700">{formatMoney(customer.total)}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-gradient-to-r from-blue-400 to-cyan-500" style={{ width: percentage(customer.total, topCustomers[0]?.total ?? 0) }} /></div>{customer.oldest > 0 ? <div className="ml-6 text-xs text-amber-600">⚠ เกินสุด {customer.oldest} วัน</div> : null}</div>)}</div>
+          <div className="space-y-2">{topCustomers.map((customer, index) => <div key={customer.customerName} className="text-xs"><div className="mb-0.5 flex items-center gap-2"><span className="w-4 text-center font-bold text-slate-400">{index + 1}</span><span className="flex-1 truncate">{customer.customerName}</span><span className="text-slate-400">{customer.bills} บิล</span><span className="w-24 text-right font-bold tabular-nums text-slate-800">{formatMoney(customer.total)}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: percentage(customer.total, topCustomers[0]?.total ?? 0) }} /></div>{customer.oldest > 0 ? <div className="ml-6 text-xs text-amber-600">⚠ เกินสุด {customer.oldest} วัน</div> : null}</div>)}</div>
         </div>
       </div>
 
