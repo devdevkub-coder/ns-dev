@@ -387,6 +387,15 @@ function branchScopeText(value: string) {
   return value || '-'
 }
 
+// BUG #27: role ที่เป็น wildcard (เข้าได้ทุกสิทธิ์) ไม่ควรแสดงจำนวน enumerate ที่ล้าสมัย
+function isWildcardRole(role: Pick<AdminUsersPayload['roles'][number], 'code'>) {
+  return role.code === 'system_admin' || role.code === 'admin' || role.code === 'owner'
+}
+
+function rolePermissionCountLabel(role: Pick<AdminUsersPayload['roles'][number], 'code' | 'permissionIds'>) {
+  return isWildcardRole(role) ? 'ทุกสิทธิ์' : role.permissionIds.length
+}
+
 function fullName(user: Pick<AdminUser, 'namePrefix' | 'firstName' | 'lastName' | 'displayName'>) {
   const structuredName = [user.namePrefix, user.firstName, user.lastName]
     .map((value) => value?.trim())
@@ -1161,6 +1170,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       return
     }
 
+    if (roleForm.active && roleForm.permissionIds.length === 0) {
+      setRoleFormError('หน้าที่งานที่เปิดใช้งานต้องมีสิทธิ์อย่างน้อย 1 รายการ')
+      return
+    }
+
     setIsSavingRole(true)
     try {
       const response = await fetch(editingRole ? `/api/admin/roles/${encodeURIComponent(editingRole.id)}` : '/api/admin/roles', {
@@ -1872,7 +1886,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                   <ActiveToggle checked={roleForm.active} labelClassName="text-sm font-medium text-current" onChange={(active) => setRoleForm((current) => ({ ...current, active }))} />
                   <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm text-white hover:bg-rose-700 disabled:opacity-50" disabled={isSavingRole} type="button" onClick={requestCloseRoleForm}>ยกเลิก</button>
-                  <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={isSavingRole} type="submit">{isSavingRole ? 'กำลังบันทึก...' : 'บันทึก'}</button>
+                  <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={isSavingRole || (roleForm.active && roleForm.permissionIds.length === 0)} title={roleForm.active && roleForm.permissionIds.length === 0 ? 'หน้าที่งานที่เปิดใช้งานต้องมีสิทธิ์อย่างน้อย 1 รายการ' : undefined} type="submit">{isSavingRole ? 'กำลังบันทึก...' : 'บันทึก'}</button>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4">
@@ -2224,7 +2238,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </span>
                       </td>
                       <td className="p-3 text-slate-700">{branchScopeText(role.branchScope)}</td>
-                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-800">{role.permissionIds.length}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-800">{rolePermissionCountLabel(role)}</td>
                       <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-800">{roleUserCounts.get(role.id) ?? 0}</td>
                       <td className="p-3 text-center">
                         <span className={`rounded px-2.5 py-0.5 text-xs font-bold ${role.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
@@ -2280,7 +2294,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </div>
                     <div>
                       <span className="text-slate-400 block text-xs uppercase font-semibold">จำนวนสิทธิ์</span>
-                      <span className="text-slate-700 font-bold">{role.permissionIds.length} รายการ</span>
+                      <span className="text-slate-700 font-bold">{isWildcardRole(role) ? 'ทุกสิทธิ์' : `${role.permissionIds.length} รายการ`}</span>
                     </div>
                   </div>
                   <TableActionButton

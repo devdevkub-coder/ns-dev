@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
-import { authContextErrorResponse, getCurrentAuthContext, invalidateAppUserAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, invalidateAppUserAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -55,6 +55,9 @@ export async function PATCH(request: Request, { params }: RoleRouteProps) {
     const { id: rawId } = routeParamsSchema.parse(await params)
     const id = parseRoleId(rawId)
     const values = roleFormSchema.parse(await request.json())
+    if (values.active && values.permissionIds.length === 0) {
+      throw new AuthContextError('หน้าที่งานที่เปิดใช้งานต้องมีสิทธิ์อย่างน้อย 1 รายการ', 400)
+    }
     const permissionIds = await assertPermissionRefs(values.permissionIds)
     const role = await prisma.app_roles.findUnique({ where: { id } })
     if (!role) return NextResponse.json({ error: 'ไม่พบหน้าที่งาน' }, { status: 404 })

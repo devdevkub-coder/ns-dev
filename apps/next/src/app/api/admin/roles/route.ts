@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
-import { authContextErrorResponse, getCurrentAuthContext, invalidateAppUserAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, invalidateAppUserAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -49,6 +49,9 @@ export async function POST(request: Request) {
     requirePermission(context, 'system.roles.create')
 
     const values = roleFormSchema.parse(await request.json())
+    if (values.active && values.permissionIds.length === 0) {
+      throw new AuthContextError('หน้าที่งานที่เปิดใช้งานต้องมีสิทธิ์อย่างน้อย 1 รายการ', 400)
+    }
     const permissionIds = await assertPermissionRefs(values.permissionIds)
     const existing = await prisma.app_roles.findFirst({
       where: { name: { equals: values.name, mode: 'insensitive' } },
