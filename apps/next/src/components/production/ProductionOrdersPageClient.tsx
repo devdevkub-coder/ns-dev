@@ -899,7 +899,7 @@ export function ProductionOrdersPageClient() {
           {/* Desktop Table View */}
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
             <div className="overflow-x-auto">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {productionOrderColumns.map((column) => (
                   <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1204,6 +1204,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     destinationWarehouseCode: '',
     machineCode: '',
     notes: '',
+    normalLossPercent: '',
     productionLineCode: '',
     shift: 'เช้า',
     targetProductCode: '',
@@ -1508,6 +1509,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
           destinationWarehouseCode: createForm.destinationWarehouseCode,
           ...(createForm.machineCode !== noMachineCode ? { machineCode: createForm.machineCode } : {}),
           ...(createForm.notes.trim() ? { notes: createForm.notes.trim() } : {}),
+          ...(createForm.normalLossPercent.trim() ? { normalLossPercent: createForm.normalLossPercent.trim() } : {}),
           ...(createForm.productionLineCode !== noProductionLineCode ? { productionLineCode: createForm.productionLineCode } : {}),
           ...(createForm.shift.trim() ? { shift: createForm.shift.trim() } : {}),
           targetProductCode: createForm.targetProductCode,
@@ -2141,6 +2143,17 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                         <option value="เช้า">เช้า</option>
                         <option value="บ่าย">บ่าย</option>
                       </Select>
+                    </FormField>
+                    <FormField error={createErrors.normalLossPercent} label="Normal Loss % (ค่าเผื่อสูญเสียมาตรฐาน)">
+                      <input
+                        className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none"
+                        inputMode="decimal"
+                        placeholder="เช่น 2.5 (ไม่กรอก = 0)"
+                        type="number"
+                        value={createForm.normalLossPercent}
+                        onChange={(event) => updateCreateForm('normalLossPercent', event.target.value)}
+                      />
+                      <p className="mt-1 text-xs text-slate-500">ถ้าไม่ตั้งค่า หน้า Yield/Loss จะเทียบการสูญเสียผิดปกติกับ 0 เสมอ</p>
                     </FormField>
                   </div>
                 </div>

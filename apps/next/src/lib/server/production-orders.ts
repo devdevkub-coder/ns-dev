@@ -42,6 +42,9 @@ export const createProductionOrderSchema = z.object({
   destinationWarehouseCode: codeSchema,
   machineCode: z.string().trim().max(120).optional(),
   notes: z.string().trim().max(1000).optional(),
+  // BUG #37: ค่าเผื่อสูญเสียมาตรฐาน (Normal Loss %) — ถ้าไม่ระบุจะใช้ 0
+  // และหน้า Yield/Loss จะเตือนว่ายังไม่ได้ตั้งค่า
+  normalLossPercent: nonNegativeQtySchema.optional(),
   productionLineCode: z.string().trim().max(120).optional(),
   shift: z.string().trim().min(1, 'เลือกกะการผลิต').max(80),
   targetProductCode: codeSchema,
@@ -464,6 +467,7 @@ export async function createProductionOrder(values: CreateProductionOrderValues,
         doc_no: docNo,
         machine_id: machine?.id ?? null,
         notes: values.notes ?? null,
+        normal_loss_percent: values.normalLossPercent ?? 0,
         product_id: product.id,
         production_line_id: line?.id ?? null,
         production_type: null,

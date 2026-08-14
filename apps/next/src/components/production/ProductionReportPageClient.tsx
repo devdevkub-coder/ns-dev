@@ -759,7 +759,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
         <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm hidden lg:block">
           <div className="overflow-x-auto">
-            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: costBreakdownResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: costBreakdownResize.tableMinWidth, maxWidth: costBreakdownResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {productionCostBreakdownColumns.map((column) => (
                   <col
@@ -909,7 +909,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         </div>
 
         <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardMachineResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardMachineResize.tableMinWidth, maxWidth: dashboardMachineResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {dashboardMachineColumns.map((column) => (
                 <col
@@ -975,10 +975,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <div className={`grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm ${
           activeTab === 'overview' ? 'grid lg:grid' : 'hidden lg:grid'
         }`}>
-          <DashboardKpi icon={<FileText aria-hidden="true" className="size-5" />} label="ใบสั่งผลิต" note={`วัตถุดิบเข้า ${formatMoney(summary.inputQty ?? 0)} | ผลผลิต ${formatMoney(summary.outputQty ?? 0)}`} tone="blue" value={formatMoney(summary.count ?? 0)} />
+          <DashboardKpi icon={<FileText aria-hidden="true" className="size-5" />} label="ใบสั่งผลิต" note={`วัตถุดิบเข้า ${formatMoney(summary.inputQty ?? 0)} | ผลผลิต ${formatMoney(summary.outputQty ?? 0)}`} tone="blue" value={(summary.count ?? 0).toLocaleString('th-TH')} />
           <DashboardStatusKpi items={byStatus} />
           <DashboardKpi icon={<Package2 aria-hidden="true" className="size-5" />} label="งานระหว่างทำคงเหลือ" note="กก. ที่ยังผลิตค้างอยู่" tone="amber" value={formatMoney(summary.totalWipQty ?? summary.wipQty ?? 0)} />
-          <DashboardKpi icon={<TrendingUp aria-hidden="true" className="size-5" />} label="อัตราผลได้" note={`สูญเสีย ${Number(summary.lossPct ?? 0).toFixed(1)}%`} tone="purple" value={`${Number(summary.yieldPct ?? 0).toFixed(1)}%`} />
+          <DashboardKpi icon={<TrendingUp aria-hidden="true" className="size-5" />} label="อัตราผลได้" note={`สูญเสีย ${Number(summary.completedLossPct ?? 0).toFixed(1)}% (เฉพาะใบเสร็จสิ้น ${Number(summary.completedCount ?? 0).toLocaleString('th-TH')} ใบ)`} tone="purple" value={`${Number(summary.completedYieldPct ?? 0).toFixed(1)}%`} />
         </div>
 
         {/* Charts Container */}
@@ -1010,7 +1010,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
             {/* Desktop View */}
             <div className="hidden max-h-[440px] overflow-auto lg:block">
-              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardTopProductResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardTopProductResize.tableMinWidth, maxWidth: dashboardTopProductResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {dashboardTopProductColumns.map((column) => (
                     <col
@@ -1418,6 +1418,16 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       {mode === 'report' ? metricGrid : null}
       {mode === 'report' ? reportTabs : filterCard}
       {mode !== 'report' ? metricGrid : null}
+      {mode === 'yieldLoss' && Array.isArray(data?.rows) && data.rows.length > 0 && data.rows.every((row: Row) => Number(row.normalLossPercent ?? 0) <= 0) ? (
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <span className="text-base leading-none">⚠️</span>
+          <p>
+            <span className="font-semibold">ยังไม่ได้ตั้งค่า Normal Loss %</span>
+            {' '}ทุกรายการเทียบการสูญเสียผิดปกติกับ 0 เสมอ — ไปตั้งค่า <span className="font-semibold">Normal Loss %</span> ตอนสร้างใบสั่งผลิต
+            (หน้าใบสั่งผลิต → เพิ่มใบสั่งผลิต) เพื่อให้ Abnormal Loss / Yield Gain คำนวณได้จริง
+          </p>
+        </div>
+      ) : null}
       {mode === 'yieldLoss' ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4 text-sm mt-4">
           <ImpactCard label="Yield Gain (Output > คาดหวัง)" tone="gain" value={Number(data?.summary?.yieldGainValue ?? 0)} />
@@ -1436,7 +1446,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {/* Desktop View */}
               <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
                 <div className="overflow-x-auto">
-                  <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: wipResize.tableMinWidth, tableLayout: 'fixed' }}>
+                  <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: wipResize.tableMinWidth, maxWidth: wipResize.tableMaxWidth, tableLayout: 'fixed' }}>
                     <colgroup>
                       {configs.wip.columns.map((col) => (
                         <col key={col.key} style={wipResize.getColumnStyle(col.key)} />
@@ -1543,7 +1553,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {/* Desktop View */}
               <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
                 <div className="overflow-x-auto">
-              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productSummaryResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productSummaryResize.tableMinWidth, maxWidth: productSummaryResize.tableMaxWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {productSummaryTableColumns.map((col) => (
                     <col key={col.key} style={productSummaryResize.getColumnStyle(col.key)} />
@@ -1622,7 +1632,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       {/* Desktop view for other modes */}
       <div className={mode === 'report' && reportTab !== 'orders' ? 'hidden' : 'hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block'}>
         <div className="overflow-x-auto">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {config.columns.map((col) => (
                 <col key={col.key} style={columnResize.getColumnStyle(col.key)} />

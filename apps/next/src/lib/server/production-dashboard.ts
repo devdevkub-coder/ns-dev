@@ -15,6 +15,10 @@ export type ProductionDashboardPayload = ReturnType<typeof buildProductionDashbo
 
 export function buildProductionDashboardPayload(rows: ProductionOrderMetric[], totalWipQty: number) {
   const summary = summarizeProductionMetrics(rows)
+  // BUG #36: yield/loss จะคำนวณเฉพาะใบสั่งผลิตที่เสร็จสิ้น (Completed)
+  // ไม่งั้นใบที่ยังผลิตค้างอยู่ (เสร็จบางส่วน/กำลังผลิต) จะทำให้อ่านว่าได้ผลผลิตแล้ว
+  const completedRows = rows.filter((row) => row.status === 'Completed')
+  const completedSummary = summarizeProductionMetrics(completedRows)
   const byStatus = Object.values(rows.reduce<Record<string, { count: number; status: string }>>((acc, row) => {
     acc[row.status] ??= { count: 0, status: row.status }
     acc[row.status].count += 1
@@ -66,7 +70,14 @@ export function buildProductionDashboardPayload(rows: ProductionOrderMetric[], t
     machineUtil,
     monthly,
     rows: rows.slice(0, 20),
-    summary: { ...summary, ...abnormal, totalWipQty },
+    summary: {
+      ...summary,
+      ...abnormal,
+      completedCount: completedRows.length,
+      completedLossPct: completedSummary.lossPct,
+      completedYieldPct: completedSummary.yieldPct,
+      totalWipQty,
+    },
     byStatus,
     topProducts,
   }

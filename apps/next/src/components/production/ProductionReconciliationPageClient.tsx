@@ -354,7 +354,7 @@ export function ProductionReconciliationPageClient() {
           ) : null}
         </div>
         <div className="overflow-x-auto">
-          <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, maxWidth: columnResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {reconciliationColumns.map((col) => (
                 <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
