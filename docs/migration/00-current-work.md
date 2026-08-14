@@ -1,3 +1,15 @@
+## WTI/WTO realtime preview request optimization — 2026-08-14
+
+Active objective: ลดงานซ้ำระหว่างแท็บเมื่อมีการแก้ไข WTI/WTO พร้อมคงการอัปเดตรูปให้ถูกต้อง
+
+ล่าสุด: realtime event มี `imageChanged`; การแก้ตัวเลข/ข้อมูลที่ไม่เปลี่ยนรูปจะโหลดเฉพาะ ticket หลัก ส่วนการเปลี่ยนหรือลบรูปจึงโหลด signed preview ใหม่ การลบเต๋าที่มีรูปยัง refresh preview เพื่อเอารูปออกจากแท็บอื่นได้
+
+Validation: type-check, targeted ESLint, realtime contract tests 2/2 และ `git diff --check` ผ่าน
+
+Remaining risk: ยังไม่ได้ทำ browser UAT และยังไม่ได้ push batch นี้ขึ้น SIT
+
+Immediate next: code review แล้วค่อย commit/push เมื่อผู้ใช้สั่ง
+
 ## Print performance optimization batch 2 (A+B) — 2026-08-12
 
 Active objective: prefetch ticket detail + preload attachment images ตอน hover ที่ `พิมพ์` menu item ของ WTI/WTO เพื่อให้คลิกแล้ว popup render ทันทีโดยไม่ต้องรอ fetch ticket + download รูป

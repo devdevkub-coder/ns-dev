@@ -15,6 +15,7 @@ export async function publishWeightTicketChange(event: WeightTicketChangeEvent) 
     changeType: event.changeType,
     documentNo: event.documentNo,
     lineCount: event.lineIds?.length ?? 0,
+    imageChanged: event.imageChanged === true,
     hasUpdatedAt: event.updatedAt !== null,
     channel: channelName,
   }

@@ -1450,7 +1450,9 @@ export function WeightTicketFormCore({
     if (remoteSyncInFlightRef.current) return
     remoteSyncInFlightRef.current = true
     const latestTicketPromise = getWeightTicket(editingTicketId, { includeImagePreviews: false })
-    const latestImagePreviewsPromise = getWeightTicketImagePreviews(editingTicketId).catch(() => null)
+    const latestImagePreviewsPromise = event.imageChanged
+      ? getWeightTicketImagePreviews(editingTicketId).catch(() => null)
+      : Promise.resolve(null)
     void Promise.all([latestTicketPromise, latestImagePreviewsPromise])
       .then(([latestTicket, latestImagePreviews]) => {
         const latestTicketWithPreviews = latestImagePreviews

@@ -478,6 +478,23 @@ async function updateWeightTicket(
     const collaborationBaseLineVersions = values.collaborationBaseLineVersions ?? {}
     const collaborationChangedLineIds = new Set(values.collaborationChangedLineIds ?? values.lines.map((line) => line.id))
     const collaborationDeletedLineIds = new Set(values.collaborationDeletedLineIds ?? [])
+    // Realtime consumers only need to refresh signed image URLs when an
+    // attachment actually changed. Numeric/weight edits must not fan out into
+    // an extra preview query for every open tab.
+    const existingLineByClientId = new Map<string, (typeof existing.weight_ticket_lines)[number]>()
+    existing.weight_ticket_lines.forEach((line) => {
+      existingLineByClientId.set(String(line.id), line)
+      existingLineByClientId.set(`${existing.doc_no}:${line.line_no}`, line)
+    })
+    const imageNamesChanged = (before: string[] | null | undefined, after: string[]) => JSON.stringify(before ?? []) !== JSON.stringify(after)
+    const imageChanged = (!hasCollaborationBaseline && imageNamesChanged(existing.vehicle_image_names, values.vehicleImageNames))
+      || changedHeaderFields.has('vehicleImageNames')
+      || values.lines.some((line) => {
+        if (!collaborationChangedLineIds.has(line.id)) return false
+        const existingLine = existingLineByClientId.get(line.id)
+        return !existingLine || imageNamesChanged(existingLine.image_names, line.imageNames)
+      })
+      || [...collaborationDeletedLineIds].some((lineId) => (existingLineByClientId.get(lineId)?.image_names?.length ?? 0) > 0)
     const ticketId = existing.id
     const updateResult = await prisma.$transaction(async (tx) => {
       // Every ticket mutation uses the same lock and then re-reads lifecycle
@@ -1021,7 +1038,7 @@ async function updateWeightTicket(
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
     })
-    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: mapped.lines.map((line) => line.id) })
+    void publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: mapped.lines.map((line) => line.id), imageChanged })
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.enteredBy, mapped.updatedBy])
     return NextResponse.json({
       ...mapped,
@@ -1109,6 +1126,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         documentNo: mapped.documentNo,
         updatedAt: mapped.updatedAt,
         lineIds: deleteLines.data.deletedLineIds,
+        imageChanged: deleteLines.data.deletedLineIds.some((lineId) => (existing.weight_ticket_lines.find((line) => String(line.id) === lineId)?.image_names?.length ?? 0) > 0),
       })
       return NextResponse.json({ ...mapped, createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames), lineIdMap: {}, updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames) })
     }

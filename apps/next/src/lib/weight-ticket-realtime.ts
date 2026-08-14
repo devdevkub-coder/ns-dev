@@ -6,6 +6,7 @@ export type WeightTicketChangeEvent = {
   documentNo: string
   updatedAt: string | null
   lineIds?: string[]
+  imageChanged?: boolean
 }
 
 export function isWeightTicketChangeEvent(value: unknown): value is WeightTicketChangeEvent {
@@ -25,6 +26,7 @@ export function isWeightTicketChangeEvent(value: unknown): value is WeightTicket
     && (event.updatedAt === null
       || (typeof event.updatedAt === 'string' && event.updatedAt.length <= 64 && !Number.isNaN(Date.parse(event.updatedAt))))
     && (event.lineIds === undefined || (Array.isArray(event.lineIds) && event.lineIds.every((lineId) => typeof lineId === 'string' && lineId.length > 0 && lineId.length <= 80)))
+    && (event.imageChanged === undefined || typeof event.imageChanged === 'boolean')
 }
 
 export function weightTicketRealtimeChannel(branchId: string) {

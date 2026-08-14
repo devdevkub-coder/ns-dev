@@ -64,6 +64,7 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
               documentNo: payload.documentNo,
               changeType: payload.changeType,
               lineCount: payload.lineIds?.length ?? 0,
+              imageChanged: payload.imageChanged === true,
             })
             onChangeRef.current(payload)
           })
