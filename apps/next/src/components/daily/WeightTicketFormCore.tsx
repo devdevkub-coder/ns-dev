@@ -2968,7 +2968,10 @@ export function WeightTicketFormCore({
     nextLine.containerDeductionWeight = '0'
     nextLine.deductionMode = 'kg'
     nextLine.deductionValue = ''
-    nextLine.impurityId = impurityOptions[0]?.id || ''
+    // Leave the impurity unset until the user explicitly chooses it. The
+    // controlled dropdown uses an empty string as its null-equivalent, so the
+    // existing validation can surface the missing required selection.
+    nextLine.impurityId = ''
     nextLine.impurityPurchaseAction = 'none'
     nextLine.note = ADDED_IMPURITY_NOTE
     nextLine.parentId = sourceLine.id
@@ -2987,7 +2990,10 @@ export function WeightTicketFormCore({
       }))
     }
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
-    setPendingFocusField(`line-${nextLine.id}-impurity`)
+    // Keep the new row visible without opening the impurity combobox. The
+    // impurity is initialized from the master option; focus the editable
+    // deduction field instead, matching the add-lot flow.
+    setPendingFocusField(`line-${nextLine.id}-deduction`)
     const draftSnapshot = form
     void saveDraftBeforeAdding({
       ...draftSnapshot,
