@@ -127,6 +127,7 @@ export function WeightTicketDetailModal({
   const [galleryZoom, setGalleryZoom] = useState(1)
   const [galleryPan, setGalleryPan] = useState({ x: 0, y: 0 })
   const [originalImageError, setOriginalImageError] = useState('')
+  const [isOriginalRequested, setIsOriginalRequested] = useState(false)
   const galleryDragRef = useRef<{
     originX: number
     originY: number
@@ -420,6 +421,9 @@ export function WeightTicketDetailModal({
     setGalleryZoom(1)
     setGalleryPan({ x: 0, y: 0 })
     setGalleryRotate(0)
+    setIsOriginalRequested(false)
+    setIsLoadingOriginalImage(false)
+    setOriginalImageError('')
     const thumbnail = activeThumbnailRef.current
     if (thumbnail && typeof thumbnail.scrollIntoView === 'function') {
       thumbnail.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
@@ -427,7 +431,7 @@ export function WeightTicketDetailModal({
   }, [lineGallery?.activeIndex])
 
   useEffect(() => {
-    if (!lineGallery || !activeGalleryImage || activeGalleryImage.originalUrl || !ticket) return
+    if (!isOriginalRequested || !lineGallery || !activeGalleryImage || activeGalleryImage.originalUrl || !ticket) return
     const controller = new AbortController()
     setIsLoadingOriginalImage(true)
     setOriginalImageError('')
@@ -448,7 +452,7 @@ export function WeightTicketDetailModal({
         if (!controller.signal.aborted) setIsLoadingOriginalImage(false)
       })
     return () => controller.abort()
-  }, [activeGalleryImage, lineGallery, ticket])
+  }, [activeGalleryImage, isOriginalRequested, lineGallery, ticket])
 
   function openImageGallery(payload: {
     activeIndex: number
@@ -458,6 +462,9 @@ export function WeightTicketDetailModal({
     setGalleryZoom(1)
     setGalleryPan({ x: 0, y: 0 })
     setGalleryRotate(0)
+    setIsOriginalRequested(false)
+    setIsLoadingOriginalImage(false)
+    setOriginalImageError('')
     setLineGallery(payload)
   }
 
@@ -1023,21 +1030,35 @@ export function WeightTicketDetailModal({
                   }}
                   tabIndex={0}
                 >
-                  {activeGalleryImage.originalUrl ? (
-                    <Image
-                      alt={activeGalleryImage.fileName}
-                      className="pointer-events-none object-contain transition-transform duration-150 ease-out"
-                      fill
-                      sizes="(max-width: 768px) 100vw, 80vw"
-                      src={activeGalleryImage.originalUrl}
-                      style={{ transform: `translate(${galleryPan.x}px, ${galleryPan.y}px) scale(${galleryZoom}) rotate(${galleryRotate}deg)` }}
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="px-4 text-center text-sm text-white" role={originalImageError ? 'alert' : 'status'}>
-                      {originalImageError || (isLoadingOriginalImage ? 'กำลังโหลดรูปต้นฉบับ...' : 'ไม่พบรูปต้นฉบับ')}
+                  <Image
+                    alt={activeGalleryImage.fileName}
+                    className="pointer-events-none object-contain transition-transform duration-150 ease-out"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 80vw"
+                    src={activeGalleryImage.originalUrl ?? activeGalleryImage.url}
+                    style={{ transform: `translate(${galleryPan.x}px, ${galleryPan.y}px) scale(${galleryZoom}) rotate(${galleryRotate}deg)` }}
+                    unoptimized
+                  />
+                  {!activeGalleryImage.originalUrl && !isOriginalRequested && !isLoadingOriginalImage ? (
+                    <button
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-md bg-slate-950/75 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-slate-950"
+                      type="button"
+                      onClick={() => {
+                        setOriginalImageError('')
+                        setIsOriginalRequested(true)
+                      }}
+                    >
+                      ดูรูปต้นฉบับ
+                    </button>
+                  ) : null}
+                  {isLoadingOriginalImage ? (
+                    <div className="absolute inset-x-0 bottom-3 text-center text-xs text-white" role="status">กำลังโหลดรูปต้นฉบับ...</div>
+                  ) : null}
+                  {originalImageError ? (
+                    <div className="absolute inset-x-3 bottom-3 rounded bg-rose-950/80 px-3 py-2 text-center text-xs text-white" role="alert">
+                      {originalImageError}
                     </div>
-                  )}
+                  ) : null}
                   {lineGallery.images.length > 1 ? (
                     <>
                       <button

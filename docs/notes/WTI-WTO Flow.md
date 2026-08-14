@@ -121,6 +121,13 @@ What is what: `persistLineIds` คือขอบเขตข้อมูลท�
 - preview จะ sign เฉพาะ reference ที่มี `bucket` และ `storageKey` ตรงกับ `WEIGHT_TICKET_IMAGE_BUCKET`; reference ที่เป็น bucket อื่น, URL-only, data URL หรือ filename-only จะถูกตัดออกจาก preview response แบบ fail-closed. การตรวจนี้เป็น read boundary เพิ่มจาก write validation เพื่อไม่เปิด URL ของ artifact bucket หรือข้อมูล legacy
 - modal ยกเลิก request detail, preview และ stock-return เมื่อปิดหรือเปลี่ยนเอกสาร เพื่อลดงานที่ค้างและป้องกัน response เก่าชน state ปัจจุบัน
 
+## Detail gallery origin-transfer boundary (2026-08-14)
+
+- หน้า list, detail และ form ใช้ signed thumbnail จาก private Supabase Storage เป็นภาพเริ่มต้นเสมอ; gallery จะไม่โหลด original โดยอัตโนมัติเมื่อผู้ใช้เปิดรูป
+- ผู้ใช้ต้องกด `ดูรูปต้นฉบับ` จึงจะ sign และโหลด original สำหรับการซูม/ตรวจหลักฐานละเอียด. ระหว่าง gallery เดียวกัน URL ของภาพที่โหลดแล้วถูกเก็บใน state ของรายการนั้น จึงไม่ยิง original ซ้ำเมื่อสลับกลับมาที่รูปเดิม
+- original และ thumbnail ใช้ storage key แบบ immutable และ cache-control ระยะยาวที่ Storage/CDN; API ที่คืน signed URL ยังคง `private, no-store` เพราะเป็นข้อมูลตามสิทธิ์เอกสาร ไม่ cache response ธุรกิจบน Vercel/browser
+- เหตุผล: การเปิด detail หรือกดดูรูปทั่วไปไม่ควรดึง binary ต้นฉบับหลาย MB ผ่าน origin; การอ่าน original เป็น explicit action ของผู้ใช้เท่านั้น ส่วน thumbnail เป็น presentation asset สำหรับ gallery/list
+
 ## WTI Concurrent Draft / Auto-save Design (2026-07-23)
 
 ### ขอบเขต
