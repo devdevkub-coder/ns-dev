@@ -790,6 +790,28 @@ function getImpurityChildLines(line: FormWeightTicketLine, allLines: FormWeightT
   return impurityLines
 }
 
+function getImpurityLineNumber(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
+  const lineById = new Map(allLines.map((entry) => [entry.id, entry] as const))
+  const numberParts: string[] = []
+  const visited = new Set<string>()
+  let current: FormWeightTicketLine | undefined = line
+
+  while (current?.parentId && !visited.has(current.id)) {
+    visited.add(current.id)
+    const siblings = allLines.filter((entry) => (
+      entry.parentId === current?.parentId
+      && !isImpurityPurchaseLine(entry)
+      && entry.deductionMode !== 'none'
+    ))
+    const siblingIndex = siblings.findIndex((entry) => entry.id === current?.id)
+    if (siblingIndex < 0) break
+    numberParts.unshift(String(siblingIndex + 1))
+    current = lineById.get(current.parentId)
+  }
+
+  return numberParts.join('.') || '1'
+}
+
 export function removeImpurityPurchaseLinesForSource(lines: FormWeightTicketLine[], sourceLineId: string) {
   const purchaseLines = lines.filter((line) => line.impuritySourceLineId === sourceLineId)
   if (purchaseLines.length === 0) return lines
@@ -2890,7 +2912,8 @@ export function WeightTicketFormCore({
   function addImpurityLine(sourceLine: FormWeightTicketLine) {
     if (isLoadingTicket || saveInFlightRef.current === 'save') return
     setServerFieldErrors({})
-    const currentSectionLineIds = getWeightTicketRelatedLineIds(form.lines, sourceLine.id)
+    const sectionRootLine = getWeightTicketRootLine(form.lines, sourceLine)
+    const currentSectionLineIds = getWeightTicketRelatedLineIds(form.lines, sectionRootLine.id)
     const firstLineError = Object.keys(errors).find((key) => {
       if (key === 'lines') return true
       const parsed = parseWeightTicketValidationKey(key)
@@ -4447,7 +4470,8 @@ export function WeightTicketFormCore({
                                 {hasPercentDeduction ? <div>น้ำหนักที่หัก</div> : null}
                                 <div>{hasOtherProductImpurity ? 'ซื้อ/ไม่ซื้อ' : ''}</div>
                               </div>
-                              {childLines.map((child, childIndex) => {
+                              {childLines.map((child) => {
+                                const impurityLineNumber = getImpurityLineNumber(child, form.lines)
                                 const selectedImpurityId = getLineImpurityId(child)
                                 const hasSelectedImpurity = Boolean(selectedImpurityId)
                                 const isOtherProductImpurity = isOtherProductImpurityOption(selectedImpurityId)
@@ -4498,7 +4522,7 @@ export function WeightTicketFormCore({
                                         <ChevronDown className={cn('size-4 shrink-0 text-slate-500 transition-transform', isCollapsed ? '-rotate-90' : 'rotate-0')} />
                                         <div className="min-w-0">
                                           <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-700">
-                                            <span id={`weight-ticket-impurity-title-${child.id}`}>สิ่งเจือปนที่ {childIndex + 1}</span>
+                                            <span id={`weight-ticket-impurity-title-${child.id}`}>สิ่งเจือปนที่ {impurityLineNumber}</span>
                                             <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-bold', isImpurityComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
                                               {isImpurityComplete ? 'ครบ' : 'ไม่ครบ'}
                                             </span>

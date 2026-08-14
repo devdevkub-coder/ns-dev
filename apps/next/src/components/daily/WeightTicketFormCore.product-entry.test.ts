@@ -376,6 +376,8 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('if (isMobileLotDetailMode) return null')
     expect(formSource).toContain('{!isMobileLotDetailMode ? <div className="mt-4 border-t border-slate-200/60 pt-4">')
     expect(formSource).toContain('data-testid={`weight-ticket-add-nested-impurity-${child.id}`}')
+    expect(formSource).toContain('getImpurityLineNumber(child, form.lines)')
+    expect(formSource).toContain('สิ่งเจือปนที่ {impurityLineNumber}')
     expect(formSource).toContain('onClick={() => addImpurityLine(child)}')
     expect(formSource).toContain('หักสิ่งเจือปนต่อ')
     expect(formSource).toContain('data-testid={`weight-ticket-lot-${lot.id}`}')
