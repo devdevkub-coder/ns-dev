@@ -11,6 +11,7 @@ import { purchaseBillItemQty, purchaseBillItemRows } from '@/lib/server/purchase
 import { listActiveBranches, listActiveCustomers, listActiveSalespersons, listActiveSuppliers, listProductReferences } from '@/lib/server/reference-master-cache'
 import { salesBillAnalyticsLineTotals, salesBillAnalyticsLinesByBillId, type SalesBillAnalyticsLine } from '@/lib/server/sales-bill-analytics-lines'
 import { salesBillGrossProfitAmount, salesBillRevenueAmount } from '@/lib/server/sales-bill-amounts'
+import { buildDashboardMonthlyTrend } from '@/lib/server/dashboard-monthly-trend'
 import type { Prisma } from '../../../generated/prisma/client'
 
 export type MainDashboardFilter = {
@@ -514,31 +515,20 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
     group.value += value
     stockByGroupMap.set(groupKey, group)
   })
-  const monthlyTrendMap = new Map<string, { expense: number; gp: number; label: string; purchase: number; sales: number }>()
-  const ensureMonth = (date: Date) => {
-    const label = dateOnly(date).slice(0, 7)
-    const current = monthlyTrendMap.get(label) ?? { expense: 0, gp: 0, label, purchase: 0, sales: 0 }
-    monthlyTrendMap.set(label, current)
-    return current
-  }
-  activePurchases.forEach((row) => { ensureMonth(row.date).purchase += toNumber(row.total_amount) })
-  activeSales.forEach((row) => {
-    const month = ensureMonth(row.date)
-    month.sales += salesBillRevenueAmount(row)
-    month.gp += salesBillGrossProfitAmount(row)
-  })
-  expenses.filter((row) => activeStatus(row.status)).forEach((row) => { ensureMonth(row.date).expense += toNumber(row.amount) })
-  scopedHistoricalRows.forEach((row) => {
-    if (!row.year || !row.month) return
-    const date = new Date(row.year, row.month - 1, 1)
-    const month = ensureMonth(date)
-    const amount = toNumber(row.amount)
-    if (row.metric_type === 'pnl' && row.category_id === 'revenue') month.sales += amount
-    if (row.metric_type === 'pnl' && row.category_id === 'cogs') {
-      month.purchase += amount
-      month.gp -= amount
-    }
-    if (row.metric_type === 'expense') month.expense += amount
+  const monthlyTrend = buildDashboardMonthlyTrend({
+    historical: scopedHistoricalRows.flatMap((row) => row.year && row.month ? [{
+      amount: toNumber(row.amount),
+      categoryId: row.category_id,
+      metricType: row.metric_type,
+      month: `${row.year}-${String(row.month).padStart(2, '0')}`,
+    }] : []),
+    liveExpenses: expenses.filter((row) => activeStatus(row.status)).map((row) => ({ amount: toNumber(row.amount), month: dateOnly(row.date).slice(0, 7) })),
+    livePurchases: activePurchases.map((row) => ({ amount: toNumber(row.total_amount), month: dateOnly(row.date).slice(0, 7) })),
+    liveSales: activeSales.map((row) => {
+      const amount = salesBillRevenueAmount(row)
+      const cogs = toNumber(row.cogs_amount) || toNumber(row.total_cost)
+      return { amount, cogs, grossProfit: salesBillGrossProfitAmount(row), month: dateOnly(row.date).slice(0, 7) }
+    }),
   })
   const arDueRows = activeSales.map((row) => {
     const dueDate = addDays(row.date, row.credit_term ?? 0)
@@ -612,7 +602,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
         revenue: historicalRevenue,
         rows: scopedHistoricalRows.length,
       },
-      monthlyTrend: Array.from(monthlyTrendMap.values()).sort((a, b) => a.label.localeCompare(b.label)).slice(-6),
+      monthlyTrend,
       sections: {
         cash: { ...currentCash, netCash: currentCash.cash + currentCash.bank + currentReceivables.ar - currentReceivables.ap - currentCash.odUsed },
         purchase: { amount: purchaseAmount, count: activePurchases.length, qty: activePurchases.reduce((sum, row) => sum + purchaseBillItemQty(row), 0), today: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
