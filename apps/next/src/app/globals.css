@@ -1369,7 +1369,7 @@ aside a:visited {
   }
 
   [data-ns-dialog-content="app"] > :where(form, .bg-white, .bg-slate-900):not([data-ns-dialog-header]) > :where(.bg-slate-50, .bg-white, .bg-slate-900, .overflow-auto, .overflow-y-auto),
-  [data-ns-dialog-content="app"] > :where(.bg-slate-50, .bg-white, .bg-slate-900, .overflow-auto, .overflow-y-auto) {
+  [data-ns-dialog-content="app"] > :where(.bg-slate-50, .bg-white, .bg-slate-900, .overflow-auto, .overflow-y-auto):not([data-ns-dialog-header]) {
     flex: 1 1 auto !important;
     min-height: 0 !important;
     max-height: none !important;

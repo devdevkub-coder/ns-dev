@@ -93,6 +93,7 @@ What is what: `pending_out` คือ reservation ของ stock ที่ย�
 - PDF/LINE share ต้องให้หน้าแรกเป็นใบพิมพ์ A4 และต่อหน้า 2+ เป็นอัลบั้มรูปหลักฐานจากรูปรถและรูปสินค้า
 - ใน detail/modal ส่วน `รูปภาพประกอบ` มีปุ่ม `ดาวน์โหลดรูปทั้งหมด` สำหรับดาวน์โหลดรูปที่ preview ได้ของรถและทุกรายการสินค้าเป็น ZIP เดียว. API ตรวจ `daily.weight_tickets.view` และ branch scope ก่อนอ่าน storage reference; ไม่เก็บ ZIP หรือรูปลง browser storage และไม่ทำ bucket ให้เป็น public
 - history/timeline ของเอกสารต้องเป็น append-only ตาม [[Document Timeline Policy]]
+- Header ของ detail modal WTI/WTO ต้องไม่ตัด action บนมือถือ: ชื่อเอกสารอยู่แถวบน และกลุ่มปุ่ม action ต้อง wrap ได้โดยไม่ใช้ vertical-clipping จากแถบ `overflow-x-auto`; Desktop คงตำแหน่งปุ่มเดิม.
 
 ## Shared save-progress and WTO line-add flow (2026-08-05)
 

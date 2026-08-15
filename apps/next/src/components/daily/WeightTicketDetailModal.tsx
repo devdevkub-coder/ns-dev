@@ -474,15 +474,15 @@ export function WeightTicketDetailModal({
       if (!open) requestClose()
     }}>
       <DialogContent hideClose aria-labelledby="weight-ticket-detail-title" className="left-0 top-0 h-[100dvh] max-h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90vh] sm:w-[calc(100%-2rem)] sm:max-w-[min(96vw,96rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-md">
-        <DialogHeader className="sticky top-0 z-20 shrink-0 bg-slate-900 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white sm:rounded-t-md sm:p-4">
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <DialogHeader className="relative z-20 shrink-0 !space-y-0 overflow-visible bg-slate-900 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white sm:rounded-t-md sm:p-4">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div className="min-w-0 flex-1">
               <DialogTitle id="weight-ticket-detail-title" className="break-words text-base leading-6 text-white sm:truncate sm:text-lg">
                 {ticket?.type === 'WTI' ? 'ใบรับของ' : ticket?.type === 'WTO' ? 'ใบส่งของ' : 'รายละเอียดเอกสาร'} {ticket?.documentNo ?? ticketId}
               </DialogTitle>
               <DialogDescription className="truncate text-slate-300">{ticket?.partyName ?? (isLoading ? 'กำลังโหลดข้อมูล' : '-')}</DialogDescription>
             </div>
-            <div className="flex min-w-0 w-full items-center justify-end gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible sm:pb-0">
+            <div className="relative z-30 flex min-h-10 min-w-0 w-full flex-wrap items-center justify-start gap-2 overflow-visible pb-1 sm:min-h-9 sm:w-auto sm:justify-end sm:pb-0">
               {ticket && !isLoading ? (
                 <>
                   {canConfirmWeightTicket(ticket) ? (
