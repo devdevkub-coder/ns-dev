@@ -7,6 +7,7 @@ import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-p
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
+import { calculateWorkingCapitalDays } from './working-capital-formulas'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const DAY_MS = 86_400_000
@@ -263,67 +264,67 @@ async function workingInputs(filter: PeriodDaysFilter) {
   const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
   const from = addDays(filter.asOf, -filter.periodDays + 1)
   const to = endOfDay(filter.asOf)
+  const previousTo = addDays(filter.asOf, -filter.periodDays)
+  const previousFrom = addDays(previousTo, -filter.periodDays + 1)
   const branch = branchWhere(branchRef?.id ?? null)
   return Promise.all([
-    prisma.sales_bills.findMany({ include: { customers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { gte: from, lte: to } } }),
-    prisma.purchase_bills.findMany({ include: { suppliers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { gte: from, lte: to } } }),
     prisma.sales_bills.findMany({ include: { customers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { lte: to } } }),
     prisma.purchase_bills.findMany({ include: { suppliers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { lte: to } } }),
     prisma.loan_schedules.findMany({ take: 10000, where: { due_date: { gte: filter.asOf, lte: addDays(filter.asOf, 365) }, payment_status: { not: 'Paid' } } }),
     stockSnapshot(filter.asOf, branchRef?.id ? [branchRef.id] : null),
+    stockSnapshot(addDays(from, -1), branchRef?.id ? [branchRef.id] : null),
+    stockSnapshot(previousTo, branchRef?.id ? [branchRef.id] : null),
+    stockSnapshot(addDays(previousFrom, -1), branchRef?.id ? [branchRef.id] : null),
     cashAsOf(filter.asOf, branchRef?.id ?? null),
+    reportProfitCostTotals(from, to, branchRef?.id ?? null),
+    reportProfitCostTotals(previousFrom, previousTo, branchRef?.id ?? null),
     listBranches(),
   ])
 }
 
+async function reportProfitCostTotals(from: Date, to: Date, branchId?: bigint | null) {
+  const rows = await prisma.$queryRaw<Array<{ cogs: unknown; purchases: unknown; revenue: unknown }>>(Prisma.sql`
+    select
+      coalesce(sum(daily.cogs_amount), 0) as cogs,
+      coalesce(sum(daily.purchase_amount), 0) as purchases,
+      coalesce(sum(daily.revenue_amount), 0) as revenue
+    from public.report_profit_cost_daily daily
+    where daily.event_date between ${from}::date and ${to}::date
+      ${branchId == null ? Prisma.empty : Prisma.sql`and daily.branch_id = ${branchId}`}
+  `)
+  const row = rows[0]
+  return {
+    cogs: toNumber(row?.cogs as never),
+    purchases: toNumber(row?.purchases as never),
+    revenue: toNumber(row?.revenue as never),
+  }
+}
+
 export async function buildWorkingCapital(filter: PeriodDaysFilter) {
-  const [sales, purchases, salesAsOf, purchasesAsOf, schedules, stock, cash, branches] = await workingInputs(filter)
-  type SalesBillRow = (typeof sales)[number]
-  type PurchaseBillRow = (typeof purchases)[number]
+  const [salesAsOf, purchasesAsOf, schedules, stock, openingStock, previousStock, previousOpeningStock, cash, totals, previousTotals, branches] = await workingInputs(filter)
   type SalesAsOfRow = (typeof salesAsOf)[number]
   type PurchaseAsOfRow = (typeof purchasesAsOf)[number]
   type ScheduleRow = (typeof schedules)[number]
-  const prevTo = addDays(filter.asOf, -filter.periodDays)
-  const prevFrom = addDays(prevTo, -filter.periodDays + 1)
-  const revenue = sales.reduce((sum: number, bill: SalesBillRow) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const cogs = sales.reduce((sum: number, bill: SalesBillRow) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
-  const purchaseTotal = purchases.reduce((sum: number, bill: PurchaseBillRow) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
   const ar = salesAsOf.reduce((sum: number, bill: SalesAsOfRow) => sum + Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - toNumber(bill.received_amount)), 0)
   const ap = purchasesAsOf.reduce((sum: number, bill: PurchaseAsOfRow) => sum + Math.max(0, toNumber(bill.payable_balance) || toNumber(bill.total_amount) - toNumber(bill.paid_amount)), 0)
   const currentLoan = schedules.reduce((sum: number, row: ScheduleRow) => sum + Math.max(0, toNumber(row.principal_amount) - toNumber(row.paid_amount)), 0)
-  const dailyRevenue = revenue / Math.max(1, filter.periodDays)
-  const dailyCogs = cogs / Math.max(1, filter.periodDays)
-  const dailyPurchases = purchaseTotal / Math.max(1, filter.periodDays)
-  const arDays = dailyRevenue > 0 ? ar / dailyRevenue : 0
-  const invDays = dailyCogs > 0 ? stock.totalValue / dailyCogs : 0
-  const apDays = dailyPurchases > 0 ? ap / dailyPurchases : 0
-  const ccc = arDays + invDays - apDays
+  const { apDays, arDays, averageInventory, ccc, invDays } = calculateWorkingCapitalDays({ ap, ar, beginningInventory: openingStock.totalValue, cogs: totals.cogs, endingInventory: stock.totalValue, periodDays: filter.periodDays, purchases: totals.purchases, revenue: totals.revenue })
   const currentAssets = cash + ar + stock.totalValue
   const currentLiab = ap + currentLoan
   const currentRatio = currentLiab > 0 ? currentAssets / currentLiab : 0
   const quickRatio = currentLiab > 0 ? (cash + ar) / currentLiab : 0
-  const stockTurnover = stock.totalValue > 0 ? cogs / stock.totalValue : 0
+  const stockTurnover = averageInventory > 0 ? totals.cogs / averageInventory : 0
   const annualizedTurnover = stockTurnover * (365 / Math.max(1, filter.periodDays))
-  const previousSales = salesAsOf.filter((bill: SalesAsOfRow) => bill.date >= prevFrom && bill.date <= endOfDay(prevTo))
-  const previousPurchases = purchasesAsOf.filter((bill: PurchaseAsOfRow) => bill.date >= prevFrom && bill.date <= endOfDay(prevTo))
-  const previousRevenue = previousSales.reduce((sum: number, bill: SalesAsOfRow) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const previousCogs = previousSales.reduce((sum: number, bill: SalesAsOfRow) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
-  const previousPurchaseTotal = previousPurchases.reduce((sum: number, bill: PurchaseAsOfRow) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const previousDailyRevenue = previousRevenue / Math.max(1, filter.periodDays)
-  const previousDailyCogs = previousCogs / Math.max(1, filter.periodDays)
-  const previousDailyPurchases = previousPurchaseTotal / Math.max(1, filter.periodDays)
-  const previousArDays = previousDailyRevenue > 0 ? ar / previousDailyRevenue : 0
-  const previousInvDays = previousDailyCogs > 0 ? stock.totalValue / previousDailyCogs : 0
-  const previousApDays = previousDailyPurchases > 0 ? ap / previousDailyPurchases : apDays
-  const prevCcc = previousArDays + previousInvDays - previousApDays
+  const previousWorkingDays = calculateWorkingCapitalDays({ ap, ar, beginningInventory: previousOpeningStock.totalValue, cogs: previousTotals.cogs, endingInventory: previousStock.totalValue, periodDays: filter.periodDays, purchases: previousTotals.purchases, revenue: previousTotals.revenue })
+  const prevCcc = previousWorkingDays.ccc
   const trend: 'better' | 'same' | 'worse' = ccc < prevCcc ? 'better' : ccc > prevCcc ? 'worse' : 'same'
 
   return {
     branches,
     calculationRows: [
-      { label: `Revenue (${filter.periodDays} วัน)`, value: revenue },
-      { label: `COGS (${filter.periodDays} วัน)`, value: cogs },
-      { label: `Purchases (${filter.periodDays} วัน)`, value: purchaseTotal },
+      { label: `Revenue (${filter.periodDays} วัน)`, value: totals.revenue },
+      { label: `COGS (${filter.periodDays} วัน)`, value: totals.cogs },
+      { label: `Purchases (${filter.periodDays} วัน)`, value: totals.purchases },
       { label: 'AR คงเหลือ', tone: 'blue', value: ar },
       { label: 'AP คงเหลือ', tone: 'emerald', value: ap },
       { label: 'Inventory (WAC)', tone: 'amber', value: stock.totalValue },
@@ -333,8 +334,8 @@ export async function buildWorkingCapital(filter: PeriodDaysFilter) {
       { label: 'Current Liabilities', tone: 'purple', value: currentLiab },
     ],
     filters: { asOf: dateOnly(filter.asOf), branchId: filter.branchId ?? 'ALL', from: dateOnly(addDays(filter.asOf, -filter.periodDays + 1)), periodDays: filter.periodDays },
-    sourceState: sourceState(),
-    summary: { annualizedTurnover, ap, apDays, ar, arDays, cash, ccc, cogs, currentAssets, currentLiab, currentLoan, currentRatio, inv: stock.totalValue, invDays, prevCcc, purchases: purchaseTotal, quickRatio, revenue, stockTurnover, trend },
+    sourceState: sourceState(['Working Capital COGS, revenue, and purchases use report_profit_cost_daily; this read model must be backfilled and reconciled before the report is trusted.']),
+    summary: { annualizedTurnover, ap, apDays, ar, arDays, cash, ccc, cogs: totals.cogs, currentAssets, currentLiab, currentLoan, currentRatio, inv: stock.totalValue, invDays, prevCcc, purchases: totals.purchases, quickRatio, revenue: totals.revenue, stockTurnover, trend },
   }
 }
 
