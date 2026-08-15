@@ -137,6 +137,7 @@ export type WeightTicketRecord = {
   pendingOutHistory: WeightTicketPendingOutHistory[]
   productSummaries: WeightTicketProductSummary[]
   remark: string
+  serverNow?: string
   status: WeightTicketStatus
   totals: {
     containerDeductionWeight: number
@@ -371,7 +372,6 @@ export function isWeightTicketDraftLotSkeleton(line: Pick<WeightTicketLinePayloa
 
 export const weightTicketFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
-  collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
   collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()).optional(),
   collaborationChangedLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
@@ -561,7 +561,6 @@ export const weightTicketIncrementalPatchSchema = z.object({
   lines: z.array(weightTicketLinePayloadSchema).default([]),
   deletedLineIds: z.array(z.string().trim().min(1).max(80)).default([]),
   sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
-  collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
   collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()).optional(),
   collaborationChangedLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
@@ -722,6 +721,7 @@ export const weightTicketRecordSchema = z.object({
   pendingOutHistory: z.array(weightTicketPendingOutHistorySchema).default([]),
   productSummaries: z.array(weightTicketProductSummarySchema).default([]),
   remark: z.string(),
+  serverNow: z.string().datetime().optional(),
   status: statusEnum,
   totals: z.object({
     containerDeductionWeight: z.number().default(0),
@@ -1410,7 +1410,6 @@ export async function patchWeightTicketChanges(
     lines: values.lines.filter((line) => changedLineIds.has(line.id)),
     deletedLineIds: values.collaborationDeletedLineIds ?? [],
     sectionLineIds: values.sectionLineIds,
-    collaborationBaseDocumentNo: values.collaborationBaseDocumentNo,
     collaborationBaseLineIds: values.collaborationBaseLineIds,
     collaborationBaseLineVersions: values.collaborationBaseLineVersions,
     collaborationChangedLineIds: values.collaborationChangedLineIds,

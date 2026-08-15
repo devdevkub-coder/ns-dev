@@ -1224,10 +1224,13 @@ function formatTimerDateTime(value: string | null | undefined) {
   })
 }
 
-function weightTicketReceivedAt(ticket: WeightTicketRecord | null) {
-  if (!ticket || ticket.type !== WEIGHT_TICKET_TYPE.WTI) return null
+function weightTicketCompletedAt(ticket: WeightTicketRecord | null) {
+  if (!ticket) return null
+  const completionStatus = ticket.type === WEIGHT_TICKET_TYPE.WTI
+    ? WEIGHT_TICKET_STATUS.RECEIVED
+    : WEIGHT_TICKET_STATUS.DELIVERED
   const receivedEvents = ticket.timeline
-    .filter((event) => event.metadata.toStatus === WEIGHT_TICKET_STATUS.RECEIVED)
+    .filter((event) => event.metadata.toStatus === completionStatus)
     .sort((left, right) => (parseTime(left.occurredAt) ?? 0) - (parseTime(right.occurredAt) ?? 0))
   return receivedEvents[0]?.occurredAt ?? null
 }
@@ -1302,6 +1305,7 @@ export function WeightTicketFormCore({
   const [pendingFocusField, setPendingFocusField] = useState<string | null>(null)
   const [draftStartedAt] = useState(() => new Date().toISOString())
   const [timerNow, setTimerNow] = useState(() => Date.now())
+  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0)
   const [isWeightTicketSummaryCollapsed, setIsWeightTicketSummaryCollapsed] = useState(true)
   const loadedTicketRef = useRef<WeightTicketRecord | null>(null)
   const savedTicketRef = useRef<WeightTicketRecord | null>(null)
@@ -1313,6 +1317,11 @@ export function WeightTicketFormCore({
   useEffect(() => {
     loadedTicketRef.current = loadedTicket
   }, [loadedTicket])
+
+  useEffect(() => {
+    const serverNowMs = parseTime(loadedTicket?.serverNow ?? savedTicket?.serverNow ?? null)
+    setServerClockOffsetMs(serverNowMs === null ? 0 : serverNowMs - Date.now())
+  }, [loadedTicket?.serverNow, savedTicket?.serverNow])
 
   useEffect(() => {
     savedTicketRef.current = savedTicket
@@ -1474,10 +1483,15 @@ export function WeightTicketFormCore({
     if (!editingTicketId || event.documentNo !== editingTicketId) return
     if (saveInFlightRef.current) return
     if (event.updatedAt && event.updatedAt === (savedTicket ?? loadedTicket)?.updatedAt) return
-    const changedLines = event.lineIds?.length ? ` (${event.lineIds.length} เต๋า)` : ''
-    const changeMessage = event.changeType === 'deleted_lines' ? 'ลบเต๋า' : 'บันทึกข้อมูล'
-    setRemoteChangedLineIds(new Set(event.lineIds ?? []))
-    setMergeNotice(`มีผู้ใช้อื่น${changeMessage}${changedLines} ระบบคงข้อมูลที่กำลังกรอกไว้ กรุณาตรวจสอบก่อนบันทึก`)
+    const remoteLineIds = new Set(event.lineIds ?? [])
+    const localDirtyLineIds = changedLineIdsRef.current
+    const hasOverlappingLineChange = [...remoteLineIds].some((lineId) => localDirtyLineIds.has(lineId))
+    const isHeaderChange = remoteLineIds.size === 0
+    const hasOverlappingHeaderChange = isHeaderChange && dirtyHeaderFieldsRef.current.size > 0
+    setRemoteChangedLineIds(remoteLineIds)
+    setMergeNotice(hasOverlappingHeaderChange
+      ? 'มีผู้ใช้อื่นบันทึกข้อมูลส่วนหัว ระบบคงข้อมูลที่กำลังกรอกไว้ กรุณาตรวจสอบก่อนบันทึก'
+      : '')
 
     if (remoteSyncInFlightRef.current) return
     remoteSyncInFlightRef.current = true
@@ -1485,6 +1499,22 @@ export function WeightTicketFormCore({
     const applyLatestTicket = (latestTicket: WeightTicketRecord, latestImagePreviews: Awaited<ReturnType<typeof getWeightTicketImagePreviews>> | null) => {
         const latestForm = ticketToFormState(latestImagePreviews ? mergeWeightTicketImagePreviews(latestTicket, latestImagePreviews) : latestTicket)
         const latestById = new Map(latestForm.lines.map((line) => [line.id, line] as const))
+        const remoteRootIds = new Set<string>()
+        remoteLineIds.forEach((lineId) => {
+          let line = latestById.get(lineId)
+          const visited = new Set<string>()
+          while (line && line.parentId && !visited.has(line.id)) {
+            visited.add(line.id)
+            line = latestById.get(line.parentId)
+          }
+          if (line) remoteRootIds.add(line.id)
+        })
+        if (remoteRootIds.size && !hasOverlappingLineChange) {
+          setCollapsedLotIds((current) => ({
+            ...current,
+            ...Object.fromEntries([...remoteRootIds].map((lineId) => [lineId, true])),
+          }))
+        }
         const baselineTicket = savedTicket ?? loadedTicket
         const currentForm = formRef.current
         const dirtyHeaderFields = new Set(dirtyHeaderFieldsRef.current)
@@ -1601,13 +1631,13 @@ export function WeightTicketFormCore({
       ? 'สร้างใบรับของ WTI'
       : 'สร้างใบส่งของ WTO'
   const persistedDocumentNo = savedTicket?.documentNo ?? loadedTicket?.documentNo ?? editingTicketId
-  const isWeightTicketIn = form.type === WEIGHT_TICKET_TYPE.WTI
-  const canShowWeightTicketTimer = isWeightTicketIn && (!editingTicketId || Boolean(loadedTicket))
+  const canShowWeightTicketTimer = !editingTicketId || Boolean(loadedTicket)
   const timerStartAt = editingTicketId ? loadedTicket?.createdAt ?? null : draftStartedAt
-  const timerStopAt = weightTicketReceivedAt(loadedTicket)
+  const timerStopAt = weightTicketCompletedAt(loadedTicket)
   const timerStartMs = parseTime(timerStartAt)
   const timerStopMs = parseTime(timerStopAt)
-  const timerElapsedMs = timerStartMs === null ? 0 : (timerStopMs ?? timerNow) - timerStartMs
+  const timerCurrentMs = timerNow + serverClockOffsetMs
+  const timerElapsedMs = timerStartMs === null ? 0 : (timerStopMs ?? timerCurrentMs) - timerStartMs
   const weightTicketItemCount = mainParentLines.length
   const activeLine = useMemo(
     () => {
@@ -1628,10 +1658,10 @@ export function WeightTicketFormCore({
   )
 
   useEffect(() => {
-    if (!isEmbeddedModal || !isWeightTicketIn || !canShowWeightTicketTimer || timerStopMs !== null) return
+    if (!isEmbeddedModal || !canShowWeightTicketTimer || timerStopMs !== null) return
     const intervalId = window.setInterval(() => setTimerNow(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
-  }, [canShowWeightTicketTimer, isEmbeddedModal, isWeightTicketIn, timerStopMs])
+  }, [canShowWeightTicketTimer, isEmbeddedModal, timerStopMs])
 
   useEffect(() => {
     setIsWeightTicketSummaryCollapsed(true)
@@ -2253,7 +2283,6 @@ export function WeightTicketFormCore({
     const baselineFormLines = new Map(ticketToFormState(baselineTicket).lines.map((line) => [line.id, line] as const))
     const saveValues: WeightTicketFormValues = {
       branchId: headerChanges.has('branchId') ? latestSnapshot.branchId : baselineTicket.branchId,
-      collaborationBaseDocumentNo: baselineTicket.documentNo,
       collaborationBaseLineIds: baselineTicket.lines.map((line) => line.id),
       collaborationBaseLineVersions: Object.fromEntries(baselineTicket.lines.map((line) => [line.id, line.version ?? 1])),
       collaborationChangedLineIds: Array.from(changedIds),
@@ -2534,7 +2563,6 @@ export function WeightTicketFormCore({
       draftLineIds = skeletonDraftLineIds
       const saveValues: WeightTicketFormValues = {
         branchId: snapshotToSave.branchId,
-        collaborationBaseDocumentNo: (savedTicket ?? loadedTicket)?.documentNo,
         collaborationBaseLineIds: baselineLineIds,
         collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
         collaborationChangedLineIds: Array.from(changedLineIds),
@@ -3316,7 +3344,6 @@ export function WeightTicketFormCore({
       })
       const saveValues = {
         branchId: formToSave.branchId,
-        collaborationBaseDocumentNo: (savedTicket ?? loadedTicket)?.documentNo,
         collaborationBaseLineIds: baselineLineIds,
         collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
         collaborationChangedLineIds: Array.from(changedLineIds),
@@ -3465,7 +3492,6 @@ export function WeightTicketFormCore({
       })
       const saveValues = {
         branchId: snapshot.branchId,
-        collaborationBaseDocumentNo: baselineTicket.documentNo,
         collaborationBaseLineIds: baselineIds,
         collaborationBaseLineVersions: Object.fromEntries(baselineSectionLines.map((line) => [line.id, line.version ?? 1])),
         collaborationChangedLineIds: Array.from(changedIds),
@@ -3675,7 +3701,9 @@ export function WeightTicketFormCore({
                     <div className="rounded-md bg-white px-3 py-2">
                       <div className="font-semibold text-slate-500">สถานะเวลา</div>
                       <div className={cn('mt-0.5 truncate font-semibold', timerStopMs === null ? 'text-rose-700' : 'text-emerald-700')}>
-                        {timerStopMs === null ? 'รอยืนยันรับของ' : 'รับของแล้ว'}
+                        {timerStopMs === null
+                          ? form.type === WEIGHT_TICKET_TYPE.WTI ? 'รอยืนยันรับของ' : 'รอยืนยันส่งของ'
+                          : form.type === WEIGHT_TICKET_TYPE.WTI ? 'รับของแล้ว' : 'ส่งของแล้ว'}
                       </div>
                     </div>
                   </div>
@@ -3736,24 +3764,6 @@ export function WeightTicketFormCore({
       {mergeNotice ? (
         <div role="status" aria-live="polite" className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
           {mergeNotice}
-        </div>
-      ) : null}
-      {isEmbeddedModal && !canShowWeightTicketTimer ? (
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          {savedTicket ? (
-            <div className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
-              <CheckCircle2 className="size-4" />
-              บันทึก {savedTicket.documentNo} แล้ว
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-5">
-              <MetricInline label="รายการ" value={`${mainParentLines.length} รายการ`} />
-              <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
-              <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
-              <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
-              <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
-            </div>
-          )}
         </div>
       ) : null}
       {isLoadingTicket ? (
@@ -3931,7 +3941,10 @@ export function WeightTicketFormCore({
                         || errors[`line-${id}-warehouse`]
                         || errors[`line-${id}-deduction`],
                       )
-                      const hasRemoteUpdate = allRelatedIds.some((id) => remoteChangedLineIds.has(id))
+                      // Keep the notice at the level that changed. A child lot
+                      // update is shown on that lot; only a root line update is
+                      // shown on the product card, avoiding duplicate badges.
+                      const hasRemoteUpdate = remoteChangedLineIds.has(line.id)
                       const active = activeLine?.id === line.id
 
                       return (

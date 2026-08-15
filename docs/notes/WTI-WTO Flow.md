@@ -199,6 +199,10 @@ add image -> delete image
 - ลบรูปหรือสิ่งเจือปนซ้ำกัน: Server ต้องตรวจสถานะล่าสุดและทำให้ operation retry ได้โดยไม่สร้างข้อมูลซ้ำ
 - เมื่อเอกสารถูก `received` หรือ `cancelled`: broadcast สถานะใหม่และเปลี่ยนอีกเครื่องเป็น read-only
 
+เมื่อเกิด conflict จากการแก้ไขหรือลบ ระบบต้องตอบ `409` และบันทึก audit event `daily.weight-ticket.collaboration-conflict` ลง `app_audit_logs` โดยเก็บเฉพาะข้อมูลวินิจฉัยที่จำเป็น ได้แก่ operation/scope, เลขที่เอกสาร, persisted line UUID ที่ชน, line version ฝั่ง baseline และปัจจุบัน, header fields, updated-at และ request id เพื่อวิเคราะห์พฤติกรรมจริงของผู้ใช้โดยไม่เก็บน้ำหนัก รูปภาพ หรือ payload ธุรกิจทั้งก้อน หาก audit sink ขัดข้องต้องคงผลลัพธ์ conflict เดิมไว้ ไม่เปลี่ยนเป็นความสำเร็จหรือ error อื่น
+
+การจับคู่ line ระหว่างผู้ใช้ใช้ persisted `line.id` ที่ Server สร้างเท่านั้น `line_no` ใช้สำหรับลำดับและความสัมพันธ์ parent เท่านั้น ห้ามใช้ `doc_no:line_no` หรือเลขลำดับที่หน้าจอแสดงเป็น fallback identity เพราะอาจทำให้เต๋าคนละรายการถูกมองเป็นรายการเดียวกัน
+
 หน้าจอต้องแสดงสถานะ `กำลังบันทึก`, `บันทึกแล้ว`, `มีการเปลี่ยนแปลงจากตราชั่งอื่น` และ `บันทึกไม่สำเร็จ` รวมถึงต้อง reload ข้อมูลล่าสุดเมื่อ reconnect หลังหลุดการเชื่อมต่อ
 
 ### Server ownership และ API boundary

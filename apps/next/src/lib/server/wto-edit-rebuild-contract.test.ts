@@ -156,14 +156,30 @@ describe('WTO delivered edit release/rebuild contract', () => {
 
   it('blocks stale collaboration writes before delivered WTO pending_out rebuild', () => {
     expect(editRouteSource).toContain('if (isDeliveredWtoEdit && hasRemoteLineChanges && values.collaborationBaseLineVersions !== undefined)')
-    expect(editRouteSource.indexOf('throw new WeightTicketCollaborationConflictError(Array.from(collaborationChangedLineIds))'))
+    expect(editRouteSource.indexOf('throw new WeightTicketCollaborationConflictError(Array.from(collaborationChangedLineIds), [], {'))
       .toBeLessThan(editRouteSource.indexOf('await releaseActiveWtoPendingOut(tx, {'))
   })
 
   it('treats an edited line deleted by another user as a conflict', () => {
     expect(editRouteSource).toContain('const missingChangedLineIds = Object.keys(collaborationBaseLineVersions)')
-    expect(editRouteSource).toContain('if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds)')
+    expect(editRouteSource).toContain('if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds, [], {')
     expect(editRouteSource).toMatch(/effectiveValues = \{[\s\S]*?lines: values\.saveScope === 'section'/)
+  })
+
+  it('records collaboration conflicts and uses persisted line ids only', () => {
+    expect(editRouteSource).toContain("eventKey: 'daily.weight-ticket.collaboration-conflict'")
+    expect(editRouteSource).toContain('currentLineVersions')
+    expect(editRouteSource).toContain("operation: 'delete_lines'")
+    expect(editRouteSource).not.toContain('collaborationBaseDocumentNo')
+    expect(editRouteSource).not.toContain('latestLineByClientId.set(`${existing.doc_no}:')
+    expect(formSource).not.toContain('collaborationBaseDocumentNo')
+  })
+
+  it('uses one server clock for WTI and WTO elapsed timers', () => {
+    expect(editRouteSource).toContain('serverNow: new Date().toISOString()')
+    expect(formSource).toContain('const serverClockOffsetMs = useState')
+    expect(formSource).toContain('serverNowMs - Date.now()')
+    expect(formSource).toContain('const timerCurrentMs = timerNow + serverClockOffsetMs')
   })
 
   it('keeps the original client baseline when realtime merges around dirty form data', () => {
