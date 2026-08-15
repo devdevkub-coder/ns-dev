@@ -3765,7 +3765,7 @@ export function WeightTicketFormCore({
       ) : (
         <div>
           <div className="space-y-5">
-            <div className={cn(isEmbeddedModal && mobileEntryStep === 'products' ? 'hidden xl:block' : '')}>
+            <div>
             <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="ข้อมูลหัวเอกสาร" />
             <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
@@ -3866,21 +3866,6 @@ export function WeightTicketFormCore({
           <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <SectionHeader title="สินค้าและน้ำหนัก" />
-              {isEmbeddedModal ? (
-                <Button
-                  className="h-9 px-3 text-xs font-semibold xl:hidden"
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setMobileEntryStep('header')
-                    setMobileProductView('list')
-                    setMobileLotDetailId(null)
-                  }}
-                >
-                  แก้ไขหัวเอกสาร
-                </Button>
-              ) : null}
             </div>
 
 
@@ -4899,7 +4884,7 @@ export function WeightTicketFormCore({
           </Card>
           </div>
 
-          <div className={cn(isEmbeddedModal && mobileEntryStep === 'products' ? 'hidden xl:block' : '')}>
+          <div>
           <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="หมายเหตุท้ายเอกสาร" />
             <textarea

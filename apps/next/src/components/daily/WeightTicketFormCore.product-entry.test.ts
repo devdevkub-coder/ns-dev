@@ -349,10 +349,12 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain("const [mobileEntryStep, setMobileEntryStep] = useState<'header' | 'products'>('header')")
     expect(formSource).toContain("mobileEntryStep === 'header' ? 'ขั้นตอน 1 จาก 2 · ข้อมูลหัวเอกสาร' : 'ขั้นตอน 2 จาก 2 · รายการสินค้า'")
     expect(formSource).toContain('บันทึกหัวเอกสารและไปต่อ')
-    expect(formSource).toContain('แก้ไขหัวเอกสาร')
+    expect(formSource).not.toContain('แก้ไขหัวเอกสาร')
     expect(formSource).not.toContain('ตรวจหัวเอกสาร')
     expect(formSource).not.toContain('บันทึกเอกสาร')
-    expect(formSource).toContain("isEmbeddedModal && mobileEntryStep === 'products' ? 'hidden xl:block' : ''")
+    expect(formSource).toContain("isEmbeddedModal && mobileEntryStep === 'header' ? 'hidden xl:block' : ''")
+    expect(formSource).toContain('<SectionHeader title="หมายเหตุท้ายเอกสาร" />')
+    expect(formSource).not.toContain("isEmbeddedModal && mobileEntryStep === 'products' ? 'hidden xl:block' : ''")
   })
 
   it('routes product validation to the visible mobile product step before focusing', () => {

@@ -520,14 +520,14 @@ export function WeightTicketDetailModal({
                       aria-label="แก้ไข"
                       type="button"
                       variant="outline"
-                      className="h-10 w-10 shrink-0 gap-0 px-0 font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4"
+                      className="h-10 w-10 shrink-0 gap-0 border-blue-600 bg-blue-600 px-0 font-normal text-white hover:border-blue-700 hover:bg-blue-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4"
                       onClick={() => requestDiscardCancelNote(() => onEdit(ticket.id, ticket.type))}
                     >
                       <SquarePen className="size-4" />
                       <span className="sr-only sm:not-sr-only">แก้ไข</span>
                     </Button>
                   ) : (
-                    <Button asChild type="button" variant="outline" className="h-10 w-10 shrink-0 gap-0 px-0 font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4">
+                    <Button asChild type="button" variant="outline" className="h-10 w-10 shrink-0 gap-0 border-blue-600 bg-blue-600 px-0 font-normal text-white hover:border-blue-700 hover:bg-blue-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4">
                       <GuardedLink aria-label="แก้ไข" href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
                         <SquarePen className="size-4" />
                         <span className="sr-only sm:not-sr-only">แก้ไข</span>

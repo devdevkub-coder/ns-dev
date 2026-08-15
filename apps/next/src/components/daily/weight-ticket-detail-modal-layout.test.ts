@@ -34,6 +34,17 @@ describe('weight ticket detail modal action layout', () => {
     )
   })
 
+  it('uses the same blue action treatment for both detail-header edit paths', () => {
+    const editAction = source.slice(
+      source.indexOf('{ticket.canEdit ?'),
+      source.indexOf('{canShareWeightTicket'),
+    )
+
+    expect(editAction).toContain('border-blue-600 bg-blue-600')
+    expect(editAction).toContain('hover:border-blue-700 hover:bg-blue-700')
+    expect(editAction).not.toContain('bg-slate-800')
+  })
+
   it('does not apply the mobile scroll-body flex rules to dialog headers', () => {
     expect(globalStyles).toContain(
       '[data-ns-dialog-content="app"] > :where(.bg-slate-50, .bg-white, .bg-slate-900, .overflow-auto, .overflow-y-auto):not([data-ns-dialog-header])',
