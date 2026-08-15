@@ -26,6 +26,7 @@ import { cachedWeightTicketReferences, fetchFreshWeightTicketReferences } from '
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import { mergeWeightTicketCollaborationBaseline } from '@/lib/weight-ticket-collaboration'
 import { getWeightTicketSectionLineIds } from '@/lib/weight-ticket-sections'
+import { mergeWeightTicketChangeEvents, type WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
 import {
   calculateWeightTicketLineTotals,
   createWeightTicketLine,
@@ -549,6 +550,18 @@ export function getWeightTicketScopedAddChangedLineIds<T extends Pick<WeightTick
     if (persistedScopeLineIds.has(line.id) && !baselineLineFingerprints.has(line.id)) changedLineIds.add(line.id)
   })
   return changedLineIds
+}
+
+export function getWeightTicketChangedLineIds<T extends Pick<WeightTicketLine, 'id'>>(
+  lines: T[],
+  baselineLineFingerprints: ReadonlyMap<string, string>,
+  getFingerprint: (line: T) => string,
+) {
+  return new Set(
+    lines
+      .filter((line) => baselineLineFingerprints.get(line.id) !== getFingerprint(line))
+      .map((line) => line.id),
+  )
 }
 
 function linesRemovedByLineRemoval(lines: WeightTicketDeletionLine[], lineId: string) {
@@ -1388,6 +1401,8 @@ export function WeightTicketFormCore({
   const deletedLineIdsRef = useRef<Set<string>>(new Set())
   const dirtyHeaderFieldsRef = useRef<Set<CollaborationHeaderField>>(new Set())
   const remoteSyncInFlightRef = useRef(false)
+  const pendingRealtimeEventRef = useRef<WeightTicketChangeEvent | null>(null)
+  const [realtimeFlushRevision, setRealtimeFlushRevision] = useState(0)
   const pendingAttachmentUploadsRef = useRef<Map<Promise<unknown>, string | undefined>>(new Map())
   const attachmentUploadConfigRef = useRef<Promise<AttachmentUploadConfig> | null>(null)
   const lastAddInteractionRef = useRef<{ actionKey: string; occurredAt: number } | null>(null)
@@ -1425,6 +1440,10 @@ export function WeightTicketFormCore({
   useEffect(() => {
     savedTicketRef.current = savedTicket
   }, [savedTicket])
+
+  useEffect(() => {
+    pendingRealtimeEventRef.current = null
+  }, [editingTicketId])
 
   useEffect(() => () => {
     const current = formRef.current
@@ -1578,10 +1597,15 @@ export function WeightTicketFormCore({
     return branchId ? [branchId] : []
   }, [loadedTicket, savedTicket])
 
-  useWeightTicketRealtime((event) => {
-    if (!editingTicketId || event.documentNo !== editingTicketId) return
-    if (saveInFlightRef.current) return
-    if (event.updatedAt && event.updatedAt === (savedTicket ?? loadedTicket)?.updatedAt) return
+  const handleRealtimeEvent = useCallback((event: WeightTicketChangeEvent) => {
+    const ticketId = editingTicketId
+    if (!ticketId || event.documentNo !== ticketId) return
+    const baselineTicket = savedTicketRef.current ?? loadedTicketRef.current
+    if (saveInFlightRef.current || remoteSyncInFlightRef.current) {
+      pendingRealtimeEventRef.current = mergeWeightTicketChangeEvents(pendingRealtimeEventRef.current, event)
+      return
+    }
+    if (event.updatedAt && event.updatedAt === baselineTicket?.updatedAt) return
     const remoteLineIds = new Set(event.lineIds ?? [])
     const remoteHeaderFields = new Set(event.changedHeaderFields ?? [])
     const hasOverlappingHeaderChange = [...remoteHeaderFields].some((field) => dirtyHeaderFieldsRef.current.has(field))
@@ -1589,9 +1613,8 @@ export function WeightTicketFormCore({
       ? 'มีผู้ใช้อื่นบันทึกข้อมูลส่วนหัว ระบบคงข้อมูลที่กำลังกรอกไว้ กรุณาตรวจสอบก่อนบันทึก'
       : '')
 
-    if (remoteSyncInFlightRef.current) return
     remoteSyncInFlightRef.current = true
-    const latestTicketPromise = getWeightTicket(editingTicketId, { includeImagePreviews: false })
+    const latestTicketPromise = getWeightTicket(ticketId, { includeImagePreviews: false })
     const applyLatestTicket = (latestTicket: WeightTicketRecord, latestImagePreviews: Awaited<ReturnType<typeof getWeightTicketImagePreviews>> | null) => {
         const latestForm = ticketToFormState(latestImagePreviews ? mergeWeightTicketImagePreviews(latestTicket, latestImagePreviews) : latestTicket)
         const latestById = new Map(latestForm.lines.map((line) => [line.id, line] as const))
@@ -1599,7 +1622,7 @@ export function WeightTicketFormCore({
         // Keep only IDs still present after reload so a deleted line cannot
         // leave a stale notice, and keep newly-added remote lots expanded.
         setRemoteChangedLineIds(getWeightTicketVisibleRemoteChangedLineIds(latestForm.lines, remoteLineIds))
-        const baselineTicket = savedTicket ?? loadedTicket
+        const baselineTicket = savedTicketRef.current ?? loadedTicketRef.current
         const currentForm = formRef.current
         const dirtyHeaderFields = new Set(dirtyHeaderFieldsRef.current)
         if (baselineTicket) {
@@ -1622,6 +1645,8 @@ export function WeightTicketFormCore({
         })
         setLoadedTicket(latestTicket)
         setSavedTicket(mergedBaseline)
+        loadedTicketRef.current = latestTicket
+        savedTicketRef.current = mergedBaseline
         setFormBaseline(formSafetySnapshot(latestForm, discardableDraftLineIdsRef.current))
         if (latestImagePreviews) {
           setImagePreviewRefreshMs(latestImagePreviews.refreshAfterMs)
@@ -1657,7 +1682,7 @@ export function WeightTicketFormCore({
         // URLs are an enhancement and must not delay numeric or impurity sync.
         applyLatestTicket(latestTicket, null)
         if (!event.imageChanged) return
-        return getWeightTicketImagePreviews(editingTicketId)
+        return getWeightTicketImagePreviews(ticketId)
           .then((latestImagePreviews) => applyLatestTicket(latestTicket, latestImagePreviews))
           .catch(() => undefined)
       })
@@ -1666,8 +1691,19 @@ export function WeightTicketFormCore({
       })
       .finally(() => {
         remoteSyncInFlightRef.current = false
+        setRealtimeFlushRevision((current) => current + 1)
       })
-  }, Boolean(editingTicketId), realtimeBranchIds)
+  }, [editingTicketId])
+
+  useWeightTicketRealtime(handleRealtimeEvent, Boolean(editingTicketId), realtimeBranchIds)
+
+  useEffect(() => {
+    if (isSaving || saveInFlightRef.current || remoteSyncInFlightRef.current) return
+    const pendingEvent = pendingRealtimeEventRef.current
+    if (!pendingEvent) return
+    pendingRealtimeEventRef.current = null
+    handleRealtimeEvent(pendingEvent)
+  }, [handleRealtimeEvent, isSaving, realtimeFlushRevision])
 
   const partyOptions = useMemo(() => {
     const options = form.type === 'WTI' ? suppliers : customers
@@ -1918,6 +1954,8 @@ export function WeightTicketFormCore({
       setIsLoadingTicket(false)
       setLoadedTicket(null)
       setSavedTicket(null)
+      loadedTicketRef.current = null
+      savedTicketRef.current = null
       setImagePreviewRefreshMs(null)
       return
     }
@@ -1946,10 +1984,12 @@ export function WeightTicketFormCore({
         const ticket = previews ? mergeWeightTicketImagePreviews(ticketWithoutPreviews, previews) : ticketWithoutPreviews
         const nextForm = ticketToFormState(ticket)
         setLoadedTicket(ticket)
+        loadedTicketRef.current = ticket
         setForm(nextForm)
         updateDiscardableDraftLineIds(() => new Set())
         setFormBaseline(formSafetySnapshot(nextForm, discardableDraftLineIdsRef.current))
         setSavedTicket(ticket)
+        savedTicketRef.current = ticket
         changedLineIdsRef.current.clear()
         deletedLineIdsRef.current.clear()
         dirtyHeaderFieldsRef.current.clear()
@@ -2429,6 +2469,8 @@ export function WeightTicketFormCore({
       invalidatePurchaseBillOptionsCache()
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
+      loadedTicketRef.current = ticket
+      savedTicketRef.current = ticket
       setFormBaseline(formSafetySnapshot(ticketToFormState(ticket), discardableDraftLineIdsRef.current))
       setLoadError('')
       setMergeNotice('ลบข้อมูลแล้ว')
@@ -2451,6 +2493,7 @@ export function WeightTicketFormCore({
     } finally {
       endSaveStage()
       saveInFlightRef.current = null
+      setRealtimeFlushRevision((current) => current + 1)
     }
   }
 
@@ -2789,6 +2832,7 @@ export function WeightTicketFormCore({
     } finally {
       endSaveStage()
       saveInFlightRef.current = null
+      setRealtimeFlushRevision((current) => current + 1)
     }
   }
 
@@ -3515,14 +3559,15 @@ export function WeightTicketFormCore({
       const baselineLineIds = Array.from(baselineLines.keys())
       const deletedLineIds = new Set(deletedLineIdsRef.current)
       baselineLineIds.filter((lineId) => !formToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
-      const changedLineIds = new Set(changedLineIdsRef.current)
+      const changedLineIds = getWeightTicketChangedLineIds(
+        formToSave.lines,
+        new Map(Array.from(baselineLines.entries()).map(([lineId, line]) => [
+          lineId,
+          collaborationLineSnapshot(line, line.imageNames),
+        ])),
+        (line) => collaborationLineSnapshot(line, getLineEvidenceImages(line).map((file) => file.rawValue)),
+      )
       deletedLineIds.forEach((lineId) => changedLineIds.add(lineId))
-      formToSave.lines.forEach((line) => {
-        const baseline = baselineLines.get(line.id)
-        const currentFingerprint = collaborationLineSnapshot(line, getLineEvidenceImages(line).map((file) => file.rawValue))
-        const baselineFingerprint = baseline ? collaborationLineSnapshot(baseline, baseline.imageNames) : null
-        if (!baseline || currentFingerprint !== baselineFingerprint) changedLineIds.add(line.id)
-      })
       const saveValues = {
         branchId: formToSave.branchId,
         collaborationBaseLineIds: baselineLineIds,
@@ -3583,6 +3628,8 @@ export function WeightTicketFormCore({
       const nextForm = mergeFormAttachmentPreviewUrls(currentFormForPreview, ticketToFormState(ticketWithPreviews))
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
+      loadedTicketRef.current = ticket
+      savedTicketRef.current = ticket
       changedLineIdsRef.current.clear()
       deletedLineIdsRef.current.clear()
       dirtyHeaderFieldsRef.current.clear()
@@ -3612,6 +3659,7 @@ export function WeightTicketFormCore({
     } finally {
       endSaveStage()
       saveInFlightRef.current = null
+      setRealtimeFlushRevision((current) => current + 1)
     }
   }
 
@@ -3669,17 +3717,15 @@ export function WeightTicketFormCore({
       deletedLineIdsRef.current.forEach((lineId) => {
         if (baselineById.has(lineId) && savedTargetLineIdSet.has(lineId)) deletedIds.add(lineId)
       })
-      const changedIds = new Set(
-        savedSectionLines.filter((line) => savedTargetLineIdSet.has(line.id) && changedLineIdsRef.current.has(line.id)).map((line) => line.id),
+      const changedIds = getWeightTicketChangedLineIds(
+        savedSectionLines.filter((line) => savedTargetLineIdSet.has(line.id)),
+        new Map(Array.from(baselineById.entries()).map(([lineId, line]) => [
+          lineId,
+          collaborationLineSnapshot(line, line.imageNames),
+        ])),
+        (line) => collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue)),
       )
       deletedIds.forEach((lineId) => changedIds.add(lineId))
-      savedSectionLines.forEach((line) => {
-        if (!savedTargetLineIdSet.has(line.id)) return
-        const baseline = baselineById.get(line.id)
-        if (!baseline || collaborationLineSnapshot(line, getLineImages(line).map((file) => file.rawValue)) !== collaborationLineSnapshot(baseline, baseline.imageNames)) {
-          changedIds.add(line.id)
-        }
-      })
       const saveValues = {
         branchId: snapshot.branchId,
         collaborationBaseLineIds: baselineIds,
@@ -3754,6 +3800,8 @@ export function WeightTicketFormCore({
       }))
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
+      loadedTicketRef.current = ticket
+      savedTicketRef.current = ticket
       changedLineIdsRef.current = new Set(Array.from(changedLineIdsRef.current, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
       deletedLineIdsRef.current = new Set(Array.from(deletedLineIdsRef.current, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
       setCollapsedLotIds((current) => remapWeightTicketLineState(current, ticket.lineIdMap))
@@ -3802,6 +3850,7 @@ export function WeightTicketFormCore({
     } finally {
       endSaveStage()
       saveInFlightRef.current = null
+      setRealtimeFlushRevision((current) => current + 1)
     }
   }
 

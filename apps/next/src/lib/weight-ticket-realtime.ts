@@ -12,6 +12,20 @@ export type WeightTicketChangeEvent = {
   imageChanged?: boolean
 }
 
+export function mergeWeightTicketChangeEvents(
+  current: WeightTicketChangeEvent | null,
+  next: WeightTicketChangeEvent,
+): WeightTicketChangeEvent {
+  if (!current) return next
+  return {
+    ...next,
+    lineIds: Array.from(new Set([...(current.lineIds ?? []), ...(next.lineIds ?? [])])),
+    deletedLineIds: Array.from(new Set([...(current.deletedLineIds ?? []), ...(next.deletedLineIds ?? [])])),
+    changedHeaderFields: Array.from(new Set([...(current.changedHeaderFields ?? []), ...(next.changedHeaderFields ?? [])])),
+    imageChanged: current.imageChanged === true || next.imageChanged === true,
+  }
+}
+
 export function isWeightTicketChangeEvent(value: unknown): value is WeightTicketChangeEvent {
   if (!value || typeof value !== 'object') return false
   const event = value as Partial<WeightTicketChangeEvent>

@@ -34,7 +34,7 @@ vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   patchWeightTicketChanges: mocks.patchWeightTicketChanges,
 }))
 
-import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketImpuritySaveLineIds, getWeightTicketScopedAddChangedLineIds, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketChangedLineIds, getWeightTicketImpuritySaveLineIds, getWeightTicketScopedAddChangedLineIds, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -154,6 +154,16 @@ describe('weight-ticket product entry start contract', () => {
       new Set(['lot-1', 'lot-2', 'lot-3']),
       (line) => line.id === 'lot-2' ? 'after' : line.id === 'lot-3' ? 'new' : 'same',
     )).toEqual(new Set(['lot-2', 'lot-3']))
+  })
+
+  it('removes stale dirty line ids from full and section PATCH payloads', () => {
+    expect(getWeightTicketChangedLineIds(
+      [{ id: 'line-1' }, { id: 'line-2' }, { id: 'new-line' }],
+      new Map([['line-1', 'same'], ['line-2', 'before']]),
+      (line) => line.id === 'line-2' ? 'after' : line.id === 'new-line' ? 'new' : 'same',
+    )).toEqual(new Set(['line-2', 'new-line']))
+    expect(formSource).toContain('const changedLineIds = getWeightTicketChangedLineIds(')
+    expect(formSource).toContain('const changedIds = getWeightTicketChangedLineIds(')
   })
 
   it('rejects an incomplete section line ID mapping instead of retaining a temporary ID', () => {

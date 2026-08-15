@@ -1291,6 +1291,14 @@ Realtime event ต้องส่งขอบเขตการเปลี่�
 ยังหยุดที่ conflict ให้ผู้ใช้ตรวจสอบก่อนบันทึก. การยืนยัน WTO ที่มีผลต่อ stock ยังคงใช้
 transaction และ guard เดิม ไม่ใช้ realtime เป็นแหล่งยืนยัน stock.
 
+ตั้งแต่ 2026-08-15 การส่ง `save_changes` ต้องมี baseline ของ line ที่เป็น persisted identity
+ครบทั้ง `collaborationBaseLineIds` และ `collaborationBaseLineVersions` และ key ของสองชุด
+ต้องตรงกัน. หากข้อมูล baseline ไม่ครบ หรือเป็น section แต่ไม่ระบุ `sectionLineIds` server
+จะตอบ `400` และไม่ใช้การลบแล้วสร้าง line ใหม่แทน เพราะการทำเช่นนั้นจะทำลาย UUID ที่ผู้ใช้อื่น
+กำลังแก้. ก่อนส่ง realtime notice client จะเทียบ fingerprint ของ line กับ baseline แล้ว
+ส่งเฉพาะ line ที่เปลี่ยนจริงหรือถูกลบจริง; event ที่เข้าระหว่าง save/reload จะถูกรวมไว้และ
+ประมวลผลหลังงานปัจจุบันเสร็จ เพื่อไม่ทิ้งการเปลี่ยนแปลงหรือแจ้งรายการที่ไม่เกี่ยวข้อง.
+
 ## การ submit แยกตาม section (2026-08-07)
 
 หนึ่ง section หมายถึงสินค้าแม่หนึ่งรายการพร้อมเต๋าลูก สิ่งเจือปน และรายการซื้อเพิ่มที่อยู่

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { getSupabaseClient } from '@/lib/supabase'
-import { isWeightTicketChangeEvent, weightTicketRealtimeChannel, type WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
+import { isWeightTicketChangeEvent, mergeWeightTicketChangeEvents, weightTicketRealtimeChannel, type WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
 
 export function shouldWarnWeightTicketRealtimeStatus(status: string, disposed = false) {
   // CLOSED is expected only after this hook has explicitly disposed the
@@ -40,13 +40,7 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
       const key = `${branchId}:${payload.documentNo}`
       const pending = pendingEvents.get(key)
       if (pending) {
-        pending.event = {
-          ...payload,
-          lineIds: Array.from(new Set([...(pending.event.lineIds ?? []), ...(payload.lineIds ?? [])])),
-          deletedLineIds: Array.from(new Set([...(pending.event.deletedLineIds ?? []), ...(payload.deletedLineIds ?? [])])),
-          changedHeaderFields: Array.from(new Set([...(pending.event.changedHeaderFields ?? []), ...(payload.changedHeaderFields ?? [])])),
-          imageChanged: pending.event.imageChanged === true || payload.imageChanged === true,
-        }
+        pending.event = mergeWeightTicketChangeEvents(pending.event, payload)
         return
       }
       const timeoutId = setTimeout(() => {

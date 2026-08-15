@@ -304,10 +304,14 @@ function buildIncrementalFormValues(
   const partyId = existing.doc_type === 'WTI' ? existing.suppliers?.code : existing.customers?.code
   if (!partyId) throw new Error('ข้อมูลคู่ค้าในเอกสารไม่ครบ')
   const header = patch.header
-  const baseLineIds = patch.collaborationBaseLineIds ?? currentLines.map((line) => line.id)
-  const changedLineIds = patch.collaborationChangedLineIds ?? patch.lines.map((line) => line.id)
+  const baseLineIds = patch.collaborationBaseLineIds
+  const changedLineIds = patch.collaborationChangedLineIds
+  const sectionLineIds = patch.scope === 'section' ? patch.sectionLineIds : undefined
+  if (patch.scope === 'section' && (!sectionLineIds || sectionLineIds.length === 0)) {
+    throw new Error('ต้องระบุรายการของ section ที่กำลังบันทึก')
+  }
   const scopedLines = patch.scope === 'section'
-    ? mergedLines.filter((line) => new Set(patch.sectionLineIds ?? []).has(line.id))
+    ? mergedLines.filter((line) => new Set(sectionLineIds).has(line.id))
     : patch.scope === 'header'
       ? []
       : mergedLines
@@ -326,7 +330,7 @@ function buildIncrementalFormValues(
     partyId: header.partyId ?? partyId,
     remark: header.remark ?? existing.remark ?? '',
     saveScope: patch.scope,
-    sectionLineIds: patch.scope === 'section' ? patch.sectionLineIds : undefined,
+    sectionLineIds,
     type: existing.doc_type as 'WTI' | 'WTO',
     vehicleImageNames: header.vehicleImageNames ?? existing.vehicle_image_names ?? [],
     vehicleNo: header.vehicleNo ?? existing.vehicle_no,
@@ -1300,6 +1304,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         return NextResponse.json({ code: 'BAD_REQUEST', error: mutableTicketErrorMessage('edit', usage) }, { status: 400 })
       }
       const deletedIds = new Set(deleteLines.data.deletedLineIds)
+      const missingBaseLineVersions = [...deletedIds].filter((lineId) => deleteLines.data.collaborationBaseLineVersions[lineId] == null)
+      if (missingBaseLineVersions.length) {
+        return NextResponse.json({
+          code: 'BAD_REQUEST',
+          error: 'ข้อมูล baseline ของเต๋าที่ต้องการลบไม่ครบ กรุณาโหลดข้อมูลล่าสุดก่อนลบ',
+        }, { status: 400 })
+      }
       const existingIds = new Set(existing.weight_ticket_lines.map((line) => String(line.id)))
       const missingIds = [...deletedIds].filter((lineId) => !existingIds.has(lineId))
       if (missingIds.length) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบเต๋าที่ต้องการลบ' }, { status: 404 })
