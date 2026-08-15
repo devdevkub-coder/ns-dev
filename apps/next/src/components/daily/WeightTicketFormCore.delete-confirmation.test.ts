@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   requestWeightTicketSelectionChange,
   getWeightTicketRelatedLineIds,
+  getWeightTicketVisibleRemoteChangedLineIds,
   removeImpurityPurchaseLinesForSource,
   removeWeightTicketLot,
   shouldConfirmWeightTicketBranchChange,
@@ -11,6 +12,7 @@ import {
   shouldConfirmWeightTicketLotRemoval,
   shouldConfirmWeightTicketProductChange,
   shouldConfirmWeightTicketProductRemoval,
+  isBlankAddedWeightTicketDraftLine,
   type WeightTicketDeletionLine,
 } from './WeightTicketFormCore'
 
@@ -255,6 +257,30 @@ describe('WeightTicketFormCore local deletion confirmation', () => {
     })).toBe(true)
   })
 
+  it('ignores only untouched newly added lots and impurities when checking discard state', () => {
+    const blankLot = line({
+      id: 'lot-1',
+      parentId: 'product-1',
+      productId: 'product-1',
+      warehouseId: 'warehouse-1',
+    })
+    const blankImpurity = line({
+      id: 'impurity-1',
+      parentId: 'lot-1',
+      productId: 'product-1',
+      warehouseId: 'warehouse-1',
+      grossWeight: '0',
+      containerDeductionWeight: '0',
+      deductionMode: 'kg',
+      note: DEFAULT_IMPURITY_NOTE,
+    })
+
+    expect(isBlankAddedWeightTicketDraftLine(blankLot)).toBe(true)
+    expect(isBlankAddedWeightTicketDraftLine(blankImpurity)).toBe(true)
+    expect(isBlankAddedWeightTicketDraftLine({ ...blankLot, grossWeight: '25' })).toBe(false)
+    expect(isBlankAddedWeightTicketDraftLine({ ...blankImpurity, impurityId: 'impurity-1' })).toBe(false)
+  })
+
   it('removes a freshly seeded impurity immediately but confirms after it or its purchase line has data', () => {
     const product = line({ id: 'product-1', productId: 'product-1', warehouseId: 'warehouse-1' })
     const freshImpurity = line({
@@ -308,5 +334,14 @@ describe('WeightTicketFormCore local deletion confirmation', () => {
     const firstLot = line({ id: 'lot-1', productId: 'product-1' })
 
     expect(removeWeightTicketLot([firstLot], firstLot.id)).toEqual([firstLot])
+  })
+
+  it('keeps realtime notices on the exact changed lines only', () => {
+    const visibleIds = getWeightTicketVisibleRemoteChangedLineIds(
+      [{ id: 'product-1' }, { id: 'lot-1' }, { id: 'impurity-1' }],
+      ['lot-1', 'impurity-1', 'deleted-line', 'product-1', 'lot-1'],
+    )
+
+    expect([...visibleIds]).toEqual(['lot-1', 'impurity-1', 'product-1'])
   })
 })

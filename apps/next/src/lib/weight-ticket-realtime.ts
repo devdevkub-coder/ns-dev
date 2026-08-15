@@ -1,4 +1,5 @@
 export type WeightTicketChangeType = 'created' | 'updated' | 'deleted_lines' | 'confirmed' | 'cancelled'
+export type WeightTicketHeaderField = 'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'
 
 export type WeightTicketChangeEvent = {
   branchId: string
@@ -6,6 +7,8 @@ export type WeightTicketChangeEvent = {
   documentNo: string
   updatedAt: string | null
   lineIds?: string[]
+  deletedLineIds?: string[]
+  changedHeaderFields?: WeightTicketHeaderField[]
   imageChanged?: boolean
 }
 
@@ -26,6 +29,17 @@ export function isWeightTicketChangeEvent(value: unknown): value is WeightTicket
     && (event.updatedAt === null
       || (typeof event.updatedAt === 'string' && event.updatedAt.length <= 64 && !Number.isNaN(Date.parse(event.updatedAt))))
     && (event.lineIds === undefined || (Array.isArray(event.lineIds) && event.lineIds.every((lineId) => typeof lineId === 'string' && lineId.length > 0 && lineId.length <= 80)))
+    && (event.deletedLineIds === undefined || (Array.isArray(event.deletedLineIds) && event.deletedLineIds.every((lineId) => typeof lineId === 'string' && lineId.length > 0 && lineId.length <= 80)))
+    && (event.changedHeaderFields === undefined || (Array.isArray(event.changedHeaderFields) && event.changedHeaderFields.every((field) => (
+      field === 'branchId'
+      || field === 'partyId'
+      || field === 'remark'
+      || field === 'vehicleImageNames'
+      || field === 'vehicleNo'
+      || field === 'godownName'
+    ))))
+    && (event.changeType !== 'deleted_lines'
+      || (Array.isArray(event.deletedLineIds) && event.deletedLineIds.length > 0 && (event.lineIds === undefined || event.lineIds.length === 0)))
     && (event.imageChanged === undefined || typeof event.imageChanged === 'boolean')
 }
 

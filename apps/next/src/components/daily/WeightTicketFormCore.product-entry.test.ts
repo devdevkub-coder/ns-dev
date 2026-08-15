@@ -34,7 +34,7 @@ vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   patchWeightTicketChanges: mocks.patchWeightTicketChanges,
 }))
 
-import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketImpuritySaveLineIds, getWeightTicketScopedAddChangedLineIds, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -65,6 +65,15 @@ describe('weight-ticket product entry start contract', () => {
     expect(line.deductionMode).toBe('kg')
     expect(formSource).toContain("setPendingFocusField(`line-${nextLine.id}-deduction`)")
     expect(formSource).not.toContain("setPendingFocusField(`line-${nextLine.id}-impurity`)")
+  })
+
+  it('saves an impurity line together with its parent and nested children', () => {
+    expect(getWeightTicketImpuritySaveLineIds([
+      { id: 'lot-1', parentId: undefined },
+      { id: 'impurity-1', parentId: 'lot-1' },
+      { id: 'impurity-1-1', parentId: 'impurity-1' },
+      { id: 'impurity-2', parentId: 'lot-1' },
+    ], 'impurity-1')).toEqual(new Set(['lot-1', 'impurity-1', 'impurity-1-1']))
   })
 
   it('starts with no product line until the user explicitly adds one', () => {
@@ -104,7 +113,7 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain('saveDraftBeforeAdding({')
     expect(formSource).toContain('currentSectionLineIds, new Set(), currentSectionLineIds)')
     expect(formSource).toContain('waitForPendingAttachmentUploads(attachmentOwnerIds)')
-    expect(formSource).toContain('const changedLineIds = isScopedAdd ? new Set<string>()')
+    expect(formSource).toContain('const changedLineIds = isScopedAdd')
     expect(formSource).toContain('}, lineId)')
     expect(formSource).toContain("}, 'vehicle')")
     expect(formSource).toContain('lastBackgroundLineIdMapRef.current = ticket.lineIdMap')
@@ -124,7 +133,7 @@ describe('weight-ticket product entry start contract', () => {
   it('reconciles temporary section line IDs from the explicit server mapping', () => {
     expect(weightTicketApiSource).toContain('lineIdMap')
     expect(weightTicketClientSource).toContain('weightTicketSaveResultSchema')
-    expect(formSource).toContain('const persistedRootId = requirePersistedWeightTicketLineId(ticket.lineIdMap, sectionId)')
+    expect(formSource).toContain('requirePersistedWeightTicketLineId(ticket.lineIdMap, sectionId)')
     expect(formSource).not.toContain('const persistedRootId = ticket.lineIdMap[sectionId] ?? sectionId')
     expect(formSource).toContain('remapWeightTicketLineIds(current.lines, ticket.lineIdMap)')
   })
@@ -133,8 +142,18 @@ describe('weight-ticket product entry start contract', () => {
     expect(weightTicketApiSource).toContain('isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)')
     expect(weightTicketApiSource).toContain('(!baselineLineIds.has(line.id) || changedLineIds.has(line.id))')
     expect(weightTicketCreateApiSource).toContain('isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)')
-    expect(formSource).toContain('const linesForFingerprint = isScopedAdd')
+    expect(formSource).toContain('getWeightTicketScopedAddChangedLineIds')
     expect(formSource).toContain('if (!isScopedAdd) {')
+  })
+
+  it('broadcasts only explicitly changed or newly persisted lines during a scoped lot add', () => {
+    expect(getWeightTicketScopedAddChangedLineIds(
+      [{ id: 'lot-1' }, { id: 'lot-2' }, { id: 'lot-3' }],
+      new Map([['lot-1', 'same'], ['lot-2', 'before']]),
+      ['lot-1', 'lot-2', 'other-section-line'],
+      new Set(['lot-1', 'lot-2', 'lot-3']),
+      (line) => line.id === 'lot-2' ? 'after' : line.id === 'lot-3' ? 'new' : 'same',
+    )).toEqual(new Set(['lot-2', 'lot-3']))
   })
 
   it('rejects an incomplete section line ID mapping instead of retaining a temporary ID', () => {
@@ -225,7 +244,7 @@ describe('weight-ticket product entry start contract', () => {
 
   it('keeps section validation mapped to line IDs containing hyphens', () => {
     expect(formSource).toContain('const parsed = parseWeightTicketValidationKey(key)')
-    expect(formSource).toContain('sectionLineIdSet.has(parsed.lineId)')
+    expect(formSource).toContain('(targetLineIdSet ?? sectionLineIdSet).has(parsed.lineId)')
   })
 })
 
@@ -499,9 +518,11 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('aria-label="ลบรายการหักสิ่งเจือปน"')
     expect(formSource).toContain('ลบสิ่งเจือปน')
   })
-  it('keeps mobile product and impurity removal behind the confirmation guards', () => {
+  it('keeps product removal guarded while allowing a fresh impurity row to be removed immediately', () => {
     expect(formSource).toContain('requestProductRemoval(activeLine.id)')
     expect(formSource).toContain('requestImpurityRemoval(child.id)')
+    expect(formSource).toContain('shouldConfirmWeightTicketImpurityRemoval(')
+    expect(formSource).toContain("      '',\n    )")
   })
 })
 

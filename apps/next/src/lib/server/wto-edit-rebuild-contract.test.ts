@@ -177,9 +177,20 @@ describe('WTO delivered edit release/rebuild contract', () => {
 
   it('uses one server clock for WTI and WTO elapsed timers', () => {
     expect(editRouteSource).toContain('serverNow: new Date().toISOString()')
-    expect(formSource).toContain('const serverClockOffsetMs = useState')
+    expect(formSource).toContain('const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0)')
     expect(formSource).toContain('serverNowMs - Date.now()')
     expect(formSource).toContain('const timerCurrentMs = timerNow + serverClockOffsetMs')
+  })
+
+  it('saves each impurity line with its UUID-scoped descendants', () => {
+    expect(formSource).toContain('บันทึกสิ่งเจือปนนี้')
+    expect(formSource).toContain('getWeightTicketImpuritySaveLineIds(form.lines, child.id)')
+    expect(formSource).toContain('saveLineIds.add(current.parentId)')
+    expect(formSource).toContain('getWeightTicketRootLineId(currentForm.lines, sectionId)')
+    expect(formSource).toContain('const savedTargetLineIds = Array.from(targetLineIdSet ?? sectionLineIdSet)')
+    expect(formSource).toContain("saveScope: 'section'")
+    expect(formSource).toContain('remoteChangedLineIds.has(child.id)')
+    expect(formSource).toContain('มีข้อมูลใหม่จากผู้ใช้อื่น')
   })
 
   it('keeps the original client baseline when realtime merges around dirty form data', () => {

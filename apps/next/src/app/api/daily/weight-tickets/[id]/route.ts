@@ -574,6 +574,13 @@ async function updateWeightTicket(
     const collaborationBaseLineVersions = values.collaborationBaseLineVersions ?? {}
     const collaborationChangedLineIds = new Set(values.collaborationChangedLineIds ?? values.lines.map((line) => line.id))
     const collaborationDeletedLineIds = new Set(values.collaborationDeletedLineIds ?? [])
+    console.info('[weight-ticket-realtime] patch.received', {
+      documentId: id,
+      changedLineIds: [...collaborationChangedLineIds],
+      deletedLineIds: [...collaborationDeletedLineIds],
+      submittedLineIds: values.lines.map((line) => line.id),
+      changedHeaderFields: [...changedHeaderFields],
+    })
     // Realtime consumers only need to refresh signed image URLs when an
     // attachment actually changed. Numeric/weight edits must not fan out into
     // an extra preview query for every open tab.
@@ -1156,10 +1163,36 @@ async function updateWeightTicket(
     const persistedChangedLineIds = new Set(
       [...collaborationChangedLineIds].map((lineId) => updateResult.lineIdMap[lineId] ?? lineId),
     )
-    const eventLineIds = [
-      ...collaborationDeletedLineIds,
-      ...mapped.lines.filter((line) => persistedChangedLineIds.has(line.id)).map((line) => line.id),
-    ].filter((lineId, index, lineIds) => lineIds.indexOf(lineId) === index)
+    const eventLineIds = mapped.lines
+      .filter((line) => persistedChangedLineIds.has(line.id))
+      .map((line) => line.id)
+      .filter((lineId, index, lineIds) => lineIds.indexOf(lineId) === index)
+    const eventHeaderFields = (['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const).filter((field) => {
+      if (!changedHeaderFields.has(field)) return false
+      const beforeValue = field === 'branchId'
+        ? existing.branches?.code ?? ''
+        : field === 'partyId'
+          ? existing.doc_type === 'WTI' ? existing.suppliers?.code ?? '' : existing.customers?.code ?? ''
+          : field === 'remark'
+            ? existing.remark ?? ''
+            : field === 'vehicleImageNames'
+              ? existing.vehicle_image_names ?? []
+              : field === 'vehicleNo'
+                ? existing.vehicle_no ?? ''
+                : existing.godown_name ?? ''
+      const afterValue = field === 'branchId'
+        ? mapped.branchId
+        : field === 'partyId'
+          ? mapped.partyId
+          : field === 'remark'
+            ? mapped.remark
+            : field === 'vehicleImageNames'
+              ? mapped.vehicleImageNames
+              : field === 'vehicleNo'
+                ? mapped.vehicleNo ?? ''
+                : mapped.godownName ?? ''
+      return JSON.stringify(beforeValue) !== JSON.stringify(afterValue)
+    })
     await recordAuditLog({
         action: 'update',
         afterData: weightTicketAuditSnapshot(mapped),
@@ -1180,7 +1213,29 @@ async function updateWeightTicket(
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
     })
-    after(() => publishWeightTicketChange({ branchId: mapped.branchId, changeType: 'updated', documentNo: mapped.documentNo, updatedAt: mapped.updatedAt, lineIds: eventLineIds, imageChanged }))
+    const realtimeEvent = {
+      changeType: 'updated' as const,
+      updatedAt: mapped.updatedAt,
+      lineIds: eventLineIds,
+      deletedLineIds: [...collaborationDeletedLineIds],
+      changedHeaderFields: eventHeaderFields,
+      imageChanged,
+    }
+    console.info('[weight-ticket-realtime] patch.broadcast', {
+      documentNo: mapped.documentNo,
+      changedLineIds: [...collaborationChangedLineIds],
+      eventLineIds,
+      deletedLineIds: [...collaborationDeletedLineIds],
+      changedHeaderFields: eventHeaderFields,
+    })
+    const previousBranchId = existing.branches?.code ?? mapped.branchId
+    const previousDocumentNo = existing.doc_no
+    after(() => Promise.all([
+      publishWeightTicketChange({ ...realtimeEvent, branchId: mapped.branchId, documentNo: mapped.documentNo }),
+      ...(previousBranchId !== mapped.branchId || previousDocumentNo !== mapped.documentNo
+        ? [publishWeightTicketChange({ ...realtimeEvent, branchId: previousBranchId, documentNo: previousDocumentNo })]
+        : []),
+    ]).then(() => undefined))
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.enteredBy, mapped.updatedBy])
     return NextResponse.json({
       ...mapped,
@@ -1297,7 +1352,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         changeType: 'deleted_lines',
         documentNo: mapped.documentNo,
         updatedAt: mapped.updatedAt,
-        lineIds: deleteLines.data.deletedLineIds,
+        deletedLineIds: deleteLines.data.deletedLineIds,
         imageChanged: deleteLines.data.deletedLineIds.some((lineId) => (existing.weight_ticket_lines.find((line) => String(line.id) === lineId)?.image_names?.length ?? 0) > 0),
       }))
       return NextResponse.json({ ...mapped, createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames), lineIdMap: {}, serverNow: new Date().toISOString(), updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames) })
