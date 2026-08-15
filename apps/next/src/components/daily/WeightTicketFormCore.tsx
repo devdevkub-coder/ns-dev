@@ -381,6 +381,29 @@ function isFormDraftLotSkeleton(line: FormWeightTicketLine) {
   })
 }
 
+type WeightTicketSectionDraftLine = Pick<WeightTicketLine, 'deductionMode' | 'grossWeight' | 'id' | 'impurityId' | 'parentId'> & {
+  impuritySourceLineId?: string
+}
+
+export function getWeightTicketSectionDraftLineIds(
+  lines: WeightTicketSectionDraftLine[],
+  targetLineIds: ReadonlySet<string> | null,
+) {
+  if (!targetLineIds) return []
+  return lines
+    .filter((line) => (
+      !targetLineIds.has(line.id)
+      && isWeightTicketDraftLotSkeleton({
+        deductionMode: line.deductionMode,
+        grossWeight: Number(line.grossWeight || 0),
+        impurityId: line.deductionMode === 'none' ? '' : line.impurityId ?? '',
+        impuritySourceLineId: line.impuritySourceLineId,
+        parentId: line.parentId,
+      })
+    ))
+    .map((line) => line.id)
+}
+
 function hasEnteredText(value: string | null | undefined) {
   return Boolean(value?.trim())
 }
@@ -3607,6 +3630,9 @@ export function WeightTicketFormCore({
         collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version])),
         collaborationChangedLineIds: Array.from(changedLineIds),
         collaborationDeletedLineIds: Array.from(deletedLineIds),
+        // Final document save is a strict validation boundary. A blank lot
+        // must be completed before this PATCH is allowed to reach the server.
+        draftLineIds: [],
         collaborationBaseHeader: baselineTicket ? {
           branchId: baselineTicket.branchId,
           partyId: baselineTicket.partyId,
@@ -3743,6 +3769,7 @@ export function WeightTicketFormCore({
       const savedTargetLineIdSet = new Set(savedTargetLineIds)
       const savedSectionLineIdSet = new Set(savedSectionLineIds)
       const savedSectionLines = snapshot.lines.filter((line) => savedSectionLineIdSet.has(line.id))
+      const sectionDraftLineIds = getWeightTicketSectionDraftLineIds(savedSectionLines, targetLineIdSet)
       const baselineById = new Map(baselineSectionLines.map((line) => [line.id, line] as const))
       const baselineIds = baselineSectionLines.map((line) => line.id)
       const deletedIds = new Set(
@@ -3766,6 +3793,11 @@ export function WeightTicketFormCore({
         collaborationBaseLineVersions: Object.fromEntries(baselineSectionLines.map((line) => [line.id, line.version])),
         collaborationChangedLineIds: Array.from(changedIds),
         collaborationDeletedLineIds: Array.from(deletedIds),
+        // A full product-section save is strict (`targetLineIdSet === null`
+        // yields []); a targeted impurity save marks only unrelated draft
+        // skeletons so they do not block the selected impurity. Target lines
+        // remain outside this list and are still validated by the server.
+        draftLineIds: sectionDraftLineIds,
         collaborationBaseHeader: {
           branchId: baselineTicket.branchId,
           partyId: baselineTicket.partyId,

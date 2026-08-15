@@ -34,7 +34,7 @@ vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   patchWeightTicketChanges: mocks.patchWeightTicketChanges,
 }))
 
-import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketChangedLineIds, getWeightTicketImpuritySaveLineIds, getWeightTicketScopedAddChangedLineIds, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketChangedLineIds, getWeightTicketImpuritySaveLineIds, getWeightTicketScopedAddChangedLineIds, getWeightTicketSectionDraftLineIds, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -76,6 +76,22 @@ describe('weight-ticket product entry start contract', () => {
     ], 'impurity-1')).toEqual(new Set(['lot-1', 'impurity-1', 'impurity-1-1']))
   })
 
+  it('keeps unrelated draft lots allowed during a targeted impurity save', () => {
+    const draftLot = {
+      deductionMode: 'none' as const,
+      grossWeight: '0',
+      id: 'draft-lot',
+      impurityId: '',
+      impuritySourceLineId: undefined,
+      parentId: 'product-1',
+    }
+    expect(getWeightTicketSectionDraftLineIds([
+      { ...draftLot },
+      { ...draftLot, id: 'target-impurity', grossWeight: '10', impurityId: 'impurity-1' },
+    ], new Set(['target-impurity']))).toEqual(['draft-lot'])
+    expect(getWeightTicketSectionDraftLineIds([draftLot], null)).toEqual([])
+  })
+
   it('starts with no product line until the user explicitly adds one', () => {
     expect(formSource).toMatch(/function initialForm[\s\S]*?lines:\s*\[\],/)
     expect(formSource).toContain("if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'")
@@ -101,7 +117,7 @@ describe('weight-ticket product entry start contract', () => {
     expect(shouldPersistWeightTicketBeforeAdding('WTI', 0)).toBe(true)
     expect(shouldPersistWeightTicketBeforeAdding('WTO', 0)).toBe(true)
     expect(shouldPersistWeightTicketBeforeAdding('WTI', 1)).toBe(true)
-    expect(formSource).toContain('id: savedTicket?.id ?? editingTicketId')
+    expect(formSource).toContain('id: baselineTicket?.id')
     expect(formSource).toContain("beginSaveStage('auto_save')")
     expect(formSource).toContain('<WeightTicketSaveProgress stage={saveStage} type={form.type} />')
     expect(formSource).toContain("saveInFlightRef.current = 'auto_save'")
@@ -120,11 +136,12 @@ describe('weight-ticket product entry start contract', () => {
     expect(formSource).toContain('loadedTicketRef.current = ticket')
     expect(formSource).toContain('savedTicketRef.current = ticket')
     expect(formSource).toContain('draftLineIds: Array.from(draftLineIds)')
+    expect(formSource).toContain('draftLineIds: [],')
     expect(formSource).toContain("applyApiFieldErrors(caught, formRef.current, 'บันทึกแบบร่างก่อนเพิ่มรายการไม่ได้', submittedErrorLines)")
   })
 
   it('uses the ticket returned by the header save as the section-save identity', () => {
-    expect(formSource).toContain('const baselineTicket = savedTicket ?? loadedTicket')
+    expect(formSource).toContain('const baselineTicket = savedTicket')
     expect(formSource).toContain('if (!baselineTicket) {')
     expect(formSource).not.toContain('if (!baselineTicket || !editingTicketId) {')
     expect(formSource).toContain('id: baselineTicket.id')
@@ -143,6 +160,8 @@ describe('weight-ticket product entry start contract', () => {
     expect(weightTicketApiSource).toContain('(!baselineLineIds.has(line.id) || changedLineIds.has(line.id))')
     expect(weightTicketCreateApiSource).toContain('isWeightTicketDraftLotSkeleton(line) && !draftLineIds.has(line.id)')
     expect(formSource).toContain('getWeightTicketScopedAddChangedLineIds')
+    expect(formSource).toContain('getWeightTicketSectionDraftLineIds(savedSectionLines, targetLineIdSet)')
+    expect(formSource).toContain('draftLineIds: sectionDraftLineIds')
     expect(formSource).toContain('if (!isScopedAdd) {')
   })
 
@@ -1408,7 +1427,11 @@ describe('weight-ticket product editor behavior', () => {
     await vi.waitFor(() => {
       expect(mocks.patchWeightTicketChanges).toHaveBeenCalledWith(
         persistedDraftTicket.id,
-        expect.objectContaining({ id: persistedDraftTicket.id }),
+        expect.objectContaining({
+          draftLineIds: [],
+          id: persistedDraftTicket.id,
+          saveScope: 'section',
+        }),
       )
       expect(container.querySelector('#weight-gross-1001')).not.toBeNull()
     })
