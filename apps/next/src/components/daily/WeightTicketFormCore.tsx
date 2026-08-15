@@ -1593,14 +1593,15 @@ export function WeightTicketFormCore({
   }, [isFormDirty, onDirtyChange])
 
   const realtimeBranchIds = useMemo(() => {
-    const branchId = (savedTicket ?? loadedTicket)?.branchId
+    const branchId = loadedTicket?.branchId
     return branchId ? [branchId] : []
-  }, [loadedTicket, savedTicket])
+  }, [loadedTicket])
 
   const handleRealtimeEvent = useCallback((event: WeightTicketChangeEvent) => {
     const ticketId = editingTicketId
     if (!ticketId || event.documentNo !== ticketId) return
-    const baselineTicket = savedTicketRef.current ?? loadedTicketRef.current
+    const baselineTicket = savedTicketRef.current
+    if (!baselineTicket) return
     if (saveInFlightRef.current || remoteSyncInFlightRef.current) {
       pendingRealtimeEventRef.current = mergeWeightTicketChangeEvents(pendingRealtimeEventRef.current, event)
       return
@@ -1622,7 +1623,7 @@ export function WeightTicketFormCore({
         // Keep only IDs still present after reload so a deleted line cannot
         // leave a stale notice, and keep newly-added remote lots expanded.
         setRemoteChangedLineIds(getWeightTicketVisibleRemoteChangedLineIds(latestForm.lines, remoteLineIds))
-        const baselineTicket = savedTicketRef.current ?? loadedTicketRef.current
+        const baselineTicket = savedTicketRef.current
         const currentForm = formRef.current
         const dirtyHeaderFields = new Set(dirtyHeaderFieldsRef.current)
         if (baselineTicket) {
@@ -2016,7 +2017,7 @@ export function WeightTicketFormCore({
 
   useEffect(() => {
     if (!editingTicketId || !imagePreviewRefreshMs || isFormDirty) return
-    const currentTicket = savedTicket ?? loadedTicket
+    const currentTicket = loadedTicket
     if (!currentTicket) return
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
@@ -2356,25 +2357,44 @@ export function WeightTicketFormCore({
       }
     }
 
-    const baselineTicket = savedTicketRef.current ?? loadedTicketRef.current
-    const ticketId = baselineTicket?.id ?? editingTicketId
-    if (!baselineTicket || !ticketId) {
+    const baselineTicket = savedTicketRef.current
+    if (!baselineTicket) {
       if (editingTicketId) throw new Error('ไม่พบเอกสารที่บันทึกแล้วสำหรับการลบข้อมูล')
       return
     }
+    const ticketId = baselineTicket.id
     await waitForPendingAttachmentUploads()
     const lineIdMap = lastBackgroundLineIdMapRef.current
     const latestSnapshot = {
       ...formRef.current,
       lines: remapWeightTicketLineIds(formRef.current.lines, lineIdMap),
     }
-    const persistedLineId = (lineId: string) => lineIdMap[lineId] ?? lineId
+    const baselineLineIds = new Set(baselineTicket.lines.map((line) => line.id))
+    const persistedLineId = (lineId: string) => {
+      const mappedLineId = lineIdMap[lineId]
+      if (mappedLineId) return mappedLineId
+      if (baselineLineIds.has(lineId)) return lineId
+      return null
+    }
     const deletedIds = new Set(deletedLineIds)
     const changedIds = new Set(changedLineIds)
-    const remappedDeletedIds = new Set(Array.from(deletedIds, persistedLineId))
-    const remappedChangedIds = new Set(Array.from(changedIds, persistedLineId))
+    const remappedDeletedIds = new Set(
+      Array.from(deletedIds).flatMap((lineId) => {
+        const persistedId = persistedLineId(lineId)
+        return persistedId ? [persistedId] : []
+      }),
+    )
+    const remappedChangedIds = new Set(
+      Array.from(changedIds).flatMap((lineId) => {
+        const persistedId = persistedLineId(lineId)
+        return persistedId ? [persistedId] : []
+      }),
+    )
     const remappedLinePatchModes = new Map(
-      Array.from(linePatchModes.entries(), ([lineId, mode]) => [persistedLineId(lineId), mode] as const),
+      Array.from(linePatchModes.entries()).flatMap(([lineId, mode]) => {
+        const persistedId = persistedLineId(lineId)
+        return persistedId ? [[persistedId, mode] as const] : []
+      }),
     )
     deletedIds.clear()
     remappedDeletedIds.forEach((lineId) => deletedIds.add(lineId))
@@ -2403,13 +2423,16 @@ export function WeightTicketFormCore({
     // cannot make validation fail against another draft lot in the same ticket.
     const draftLineIds = latestSnapshot.lines
       .filter(isFormDraftLotSkeleton)
-      .map((line) => persistedLineId(line.id))
+      .flatMap((line) => {
+        const persistedId = persistedLineId(line.id)
+        return persistedId ? [persistedId] : []
+      })
       .filter((lineId) => !deletedIds.has(lineId))
     const baselineFormLines = new Map(ticketToFormState(baselineTicket).lines.map((line) => [line.id, line] as const))
     const saveValues: WeightTicketFormValues = {
       branchId: headerChanges.has('branchId') ? latestSnapshot.branchId : baselineTicket.branchId,
       collaborationBaseLineIds: baselineTicket.lines.map((line) => line.id),
-      collaborationBaseLineVersions: Object.fromEntries(baselineTicket.lines.map((line) => [line.id, line.version ?? 1])),
+      collaborationBaseLineVersions: Object.fromEntries(baselineTicket.lines.map((line) => [line.id, line.version])),
       collaborationChangedLineIds: Array.from(changedIds),
       collaborationDeletedLineIds: Array.from(deletedIds),
       draftLineIds,
@@ -2426,6 +2449,7 @@ export function WeightTicketFormCore({
       id: ticketId,
       lines: linesToPatch.map((line) => {
         const baselineLine = baselineLines.get(line.id)
+        if (!baselineLine) throw new Error('ไม่พบ baseline ของรายการที่กำลังลบ')
         const baselineFormLine = baselineFormLines.get(line.id)
         const mode = remappedLinePatchModes.get(line.id) ?? 'full'
         const sourceLine = mode === 'images' && baselineFormLine
@@ -2439,7 +2463,7 @@ export function WeightTicketFormCore({
         deductionValue: Number(sourceLine.deductionValue || 0),
         grossWeight: Number(sourceLine.grossWeight || 0),
         id: sourceLine.id,
-        version: baselineLine?.version ?? sourceLine.version,
+        version: baselineLine.version,
         imageNames: sourceLine.imageNames,
         impurityId: sourceLine.impurityId,
         impurityProductId: sourceLine.impurityProductId ?? '',
@@ -2632,6 +2656,10 @@ export function WeightTicketFormCore({
     // editor opens. The API marks this as a header-only save and skips line
     // validation until the user has selected a product.
     if (!shouldPersistWeightTicketBeforeAdding(snapshot.type, snapshot.lines.length)) return snapshot
+    if (editingTicketId && !savedTicket) {
+      setLoadError('กำลังโหลด baseline ของเอกสาร กรุณาลองใหม่อีกครั้ง')
+      return null
+    }
 
     saveInFlightRef.current = 'auto_save'
     beginSaveStage('auto_save')
@@ -2639,8 +2667,8 @@ export function WeightTicketFormCore({
     try {
       await waitForPendingAttachmentUploads(attachmentOwnerIds)
       const latestForm = formRef.current
-      const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
-      const baselineTicket = savedTicket ?? loadedTicket
+      const baselineTicket = savedTicket
+      const baselineLines = new Map(baselineTicket ? baselineTicket.lines.map((line) => [line.id, line] as const) : [])
       const latestLinesById = new Map(latestForm.lines.map((line) => [line.id, line]))
       const snapshotToSave: FormState = {
         ...snapshot,
@@ -2712,7 +2740,7 @@ export function WeightTicketFormCore({
       const saveValues: WeightTicketFormValues = {
         branchId: snapshotToSave.branchId,
         collaborationBaseLineIds: baselineLineIds,
-        collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
+        collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version])),
         collaborationChangedLineIds: Array.from(changedLineIds),
         collaborationDeletedLineIds: Array.from(deletedLineIds),
         draftLineIds: Array.from(draftLineIds),
@@ -2725,8 +2753,8 @@ export function WeightTicketFormCore({
           godownName: baselineTicket.godownName,
         } : undefined,
         collaborationChangedHeaderFields: changedHeaderFields,
-        collaborationBaseUpdatedAt: (savedTicket ?? loadedTicket)?.updatedAt ?? null,
-        id: savedTicket?.id ?? editingTicketId,
+        collaborationBaseUpdatedAt: baselineTicket?.updatedAt,
+        id: baselineTicket?.id,
         lines: snapshotToSave.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
@@ -2751,7 +2779,7 @@ export function WeightTicketFormCore({
         vehicleNo: snapshotToSave.vehicleNo.trim(),
         godownName: snapshotToSave.godownName.trim(),
       }
-      const existingTicketId = savedTicket?.id ?? editingTicketId
+      const existingTicketId = baselineTicket?.id
       const ticket = existingTicketId
         ? await patchWeightTicketChanges(existingTicketId, saveValues)
         : await saveWeightTicket(saveValues)
@@ -3548,14 +3576,19 @@ export function WeightTicketFormCore({
       return
     }
 
+    const baselineTicket = savedTicket
+    if (editingTicketId && !baselineTicket) {
+      setLoadError('กำลังโหลด baseline ของเอกสาร กรุณาลองใหม่อีกครั้ง')
+      return
+    }
+
     saveInFlightRef.current = 'save'
     beginSaveStage(form.type === 'WTO' ? 'stock_check' : 'save')
     try {
       await waitForPendingAttachmentUploads()
       const formToSave = formRef.current
       const saveSnapshot = formSafetySnapshot(formToSave, discardableDraftLineIdsRef.current)
-      const baselineLines = new Map((savedTicket ?? loadedTicket)?.lines.map((line) => [line.id, line] as const) ?? [])
-      const baselineTicket = savedTicket ?? loadedTicket
+      const baselineLines = new Map(baselineTicket ? baselineTicket.lines.map((line) => [line.id, line] as const) : [])
       const baselineLineIds = Array.from(baselineLines.keys())
       const deletedLineIds = new Set(deletedLineIdsRef.current)
       baselineLineIds.filter((lineId) => !formToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
@@ -3571,7 +3604,7 @@ export function WeightTicketFormCore({
       const saveValues = {
         branchId: formToSave.branchId,
         collaborationBaseLineIds: baselineLineIds,
-        collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version ?? 1])),
+        collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version])),
         collaborationChangedLineIds: Array.from(changedLineIds),
         collaborationDeletedLineIds: Array.from(deletedLineIds),
         collaborationBaseHeader: baselineTicket ? {
@@ -3583,8 +3616,8 @@ export function WeightTicketFormCore({
           godownName: baselineTicket.godownName,
         } : undefined,
         collaborationChangedHeaderFields: baselineTicket ? (['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const).filter((field) => JSON.stringify(field === 'vehicleImageNames' ? formToSave.vehicleImageFiles.map((file) => file.rawValue) : formToSave[field]) !== JSON.stringify(baselineTicket[field])) : [],
-        collaborationBaseUpdatedAt: (savedTicket ?? loadedTicket)?.updatedAt ?? null,
-        id: savedTicket?.id ?? editingTicketId,
+        collaborationBaseUpdatedAt: baselineTicket?.updatedAt,
+        id: baselineTicket?.id,
         lines: formToSave.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
@@ -3608,8 +3641,9 @@ export function WeightTicketFormCore({
         vehicleNo: formToSave.vehicleNo.trim(),
         godownName: formToSave.godownName.trim(),
       }
-      const ticket = editingTicketId
-        ? await patchWeightTicketChanges(editingTicketId, saveValues)
+      const existingTicketId = baselineTicket?.id
+      const ticket = existingTicketId
+        ? await patchWeightTicketChanges(existingTicketId, saveValues)
         : await saveWeightTicket(saveValues)
       invalidatePurchaseBillOptionsCache()
       setLoadError('')
@@ -3665,7 +3699,7 @@ export function WeightTicketFormCore({
 
   async function saveSection(sectionId: string, targetLineIds?: ReadonlySet<string>) {
     if (isSaving || saveInFlightRef.current) return
-    const baselineTicket = savedTicket ?? loadedTicket
+    const baselineTicket = savedTicket
     if (!baselineTicket) {
       setMergeNotice('บันทึกหัวเอกสารก่อน จึงจะแยกบันทึก section ได้')
       return
@@ -3729,7 +3763,7 @@ export function WeightTicketFormCore({
       const saveValues = {
         branchId: snapshot.branchId,
         collaborationBaseLineIds: baselineIds,
-        collaborationBaseLineVersions: Object.fromEntries(baselineSectionLines.map((line) => [line.id, line.version ?? 1])),
+        collaborationBaseLineVersions: Object.fromEntries(baselineSectionLines.map((line) => [line.id, line.version])),
         collaborationChangedLineIds: Array.from(changedIds),
         collaborationDeletedLineIds: Array.from(deletedIds),
         collaborationBaseHeader: {

@@ -20,6 +20,11 @@ const formSource = readFileSync(
   'utf8',
 )
 
+const handlersSource = readFileSync(
+  resolve(process.cwd(), 'src/lib/server/weight-ticket-write/handlers.ts'),
+  'utf8',
+)
+
 describe('WTO delivered edit release/rebuild contract', () => {
   it('advances untouched remote lines without changing the local dirty-line baseline', () => {
     const baseline = {
@@ -155,13 +160,51 @@ describe('WTO delivered edit release/rebuild contract', () => {
   })
 
   it('blocks stale collaboration writes before delivered WTO pending_out rebuild', () => {
-    expect(editRouteSource).toContain('if (isDeliveredWtoEdit && hasRemoteLineChanges && values.collaborationBaseLineVersions !== undefined)')
+    expect(editRouteSource).toContain('if (isDeliveredWtoEdit && hasStaleCollaborationBaseline)')
     expect(editRouteSource.indexOf('throw new WeightTicketCollaborationConflictError(Array.from(collaborationChangedLineIds), [], {'))
       .toBeLessThan(editRouteSource.indexOf('await releaseActiveWtoPendingOut(tx, {'))
   })
 
+  it('does not bypass stale baseline conflicts for the same actor', () => {
+    expect(editRouteSource).toContain('const hasStaleCollaborationBaseline = collaborationBaseUpdatedAt !== collaborationCurrentUpdatedAt.toISOString()')
+    expect(editRouteSource).not.toContain('existing.updated_by !== actor')
+    expect(editRouteSource).toContain('const collaborationLineIds = new Set([...collaborationChangedLineIds, ...collaborationDeletedLineIds])')
+  })
+
+  it('checks the locked document timestamp before deleting lines', () => {
+    expect(editRouteSource).toContain('if (deleteLines.data.collaborationBaseUpdatedAt !== locked.updated_at.toISOString())')
+    expect(editRouteSource).toContain("operation: 'delete_lines'")
+  })
+
+  it('rechecks branch scope and derives audit/realtime previous values from the locked row', () => {
+    expect(editRouteSource).toContain('if (scopedBranchIds !== null && !scopedBranchIds.includes(previousBranchId))')
+    expect(editRouteSource).toContain('const previousDocumentNo = existing.doc_no')
+    expect(editRouteSource).toContain('return { beforeSnapshot, eventLineIds: resolvedChangedLineIds, imageChanged, lineIdMap, previousDocumentNo, previousHeader: currentHeader, ticket }')
+    expect(editRouteSource).toContain('const effectiveBranch = requestOwnsBranch')
+    expect(editRouteSource).toContain('where: { active: true, code: effectiveValues.branchId.toUpperCase() }')
+    expect(editRouteSource).toContain('const lockedBranchId = locked.branches?.code')
+    expect(editRouteSource).toContain('if (!currentPartyId) {')
+    expect(editRouteSource).toContain('if (!currentVehicleNo) {')
+    expect(editRouteSource).toContain("if (values.type === 'WTO' && !currentGodownName) {")
+    expect(editRouteSource).toContain('await assertWeightTicketPartyForType({')
+  })
+
+  it('fails closed when the persisted party reference is missing', () => {
+    expect(handlersSource).toContain("throw new WeightTicketWriteValidationError('ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน'")
+    expect(handlersSource).toContain("throw new WeightTicketWriteValidationError('ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน'")
+    expect(handlersSource).not.toContain('input.supplier?.name ??')
+    expect(handlersSource).not.toContain('input.customer?.name ??')
+    expect(editRouteSource).not.toContain('customerName: customer?.name ??')
+    expect(editRouteSource).not.toContain('supplierName: supplier?.name ??')
+  })
+
+  it('fails closed when a changed line cannot be mapped to a persisted id', () => {
+    expect(editRouteSource).toContain('const unresolvedChangedLineIds = [...collaborationChangedLineIds]')
+    expect(editRouteSource).toContain('throw new WeightTicketDataContractError(`ไม่สามารถระบุรายการที่เปลี่ยนแปลงหลังบันทึก: ${unresolvedChangedLineIds.join(\', \')}`)')
+  })
+
   it('treats an edited line deleted by another user as a conflict', () => {
-    expect(editRouteSource).toContain('const missingChangedLineIds = Object.keys(collaborationBaseLineVersions)')
+    expect(editRouteSource).toContain('const missingChangedLineIds = [...collaborationLineIds]')
     expect(editRouteSource).toContain('if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds, [], {')
     expect(editRouteSource).toMatch(/effectiveValues = \{[\s\S]*?lines: values\.saveScope === 'section'/)
   })
@@ -209,12 +252,10 @@ describe('WTO delivered edit release/rebuild contract', () => {
     expect(formSource.slice(appendLineImagesStart, appendVehicleImagesStart)).not.toContain("dirtyHeaderFieldsRef.current.add('vehicleImageNames')")
     expect(formSource).toContain('function removeImpurityLine')
     expect(editRouteSource).not.toContain('const remoteChangedHeaderFields =')
-    expect(editRouteSource).toContain('const effectiveBranch = requestOwnsBranch ? branch : existing.branches')
-    expect(editRouteSource).toContain('branchId: effectiveBranch.id')
   })
 
   it('compares collaboration headers using the same business codes as the read model', () => {
-    expect(editRouteSource).toContain("const currentPartyId = existing.doc_type === 'WTI' ? existing.suppliers?.code ?? '' : existing.customers?.code ?? ''")
-    expect(editRouteSource).toContain("branchId: existing.branches?.code ?? ''")
+    expect(editRouteSource).toContain("const currentPartyId = existing.doc_type === 'WTI' ? existing.suppliers?.code : existing.customers?.code")
+    expect(editRouteSource).toContain('branchId: previousBranchId')
   })
 })

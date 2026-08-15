@@ -6,6 +6,7 @@ import {
   validateWtoStockAvailability,
   type WtoPreservedCostSnapshot,
 } from '@/lib/server/stock-holds'
+import { WeightTicketWriteValidationError } from '@/lib/server/weight-ticket-write/shared'
 
 type TxClient = Prisma.TransactionClient
 type PartyReference = {
@@ -20,17 +21,25 @@ export function weightTicketPartySnapshot(input: {
   supplier: PartyReference
   type: WeightTicketFormValues['type']
 }) {
-  return input.type === 'WTI'
-    ? {
+  if (input.type === 'WTI') {
+    if (!input.supplier) {
+      throw new WeightTicketWriteValidationError('ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', { partyId: ['เลือกผู้ขาย'] })
+    }
+    return {
       customerId: null,
-      partyName: input.supplier?.name ?? '',
-      supplierId: input.supplier?.id ?? null,
+      partyName: input.supplier.name,
+      supplierId: input.supplier.id,
     }
-    : {
-      customerId: input.customer?.id ?? null,
-      partyName: input.customer?.name ?? '',
-      supplierId: null,
-    }
+  }
+
+  if (!input.customer) {
+    throw new WeightTicketWriteValidationError('ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน', { partyId: ['เลือกลูกค้า'] })
+  }
+  return {
+    customerId: input.customer.id,
+    partyName: input.customer.name,
+    supplierId: null,
+  }
 }
 
 export async function resolveWeightTicketWarehousesForWrite(tx: TxClient, input: {

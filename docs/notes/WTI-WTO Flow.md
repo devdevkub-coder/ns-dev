@@ -27,6 +27,15 @@ updated: 2026-08-14
 
 What is what: สิ่งเจือปนเป็นรายการย่อยที่ตัดน้ำหนักออกจากรายการแม่ ส่วนรายการซื้อเพิ่มเป็นน้ำหนักใหม่ที่มี source เป็นสิ่งเจือปนและสามารถมีรายการย่อยของตัวเองได้. Why it has to be like this: การแยกสองความสัมพันธ์ทำให้ยอดของสินค้าหลักไม่ถูกหักซ้ำ และทำให้การลบ/แก้ไขล้างทั้งต้นไม้ที่เกี่ยวข้องอย่างปลอดภัย โดยไม่เปลี่ยน API หรือข้อมูลธุรกิจเดิม.
 
+## Strict collaboration baseline (2026-08-15)
+
+- การสร้างเอกสารใหม่ยังใช้ form contract ที่ไม่ต้องมี baseline ได้ แต่ `PUT` ของเอกสารเดิมต้องส่ง `collaborationBaseLineIds`, version ของทุก line, `collaborationBaseHeader`, รายการ `collaborationChangedLineIds`/`collaborationDeletedLineIds`, รายการ header fields ที่ผู้ใช้แก้, `draftLineIds` และ `collaborationBaseUpdatedAt` มาครบจาก client. `PATCH save_changes` และ `PATCH delete_lines` ใช้กติกาเดียวกัน โดยการลบต้องมี version และเวลา baseline ของ line ที่ลบ.
+- Server ห้ามเติม baseline จากข้อมูลปัจจุบันในฐานข้อมูล ห้ามแปลงเวลา baseline ที่หายเป็น `null` และห้ามแปลง line version ที่หายเป็น `1`. ถ้า metadata collaboration ไม่ครบ ให้ validation/contract error เพื่อให้ caller โหลด snapshot ล่าสุดแล้วส่งใหม่ ไม่เขียนทับข้อมูลของผู้ใช้อื่นเงียบ ๆ.
+- `savedTicket` คือ collaboration baseline ที่ผ่านการ merge เพื่อรักษา local dirty state ส่วน `loadedTicket` คือ snapshot ล่าสุดจาก server; การตรวจ conflict และการสร้าง PATCH ใช้ baseline ที่บันทึกไว้เท่านั้น ไม่ใช้ snapshot ล่าสุดเป็น fallback. Realtime ใช้ persisted line UUID/changed fields จาก event แล้ว reload เฉพาะส่วนที่เกี่ยวข้อง.
+- `PATCH save_changes` ต้องส่ง `header`, `lines` และ `deletedLineIds` ตาม contract ครบ แม้ค่าจะเป็น object/array ว่าง; server overlay header ที่ไม่ถูกแก้ด้วยค่าปัจจุบันจากแถวที่ lock ใน DB เพื่อคงข้อมูลเดิมของเอกสาร ไม่ใช้ baseline หรือค่า default เป็นแหล่งแทน. Section PATCH ส่งทั้ง parent/child ใน section เพื่อ validate ความสัมพันธ์ แต่ `collaborationChangedLineIds` ยังเป็นขอบเขตเขียนและ broadcast เท่านั้น.
+
+What is what: baseline คือ snapshot ที่ผู้ใช้เริ่มแก้และ metadata ที่ใช้พิสูจน์ ownership ของการแก้ไข; current snapshot คือข้อมูลล่าสุดของ server. Why it has to be like this: การแยกสอง snapshot ทำให้การแก้คนละเต๋า merge ได้ แต่การแก้เต๋า/หัวเอกสารเดียวกันยังตรวจ version และ updated-at แล้วแจ้ง conflict ได้ตรงรายการ.
+
 ## Attachment upload validation and notification (2026-08-04)
 
 - การเพิ่มรูปรถ/รูปสินค้า/รูปสิ่งเจือปนต้องตรวจว่าเป็น JPEG/PNG/WebP จริงและไม่เกินขนาดที่กำหนดใน `system_settings`. Browser ส่ง original ตรงโดยไม่ resize/decode/Canvas จึงไม่ทำให้มือถือหน่วงและไม่ลดคุณภาพต้นฉบับ. จำนวน upload พร้อมกันอ่านจาก config และไม่ lock ข้ามแท็บ/อุปกรณ์
@@ -1298,6 +1307,12 @@ transaction และ guard เดิม ไม่ใช้ realtime เป็�
 กำลังแก้. ก่อนส่ง realtime notice client จะเทียบ fingerprint ของ line กับ baseline แล้ว
 ส่งเฉพาะ line ที่เปลี่ยนจริงหรือถูกลบจริง; event ที่เข้าระหว่าง save/reload จะถูกรวมไว้และ
 ประมวลผลหลังงานปัจจุบันเสร็จ เพื่อไม่ทิ้งการเปลี่ยนแปลงหรือแจ้งรายการที่ไม่เกี่ยวข้อง.
+
+ทุก existing update/delete ต้องตรวจ `collaborationBaseUpdatedAt` และ `version` กับแถวที่ล็อก
+ใน transaction เดียวกันเสมอ แม้ผู้ส่งจะเป็น user เดิม; หากข้อมูลปัจจุบันเปลี่ยนแล้วต้องตอบ
+`409` ก่อนเขียน. ข้อมูลหัวเอกสารและคู่ค้าที่อ่านจากแถวที่ล็อกต้องมีค่าตาม contract และ audit
+ต้องใช้ค่าชุดเดียวกับที่กำลังเขียนจริง หาก source เดิมขาดข้อมูลบังคับให้ fail closed ไม่เติมค่า
+จาก request เก่า, snapshot อื่น หรือค่าเดา.
 
 ## การ submit แยกตาม section (2026-08-07)
 
