@@ -116,11 +116,11 @@ export function MobileFilterSheet({
   }, [])
 
   return (
-    <div className={cn('fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(2,6,23,0.55)]', visibleClassName)} onClick={onClose}>
+    <div className={cn('animate-fade-in fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(2,6,23,0.55)]', visibleClassName)} onClick={onClose}>
       <div
         aria-labelledby={titleId}
         aria-modal="true"
-        className="flex max-h-[80dvh] w-full flex-col overflow-hidden rounded-t-md bg-slate-900 shadow-2xl"
+        className="animate-slide-in-up flex max-h-[80dvh] w-full flex-col overflow-hidden rounded-t-md bg-slate-900 shadow-2xl"
         data-ns-field-scope="filter"
         onClick={(event) => event.stopPropagation()}
         ref={sheetRef}

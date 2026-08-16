@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
@@ -156,32 +157,36 @@ export function MatchLogPageClient() {
   const listControls = (
     <>
       <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-      <div className="flex items-center gap-2">
-        {columnResize.hasCustomWidths ? (
-          <Button className="hidden h-8 text-xs md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
-            คืนค่าเดิมตาราง
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+        <div className="flex items-center gap-2">
+          {columnResize.hasCustomWidths ? (
+            <Button className="hidden h-8 text-xs md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </Button>
+          ) : null}
+          <PageSizeDropdown options={[10, 25, 50, 100]} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            disabled={currentPage <= 1}
+            size="xs"
+            variant="outline"
+            type="button"
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            ก่อนหน้า
           </Button>
-        ) : null}
-        <PageSizeDropdown options={[10, 25, 50, 100]} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-        <Button
-          disabled={currentPage <= 1}
-          size="xs"
-          variant="outline"
-          type="button"
-          onClick={() => setPage((value) => Math.max(1, value - 1))}
-        >
-          ก่อนหน้า
-        </Button>
-        <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-        <Button
-          disabled={currentPage >= totalPages}
-          size="xs"
-          variant="outline"
-          type="button"
-          onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-        >
-          ถัดไป
-        </Button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <Button
+            disabled={currentPage >= totalPages}
+            size="xs"
+            variant="outline"
+            type="button"
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            ถัดไป
+          </Button>
+        </div>
       </div>
     </>
   )
@@ -218,36 +223,36 @@ export function MatchLogPageClient() {
       </div>
 
       <DualCostingFilterCard>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-2">
           <Input
-            className="h-9 min-w-[240px] flex-1 rounded-md"
+            className="col-span-2 h-9 w-full rounded-md lg:min-w-[240px] lg:flex-1"
             placeholder="ค้นหา match id / source / target..."
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <Select className="h-9 w-auto min-w-[160px]" value={matchType} onChange={(event) => setMatchType(event.target.value)}>
+          <Select className="h-9 w-full lg:w-auto lg:min-w-[160px]" value={matchType} onChange={(event) => setMatchType(event.target.value)}>
             <option value="all">ทุก Match Type</option>
             {(data?.filters.matchTypes ?? []).map((item) => <option key={item} value={item}>{matchTypeLabel(item)}</option>)}
           </Select>
-          <Select className="h-9 w-auto min-w-[150px]" value={costType} onChange={(event) => setCostType(event.target.value)}>
+          <Select className="h-9 w-full lg:w-auto lg:min-w-[150px]" value={costType} onChange={(event) => setCostType(event.target.value)}>
             <option value="all">ทุก Cost Type</option>
             {(data?.filters.costTypes ?? []).map((item) => <option key={item} value={item}>{costTypeLabel(item)}</option>)}
           </Select>
-          <Select className="h-9 w-auto min-w-[180px]" disabled={poSellOptions.length === 0} title="API ยังไม่มี po_sell_id แยก จึงกรองจาก target ที่ส่งมา" value={poSellTarget} onChange={(event) => setPoSellTarget(event.target.value)}>
+          <Select className="col-span-2 h-9 w-full lg:col-span-1 lg:w-auto lg:min-w-[180px]" disabled={poSellOptions.length === 0} title="API ยังไม่มี po_sell_id แยก จึงกรองจาก target ที่ส่งมา" value={poSellTarget} onChange={(event) => setPoSellTarget(event.target.value)}>
             <option value="all">ทุก PO Sell</option>
             {poSellOptions.map((target) => <option key={target} value={target}>{target}</option>)}
           </Select>
-          <div aria-label="กรองสถานะ Match Log" className="flex flex-wrap items-center gap-2" role="group">
+          <div aria-label="กรองสถานะ Match Log" className="flex w-full flex-wrap items-center gap-2 col-span-2 lg:col-span-1 lg:w-auto" role="group">
             <span className="text-xs text-slate-500">สถานะ:</span>
             {['all', ...(data?.filters.statuses ?? [])].map((item) => (
-              <SegmentedFilterButton active={status === item} key={item} type="button" onClick={() => setStatus(item)}>
+              <SegmentedFilterButton className="flex-1 lg:flex-none" active={status === item} key={item} type="button" onClick={() => setStatus(item)}>
                 {item === 'all' ? 'ทุกสถานะ' : statusLabel(item)}
               </SegmentedFilterButton>
             ))}
           </div>
-          {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
-          <Button asChild className="gap-2" variant="export">
+          {hasActiveFilters ? <Button className="w-full lg:w-auto" size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
+          <Button asChild className="gap-2 w-full col-span-2 lg:col-span-1 lg:w-auto" variant="export">
             <a href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
           </Button>
         </div>
@@ -283,7 +288,7 @@ export function MatchLogPageClient() {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={matchLogColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+          {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={matchLogColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
           {!isLoading && visibleRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={matchLogColumns.length}>ยังไม่มี Match Log ตามตัวกรอง</td></tr> : null}
           {!isLoading && pagedRows.map((row) => (
             <tr key={row.id} className={`hover:bg-slate-50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>

@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -164,7 +165,7 @@ export function FcdLedgerPageClient() {
       </div>
       {columnResize.hasCustomWidths ? (
         <button
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hidden lg:inline-flex"
           type="button"
           onClick={columnResize.resetColumnWidths}
         >
@@ -190,8 +191,8 @@ export function FcdLedgerPageClient() {
           {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.label} ({account.currency})</option>)}
           {!isLoading && (data?.filters.accounts.length ?? 0) === 0 ? <option value="">ไม่มีบัญชี FCD</option> : null}
         </Select>
-        <DatePickerInput className="h-9 w-40" value={valuationDate} onChange={setValuationDate} ariaLabel="วันที่ดูมูลค่า FCD" />
-        <Select className="h-9 w-full border-slate-200 text-sm md:w-56" value={valuationRateType} onChange={(event) => setValuationRateType(event.target.value)}>
+        <DatePickerInput className="h-9 w-[130px] md:w-40" value={valuationDate} onChange={setValuationDate} ariaLabel="วันที่ดูมูลค่า FCD" />
+        <Select className="h-9 min-w-0 flex-1 border-slate-200 text-sm md:w-56" value={valuationRateType} onChange={(event) => setValuationRateType(event.target.value)}>
           <option value="">เลือกประเภท rate เพื่อดูมูลค่า</option>
           {(data?.filters.rateTypes ?? []).map((rateType) => <option key={rateType} value={rateType}>{rateType}</option>)}
         </Select>
@@ -202,7 +203,7 @@ export function FcdLedgerPageClient() {
         <SharedKpiCard icon="💱" label={`ยอดคงเหลือ (${currency || '-'})`} tone={(data?.summary.foreignBalance ?? 0) === 0 ? 'slate' : 'indigo'} value={formatMoney(data?.summary.foreignBalance ?? 0)} />
         <SharedKpiCard icon="💰" label={`Carrying (${data?.filters.functionalCurrencyCode ?? '-'})`} tone={(data?.summary.thbBalance ?? 0) === 0 ? 'slate' : 'blue'} value={formatMoney(data?.summary.thbBalance ?? 0)} />
         <SharedKpiCard icon="📈" label="Weighted carrying rate" tone="slate" value={valuation?.weightedCarryingRate == null ? '-' : valuation.weightedCarryingRate.toFixed(3)} />
-        <SharedKpiCard icon="🧮" label={valuation?.rateFound ? 'มูลค่าตาม rate ที่เลือก' : 'สถานะ rate'} tone={valuation?.rateFound ? 'emerald' : 'slate'} value={valuation?.rateFound && valuation.currentThbValue != null ? formatMoney(valuation.currentThbValue) : 'ไม่มีข้อมูล rate'} />
+        <SharedKpiCard className="col-span-2 md:col-span-1" icon="🧮" label={valuation?.rateFound ? 'มูลค่าตาม rate ที่เลือก' : 'สถานะ rate'} tone={valuation?.rateFound ? 'emerald' : 'slate'} value={valuation?.rateFound && valuation.currentThbValue != null ? formatMoney(valuation.currentThbValue) : 'ไม่มีข้อมูล rate'} />
       </div>
       {valuation?.rateFound && valuation.unrealizedDifference != null ? (
         <p className="px-1 text-sm text-slate-600">ส่วนต่างจาก carrying: <span className="font-semibold tabular-nums text-slate-900">{formatMoney(valuation.unrealizedDifference)}</span> {data?.filters.functionalCurrencyCode ?? ''}</p>
@@ -239,7 +240,7 @@ export function FcdLedgerPageClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fcdColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fcdColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fcdColumns.length}>ยังไม่มีรายการเดินบัญชี FCD</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr id={`entry-${row.id}`} key={row.id} className="transition-colors hover:bg-slate-50">

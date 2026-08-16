@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
@@ -92,7 +93,7 @@ export function StockLedgerPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [movementDirection, setMovementDirection] = useState<'' | 'in' | 'out'>('')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(80)
+  const [pageSize, setPageSize] = useState(25)
   const [productId, setProductId] = useState('')
   const [search, setSearch] = useState('')
   const [selectedRow, setSelectedRow] = useState<StockLedgerRow | null>(null)
@@ -378,26 +379,28 @@ export function StockLedgerPageClient() {
 
       <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           <PageSizeDropdown options={stockLedgerPageSizes} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-          <span className="px-1">หน้า {page} / {totalPages}</span>
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
+          <div className="flex items-center gap-2">
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+            <span className="px-1">หน้า {page} / {totalPages}</span>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
+          </div>
         </div>
       </div>
 
       <div className="mb-3 hidden items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600 lg:flex">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {columnResize.hasCustomWidths ? (
-            <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
           <PageSizeDropdown options={stockLedgerPageSizes} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+          <div className="flex items-center gap-2"><button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
           <span className="px-1">หน้า {page} / {totalPages}</span>
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button></div>
         </div>
       </div>
 
@@ -413,8 +416,8 @@ export function StockLedgerPageClient() {
             className={`rounded-xl border p-4 shadow-sm space-y-2 active:bg-slate-50 cursor-pointer ${row.runningBalanceByProduct < 0 ? 'border-red-200 bg-red-50/60' : 'border-slate-100 bg-white'}`}
             onClick={() => setSelectedRow(row)}
           >
-            <div className="flex justify-between items-start">
-              <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.refNo || '-'}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="min-w-0 flex-1 font-mono font-bold text-sm text-slate-800 truncate">{row.refNo || '-'}</span>
               <LedgerTimestamp value={row.createdAt} />
             </div>
             
@@ -490,7 +493,7 @@ export function StockLedgerPageClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && rows.map((row) => (
               <tr
                 key={row.id}
@@ -595,7 +598,7 @@ function LedgerTimestamp({ value }: { value: string | null }) {
   const parsed = parseISO(value)
   if (Number.isNaN(parsed.getTime())) return <span>{value}</span>
   return (
-    <span className="block whitespace-nowrap">
+    <span className="block shrink-0 whitespace-nowrap">
       <span className="block">{format(parsed, 'dd/MM/yyyy')}</span>
       <span className="block text-xs font-medium text-slate-500">{format(parsed, 'HH:mm:ss')}</span>
     </span>

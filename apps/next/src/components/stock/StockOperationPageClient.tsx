@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
@@ -302,11 +303,11 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const [sourceTypeFilter, setSourceTypeFilter] = useState('')
   const [toDateFilter, setToDateFilter] = useState('')
   const [statusConvertPage, setStatusConvertPage] = useState(1)
-  const [statusConvertPageSize, setStatusConvertPageSize] = useState(20)
+  const [statusConvertPageSize, setStatusConvertPageSize] = useState(25)
   const [adjustPage, setAdjustPage] = useState(1)
-  const [adjustPageSize, setAdjustPageSize] = useState(20)
+  const [adjustPageSize, setAdjustPageSize] = useState(25)
   const [convertPage, setConvertPage] = useState(1)
-  const [convertPageSize, setConvertPageSize] = useState(20)
+  const [convertPageSize, setConvertPageSize] = useState(25)
 
   // States for Stock Adjust (NSERP-66)
   const [adjustProductFilter, setAdjustProductFilter] = useState('')
@@ -866,19 +867,19 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         {mode === 'adjust' ? (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
             <span className="text-xs text-slate-500">ประเภท:</span>
-            <SegmentedButton active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
-            <SegmentedButton active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
-            <SegmentedButton active={adjustTypeFilter === 'GAIN'} label="นับเกิน" onClick={() => setAdjustTypeFilter('GAIN')} />
+            <SegmentedButton className="min-w-fit flex-1" active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
+            <SegmentedButton className="min-w-fit flex-1" active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
+            <SegmentedButton className="min-w-fit flex-1" active={adjustTypeFilter === 'GAIN'} label="นับเกิน" onClick={() => setAdjustTypeFilter('GAIN')} />
           </div>
         ) : null}
         {mode === 'status-convert' ? (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 overflow-x-auto">
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
             <span className="text-xs text-slate-500 shrink-0">เส้นทาง:</span>
-            <SegmentedButton active={!statusFlowFilter} label="ทั้งหมด" onClick={() => setStatusFlowFilter('')} />
-            <SegmentedButton active={statusFlowFilter === 'RM-FG'} label="RM→FG" onClick={() => setStatusFlowFilter('RM-FG')} />
-            <SegmentedButton active={statusFlowFilter === 'FG-RM'} label="FG→RM" onClick={() => setStatusFlowFilter('FG-RM')} />
-            <SegmentedButton active={statusFlowFilter === 'RM-WIP'} label="RM→WIP" onClick={() => setStatusFlowFilter('RM-WIP')} />
-            <SegmentedButton active={statusFlowFilter === 'WIP-FG'} label="WIP→FG" onClick={() => setStatusFlowFilter('WIP-FG')} />
+            <SegmentedButton className="min-w-fit flex-1" active={!statusFlowFilter} label="ทั้งหมด" onClick={() => setStatusFlowFilter('')} />
+            <SegmentedButton className="min-w-fit flex-1" active={statusFlowFilter === 'RM-FG'} label="RM→FG" onClick={() => setStatusFlowFilter('RM-FG')} />
+            <SegmentedButton className="min-w-fit flex-1" active={statusFlowFilter === 'FG-RM'} label="FG→RM" onClick={() => setStatusFlowFilter('FG-RM')} />
+            <SegmentedButton className="min-w-fit flex-1" active={statusFlowFilter === 'RM-WIP'} label="RM→WIP" onClick={() => setStatusFlowFilter('RM-WIP')} />
+            <SegmentedButton className="min-w-fit flex-1" active={statusFlowFilter === 'WIP-FG'} label="WIP→FG" onClick={() => setStatusFlowFilter('WIP-FG')} />
           </div>
         ) : null}
       </div>
@@ -1047,7 +1048,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       {mode === 'status-convert' ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
           <span>พบทั้งหมด {rows.length} รายการ</span>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
             {columnResize.hasCustomWidths ? (
               <button
                 className="hidden lg:inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
@@ -1061,7 +1062,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               setStatusConvertPageSize(size)
               setStatusConvertPage(1)
             }} />
-            <button
+            <div className="flex items-center gap-2"><button
               className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={statusConvertPage <= 1}
               type="button"
@@ -1077,7 +1078,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               onClick={() => setStatusConvertPage((currentPage) => Math.min(statusConvertTotalPages, currentPage + 1))}
             >
               ถัดไป
-            </button>
+            </button></div>
           </div>
         </div>
       ) : null}
@@ -1087,7 +1088,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             พบทั้งหมด {rows.length} รายการ
             {rows.length > 0 ? `  แสดง ${(adjustPage - 1) * adjustPageSize + 1}-${Math.min(adjustPage * adjustPageSize, rows.length)}` : ''}
           </span>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
             {columnResize.hasCustomWidths ? (
               <button
                 className="hidden lg:inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
@@ -1101,7 +1102,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               setAdjustPageSize(size)
               setAdjustPage(1)
             }} />
-            <button
+            <div className="flex items-center gap-2"><button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={adjustPage <= 1}
               type="button"
@@ -1117,7 +1118,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               onClick={() => setAdjustPage((currentPage) => Math.min(adjustTotalPages, currentPage + 1))}
             >
               ถัดไป
-            </button>
+            </button></div>
           </div>
         </div>
       ) : null}
@@ -1127,7 +1128,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             พบทั้งหมด {rows.length} รายการ
             {rows.length > 0 ? `  แสดง ${(convertPage - 1) * convertPageSize + 1}-${Math.min(convertPage * convertPageSize, rows.length)}` : ''}
           </span>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
             {columnResize.hasCustomWidths ? (
               <button
                 className="hidden lg:inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
@@ -1141,7 +1142,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               setConvertPageSize(size)
               setConvertPage(1)
             }} />
-            <button
+            <div className="flex items-center gap-2"><button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={convertPage <= 1}
               type="button"
@@ -1157,7 +1158,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               onClick={() => setConvertPage((currentPage) => Math.min(convertTotalPages, currentPage + 1))}
             >
               ถัดไป
-            </button>
+            </button></div>
           </div>
         </div>
       ) : null}
@@ -1519,7 +1520,7 @@ function OperationTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={columns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && rows.map((row, index) => (
               <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 transition-colors ${mode === 'adjust' ? 'cursor-pointer' : ''}`} onClick={mode === 'adjust' ? () => onAdjustDetail?.(row) : undefined}>
                 {columns.map((column) => (
@@ -1546,10 +1547,10 @@ function emptyTextFor(mode: Mode) {
   return 'ยังไม่มีรายการ'
 }
 
-function SegmentedButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function SegmentedButton({ active, className = '', label, onClick }: { active: boolean; className?: string; label: string; onClick: () => void }) {
   return (
     <button
-      className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+      className={`rounded-md border px-3 py-1 text-xs font-medium whitespace-nowrap text-center justify-center ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'} ${className}`.trim()}
       type="button"
       onClick={onClick}
     >
@@ -1970,7 +1971,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm md:block">
               {columnResize.hasCustomWidths ? (
                 <div className="flex justify-end border-b border-slate-100 bg-slate-50 p-2">
-                  <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+                  <button className="text-xs text-blue-600 hover:underline hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
                     คืนค่าเดิมตาราง
                   </button>
                 </div>

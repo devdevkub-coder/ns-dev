@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -29,6 +30,8 @@ import {
 } from './DualCostingPageShell'
 
 type Mode = 'ledger' | 'report' | 'waiting'
+
+const pageSizeOptions = [10, 25] as const
 
 type WaitingRow = {
   allocatedQty: number
@@ -242,7 +245,7 @@ function WaitingAllocationsView() {
   const [poPage, setPoPage] = useState(1)
   const [billPage, setBillPage] = useState(1)
   const [productionPage, setProductionPage] = useState(1)
-  const pageSize = 20
+  const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(25)
 
   const poColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
     { key: 'docNo', label: 'PO ขาย', defaultWidth: 140, align: 'center' },
@@ -397,7 +400,7 @@ function WaitingAllocationsView() {
 
       <DualCostingPanel
         title="สรุปตามหมวด"
-        titleAction={summaryResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตารางสรุป</Button> : null}
+        titleAction={summaryResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตารางสรุป</Button> : null}
       >
         {/* Desktop View */}
         <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -478,13 +481,13 @@ function WaitingAllocationsView() {
         }}
       >
         <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-          <TabsTrigger value="po" variant="line">
+          <TabsTrigger className="flex-1 sm:flex-none" value="po" variant="line">
             PO ขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{data?.po.count ?? 0}</span>
           </TabsTrigger>
-          <TabsTrigger value="bill" variant="line">
+          <TabsTrigger className="flex-1 sm:flex-none" value="bill" variant="line">
             บิลขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{data?.bill.count ?? 0}</span>
           </TabsTrigger>
-          <TabsTrigger value="production" variant="line">
+          <TabsTrigger className="flex-1 sm:flex-none" value="production" variant="line">
             การผลิต <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{data?.production.count ?? 0}</span>
           </TabsTrigger>
         </TabsList>
@@ -505,7 +508,7 @@ function WaitingAllocationsView() {
               ))}
             </div>
             <Button
-              className="ml-auto h-9 rounded-md px-3 text-sm font-normal"
+              className="ml-auto h-9 rounded-md px-3 text-sm font-normal hidden lg:inline-flex"
               size="sm"
               type="button"
               variant="outline"
@@ -575,11 +578,17 @@ function WaitingAllocationsView() {
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       {/* Pagination controls */}
       <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-        <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
-        <div className="flex items-center gap-2">
-          <Button className="h-9 px-3 text-sm" disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
-          <span>หน้า {safePage} / {totalPages}</span>
-          <Button className="h-9 px-3 text-sm" disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+        <div className="w-full sm:w-auto">พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+          <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
+            setPageSize(size as (typeof pageSizeOptions)[number])
+            setPage(1)
+          }} />
+          <div className="flex items-center gap-2">
+            <Button className="h-9 px-3 text-sm" disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+            <span>หน้า {safePage} / {totalPages}</span>
+            <Button className="h-9 px-3 text-sm" disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+          </div>
         </div>
       </div>
 
@@ -734,7 +743,6 @@ function WaitingAllocationsView() {
 }
 
 function AllocationLedgerView() {
-  const pageSizeOptions = [10, 25] as const
   const [actionTargetId, setActionTargetId] = useState<string | null>(null)
   const [category, setCategory] = useState('all')
   const [data, setData] = useState<LedgerPayload | null>(null)
@@ -1068,18 +1076,18 @@ function AllocationLedgerView() {
       <div className="lg:overflow-hidden lg:rounded-md lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm">
         <div className="flex flex-col gap-3 px-1 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:border-b lg:border-slate-100 lg:px-3">
           <div>พบทั้งหมด {pagination.totalGroups.toLocaleString('th-TH')} กลุ่ม · {pagination.totalRows.toLocaleString('th-TH')} รายการ</div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <div className="flex items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+            <div className="flex items-center gap-2">
               {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
               <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
                 setPageSize(size as (typeof pageSizeOptions)[number])
                 setPage(1)
               }} />
             </div>
-            <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:flex sm:w-auto">
-              <Button className="h-9 w-full sm:w-auto" disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+            <div className="flex items-center gap-2">
+              <Button className="h-9 px-3 text-sm" disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
               <span className="whitespace-nowrap px-1 text-center">หน้า {safePage} / {totalPages}</span>
-              <Button className="h-9 w-full sm:w-auto" disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+              <Button className="h-9 px-3 text-sm" disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
             </div>
           </div>
         </div>
@@ -1110,7 +1118,7 @@ function AllocationLedgerView() {
               </tr>
             </TableHeader>
             <TableBody className="divide-y divide-slate-100">
-              {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+              {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
               {!isLoading && pagination.totalRows === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>ยังไม่มีรายการ</TableCell></TableRow> : null}
               {visibleRows.map((row) => {
                 const isExpanded = expandedMatchIds.has(row.matchId)
@@ -1470,7 +1478,7 @@ function DualCostingReportView() {
 
                 <DualCostingPanel
                   title={`ชุดที่สร้างกำไร/ขาดทุน (${selectedCategory.detail.allocatedRows.length} รายการ)`}
-                  titleAction={allocatedDetailResize.hasCustomWidths ? <Button className="h-9 px-3 text-sm" size="sm" type="button" variant="outline" onClick={allocatedDetailResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+                  titleAction={allocatedDetailResize.hasCustomWidths ? <Button className="h-9 px-3 text-sm hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={allocatedDetailResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
                 >
                   <div className="min-w-0 overflow-x-auto">
                     <Table className="min-w-full text-sm" style={{ minWidth: allocatedDetailResize.tableMinWidth, maxWidth: allocatedDetailResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -1519,7 +1527,7 @@ function DualCostingReportView() {
 
                 <DualCostingPanel
                   title={`รายการค้างจัดสรร (${selectedCategory.detail.pendingRows.length} รายการ)`}
-                  titleAction={pendingDetailResize.hasCustomWidths ? <Button className="h-9 px-3 text-sm" size="sm" type="button" variant="outline" onClick={pendingDetailResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+                  titleAction={pendingDetailResize.hasCustomWidths ? <Button className="h-9 px-3 text-sm hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={pendingDetailResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
                 >
                   <div className="min-w-0 overflow-x-auto">
                     <Table className="min-w-full text-sm" style={{ minWidth: pendingDetailResize.tableMinWidth, maxWidth: pendingDetailResize.tableMaxWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -1646,7 +1654,7 @@ function DualCostingReportView() {
           </div>
           <DualCostingPanel
             title="สรุปตามหมวดสินค้า"
-            titleAction={reportResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+            titleAction={reportResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           >
             {/* Desktop View */}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">

@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
@@ -145,18 +146,18 @@ export function SupplierAdvancePageClient() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
         <Metric label="Advance คงเหลือรวม (THB)" value={formatMoney(data?.summary.totalRemainingThb ?? 0)} tone="amber" />
         <Metric label="จำนวนรายการ Active" value={`${data?.summary.activeCount ?? 0}`} />
-        <div className="flex items-center justify-end gap-2">
-          <a className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-sm hover:bg-emerald-700" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
+        <div className="col-span-2 flex items-center justify-end gap-2 md:col-span-1">
+          <a className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-sm hover:bg-emerald-700 md:w-auto" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
         </div>
       </div>
 
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
         {columnResize.hasCustomWidths ? (
           <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="text-xs text-blue-600 hover:underline hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           </div>
@@ -182,7 +183,7 @@ export function SupplierAdvancePageClient() {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={supplierAdvanceColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={supplierAdvanceColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={supplierAdvanceColumns.length}>ยังไม่มี Supplier Advance</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">

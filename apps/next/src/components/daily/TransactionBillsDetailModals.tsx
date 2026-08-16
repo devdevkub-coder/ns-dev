@@ -844,7 +844,7 @@ function PurchaseBillDetailTimeline({ detail }: { detail: PurchaseBillDetail }) 
             <div className="mt-1 truncate text-xs">{event.actor}</div>
           </div>
           <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
-            <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? purchaseBillTimelineDotClass(event.tone) : 'bg-slate-300'}`} />
+            <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? purchaseBillTimelineDotClass(event.tone) : 'bg-slate-300 dark:bg-slate-500'}`} />
             <div className="flex flex-wrap items-center gap-2">
               <div className="text-sm font-medium text-slate-800">{event.title}</div>
               <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${workflowStatusBadgeClass(event.status)}`}>
@@ -889,7 +889,7 @@ function SalesBillDetailTimeline({ detail }: { detail: SalesBillDetail }) {
             <div className="mt-1 truncate text-xs">{event.actor}</div>
           </div>
           <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
-            <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? purchaseBillTimelineDotClass(event.tone) : 'bg-slate-300'}`} />
+            <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? purchaseBillTimelineDotClass(event.tone) : 'bg-slate-300 dark:bg-slate-500'}`} />
             <div className="flex flex-wrap items-center gap-2">
               <div className="text-sm font-medium text-slate-800">{event.title}</div>
               <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadgeClass(event.status)}`}>

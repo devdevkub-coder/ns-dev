@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import Link from 'next/link'
@@ -146,11 +147,13 @@ function SortHeader({
 }
 
 function SegmentMulti({
+  className = '',
   current,
   label,
   onClick,
   values,
 }: {
+  className?: string
   current: string[]
   label: string
   onClick: (value: string[]) => void
@@ -161,7 +164,7 @@ function SegmentMulti({
     : values.every((value) => current.includes(value))
   return (
     <button
-      className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700' : 'border-slate-300 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
+      className={`min-w-fit flex-1 justify-center rounded-md border px-3 py-1 text-center text-xs font-medium sm:flex-none ${className} ${active ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700' : 'border-slate-300 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
       type="button"
       onClick={() => {
         if (values.length === 0) {
@@ -570,8 +573,8 @@ export function WeightTicketListPageClient() {
         }}
       >
         <TabsList className="w-full" variant="line">
-          <TabsTrigger value="WTI" variant="line">ใบรับของ WTI</TabsTrigger>
-          <TabsTrigger value="WTO" variant="line">ใบส่งของ WTO</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="WTI" variant="line">ใบรับของ WTI</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="WTO" variant="line">ใบส่งของ WTO</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -610,8 +613,8 @@ export function WeightTicketListPageClient() {
             <Button disabled={!activeFilters} type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <span className="shrink-0 text-xs text-slate-500">สถานะเอกสาร:</span>
               {statusOptions.map((option) => (
                 <SegmentMulti
                   current={statusFilter}
@@ -748,15 +751,15 @@ export function WeightTicketListPageClient() {
           {summaryText}
           {isLoading && tickets.length > 0 ? <span className="ml-2 text-xs text-slate-400" role="status">กำลังอัปเดต...</span> : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {columnResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
             setPageSize(size as (typeof pageSizeOptions)[number])
             setPage(1)
           }} />
-          <Button disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+          <div className="flex items-center gap-2"><Button disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {safePage} / {totalPages}</span>
-          <Button disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+          <Button disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button></div>
         </div>
       </div>
 
@@ -886,7 +889,7 @@ export function WeightTicketListPageClient() {
             <tbody>
               {isLoading && tickets.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={WEIGHT_TICKET_TABLE_COLUMN_COUNT}>กำลังโหลดข้อมูล</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={WEIGHT_TICKET_TABLE_COLUMN_COUNT}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td>
                 </tr>
               ) : loadError ? (
                 <tr>

@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { GuardedLink } from '@/components/ui/GuardedLink'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { canAccessPath, navigationItems, navigationSections, sidebarNavigationPath, type NavigationSectionKey } from '@/lib/navigation'
 
 type AppNavigationProps = {
@@ -21,6 +21,42 @@ function isNavigationPathActive(pathname: string, href: string) {
   const normalizedPath = normalizeNavigationPath(pathname)
   const normalizedHref = normalizeNavigationPath(href)
   return normalizedPath === normalizedHref || normalizedPath.startsWith(`${normalizedHref}/`)
+}
+
+/* Chevron that rotates 90° when its panel expands (motion only, respects reduced-motion). */
+function SidebarChevron({ expanded, className = '' }: { expanded: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={`shrink-0 transition-transform duration-200 ease-out ${expanded ? 'rotate-0' : '-rotate-90'} ${className}`}
+      fill="none"
+      height="14"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2.5"
+      viewBox="0 0 24 24"
+      width="14"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
+/* Animated collapsible panel — slides height + fades via the grid-template-rows trick
+   (no layout thrash, no height measurement). Stays mounted so collapse animates. */
+function NavPanel({ expanded, id, children }: { expanded: boolean; id?: string; children: ReactNode }) {
+  return (
+    <div
+      aria-hidden={!expanded}
+      className={`grid transition-[grid-template-rows,opacity,visibility] duration-200 ease-out ${
+        expanded ? 'grid-rows-[1fr] opacity-100 visible' : 'grid-rows-[0fr] opacity-0 invisible'
+      }`}
+      id={id}
+    >
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  )
 }
 
 export function AppNavigation({ authContext, compact = false, onNavigate }: AppNavigationProps) {
@@ -154,13 +190,14 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
               onClick={() => toggleSection(section.key)}
             >
               <span className={compact ? 'lg:hidden' : ''}>{section.label}</span>
-              <span className={compact ? 'text-xs lg:hidden' : 'text-xs'}>{sectionExpanded ? '▾' : '▸'}</span>
+              <SidebarChevron className={compact ? 'lg:hidden' : ''} expanded={sectionExpanded} />
               {compact ? <span className="hidden size-1.5 rounded-full bg-slate-500 lg:block" /> : null}
             </button>
-            {sectionExpanded ? <div id={sectionPanelId}>{items.map((item) => {
+            <NavPanel expanded={sectionExpanded} id={sectionPanelId}>{items.map((item) => {
               const childActive = item.children?.some((child) => isNavigationPathActive(activePathname, child.href)) ?? false
               const active = isNavigationPathActive(activePathname, item.href) || childActive
               const expanded = expandedMenu === item.href
+              const navVisible = sectionExpanded && (item.children?.length ? expanded : true)
               const childPanelId = `sidebar-menu-${item.href.replace(/[^a-z0-9]+/gi, '-')}`
               const itemControlClass = `flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left transition hover:bg-slate-800/60 ${active ? 'text-white' : 'text-slate-300'} ${compact ? 'lg:justify-center lg:px-2' : ''}`
 
@@ -170,10 +207,10 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                     {item.children?.length ? (
                       <button
                         aria-controls={childPanelId}
-                        aria-current={active ? 'page' : undefined}
+                        aria-current={active && navVisible ? 'page' : undefined}
                         aria-expanded={expanded}
                         className={itemControlClass}
-                        data-active-nav={active ? 'true' : undefined}
+                        data-active-nav={active && navVisible ? 'true' : undefined}
                         title={compact ? item.label : undefined}
                         type="button"
                         onClick={() => {
@@ -186,9 +223,9 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                       </button>
                     ) : (
                       <GuardedLink
-                        aria-current={active ? 'page' : undefined}
+                        aria-current={active && navVisible ? 'page' : undefined}
                         className={itemControlClass}
-                        data-active-nav={active ? 'true' : undefined}
+                        data-active-nav={active && navVisible ? 'true' : undefined}
                         href={item.href}
                         title={compact ? item.label : undefined}
                         onClick={() => {
@@ -205,44 +242,47 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                         aria-controls={childPanelId}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'ยุบ' : 'ขยาย'}เมนู ${item.label}`}
-                        className={`px-3 text-xs text-slate-400 hover:text-white ${compact ? 'lg:hidden' : ''}`}
+                        className={`px-3 text-slate-400 transition hover:text-white ${compact ? 'lg:hidden' : ''}`}
                         type="button"
                         onClick={() => toggleMenu(item.href)}
                       >
-                        {expanded ? '▾' : '▸'}
+                        <SidebarChevron expanded={expanded} />
                       </button>
                     ) : null}
                   </div>
-                  {item.children?.length && expanded ? (
-                    <div id={childPanelId} className="bg-slate-950/30 py-1">
-                      {item.children.map((child) => {
-                        const childIsActive = isNavigationPathActive(activePathname, child.href)
+                  {item.children?.length ? (
+                    <NavPanel expanded={expanded} id={childPanelId}>
+                      <div className="bg-slate-950/30 py-1">
+                        {item.children.map((child) => {
+                          const childIsActive = isNavigationPathActive(activePathname, child.href)
+                          const childNavVisible = sectionExpanded && expanded && childIsActive
 
-                        return (
-                          <GuardedLink
-                            key={child.href}
-                            aria-current={childIsActive ? 'page' : undefined}
-                            className={`flex items-center gap-3 py-2 pl-11 pr-4 text-left transition hover:bg-slate-800/60 ${
-                              childIsActive ? 'text-white' : 'text-slate-400'
-                            } ${compact ? 'lg:justify-center lg:px-2' : ''}`}
-                            data-active-nav={childIsActive ? 'true' : undefined}
-                            href={child.href}
-                            title={compact ? child.label : undefined}
-                            onClick={() => {
-                              rememberSidebarScroll()
-                              onNavigate?.()
-                            }}
-                          >
-                            <span className="w-5 text-center leading-none">{child.icon}</span>
-                            <span className={compact ? 'truncate lg:hidden' : 'truncate'}>{child.label}</span>
-                          </GuardedLink>
-                        )
-                      })}
-                    </div>
+                          return (
+                            <GuardedLink
+                              key={child.href}
+                              aria-current={childNavVisible ? 'page' : undefined}
+                              className={`flex items-center gap-3 py-2 pl-11 pr-4 text-left transition hover:bg-slate-800/60 ${
+                                childIsActive ? 'text-white' : 'text-slate-400'
+                              } ${compact ? 'lg:justify-center lg:px-2' : ''}`}
+                              data-active-nav={childNavVisible ? 'true' : undefined}
+                              href={child.href}
+                              title={compact ? child.label : undefined}
+                              onClick={() => {
+                                rememberSidebarScroll()
+                                onNavigate?.()
+                              }}
+                            >
+                              <span className="w-5 text-center leading-none">{child.icon}</span>
+                              <span className={compact ? 'truncate lg:hidden' : 'truncate'}>{child.label}</span>
+                            </GuardedLink>
+                          )
+                        })}
+                      </div>
+                    </NavPanel>
                   ) : null}
                 </div>
               )
-            })}</div> : null}
+            })}</NavPanel>
           </div>
         )
       })}

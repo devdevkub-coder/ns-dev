@@ -235,9 +235,9 @@ export function ProfilePageClient() {
         <div className="space-y-4">
           {/* Tabs header */}
           <Tabs className="gap-0" value={activeTab} onValueChange={(value) => startTransition(() => setActiveTab(value as typeof activeTab))}>
-            <TabsList variant="line">
-              <TabsTrigger value="profile" variant="line">ข้อมูลส่วนตัว</TabsTrigger>
-              <TabsTrigger value="security" variant="line">ความปลอดภัย</TabsTrigger>
+            <TabsList className="w-full sm:w-auto" variant="line">
+              <TabsTrigger className="flex-1 sm:flex-none" value="profile" variant="line">ข้อมูลส่วนตัว</TabsTrigger>
+              <TabsTrigger className="flex-1 sm:flex-none" value="security" variant="line">ความปลอดภัย</TabsTrigger>
             </TabsList>
           </Tabs>
 

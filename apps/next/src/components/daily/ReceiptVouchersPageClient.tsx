@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -760,12 +761,12 @@ export function ReceiptVouchersPageClient() {
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
           <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-          <div className="flex flex-wrap items-center gap-2">
-            {columnResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+            {columnResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
             <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-            <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+            <div className="flex items-center gap-2"><Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
             <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-            <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+            <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button></div>
           </div>
         </div>
 
@@ -842,7 +843,7 @@ export function ReceiptVouchersPageClient() {
               </tr>
             </TableHeader>
             <TableBody className="divide-y divide-slate-100">
-              {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></TableRow> : null}
+              {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={10}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></TableRow> : null}
               {!isLoading && pagedRows.map((row) => (
                 <TableRow key={row.id} className={`cursor-pointer ${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'}`} onClick={() => setDetailRow(row)}>
                   <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</td>

@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ButtonHTMLAttributes, Dispatch, SetStateAction } from 'react'
@@ -427,7 +428,7 @@ function PoBuyStatusTimeline({ row }: { row: PoBuyRow }) {
               <div className="mt-1 truncate text-xs">{event.createdBy || '-'}</div>
             </div>
             <div className="relative border-l border-slate-100 pb-4 pl-4 last:pb-0">
-              <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${isLatest ? 'bg-slate-700' : 'bg-slate-300'}`} />
+              <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${isLatest ? 'bg-slate-700' : 'bg-slate-300 dark:bg-slate-500'}`} />
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-sm font-medium text-slate-800">{actionLabel}</div>
                 <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusTone}`}>
@@ -937,7 +938,7 @@ export function PoBuyPageClient() {
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {columnResize.hasCustomWidths ? (
             <UiButton
               className="h-9 font-normal hidden lg:inline-flex"
@@ -950,9 +951,9 @@ export function PoBuyPageClient() {
             </UiButton>
           ) : null}
           <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-          <UiButton className="font-normal" disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+          <div className="flex items-center gap-2"><UiButton className="font-normal" disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <UiButton className="font-normal" disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton>
+          <UiButton className="font-normal" disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton></div>
         </div>
       </div>
 
@@ -1145,7 +1146,7 @@ export function PoBuyPageClient() {
             </tr>
           </TableHeader>
           <TableBody>
-            {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+            {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={13}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
             {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={13}>ยังไม่มี PO Buy</TableCell></TableRow> : null}
             {!isLoading && pageRows.map((row, index) => (
               <TableRow key={row.id} className={`cursor-pointer border-slate-100 hover:bg-slate-50 ${index % 2 === 1 ? 'bg-slate-50/40' : ''}`} onClick={() => setSelectedRow(row)}>

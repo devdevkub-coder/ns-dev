@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronDown, ChevronRight, Download, SlidersHorizontal } from 'lucide-react'
@@ -544,9 +545,9 @@ export function StockPlanningPageClient() {
         }}
       >
         <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-          <TabsTrigger value="overview" variant="line">ภาพรวมสต๊อก</TabsTrigger>
-          <TabsTrigger value="purchase" variant="line">ต้องซื้อเพิ่ม</TabsTrigger>
-          <TabsTrigger className="gap-1.5" value="calendar" variant="line">
+          <TabsTrigger className="flex-1 sm:flex-none" value="overview" variant="line">ภาพรวมสต๊อก</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="purchase" variant="line">ต้องซื้อเพิ่ม</TabsTrigger>
+          <TabsTrigger className="flex-1 gap-1.5 sm:flex-none" value="calendar" variant="line">
             <CalendarDays aria-hidden="true" className="size-4" />
             ปฏิทิน
           </TabsTrigger>
@@ -855,7 +856,7 @@ function UrgentPurchasePanel({
               <tbody className="divide-y divide-slate-200">
                 {loading ? (
                   <tr>
-                    <td className="p-8 text-center font-semibold text-slate-500" colSpan={6}>กำลังโหลดข้อมูล</td>
+                    <td className="p-8 text-center font-semibold text-slate-500" colSpan={6}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td>
                   </tr>
                 ) : plans.length ? plans.map((plan) => {
                   const firstShortage = plan.rows.find((row) => !row.enough)
@@ -990,39 +991,43 @@ function PlanningPagination({
         พบทั้งหมด {total.toLocaleString('th-TH')} รายการ
         {total > 0 ? ` แสดง ${rangeStart.toLocaleString('th-TH')}-${rangeEnd.toLocaleString('th-TH')}` : ''}
       </span>
-      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-        {showResetTable ? (
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+        <div className="flex items-center gap-2">
+          {showResetTable ? (
+            <button
+              className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 md:inline-flex"
+              onClick={onResetTable}
+              type="button"
+            >
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+          <PageSizeDropdown
+            disabled={loading}
+            onChange={onPageSizeChange}
+            options={pageSizeOptions}
+            value={pageSize}
+          />
+        </div>
+        <div className="flex items-center gap-2">
           <button
-            className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 md:inline-flex"
-            onClick={onResetTable}
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading || currentPage <= 1}
+            onClick={() => onPageChange(currentPage - 1)}
             type="button"
           >
-            คืนค่าเดิมตาราง
+            ก่อนหน้า
           </button>
-        ) : null}
-        <PageSizeDropdown
-          disabled={loading}
-          onChange={onPageSizeChange}
-          options={pageSizeOptions}
-          value={pageSize}
-        />
-        <button
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={loading || currentPage <= 1}
-          onClick={() => onPageChange(currentPage - 1)}
-          type="button"
-        >
-          ก่อนหน้า
-        </button>
-        <span className="px-1">หน้า {currentPage} / {pageCount}</span>
-        <button
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={loading || currentPage >= pageCount}
-          onClick={() => onPageChange(currentPage + 1)}
-          type="button"
-        >
-          ถัดไป
-        </button>
+          <span className="px-1">หน้า {currentPage} / {pageCount}</span>
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading || currentPage >= pageCount}
+            onClick={() => onPageChange(currentPage + 1)}
+            type="button"
+          >
+            ถัดไป
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -1077,7 +1082,7 @@ function PlanDataSurface({
               <tbody className="divide-y divide-slate-200">
                 {loading ? (
                   <tr>
-                    <td className="p-8 text-center font-semibold text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td>
+                    <td className="p-8 text-center font-semibold text-slate-500" colSpan={9}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td>
                   </tr>
                 ) : plans.length ? plans.map((plan) => {
                   const isExpanded = expanded === plan.key

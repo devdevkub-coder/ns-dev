@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
@@ -10,6 +11,7 @@ import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 
 type AccountOption = {
   accountGroup: string | null
@@ -114,6 +116,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [q, setQ] = useState(initialFilters?.q || '')
   const [refType, setRefType] = useState('')
   const [selectedRow, setSelectedRow] = useState<BankRow | null>(null)
@@ -126,7 +129,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
   const query = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
-      pageSize: '50',
+      pageSize: String(pageSize),
       sortDirection,
     })
     if (branchCode) params.set('branchCode', branchCode)
@@ -139,7 +142,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
     if (to) params.set('to', to)
     if (type) params.set('type', type)
     return params
-  }, [accountGroup, accountId, bankAccountType, branchCode, from, page, q, refType, sortDirection, to, type])
+  }, [accountGroup, accountId, bankAccountType, branchCode, from, page, pageSize, q, refType, sortDirection, to, type])
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -258,22 +261,24 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
 
         {/* Mobile View (Collapsible Filters) */}
         <div className="block lg:hidden space-y-2.5">
-          <div className="flex flex-wrap gap-2">
-            <BranchSelectCombobox branches={branches.map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="min-w-0 flex-1" controlSize="filter" inputId="bank-statement-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchCode || null} onChange={(value) => changeBranch(value ?? '')} />
-            <Select className="h-9 min-w-[180px] flex-1 text-sm text-slate-900" value={accountGroup} onChange={(event) => changeAccountGroup(event.target.value)}>
+          <div className="grid grid-cols-2 gap-2">
+            <BranchSelectCombobox branches={branches.map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="min-w-0 w-full" controlSize="filter" inputId="bank-statement-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchCode || null} onChange={(value) => changeBranch(value ?? '')} />
+            <Select className="h-9 min-w-0 w-full text-sm text-slate-900" value={accountGroup} onChange={(event) => changeAccountGroup(event.target.value)}>
               {companyAccountTypeOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}
             </Select>
             {accountGroup === 'bank' ? (
-              <Select className="h-9 min-w-[200px] flex-1 text-sm text-slate-900" value={bankAccountType} onChange={(event) => changeBankAccountType(event.target.value)}>
+              <Select className="h-9 min-w-0 col-span-2 w-full text-sm text-slate-900" value={bankAccountType} onChange={(event) => changeBankAccountType(event.target.value)}>
                 {bankAccountTypeOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}
               </Select>
             ) : null}
-            <Select className="h-9 min-w-[160px] flex-1 text-sm text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
+            <Select className="h-9 min-w-0 col-span-2 w-full text-sm text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
               <option value="">เลือกบัญชี</option>
               {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{bankAccountOptionLabel(account)}</option>)}
             </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
             <button
-              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+              className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
@@ -282,7 +287,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
               ตัวกรอง
             </button>
             <button
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
               disabled={isExporting}
               type="button"
               onClick={() => void exportXlsx()}
@@ -350,28 +355,28 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
             <div>
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">สรุปวงเงิน OD</div>
               <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-4">
-                <div className="bg-emerald-50/40 border border-emerald-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px]">
-                  <div className="text-xs sm:text-sm text-emerald-800 font-bold text-left">วงเงิน OD</div>
-                  <div className="font-mono text-lg sm:text-xl md:text-2xl font-bold text-emerald-700 mt-2">{formatMoney(selectedAccount.odLimit || 0)}</div>
+                <div className="bg-emerald-50/40 border border-emerald-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px] dark:bg-emerald-500/10 dark:border-emerald-400/30">
+                  <div className="text-xs sm:text-sm text-emerald-800 font-bold text-left dark:text-emerald-300">วงเงิน OD</div>
+                  <div className="font-mono text-lg sm:text-xl md:text-2xl font-bold text-emerald-700 mt-2 dark:text-emerald-300">{formatMoney(selectedAccount.odLimit || 0)}</div>
                 </div>
                 {/* 2. ยอดคงเหลือจริง */}
-                <div className="bg-rose-50/40 border border-rose-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px]">
-                  <div className="text-xs sm:text-sm text-rose-800 font-bold text-left">ยอดคงเหลือจริง</div>
-                  <div className={`font-mono text-lg sm:text-xl md:text-2xl font-bold mt-2 ${closingBalance >= 0 ? 'text-slate-800' : 'text-rose-700'}`}>
+                <div className="bg-rose-50/40 border border-rose-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px] dark:bg-rose-500/10 dark:border-rose-400/30">
+                  <div className="text-xs sm:text-sm text-rose-800 font-bold text-left dark:text-rose-300">ยอดคงเหลือจริง</div>
+                  <div className={`font-mono text-lg sm:text-xl md:text-2xl font-bold mt-2 ${closingBalance >= 0 ? 'text-slate-800 dark:text-slate-100' : 'text-rose-700 dark:text-rose-300'}`}>
                     {formatMoney(closingBalance)}
                   </div>
                 </div>
                 {/* 3. OD ใช้ไป */}
-                <div className="bg-amber-50/40 border border-amber-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px]">
-                  <div className="text-xs sm:text-sm text-amber-800 font-bold text-left">OD ใช้ไป</div>
-                  <div className="font-mono text-lg sm:text-xl md:text-2xl font-bold text-amber-700 mt-2">
+                <div className="bg-amber-50/40 border border-amber-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px] dark:bg-amber-500/10 dark:border-amber-400/30">
+                  <div className="text-xs sm:text-sm text-amber-800 font-bold text-left dark:text-amber-300">OD ใช้ไป</div>
+                  <div className="font-mono text-lg sm:text-xl md:text-2xl font-bold text-amber-700 mt-2 dark:text-amber-300">
                     {formatMoney(Math.max(0, -closingBalance))}
                   </div>
                 </div>
                 {/* 4. OD คงเหลือ */}
-                <div className="bg-emerald-50/40 border border-emerald-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px]">
-                  <div className="text-xs sm:text-sm text-emerald-800 font-bold text-left">OD คงเหลือ</div>
-                  <div className="font-mono text-lg sm:text-xl md:text-2xl font-bold text-emerald-700 mt-2">
+                <div className="bg-emerald-50/40 border border-emerald-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px] dark:bg-emerald-500/10 dark:border-emerald-400/30">
+                  <div className="text-xs sm:text-sm text-emerald-800 font-bold text-left dark:text-emerald-300">OD คงเหลือ</div>
+                  <div className="font-mono text-lg sm:text-xl md:text-2xl font-bold text-emerald-700 mt-2 dark:text-emerald-300">
                     {formatMoney(Math.max(0, (selectedAccount.odLimit || 0) - Math.max(0, -closingBalance)))}
                   </div>
                 </div>
@@ -389,29 +394,32 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
         <ChartPanel rows={displayRows} title="📊 กระแสเงิน (เข้า/ออก)" variant="flow" />
       </div>
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-6">
-          <input autoComplete="off" className="h-9 rounded-md border px-3 text-sm lg:col-span-2" placeholder="ค้นหาเลขอ้างอิง / คำอธิบาย / หมายเหตุ" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
-          <Select className="h-9 text-sm" value={refType} onChange={(event) => { setPage(1); setRefType(event.target.value) }}>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+          <input autoComplete="off" className="col-span-2 h-9 min-w-0 rounded-md border px-3 text-sm lg:col-span-2" placeholder="ค้นหาเลขอ้างอิง / คำอธิบาย / หมายเหตุ" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
+          <Select className="h-9 min-w-0 text-sm" value={refType} onChange={(event) => { setPage(1); setRefType(event.target.value) }}>
             <option value="">ทุกประเภทอ้างอิง</option>
             {(data?.filters.refTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
           </Select>
-          <Select className="h-9 text-sm" value={type} onChange={(event) => { setPage(1); setType(event.target.value) }}>
+          <Select className="h-9 min-w-0 text-sm" value={type} onChange={(event) => { setPage(1); setType(event.target.value) }}>
             <option value="">ทุกประเภทรายการ</option>
             {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
           </Select>
-          <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-normal text-slate-700" type="button" onClick={() => { setPage(1); setSortDirection((current) => current === 'asc' ? 'desc' : 'asc') }}>วันที่ {sortDirection === 'asc' ? 'เก่าไปใหม่' : 'ใหม่ไปเก่า'}</button>
-          <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-normal text-slate-700" type="button" onClick={() => { setFrom(''); setPage(1); setQ(''); setRefType(''); setTo(''); setType('') }}>ล้างตัวกรอง</button>
+          <button className="h-9 min-w-0 rounded-md bg-slate-100 px-3 text-sm font-normal text-slate-700" type="button" onClick={() => { setPage(1); setSortDirection((current) => current === 'asc' ? 'desc' : 'asc') }}>วันที่ {sortDirection === 'asc' ? 'เก่าไปใหม่' : 'ใหม่ไปเก่า'}</button>
+          <button className="h-9 min-w-0 rounded-md bg-slate-100 px-3 text-sm font-normal text-slate-700" type="button" onClick={() => { setFrom(''); setPage(1); setQ(''); setRefType(''); setTo(''); setType('') }}>ล้างตัวกรอง</button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">บัญชี {selectedAccount?.code ? `${selectedAccount.code} - ` : ''}{selectedAccount?.name ?? '-'} / {selectedAccount?.bankName ?? '-'}</span>
-          <span className="ml-auto text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
         </div>
       </div>
       <DetailTable rows={displayRows} isLoading={isLoading} onOpen={setSelectedRow} totalRows={displayRows.length} selectedAccount={selectedAccount} />
-      <div className="flex items-center justify-end gap-2">
-        <button className="rounded-md bg-slate-100 px-3 py-2 text-sm disabled:opacity-50" disabled={page <= 1 || isLoading} type="button" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</button>
-        <span className="text-sm text-slate-600">หน้า {page} / {totalPages}</span>
-        <button className="rounded-md bg-slate-100 px-3 py-2 text-sm disabled:opacity-50" disabled={page >= totalPages || isLoading} type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</button>
+      <div className="text-sm text-slate-600">พบทั้งหมด {data?.pagination.totalRows ?? 0} รายการ</div>
+      <div className="flex w-full flex-wrap items-center justify-between gap-2">
+        <PageSizeDropdown disabled={isLoading} value={pageSize} onChange={(value) => { setPageSize(value); setPage(1) }} />
+        <div className="flex items-center gap-2">
+          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm disabled:opacity-50" disabled={page <= 1 || isLoading} type="button" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</button>
+          <span className="text-sm text-slate-600">หน้า {page} / {totalPages}</span>
+          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm disabled:opacity-50" disabled={page >= totalPages || isLoading} type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</button>
+        </div>
       </div>
       {selectedRow ? <DetailModal row={selectedRow} onClose={() => setSelectedRow(null)} /> : null}
     </section>
@@ -505,7 +513,7 @@ function DetailTable({
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-3">
         <h3 className="font-bold text-slate-700">📋 รายการเดินบัญชี ({totalRows} รายการ)</h3>
         {columnResize.hasCustomWidths ? (
-          <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+          <button className="text-xs text-blue-600 hover:underline hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
             คืนค่าเดิมตาราง
           </button>
         ) : null}
@@ -535,7 +543,7 @@ function DetailTable({
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={hasOd ? 9 : 7}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={hasOd ? 9 : 7}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && sortedRows.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={hasOd ? 9 : 7}>ไม่มีรายการ</td></tr> : null}
             {!isLoading && sortedRows.map((row) => {
               const runningBalance = row.runningBalance

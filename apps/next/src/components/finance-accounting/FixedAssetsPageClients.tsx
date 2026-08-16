@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { Children, isValidElement, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Download, Plus } from 'lucide-react'
@@ -593,15 +594,7 @@ export function AssetRegisterPageClient() {
             ตัวกรอง {(category !== 'all' || status !== 'all') ? '(มี)' : ''}
           </button>
         </div>
-        <div className="flex justify-end">
-          <button
-            className="h-9 rounded-md bg-blue-600 px-3 text-sm font-normal text-white transition hover:bg-blue-700"
-            onClick={openCreate}
-            type="button"
-          >
-            + เพิ่มทรัพย์สิน
-          </button>
-        </div>
+
       </div>
 
       {/* Bottom Sheet Filter for Mobile */}
@@ -693,14 +686,24 @@ export function AssetRegisterPageClient() {
         </MobileFilterSheet>
       ) : null}
 
+      {/* FAB for mobile creation */}
+      <button
+        aria-label="เพิ่มทรัพย์สิน"
+        className="h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 flex hover:bg-blue-700 md:hidden"
+        type="button"
+        onClick={openCreate}
+      >
+        <Plus className="h-6 w-6" />
+      </button>
+
       {/* Pagination Controls */}
       <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-          <button
+          <div className="flex items-center gap-2"><button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             disabled={currentPage <= 1}
             type="button"
@@ -716,10 +719,10 @@ export function AssetRegisterPageClient() {
             onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
           >
             ถัดไป
-          </button>
+          </button></div>
           {columnResize.hasCustomWidths ? (
             <button
-              className="h-9 rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              className="h-9 rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200 hidden lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
@@ -1097,8 +1100,8 @@ export function DepreciationPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       <Tabs defaultValue="pending" className="gap-3">
         <TabsList className="w-full overflow-x-auto" variant="line">
-          <TabsTrigger value="pending" variant="line">สินทรัพย์รอประมวลผล</TabsTrigger>
-          <TabsTrigger value="history" variant="line">ประวัติการประมวลผล</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="pending" variant="line">สินทรัพย์รอประมวลผล</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="history" variant="line">ประวัติการประมวลผล</TabsTrigger>
         </TabsList>
 
       {/* Desktop Filter Panel */}
@@ -1253,10 +1256,10 @@ export function DepreciationPageClient() {
               <span className="mx-2 text-slate-300">/</span>
               ค่าเสื่อมรวม <span className="font-semibold text-slate-900">{formatMoney(totalDepreciationAmount)}</span> บาท
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
               {columnResize.hasCustomWidths ? (
                 <button
-                  className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex"
                   type="button"
                   onClick={columnResize.resetColumnWidths}
                 >
@@ -1264,7 +1267,7 @@ export function DepreciationPageClient() {
                 </button>
               ) : null}
               <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-              <button
+              <div className="flex items-center gap-2"><button
                 className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                 disabled={currentPage <= 1}
                 type="button"
@@ -1280,7 +1283,7 @@ export function DepreciationPageClient() {
                 onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
               >
                 ถัดไป
-              </button>
+              </button></div>
             </div>
           </div>
 
@@ -1644,17 +1647,17 @@ export function AssetDisposalPageClient() {
             <div className="text-xs font-bold text-amber-700">{data?.summary.reversedRows ?? 0}</div>
           </div>
         </div>
-        <div className="mt-3 flex justify-end">
-          <button
-            className="h-9 rounded-md bg-blue-600 px-3 text-sm font-normal text-white transition hover:bg-blue-700"
-            onClick={openCreate}
-            type="button"
-          >
-            + จำหน่ายทรัพย์สิน
-          </button>
-        </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* FAB for mobile creation */}
+      <button
+        aria-label="จำหน่ายทรัพย์สิน"
+        className="h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 flex hover:bg-blue-700 md:hidden"
+        type="button"
+        onClick={openCreate}
+      >
+        <Plus className="h-6 w-6" />
+      </button>
+      <div className="grid grid-cols-2 gap-3">
         <StatCard label="ยอดขายรวม (Proceeds)" value={formatMoney(data?.summary.proceeds)} tone="blue" />
         <StatCard
           label="กำไร/(ขาดทุน) สุทธิ"
@@ -1667,10 +1670,10 @@ export function AssetDisposalPageClient() {
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {columnResize.hasCustomWidths ? (
             <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
@@ -1678,7 +1681,7 @@ export function AssetDisposalPageClient() {
             </button>
           ) : null}
           <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-          <button
+          <div className="flex items-center gap-2"><button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             disabled={currentPage <= 1}
             type="button"
@@ -1694,7 +1697,7 @@ export function AssetDisposalPageClient() {
             onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
           >
             ถัดไป
-          </button>
+          </button></div>
         </div>
       </div>
 
@@ -2189,7 +2192,7 @@ function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: Depreci
         {columnResize.hasCustomWidths ? (
           <div className="flex justify-end border-b border-slate-100 bg-white px-3 py-2">
             <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
@@ -2294,7 +2297,7 @@ function AssetRegisterEmptyState({
 }
 
 function LoadingOrEmpty({ colSpan, emptyText = 'ยังไม่มีข้อมูล', isLoading, rows }: { colSpan: number; emptyText?: string; isLoading: boolean; rows: number }) {
-  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}>กำลังโหลดข้อมูล</td></tr>
+  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr>
   if (rows === 0) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}>{emptyText}</td></tr>
   return null
 }

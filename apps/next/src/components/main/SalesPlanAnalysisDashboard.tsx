@@ -233,11 +233,13 @@ function AnalysisTable({ columns, isExporting, page, pageSize, rows, title, tota
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
         <span className="text-xs font-semibold text-slate-500">แสดง {totalItems ? `${((page - 1) * pageSize) + 1}-${Math.min(page * pageSize, totalItems)}` : '0'} จาก {totalItems.toLocaleString('th-TH')} รายการ</span>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           <PageSizeDropdown options={[10, 25, 50, 100]} value={pageSize} onChange={onPageSizeChange} />
-          <button aria-label="หน้าก่อนหน้า" className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={page <= 1} onClick={() => onPageChange(page - 1)} type="button"><ChevronLeft className="size-4" /></button>
-          <span className="min-w-[70px] text-center text-xs font-semibold text-slate-600">หน้า {page} / {totalPages}</span>
-          <button aria-label="หน้าถัดไป" className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} type="button"><ChevronRight className="size-4" /></button>
+          <div className="flex items-center gap-2">
+            <button aria-label="หน้าก่อนหน้า" className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={page <= 1} onClick={() => onPageChange(page - 1)} type="button"><ChevronLeft className="size-4" /></button>
+            <span className="min-w-[70px] text-center text-xs font-semibold text-slate-600">หน้า {page} / {totalPages}</span>
+            <button aria-label="หน้าถัดไป" className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} type="button"><ChevronRight className="size-4" /></button>
+          </div>
         </div>
       </div>
       <div className="overflow-x-auto">

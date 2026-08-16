@@ -407,7 +407,7 @@ function ProfitChart({ rows }: { rows: Payload['monthlyPL'] }) {
             const y = valueY(value)
             return (
               <g key={value}>
-                <line stroke={Math.abs(value) < 0.000001 ? '#cbd5e1' : '#eef2f7'} x1="8%" x2="99%" y1={y} y2={y} />
+                <line className="dark:stroke-slate-300" stroke={Math.abs(value) < 0.000001 ? '#cbd5e1' : '#eef2f7'} x1="8%" x2="99%" y1={y} y2={y} />
                 <text fill="#94a3b8" fontSize="10" x="0.5%" y={y + 4}>{compactMoney(value)}</text>
               </g>
             )

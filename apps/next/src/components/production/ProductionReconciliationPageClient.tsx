@@ -348,7 +348,7 @@ export function ProductionReconciliationPageClient() {
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="text-xs text-blue-600 hover:underline hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}

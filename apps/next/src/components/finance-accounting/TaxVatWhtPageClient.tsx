@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Activity, Building2, FileWarning, HandCoins, ReceiptText, RotateCcw, SlidersHorizontal } from 'lucide-react'
@@ -217,7 +218,7 @@ export function TaxVatWhtPageClient() {
             <SharedKpiCard className={taxKpiClassName} icon={<Activity aria-hidden="true" className="size-5" />} label="VAT ขาย" note="ภาษีขายของงวดที่เลือก" tone="emerald" value={money(data.summary.vatOut)} />
             <SharedKpiCard className={taxKpiClassName} icon={<HandCoins aria-hidden="true" className="size-5" />} label="VAT ซื้อ" note="ภาษีซื้อที่บันทึกในงวด" tone="blue" value={money(data.summary.vatIn)} />
             <SharedKpiCard className={taxKpiClassName} icon={<Building2 aria-hidden="true" className="size-5" />} label="WHT เราหักไว้" note="ยอดที่ต้องนำส่ง ภ.ง.ด." tone="amber" value={money(data.summary.whtChargedNet)} />
-            <SharedKpiCard className={taxKpiClassName} icon={<FileWarning aria-hidden="true" className="size-5" />} label="เอกสารภาษีไม่ครบ" note="ใช้ตาม transaction field ปัจจุบัน" tone="red" value={`${data.summary.missingCount.toLocaleString('th-TH')} รายการ`} />
+            <SharedKpiCard className={`${taxKpiClassName} col-span-2 lg:col-span-1`} icon={<FileWarning aria-hidden="true" className="size-5" />} label="เอกสารภาษีไม่ครบ" note="ใช้ตาม transaction field ปัจจุบัน" tone="red" value={`${data.summary.missingCount.toLocaleString('th-TH')} รายการ`} />
           </KpiCardGrid>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -516,7 +517,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
         <span>{title}</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 outline-none"
+            className="inline-flex h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 outline-none hidden lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -717,7 +718,7 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
 }
 
 function LoadingOrEmpty({ colSpan, isLoading, rows }: { colSpan: number; isLoading: boolean; rows: number }) {
-  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}>กำลังโหลดข้อมูล</td></tr>
+  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr>
   if (rows === 0) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}>ยังไม่มีข้อมูล</td></tr>
   return null
 }

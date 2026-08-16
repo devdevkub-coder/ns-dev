@@ -307,9 +307,9 @@ export function ReportsIndexPageClient() {
   return (
     <section className="space-y-4">
       <Tabs value={legacyTab} onValueChange={(value) => setLegacyTab(value as LegacyTab)}>
-        <TabsList className="flex-wrap" variant="line">
+        <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
           {legacyTabs.map((item) => (
-            <TabsTrigger key={item.k} value={item.k} variant="line">
+            <TabsTrigger className="whitespace-nowrap" key={item.k} value={item.k} variant="line">
               {item.l}
             </TabsTrigger>
           ))}
@@ -318,13 +318,13 @@ export function ReportsIndexPageClient() {
 
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <DatePickerInput className="h-9 w-[130px] border-slate-100" onChange={setFromDate} value={fromDate} />
-          <DatePickerInput className="h-9 w-[130px] border-slate-100" onChange={setToDate} value={toDate} />
-          <span className="text-xs font-medium text-slate-400">เว้นว่างเพื่อดูทุกช่วงเวลา</span>
+          <DatePickerInput className="h-9 w-[130px] flex-1 border-slate-100 sm:flex-none" onChange={setFromDate} value={fromDate} />
+          <DatePickerInput className="h-9 w-[130px] flex-1 border-slate-100 sm:flex-none" onChange={setToDate} value={toDate} />
+          <span className="basis-full text-xs font-medium text-slate-400 sm:basis-auto">เว้นว่างเพื่อดูทุกช่วงเวลา</span>
         </div>
         <div className="mt-2 flex justify-end">
           <button
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none sm:w-auto"
             disabled={loading}
             onClick={exportActiveTab}
             type="button"
@@ -346,7 +346,7 @@ export function ReportsIndexPageClient() {
         <div className="hidden items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2 text-xs font-semibold text-slate-500 lg:flex">
           <span>{legacyTabs.find((tab) => tab.k === legacyTab)?.l ?? 'Report'} - {sortedRows.length.toLocaleString('th-TH')} รายการ</span>
           {aggregateColumnResize.hasCustomWidths ? (
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={aggregateColumnResize.resetColumnWidths}>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={aggregateColumnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
@@ -461,10 +461,10 @@ export function ReportsIndexPageClient() {
           />
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           {catalogTabs.map((item) => (
             <button
-              className={`inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors outline-none focus:outline-none ${
+              className={`inline-flex h-8 min-w-0 items-center justify-center rounded-md border px-3 text-xs font-medium whitespace-nowrap transition-colors outline-none focus:outline-none ${
                 catalogTab === item.k
                   ? 'border-slate-700 bg-slate-700 text-white'
                   : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
@@ -493,7 +493,7 @@ export function ReportsIndexPageClient() {
           <div className="hidden items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2 text-xs font-semibold text-slate-500 lg:flex">
             <span>{sortedFiltered.length.toLocaleString('th-TH')} รายการ</span>
             {catalogColumnResize.hasCustomWidths ? (
-              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={catalogColumnResize.resetColumnWidths}>
+              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={catalogColumnResize.resetColumnWidths}>
                 คืนค่าเดิมตาราง
               </button>
             ) : null}

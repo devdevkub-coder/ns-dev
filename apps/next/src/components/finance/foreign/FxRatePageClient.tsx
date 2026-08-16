@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -199,7 +200,7 @@ export function FxRatePageClient() {
       </div>
       {columnResize.hasCustomWidths ? (
         <button
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hidden lg:inline-flex"
           type="button"
           onClick={columnResize.resetColumnWidths}
         >
@@ -291,15 +292,15 @@ export function FxRatePageClient() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-5 text-sm">
+      <div className="flex flex-wrap gap-2.5 sm:gap-4 text-sm md:grid md:grid-cols-5">
         {latestRates.slice(0, 5).map((rate) => (
-          <div key={rate.id} className="bg-white border border-slate-200 rounded-xl p-3.5 text-center shadow-sm hover:shadow-md transition-shadow">
+          <div key={rate.id} className="min-w-[160px] flex-1 rounded-xl bg-white border border-slate-200 p-3.5 text-center shadow-sm hover:shadow-md transition-shadow md:min-w-0">
             <div className="text-xs font-semibold text-slate-500">{rate.fromCurrency} &rarr; {rate.toCurrency}</div>
             <div className="text-2xl font-bold text-slate-900 mt-1">{formatRate(rate.rate)}</div>
             <div className="mt-1.5 text-xs font-medium text-slate-400">{formatDateDisplay(rate.rateDate)}</div>
           </div>
         ))}
-        {!isLoading && (data?.latestRates.length ?? 0) === 0 ? <div className="col-span-full rounded-xl bg-white border border-slate-200 p-6 text-center text-sm text-slate-500 shadow-sm">ยังไม่มี FX Rate</div> : null}
+        {!isLoading && (data?.latestRates.length ?? 0) === 0 ? <div className="w-full rounded-xl bg-white border border-slate-200 p-6 text-center text-sm text-slate-500 shadow-sm md:col-span-full">ยังไม่มี FX Rate</div> : null}
       </div>
 
       {/* Filters Toolbar */}
@@ -344,9 +345,9 @@ export function FxRatePageClient() {
 
         {/* Mobile View */}
         <div className="block lg:hidden space-y-2.5">
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
-              className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+              className={`inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
@@ -354,7 +355,7 @@ export function FxRatePageClient() {
             >
               ตัวกรอง {hasFilters ? '(มี)' : ''}
             </button>
-            <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white flex items-center justify-center" type="button" onClick={openCreate}>+ เพิ่ม</button>
+            <button className="inline-flex h-9 w-full items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700" type="button" onClick={openCreate}>+ เพิ่ม</button>
           </div>
 
           {showMobileFilters && (
@@ -430,7 +431,7 @@ export function FxRatePageClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxRateColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxRateColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxRateColumns.length}>ยังไม่มี FX Rate</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">

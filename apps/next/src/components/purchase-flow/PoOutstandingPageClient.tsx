@@ -219,9 +219,9 @@ export function PoOutstandingPageClient() {
             setSortKey(undefined)
           }}
         >
-          <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-            <TabsTrigger value="buy" variant="line">PO ซื้อ คงเหลือ ({data?.summary.buyCount ?? 0})</TabsTrigger>
-            <TabsTrigger value="sell" variant="line">PO ขาย คงเหลือ ({data?.summary.sellCount ?? 0})</TabsTrigger>
+          <TabsList className="w-full" variant="line">
+            <TabsTrigger className="min-w-0 flex-1" value="buy" variant="line">PO ซื้อ คงเหลือ ({data?.summary.buyCount ?? 0})</TabsTrigger>
+            <TabsTrigger className="min-w-0 flex-1" value="sell" variant="line">PO ขาย คงเหลือ ({data?.summary.sellCount ?? 0})</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -260,15 +260,15 @@ export function PoOutstandingPageClient() {
         <Metric label={tab === 'buy' ? 'มูลค่ารอรับ' : 'มูลค่ารอส่ง'} tone={tab === 'buy' ? 'blue' : 'emerald'} emoji="💰" value={formatMoney(totals.remainingValue)} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+      <div className="grid grid-cols-2 items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex lg:flex-wrap">
         <input
-          className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-slate-400 focus:ring-0"
+          className="col-span-2 h-9 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-slate-400 focus:ring-0 lg:min-w-[260px] lg:flex-1"
           placeholder="ค้นหา PO / คู่ค้า / สินค้า"
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <div className="min-w-[180px]">
+        <div className="min-w-0 lg:min-w-[180px]">
           <SearchCombobox
             inputClassName="h-9 text-sm"
             inputId="outstanding-partner-filter"
@@ -280,7 +280,7 @@ export function PoOutstandingPageClient() {
             onChange={setPartnerFilter}
           />
         </div>
-        <div className="min-w-[180px]">
+        <div className="min-w-0 lg:min-w-[180px]">
           <SearchCombobox
             inputClassName="h-9 text-sm"
             inputId="outstanding-product-filter"
@@ -294,15 +294,15 @@ export function PoOutstandingPageClient() {
         </div>
       </div>
 
-      {/* Table Card Controls */}
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+      {/* Desktop table toolbar (inside table frame) */}
+      <div className="lg:overflow-hidden lg:rounded-md lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm">
+        <div className="hidden flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:flex">
           <div>
             พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
             <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-            <button
+            <div className="flex items-center gap-2"><button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
               disabled={currentPage <= 1}
               type="button"
@@ -318,7 +318,7 @@ export function PoOutstandingPageClient() {
               onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
             >
               ถัดไป
-            </button>
+            </button></div>
           </div>
         </div>
 
@@ -652,13 +652,13 @@ export function PoOutstandingPageClient() {
       )}
 
       {/* Mobile Card list */}
-      <div className="block divide-y divide-slate-100 lg:hidden">
+      <div className="block space-y-3 lg:hidden">
         {isLoading ? (
           <div className="p-8 text-center text-slate-500">กำลังโหลดข้อมูล</div>
         ) : null}
 
         {!isLoading && pagedRows.map((row) => (
-          <div key={row.id} className="space-y-2 p-4">
+          <div key={row.id} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex justify-between items-start">
               <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.docNo}</span>
               <span className="text-center text-xs text-slate-500 whitespace-nowrap">{formatDateDisplay(row.date)}</span>
@@ -714,6 +714,33 @@ export function PoOutstandingPageClient() {
           </div>
         ) : null}
       </div>
+      </div>
+
+      {/* Mobile pagination — bare row, no card (per design) */}
+      <div className="flex flex-col gap-3 text-sm text-slate-600 lg:hidden">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+        </div>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+          <PageSizeDropdown value={pageSize} onChange={setPageSize} />
+          <div className="flex items-center gap-2"><button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            disabled={currentPage <= 1}
+            type="button"
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            ก่อนหน้า
+          </button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            disabled={currentPage >= totalPages}
+            type="button"
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            ถัดไป
+          </button></div>
+        </div>
       </div>
 
 

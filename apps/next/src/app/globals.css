@@ -40,6 +40,16 @@
   ::view-transition-new(root) {
     animation: none;
   }
+
+  /* Animation toolkit respects reduced motion: all motion collapses to near-instant */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @theme {
@@ -56,6 +66,51 @@
   --text-sm--line-height: 1.45;
   --text-base: 13.5px;
   --text-base--line-height: 1.45;
+
+  /* Animation toolkit (see docs/design.md) — 150–250ms, ease-out, transform/opacity only */
+  --animate-fade-in: fade-in 180ms ease-out both;
+  --animate-fade-out: fade-out 150ms ease-in both;
+  --animate-fade-in-up: fade-in-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scale-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-in-up: slide-in-up 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-dialog-in: dialog-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-dialog-out: dialog-out 150ms ease-in both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes slide-in-up {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  /* Dialog content is centered with -translate-x/y-1/2, so its keyframes must
+     keep the centering translate or the panel jumps during the animation. */
+  @keyframes dialog-in {
+    from { opacity: 0; transform: translate(-50%, -50%) translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: translate(-50%, -50%) translateY(0) scale(1); }
+  }
+  @keyframes dialog-out {
+    from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    to { opacity: 0; transform: translate(-50%, -50%) scale(0.97); }
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
 }
 
 :root {
@@ -751,6 +806,50 @@ input[type="search"]::-webkit-search-results-decoration {
   display: none;
 }
 
+/* Skeleton loader — soft base + sweeping highlight. Works in both themes;
+   reduced-motion collapses the sweep via the global rule above. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  background-color: var(--color-slate-200);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.4), transparent);
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+.dark .skeleton {
+  background-color: rgb(51 65 85 / 0.45);
+}
+
+.dark .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgb(148 163 184 / 0.14), transparent);
+}
+
+@keyframes skeleton-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Button press feedback — every button that opts into `transition`/`transition-all`
+   (which already include transform in their transition-property list) gets a quick
+   scale-down on press. Respects reduced-motion via the global rule above. */
+button.transition:active:not(:disabled),
+button.transition-all:active:not(:disabled),
+button.transition-colors:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
 /* Custom Scrollbar for Dark Sidebar */
 .custom-scrollbar-dark::-webkit-scrollbar {
   width: 6px;
@@ -914,7 +1013,7 @@ aside a:visited {
   color: #67e8f9 !important;
 }
 
-.dark :where(.text-emerald-300, .text-emerald-400, .text-emerald-500, .text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-900, .text-green-300, .text-green-400, .text-green-500, .text-green-600, .text-green-700, .text-green-800, .text-green-900, .text-lime-300, .text-lime-400, .text-lime-500, .text-lime-600, .text-lime-700, .text-lime-800, .text-lime-900) {
+.dark :where(.text-emerald-200, .text-emerald-300, .text-emerald-400, .text-emerald-500, .text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-900, .text-green-300, .text-green-400, .text-green-500, .text-green-600, .text-green-700, .text-green-800, .text-green-900, .text-lime-300, .text-lime-400, .text-lime-500, .text-lime-600, .text-lime-700, .text-lime-800, .text-lime-900) {
   color: #86efac !important;
 }
 
@@ -1253,10 +1352,19 @@ aside a:visited {
   color: #ede9fe !important;
 }
 
-.dark :where(button[class*="bg-blue-"], button[class*="bg-sky-"], button[class*="bg-cyan-"], button[class*="bg-teal-"], a[class*="bg-blue-"], a[class*="bg-sky-"], a[class*="bg-cyan-"], a[class*="bg-teal-"], [role="button"][class*="bg-blue-"], [role="button"][class*="bg-sky-"], [role="button"][class*="bg-cyan-"], [role="button"][class*="bg-teal-"]) {
+.dark :where(button[class*="bg-blue-"], button[class*="bg-sky-"], button[class*="bg-cyan-"], button[class*="bg-teal-"], a[class*="bg-blue-"], a[class*="bg-sky-"], a[class*="bg-cyan-"], a[class*="bg-teal-"], label[class*="bg-blue-"], label[class*="bg-sky-"], label[class*="bg-cyan-"], label[class*="bg-teal-"], [role="button"][class*="bg-blue-"], [role="button"][class*="bg-sky-"], [role="button"][class*="bg-cyan-"], [role="button"][class*="bg-teal-"]) {
   background-color: var(--ns-dark-primary) !important;
   border-color: #60a5fa !important;
   color: #ffffff !important;
+}
+
+/* Segmented filter chips render ~28-30px tall from `px-3 py-1 text-xs` alone, which
+   sits visibly lower than the h-9 (36px) filter controls beside them. Pin them to h-9
+   so every control in a filter row shares one height (design.md: filter row = h-9). */
+button[class*="rounded-md"][class*="border"][class*="px-3 py-1"][class*="text-xs"] {
+  display: inline-flex;
+  align-items: center;
+  height: 2.25rem;
 }
 
 .dark :where(button[class*="bg-red-"], button[class*="bg-rose-"], button[class*="bg-pink-"], a[class*="bg-red-"], a[class*="bg-rose-"], a[class*="bg-pink-"], [role="button"][class*="bg-red-"], [role="button"][class*="bg-rose-"], [role="button"][class*="bg-pink-"]) {
@@ -1283,48 +1391,48 @@ aside a:visited {
   color: #ffffff !important;
 }
 
-.dark :where([class*="bg-red-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-rose-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-pink-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-red-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-rose-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-pink-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
+.dark :where([class~="bg-red-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-rose-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-pink-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-red-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-rose-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-pink-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(127, 29, 29, 0.58) !important;
   color: #fecaca !important;
 }
 
-.dark :where([class*="bg-amber-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-yellow-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-orange-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-amber-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-yellow-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-orange-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
+.dark :where([class~="bg-amber-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-yellow-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-orange-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-amber-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-yellow-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-orange-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(146, 64, 14, 0.58) !important;
   color: #fde68a !important;
 }
 
-.dark :where([class*="bg-emerald-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-green-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-lime-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-teal-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-emerald-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-green-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-lime-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-teal-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
+.dark :where([class~="bg-emerald-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-green-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-lime-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-teal-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-emerald-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-green-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-lime-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-teal-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(6, 95, 70, 0.58) !important;
   color: #bbf7d0 !important;
 }
 
-.dark :where([class*="bg-blue-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-sky-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-cyan-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-blue-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-sky-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-cyan-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
+.dark :where([class~="bg-blue-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-sky-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-cyan-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-blue-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-sky-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-cyan-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(30, 64, 175, 0.58) !important;
   color: #dbeafe !important;
 }
 
-.dark :where([class*="bg-indigo-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-violet-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-purple-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-fuchsia-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-indigo-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-violet-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-purple-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class*="bg-fuchsia-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
+.dark :where([class~="bg-indigo-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-violet-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-purple-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-fuchsia-50"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-indigo-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-violet-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-purple-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus), [class~="bg-fuchsia-100"]:not(tr):not(td):not(th):not(:is(button):hover):not(:is(button):focus)) {
   background-color: rgba(91, 33, 182, 0.56) !important;
   color: #ede9fe !important;
 }
 
-.dark :where(tr[class*="bg-red-50"], td[class*="bg-red-50"], th[class*="bg-red-50"], tr[class*="bg-rose-50"], td[class*="bg-rose-50"], th[class*="bg-rose-50"], tr[class*="bg-pink-50"], td[class*="bg-pink-50"], th[class*="bg-pink-50"]) {
+.dark :where(tr[class~="bg-red-50"], td[class~="bg-red-50"], th[class~="bg-red-50"], tr[class~="bg-rose-50"], td[class~="bg-rose-50"], th[class~="bg-rose-50"], tr[class~="bg-pink-50"], td[class~="bg-pink-50"], th[class~="bg-pink-50"]) {
   background-color: rgba(127, 29, 29, 0.14) !important;
 }
 
-.dark :where(tr[class*="bg-amber-50"], td[class*="bg-amber-50"], th[class*="bg-amber-50"], tr[class*="bg-yellow-50"], td[class*="bg-yellow-50"], th[class*="bg-yellow-50"], tr[class*="bg-orange-50"], td[class*="bg-orange-50"], th[class*="bg-orange-50"]) {
+.dark :where(tr[class~="bg-amber-50"], td[class~="bg-amber-50"], th[class~="bg-amber-50"], tr[class~="bg-yellow-50"], td[class~="bg-yellow-50"], th[class~="bg-yellow-50"], tr[class~="bg-orange-50"], td[class~="bg-orange-50"], th[class~="bg-orange-50"]) {
   background-color: rgba(146, 64, 14, 0.1) !important;
 }
 
-.dark :where(tr[class*="bg-emerald-50"], td[class*="bg-emerald-50"], th[class*="bg-emerald-50"], tr[class*="bg-green-50"], td[class*="bg-green-50"], th[class*="bg-green-50"], tr[class*="bg-lime-50"], td[class*="bg-lime-50"], th[class*="bg-lime-50"], tr[class*="bg-teal-50"], td[class*="bg-teal-50"], th[class*="bg-teal-50"]) {
+.dark :where(tr[class~="bg-emerald-50"], td[class~="bg-emerald-50"], th[class~="bg-emerald-50"], tr[class~="bg-green-50"], td[class~="bg-green-50"], th[class~="bg-green-50"], tr[class~="bg-lime-50"], td[class~="bg-lime-50"], th[class~="bg-lime-50"], tr[class~="bg-teal-50"], td[class~="bg-teal-50"], th[class~="bg-teal-50"]) {
   background-color: rgba(6, 95, 70, 0.12) !important;
 }
 
-.dark :where(tr[class*="bg-blue-50"], td[class*="bg-blue-50"], th[class*="bg-blue-50"], tr[class*="bg-sky-50"], td[class*="bg-sky-50"], th[class*="bg-sky-50"], tr[class*="bg-cyan-50"], td[class*="bg-cyan-50"], th[class*="bg-cyan-50"]) {
+.dark :where(tr[class~="bg-blue-50"], td[class~="bg-blue-50"], th[class~="bg-blue-50"], tr[class~="bg-sky-50"], td[class~="bg-sky-50"], th[class~="bg-sky-50"], tr[class~="bg-cyan-50"], td[class~="bg-cyan-50"], th[class~="bg-cyan-50"]) {
   background-color: rgba(30, 64, 175, 0.12) !important;
 }
 
-.dark :where(tr[class*="bg-indigo-50"], td[class*="bg-indigo-50"], th[class*="bg-indigo-50"], tr[class*="bg-violet-50"], td[class*="bg-violet-50"], th[class*="bg-violet-50"], tr[class*="bg-purple-50"], td[class*="bg-purple-50"], th[class*="bg-purple-50"], tr[class*="bg-fuchsia-50"], td[class*="bg-fuchsia-50"], th[class*="bg-fuchsia-50"]) {
+.dark :where(tr[class~="bg-indigo-50"], td[class~="bg-indigo-50"], th[class~="bg-indigo-50"], tr[class~="bg-violet-50"], td[class~="bg-violet-50"], th[class~="bg-violet-50"], tr[class~="bg-purple-50"], td[class~="bg-purple-50"], th[class~="bg-purple-50"], tr[class~="bg-fuchsia-50"], td[class~="bg-fuchsia-50"], th[class~="bg-fuchsia-50"]) {
   background-color: rgba(91, 33, 182, 0.12) !important;
 }
 

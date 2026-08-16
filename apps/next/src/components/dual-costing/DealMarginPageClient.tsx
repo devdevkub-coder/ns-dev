@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
@@ -157,7 +158,7 @@ export function DealMarginPageClient() {
       <div>
         พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
         {columnResize.hasCustomWidths ? (
           <Button className="hidden h-9 lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
             คืนค่าเดิมตาราง
@@ -167,9 +168,9 @@ export function DealMarginPageClient() {
           setPageSize(size as (typeof pageSizeOptions)[number])
           setPage(1)
         }} />
-        <Button disabled={safePage <= 1 || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+        <div className="flex items-center gap-2"><Button disabled={safePage <= 1 || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
         <span className="px-1">หน้า {safePage} / {totalPages}</span>
-        <Button disabled={safePage >= totalPages || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+        <Button disabled={safePage >= totalPages || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button></div>
       </div>
     </>
   )
@@ -318,7 +319,7 @@ export function DealMarginPageClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={dealMarginColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={dealMarginColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && rows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={dealMarginColumns.length}>ยังไม่มี PO Sell</td></tr> : null}
             {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
@@ -440,7 +441,7 @@ function MatchStatusDonut({ fully, none, partial, total }: { fully: number; none
           </>
         ) : null}
         <text x="100" y="95" fill="#64748b" fontSize="12" textAnchor="middle">{total} ดีล</text>
-        <text x="100" y="115" fill="#0f172a" fontSize="14" fontWeight="bold" textAnchor="middle">{fullyPct.toFixed(0)}%</text>
+        <text className="fill-slate-800" x="100" y="115" fontSize="14" fontWeight="bold" textAnchor="middle">{fullyPct.toFixed(0)}%</text>
       </svg>
       <div className="mt-1 flex justify-center gap-2 text-xs">
         <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-md bg-emerald-500" />จับคู่ครบ</span>

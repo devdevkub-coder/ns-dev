@@ -674,11 +674,13 @@ function TablePager({ onPageChange, onPageSizeChange, page, pageSize, totalRows 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
       <span>แสดง {count((page - 1) * pageSize + 1)}-{count(Math.min(page * pageSize, totalRows))} จาก {count(totalRows)} รายการ</span>
-      <div className="flex items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
         <PageSizeDropdown options={[...productPageSizeOptions]} value={pageSize} onChange={(value) => onPageSizeChange(value as (typeof productPageSizeOptions)[number])} />
-        <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={page <= 1} type="button" onClick={() => onPageChange(page - 1)}>ก่อนหน้า</button>
-        <span className="px-1 text-sm">หน้า {count(page)} / {count(totalPages)}</span>
-        <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={page >= totalPages} type="button" onClick={() => onPageChange(page + 1)}>ถัดไป</button>
+        <div className="flex items-center gap-2">
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={page <= 1} type="button" onClick={() => onPageChange(page - 1)}>ก่อนหน้า</button>
+          <span className="px-1 text-sm">หน้า {count(page)} / {count(totalPages)}</span>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={page >= totalPages} type="button" onClick={() => onPageChange(page + 1)}>ถัดไป</button>
+        </div>
       </div>
     </div>
   )
@@ -702,7 +704,7 @@ function ProductTable({ onSelect, onSort, rows, sortDirection, sortKey }: {
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -854,7 +856,7 @@ function SimpleTable({ alignments, headers, onSort, rows, sortDirection, sortKey
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">

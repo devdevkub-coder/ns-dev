@@ -386,8 +386,8 @@ export function TransactionLedgerPageClient() {
             <SlidersHorizontal className="h-3.5 w-3.5" />
             ตัวกรอง {(dateFrom || dateTo || filterAccount || filterRefType) ? '(มี)' : ''}
           </button>
-          <button className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}><Download aria-hidden="true" className="size-4" />{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
         </div>
+        <button className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}><Download aria-hidden="true" className="size-4" />{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
         <div className="flex flex-wrap gap-1.5 text-xs text-slate-500 pt-1">
           <span className="rounded bg-emerald-50 px-1 py-0.5 text-emerald-700 font-medium">เข้า: {formatMoney(summary.totalIn)}</span>
           <span className="rounded bg-red-50 px-1 py-0.5 text-red-700 font-medium">ออก: {formatMoney(summary.totalOut)}</span>
@@ -483,7 +483,7 @@ export function TransactionLedgerPageClient() {
             </span>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           <PageSizeDropdown
             value={pageSize}
             onChange={(nextPageSize) => {
@@ -491,9 +491,9 @@ export function TransactionLedgerPageClient() {
               setPage(1)
             }}
           />
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage <= 1} type="button" onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</button>
+          <div className="flex items-center gap-2"><button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage <= 1} type="button" onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</button>
           <span className="px-1 text-sm font-medium text-slate-700">หน้า {currentPage.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}</span>
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage >= totalPages} type="button" onClick={() => setPage(currentPage + 1)}>ถัดไป</button>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage >= totalPages} type="button" onClick={() => setPage(currentPage + 1)}>ถัดไป</button></div>
         </div>
       </div>
 

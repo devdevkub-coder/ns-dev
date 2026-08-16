@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -307,10 +308,10 @@ export function CustomerTrackingPageClient() {
       </div>
 
       <Tabs className="min-w-0" value={view} onValueChange={(value) => setView(value as 'list' | 'top10' | 'yearCompare')}>
-        <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
-          <TabsTrigger value="list" variant="line">รายการ</TabsTrigger>
-          <TabsTrigger value="top10" variant="line">10 อันดับแรกและวิเคราะห์</TabsTrigger>
-          <TabsTrigger value="yearCompare" variant="line">รายปี (12 เดือน)</TabsTrigger>
+        <TabsList className="w-full min-w-0 overflow-x-auto sm:w-auto" variant="line">
+          <TabsTrigger className="flex-1 px-2 sm:flex-none sm:px-3" value="list" variant="line">รายการ</TabsTrigger>
+          <TabsTrigger className="flex-1 px-2 sm:flex-none sm:px-3" value="top10" variant="line">10 อันดับแรกและวิเคราะห์</TabsTrigger>
+          <TabsTrigger className="flex-1 px-2 sm:flex-none sm:px-3" value="yearCompare" variant="line">รายปี (12 เดือน)</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -451,7 +452,7 @@ export function CustomerTrackingPageClient() {
       {columnResize.hasCustomWidths && (
         <div className="flex justify-end">
           <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none hidden lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -528,7 +529,7 @@ export function CustomerTrackingPageClient() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
+              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={13}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
               {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-slate-400 text-center" colSpan={13}>ไม่มีข้อมูลลูกค้า</td></tr> : null}
               {!isLoading && pagedRows.map((row) => (
                 <tr key={row.id} className="cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
@@ -967,9 +968,9 @@ function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-slate-500">แสดงผล:</span>
         <Tabs value={mode} onValueChange={(value) => setMode(value as CustomerYearCompareMode)} className="gap-0">
-          <TabsList variant="line" className="flex-wrap overflow-x-auto">
-            <TabsTrigger variant="line" value="weight">น้ำหนัก (กก.)</TabsTrigger>
-            <TabsTrigger variant="line" value="sales">ยอดขาย</TabsTrigger>
+          <TabsList variant="line" className="w-full flex-wrap overflow-x-auto sm:w-auto">
+            <TabsTrigger className="flex-1 sm:flex-none" variant="line" value="weight">น้ำหนัก (กก.)</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" variant="line" value="sales">ยอดขาย</TabsTrigger>
           </TabsList>
         </Tabs>
         {columnResize.hasCustomWidths ? (

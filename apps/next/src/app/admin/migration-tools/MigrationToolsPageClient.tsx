@@ -160,7 +160,7 @@ export function MigrationToolsPageClient() {
         <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-bold text-slate-700">🗂 Snapshot อัตโนมัติ (Browser นี้ — เก็บ 7 วันล่าสุด)</h2>
           {snapshotColumnResize.hasCustomWidths ? (
-            <button className="h-8 rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={snapshotColumnResize.resetColumnWidths}>
+            <button className="h-8 rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={snapshotColumnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}

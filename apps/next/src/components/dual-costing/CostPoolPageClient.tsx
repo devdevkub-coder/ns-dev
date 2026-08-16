@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, Search } from 'lucide-react'
@@ -475,7 +476,7 @@ export function CostPoolPageClient() {
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
         <div>พบทั้งหมด {totalGroups.toLocaleString('th-TH')} สินค้า · {rows.length.toLocaleString('th-TH')} รายการ</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {groupColumnResize.hasCustomWidths ? (
             <Button className="hidden h-9 lg:inline-flex" size="sm" type="button" variant="outline" onClick={groupColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
           ) : null}
@@ -488,9 +489,9 @@ export function CostPoolPageClient() {
               setPage(1)
             }}
           />
-          <Button className="h-9" disabled={currentPage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <div className="flex items-center gap-2"><Button className="h-9" disabled={currentPage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <Button className="h-9" disabled={currentPage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+          <Button className="h-9" disabled={currentPage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button></div>
         </div>
       </div>
 
@@ -514,7 +515,7 @@ export function CostPoolPageClient() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={COST_POOL_GROUP_TABLE_COLUMN_COUNT}>กำลังโหลดข้อมูล</td></tr> : null}
+              {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={COST_POOL_GROUP_TABLE_COLUMN_COUNT}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
               {!isLoading && !error && totalGroups === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={COST_POOL_GROUP_TABLE_COLUMN_COUNT}>Cost Pool ว่างตามตัวกรองปัจจุบัน</td></tr> : null}
               {!isLoading && pagedGroups.map((group) => (
                 <tr className="cursor-pointer transition-colors hover:bg-slate-50" key={group.key} onClick={() => openGroupDetail(group)}>

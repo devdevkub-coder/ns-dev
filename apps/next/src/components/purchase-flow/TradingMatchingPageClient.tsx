@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -221,24 +222,24 @@ export function TradingMatchingPageClient() {
 
       <Tabs className="gap-0" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
         <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-          <TabsTrigger value="allocations" variant="line">รายการจับคู่ ({filteredDeals.length})</TabsTrigger>
-          <TabsTrigger value="remaining" variant="line">ต้นทุนคงเหลือ ({remainingPurchases.length})</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="allocations" variant="line">รายการจับคู่ ({filteredDeals.length})</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="remaining" variant="line">ต้นทุนคงเหลือ ({remainingPurchases.length})</TabsTrigger>
         </TabsList>
       </Tabs>
 
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาบิลขาย / บิลซื้อ / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-9 text-sm" value={fromDate} onChange={setFromDate} />
-          <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-9 text-sm" value={toDate} onChange={setToDate} />
-          {hasFilters ? <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-normal text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={resetFilters}>ล้าง</button> : null}
-          <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-normal text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={() => void loadData()}>รีเฟรช</button>
+        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-2">
+          <input autoComplete="off" className="col-span-2 h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200 lg:min-w-[260px] lg:flex-1" placeholder="ค้นหาบิลขาย / บิลซื้อ / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-9 w-full text-sm lg:w-[130px] lg:flex-none" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-9 w-full text-sm lg:w-[130px] lg:flex-none" value={toDate} onChange={setToDate} />
+          {hasFilters ? <button className="h-9 w-full rounded-md border border-slate-300 px-4 text-sm font-normal text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0 lg:w-auto" type="button" onClick={resetFilters}>ล้าง</button> : null}
+          <button className={`h-9 w-full rounded-md border border-slate-300 px-4 text-sm font-normal text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0 ${hasFilters ? '' : 'col-span-2'} lg:col-span-1 lg:w-auto`} type="button" onClick={() => void loadData()}>รีเฟรช</button>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
-          <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-xs transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-0" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
-          <div className="flex flex-wrap gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 lg:flex lg:flex-wrap lg:items-center lg:justify-end lg:gap-2">
+          <a className="col-span-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-xs transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-0 lg:col-span-1 lg:w-auto" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
+          <div className="col-span-2 flex flex-wrap gap-2 lg:col-span-1">
             {allocationLinks.map((item) => (
-              <Link key={item.href} className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 shadow-xs transition-colors hover:bg-slate-50 focus:outline-none focus:ring-0" href={item.href}>
+              <Link key={item.href} className="inline-flex h-9 min-w-0 flex-1 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 shadow-xs transition-colors hover:bg-slate-50 focus:outline-none focus:ring-0 lg:flex-none" href={item.href}>
                 {item.label}
               </Link>
             ))}
@@ -252,9 +253,9 @@ export function TradingMatchingPageClient() {
           <div>
             พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
             <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-            <button
+            <div className="flex items-center gap-2"><button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
               disabled={currentPage <= 1}
               type="button"
@@ -270,7 +271,7 @@ export function TradingMatchingPageClient() {
               onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
             >
               ถัดไป
-            </button>
+            </button></div>
           </div>
         </div>
 
@@ -305,7 +306,7 @@ export function TradingMatchingPageClient() {
             <div className="hidden overflow-x-auto lg:block">
               <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
                 {columnResize.hasCustomWidths ? (
-                  <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>
+                  <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
                     คืนค่าเดิมตาราง
                   </button>
                 ) : null}
@@ -333,7 +334,7 @@ export function TradingMatchingPageClient() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {isLoading ? <tr><td className="p-6 text-center text-slate-500 font-semibold" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
+                  {isLoading ? <tr><td className="p-6 text-center text-slate-500 font-semibold" colSpan={12}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
                   {!isLoading && !error && filteredDeals.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={12}>ยังไม่มีรายการจัดสรรตามเงื่อนไขที่ค้นหา</td></tr> : null}
                   {!isLoading && pagedFilteredDeals.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
@@ -422,7 +423,7 @@ function RemainingPurchaseTable({
       <div className="flex items-center justify-between border-b border-slate-100 px-3 py-3">
         <div className="font-bold text-emerald-755 text-sm">บิลซื้อซื้อมาขายไป / ต้นทุนที่ยังไม่ได้จับคู่</div>
         {columnResize.hasCustomWidths ? (
-          <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>
+          <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
             คืนค่าเดิมตาราง
           </button>
         ) : null}

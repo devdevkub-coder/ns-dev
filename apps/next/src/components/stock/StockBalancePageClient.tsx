@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
@@ -666,10 +667,12 @@ export function StockBalancePageClient() {
       {/* Metric Cards */}
       <div className="mb-4 grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-5 text-sm">
         <Metric emoji="⚖️" iconBg="bg-blue-100 text-blue-700" label="น้ำหนักสต๊อกรวม" sub={`คงเหลือ ${summary.onHandRows.toLocaleString('th-TH')} รายการ`} value={`${formatMoney(summary.qty)} กก.`} tone="blue" />
-        <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่าสต๊อกรวม" value={formatMoney(summary.value)} tone="emerald" />
+        <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่าสต๊อกรวม" sub={`เฉลี่ย ${summary.qty > 0 ? (summary.value / summary.qty).toFixed(2) : '0'} บ./กก.`} value={formatMoney(summary.value)} tone="emerald" />
         <Metric emoji="📥" iconBg="bg-sky-100 text-sky-700" label="รอเข้า" sub={`${summary.pendingInRows.toLocaleString('th-TH')} รายการ จาก WTI`} value={`${formatMoney(summary.awaitingBillQty)} กก.`} tone="blue" />
         <Metric emoji="⏳" iconBg="bg-amber-100 text-amber-700" label="รอออก" sub={`${summary.pendingOutRows.toLocaleString('th-TH')} รายการ จาก WTO`} value={`${formatMoney(summary.onHoldQty)} กก.`} tone="amber" />
-        <Metric emoji="✅" iconBg="bg-emerald-100 text-emerald-700" label="พร้อมส่ง" sub={`${summary.qty > 0 ? (summary.readyQty / summary.qty * 100).toFixed(1) : '0'}% ของสต็อก`} value={`${formatMoney(summary.readyQty)} กก.`} tone="emerald" />
+        <div className="col-span-2 xl:col-span-1">
+          <Metric emoji="✅" iconBg="bg-emerald-100 text-emerald-700" label="พร้อมส่ง" sub={`${summary.qty > 0 ? (summary.readyQty / summary.qty * 100).toFixed(1) : '0'}% ของสต็อก`} value={`${formatMoney(summary.readyQty)} กก.`} tone="emerald" />
+        </div>
       </div>
 
       {/* Status Cards */}
@@ -1085,6 +1088,7 @@ function StockViewTabs({ detailCount, matrixCount, onChange, value }: {
       {tabs.map((tab) => {
         return (
           <TabsTrigger
+            className="flex-1 sm:flex-none"
             key={tab.value}
             value={tab.value}
             variant="line"
@@ -1382,7 +1386,7 @@ function MatrixTable({
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         {columnResize.hasCustomWidths ? (
           <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="text-xs text-blue-600 hover:underline hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           </div>
@@ -1411,7 +1415,7 @@ function MatrixTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
-            {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={13}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && matrixRows.map((row) => (
               <Fragment key={row.group}>
                 <tr className="bg-slate-50/70 transition-colors hover:bg-slate-100/70">
@@ -1717,7 +1721,7 @@ function DetailTable({
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         {columnResize.hasCustomWidths ? (
           <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="text-xs text-blue-600 hover:underline hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           </div>
@@ -1743,7 +1747,7 @@ function DetailTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs font-semibold">
-            {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={10}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={10}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && rows.map((row) => (
               <tr
                 key={row.key}
@@ -1823,9 +1827,9 @@ function PaginationControls({
       <span>
         พบทั้งหมด {totalItems.toLocaleString('th-TH')} {label}
       </span>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
         <PageSizeDropdown options={PAGE_SIZE_OPTIONS} value={pageSize} onChange={onPageSizeChange} />
-        <button
+        <div className="flex items-center gap-2"><button
           className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           disabled={currentPage <= 1}
           type="button"
@@ -1843,7 +1847,7 @@ function PaginationControls({
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
         >
           ถัดไป
-        </button>
+        </button></div>
       </div>
     </div>
   )

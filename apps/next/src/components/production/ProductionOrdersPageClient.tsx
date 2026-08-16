@@ -437,7 +437,7 @@ export function ProductionOrdersPageClient() {
       <div>
         พบทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
         {columnResize.hasCustomWidths ? (
           <Button
             className="h-9 font-normal hidden lg:inline-flex"
@@ -450,9 +450,9 @@ export function ProductionOrdersPageClient() {
           </Button>
         ) : null}
         <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-        <Button className="font-normal" disabled={page <= 1} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+        <div className="flex items-center gap-2"><Button className="font-normal" disabled={page <= 1} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
         <span className="px-1 text-sm font-medium">หน้า {data?.page ?? page} / {totalPages}</span>
-        <Button className="font-normal" disabled={page >= totalPages} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+        <Button className="font-normal" disabled={page >= totalPages} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button></div>
       </div>
     </>
   )
@@ -2111,10 +2111,10 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
           {!isCreate ? (
             <Tabs className="gap-0" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
               <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-                <TabsTrigger className="min-h-11 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white" value="header" variant="line">ข้อมูลทั่วไป</TabsTrigger>
-                <TabsTrigger className="min-h-11 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white" value="input" variant="line">วัตถุดิบเบิก ({row?.inputCount ?? 0})</TabsTrigger>
-                <TabsTrigger className="min-h-11 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white" value="output" variant="line">ผลผลิต ({row?.outputCount ?? 0})</TabsTrigger>
-                <TabsTrigger className="min-h-11 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white" value="history" variant="line">ประวัติใบสั่งผลิต</TabsTrigger>
+                <TabsTrigger className="min-h-11 flex-1 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white sm:flex-none" value="header" variant="line">ข้อมูลทั่วไป</TabsTrigger>
+                <TabsTrigger className="min-h-11 flex-1 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white sm:flex-none" value="input" variant="line">วัตถุดิบเบิก ({row?.inputCount ?? 0})</TabsTrigger>
+                <TabsTrigger className="min-h-11 flex-1 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white sm:flex-none" value="output" variant="line">ผลผลิต ({row?.outputCount ?? 0})</TabsTrigger>
+                <TabsTrigger className="min-h-11 flex-1 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white sm:flex-none" value="history" variant="line">ประวัติใบสั่งผลิต</TabsTrigger>
               </TabsList>
             </Tabs>
           ) : null}
@@ -2511,7 +2511,7 @@ function ProductionOrderTimeline({ events }: { events: ProductionOrderHistoryRow
               <div className="mt-1 truncate">{event.createdByName}</div>
             </div>
             <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
-              <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? productionHistoryToneClass(event.toStatus) : 'bg-slate-300'}`} />
+              <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? productionHistoryToneClass(event.toStatus) : 'bg-slate-300 dark:bg-slate-500'}`} />
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-sm font-semibold text-slate-800">{productionHistoryActionLabel(event.action)}</div>
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600"><span className="size-1.5 rounded-full bg-current" />{statusLabel(event.toStatus)}</span>

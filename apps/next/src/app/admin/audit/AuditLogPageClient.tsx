@@ -510,7 +510,7 @@ export function AuditLogPageClient() {
       <div className="rounded-md border border-slate-100 bg-white shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
           <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data.total.toLocaleString('th-TH')}</span> รายการ</div>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             {columnResize.hasCustomWidths ? (
               <button className="hidden rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50 lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             ) : null}

@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { Download, Plus, Save } from 'lucide-react'
 import type React from 'react'
@@ -650,12 +651,12 @@ export function AdvancePaymentsPageClient() {
   const listControls = (
     <>
       <span>พบทั้งหมด {data?.pagination.totalRows ?? 0} รายการ</span>
-      <div className="flex flex-wrap items-center gap-2">
-        {columnResize.hasCustomWidths ? <Button className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+        {columnResize.hasCustomWidths ? <Button className="h-9 font-normal hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
         <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-        <Button className="h-9 font-normal" disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+        <div className="flex items-center gap-2"><Button className="h-9 font-normal" disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
         <span className="px-1">หน้า {data?.pagination.page ?? page} / {data?.pagination.totalPages ?? 1}</span>
-        <Button className="h-9 font-normal" disabled={page >= (data?.pagination.totalPages ?? 1)} size="sm" type="button" variant="outline" onClick={() => setPage((current) => current + 1)}>ถัดไป</Button>
+        <Button className="h-9 font-normal" disabled={page >= (data?.pagination.totalPages ?? 1)} size="sm" type="button" variant="outline" onClick={() => setPage((current) => current + 1)}>ถัดไป</Button></div>
       </div>
     </>
   )
@@ -1094,7 +1095,7 @@ export function AdvancePaymentsPageClient() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
+                {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={12}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
                 {!isLoading && (data?.rows ?? []).length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มีรายการจ่ายเงินล่วงหน้า</td></tr> : null}
                 {!isLoading && (data?.rows ?? []).map((row) => (
                   <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => void loadDetail(row.id)}>

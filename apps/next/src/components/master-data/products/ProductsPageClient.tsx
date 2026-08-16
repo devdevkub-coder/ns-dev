@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
@@ -614,7 +615,7 @@ export function ProductsPageClient() {
           <div>
             พบทั้งหมด <span className="font-semibold text-slate-900">{total.toLocaleString('th-TH')}</span> รายการ
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
             {columnResize.hasCustomWidths ? (
               <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
                 คืนค่าเดิมตาราง
@@ -624,7 +625,7 @@ export function ProductsPageClient() {
               setPage(1)
               setPageSize(size)
             }} />
-            <Button
+            <div className="flex items-center gap-2"><Button
               disabled={page <= 1 || isLoading}
               size="sm"
               type="button"
@@ -644,7 +645,7 @@ export function ProductsPageClient() {
               onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
             >
               ถัดไป
-            </Button>
+            </Button></div>
           </div>
         </div>
       ) : null}
@@ -663,7 +664,7 @@ export function ProductsPageClient() {
         </DialogContent>
       </Dialog>
 
-      {isLoading ? <div className="rounded-xl bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูลสินค้า</div> : null}
+      {isLoading ? <div className="space-y-3 rounded-xl bg-white p-6 shadow"><div className="flex items-center justify-between gap-4"><Skeleton className="h-5 w-44" /><Skeleton className="h-5 w-24" /></div><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><span className="sr-only">กำลังโหลดข้อมูล</span></div> : null}
 
       {!isLoading ? (
         <>

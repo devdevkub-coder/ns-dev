@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
@@ -701,20 +702,35 @@ export function DailyPettyAdvancePageClient() {
         onReturn={openReturnForm}
       /> : null}
 
+      {/* Mobile Pagination (plain rows — no card, per design) */}
+      <div className="flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+        </div>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+          <PageSizeDropdown value={pageSize} onChange={setPageSize} />
+          <div className="flex items-center gap-2">
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage >= totalPages} type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</button>
+          </div>
+        </div>
+      </div>
+
       {/* Table Card Controls */}
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:flex">
           <div className="flex flex-wrap items-center gap-3">
             <span>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</span>
             {columnResize.hasCustomWidths ? (
-              <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>
+              <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
                 คืนค่าเดิมตาราง
               </button>
             ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
             <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-            <button
+            <div className="flex items-center gap-2"><button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
               disabled={currentPage <= 1}
               type="button"
@@ -730,7 +746,7 @@ export function DailyPettyAdvancePageClient() {
               onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
             >
               ถัดไป
-            </button>
+            </button></div>
           </div>
         </div>
 
@@ -823,7 +839,7 @@ export function DailyPettyAdvancePageClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs font-semibold">
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={10}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setDetailRow(row)}>
                 <td className="whitespace-nowrap p-2 text-center font-mono text-xs">{row.docNo}</td>

@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -758,7 +759,7 @@ function Gauge({ footer, kind, title, value }: { footer: string; kind: 'current'
   const color = value >= threshold[0] ? '#10b981' : value >= threshold[1] ? '#f59e0b' : '#ef4444'
   const text = value >= threshold[0] ? 'ดี' : value >= threshold[1] ? 'พอใช้' : ' เสี่ยง'
   const dash = Math.min(220, value * (kind === 'current' ? 73 : 110))
-  return <Panel title={title}><svg viewBox="0 0 200 110" className="h-[100px] w-full"><path d="M 30 90 A 70 70 0 0 1 170 90" stroke="#e2e8f0" strokeLinecap="round" strokeWidth="14" fill="none" /><path d="M 30 90 A 70 70 0 0 1 170 90" stroke={color} strokeDasharray={`${dash} 220`} strokeLinecap="round" strokeWidth="14" fill="none" /><text fill={color} fontSize="28" fontWeight="bold" textAnchor="middle" x="100" y="80">{value.toFixed(2)}</text><text fill="#64748b" fontSize="12" textAnchor="middle" x="100" y="100">{text}</text></svg><div className="mt-1 text-center text-xs text-slate-500">{footer}</div></Panel>
+  return <Panel title={title}><svg viewBox="0 0 200 110" className="h-[100px] w-full"><path className="stroke-slate-200" d="M 30 90 A 70 70 0 0 1 170 90" strokeLinecap="round" strokeWidth="14" fill="none" /><path d="M 30 90 A 70 70 0 0 1 170 90" stroke={color} strokeDasharray={`${dash} 220`} strokeLinecap="round" strokeWidth="14" fill="none" /><text fill={color} fontSize="28" fontWeight="bold" textAnchor="middle" x="100" y="80">{value.toFixed(2)}</text><text fill="#64748b" fontSize="12" textAnchor="middle" x="100" y="100">{text}</text></svg><div className="mt-1 text-center text-xs text-slate-500">{footer}</div></Panel>
 }
 
 function Kpi({ label, tone, value }: { label: string; tone: KpiCardTone; value: string }) {
@@ -784,11 +785,11 @@ function Insight({ body, title, tone, value }: { body: string; title: string; to
 
 function TrendInsight({ currentCcc, prevCcc, trend }: { currentCcc: number; prevCcc: number; trend: 'better' | 'same' | 'worse' }) {
   const toneClass = trend === 'better'
-    ? 'border-emerald-200 bg-emerald-50/50'
+    ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-400/30 dark:bg-emerald-500/10'
     : trend === 'worse'
-      ? 'border-rose-200 bg-rose-50/60'
-      : 'border-slate-200 bg-slate-50/50'
-  const textClass = trend === 'better' ? 'text-emerald-700' : trend === 'worse' ? 'text-red-700' : 'text-slate-600'
+      ? 'border-rose-200 bg-rose-50/60 dark:border-rose-400/30 dark:bg-rose-500/10'
+      : 'border-slate-200 bg-slate-50/50 dark:border-slate-600 dark:bg-slate-800/60'
+  const textClass = trend === 'better' ? 'text-emerald-700 dark:text-emerald-300' : trend === 'worse' ? 'text-red-700 dark:text-rose-300' : 'text-slate-600 dark:text-slate-300'
   const message = trend === 'better'
     ? 'CCC ลดลง — ธุรกิจหมุนเงินดีขึ้น'
     : trend === 'worse'
@@ -800,7 +801,7 @@ function TrendInsight({ currentCcc, prevCcc, trend }: { currentCcc: number; prev
     <div className={`rounded-md border p-5 shadow-sm ${toneClass}`}>
       <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-sm font-bold text-slate-800">ธุรกิจหมุนเงินดีขึ้นหรือแย่ลง?</div>
+          <div className="text-sm font-bold text-slate-800 dark:text-slate-100">ธุรกิจหมุนเงินดีขึ้นหรือแย่ลง?</div>
           <div className={`mt-1 text-sm font-semibold ${textClass}`}>{trend === 'better' ? '✓ ' : trend === 'worse' ? '⚠ ' : ''}{message}</div>
         </div>
         <div className={`text-sm font-bold ${textClass}`}>
@@ -808,13 +809,13 @@ function TrendInsight({ currentCcc, prevCcc, trend }: { currentCcc: number; prev
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-md bg-white/70 p-3">
-          <div className="text-xs text-slate-500">CCC ปัจจุบัน</div>
-          <div className="mt-1 text-2xl font-bold text-slate-900">{currentCcc.toFixed(1)} วัน</div>
+        <div className="rounded-md bg-white/70 p-3 dark:bg-slate-800/60">
+          <div className="text-xs text-slate-500 dark:text-slate-400">CCC ปัจจุบัน</div>
+          <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{currentCcc.toFixed(1)} วัน</div>
         </div>
-        <div className="rounded-md bg-white/70 p-3">
-          <div className="text-xs text-slate-500">CCC ช่วงก่อน</div>
-          <div className="mt-1 text-2xl font-bold text-slate-500">{prevCcc.toFixed(1)} วัน</div>
+        <div className="rounded-md bg-white/70 p-3 dark:bg-slate-800/60">
+          <div className="text-xs text-slate-500 dark:text-slate-400">CCC ช่วงก่อน</div>
+          <div className="mt-1 text-2xl font-bold text-slate-500 dark:text-slate-300">{prevCcc.toFixed(1)} วัน</div>
         </div>
       </div>
     </div>
@@ -886,7 +887,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPay
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td className="py-6 text-center text-slate-400" colSpan={2}>กำลังโหลดข้อมูล</td></tr>
+              <tr><td className="py-6 text-center text-slate-400" colSpan={2}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr>
             ) : null}
             {sortedRows.map((row) => {
               const bgCls = row.tone === 'blue' ? 'bg-blue-50/30' : row.tone === 'emerald' ? 'bg-emerald-50/30' : row.tone === 'amber' ? 'bg-amber-50/30' : row.tone === 'purple' ? 'bg-purple-50/30' : ''
@@ -934,7 +935,7 @@ function Donut({ colors, displayTotal, total, values }: { colors: string[]; disp
     const offset = acc.reduce((sum, row) => sum + row.dash, 0)
     return [...acc, { dash, offset, value }]
   }, [])
-  return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="12" fill="#64748b">รวม</text><text x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1e293b">{money(centerTotal)}</text></svg>
+  return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="12" fill="#64748b">รวม</text><text className="fill-slate-800" x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold">{money(centerTotal)}</text></svg>
 }
 
 function StockFinanceHistoryPanel({ isLoading, points }: { isLoading: boolean; points: StockHistoryPoint[] }) {
@@ -987,10 +988,10 @@ function StockFinanceHistoryChart({ isLoading, points }: { isLoading: boolean; p
           role="img"
           viewBox={`0 0 ${width} ${height}`}
         >
-          <rect fill="#f8fafc" height={chartHeight} rx="8" width={chartWidth} x={padding.left} y={padding.top} />
+          <rect className="fill-slate-50" height={chartHeight} rx="8" width={chartWidth} x={padding.left} y={padding.top} />
           {valueTicks.map((tick, index) => (
             <g key={`value-${index}`}>
-              <line stroke="#e2e8f0" x1={padding.left} x2={padding.left + chartWidth} y1={yValue(tick)} y2={yValue(tick)} />
+              <line className="stroke-slate-200" x1={padding.left} x2={padding.left + chartWidth} y1={yValue(tick)} y2={yValue(tick)} />
               <text fill="#64748b" fontSize="11" textAnchor="end" x={padding.left - 8} y={yValue(tick) + 4}>{compactMoney(tick)}</text>
             </g>
           ))}
@@ -1101,14 +1102,14 @@ function StockTablePagination({
   totalRows: number
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-white px-4 py-3 text-sm text-slate-600">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm text-slate-600 lg:border-b lg:border-slate-100 lg:bg-white">
       <div className="flex flex-wrap items-center gap-2">
         <span>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </span>
         {summary}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
         {onResetWidths ? (
           <button
             className="hidden h-9 items-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 lg:inline-flex"
@@ -1119,7 +1120,7 @@ function StockTablePagination({
           </button>
         ) : null}
         <PageSizeDropdown options={stockTablePageSizeOptions} value={pageSize} onChange={(size) => onPageSizeChange(size as StockTablePageSize)} />
-        <button
+        <div className="flex items-center gap-2"><button
           className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={currentPage <= 1}
           type="button"
@@ -1135,7 +1136,7 @@ function StockTablePagination({
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
         >
           ถัดไป
-        </button>
+        </button></div>
       </div>
     </div>
   )
@@ -1206,8 +1207,8 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
   }, [currentPage, page])
 
   return (
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="lg:overflow-hidden lg:rounded-md lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm">
+      <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between lg:border-b lg:border-slate-100 lg:bg-slate-50">
         <div>
           <div className="text-sm font-bold text-slate-800">Slow Moving / สินค้าที่ควรรีบขาย</div>
           <div className="mt-0.5 text-xs font-medium text-slate-500">Top 15 — ไม่ขาย &gt; 60 วัน · {rows.length} รายการ</div>
@@ -1247,7 +1248,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
           ล้างตัวกรอง
         </button>
       </div>
-      <div className="border-b border-slate-100 bg-white p-3 lg:hidden">
+      <div className="p-3 lg:hidden">
         <div className="flex gap-2">
           <input
             aria-label="ค้นหา Slow Moving"
@@ -1357,7 +1358,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
             </tr>
           </thead>
           <tbody>
-            {isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {pagedRows.map((row) => (
               <tr className="border-t border-slate-100 transition hover:bg-slate-50/50" key={row.id}>
                 <Td align="center" mono className="font-bold text-slate-700">{row.code}</Td>
@@ -1374,14 +1375,14 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
         </table>
       </div>
 
-      <div className="block divide-y divide-slate-100 lg:hidden">
+      <div className="block space-y-3 lg:hidden">
         {isLoading && !totalRows ? (
           <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>
         ) : !totalRows ? (
           <div className="py-8 text-center text-slate-400 text-xs">ไม่มี Slow Moving ตามเงื่อนไขนี้</div>
         ) : (
           pagedRows.map((row) => (
-            <div key={row.id} className="space-y-2 p-4 text-xs transition hover:bg-slate-50/50">
+            <div key={row.id} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 text-xs shadow-sm transition">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <span className="block font-mono font-bold text-slate-700">{row.code}</span>
@@ -1475,8 +1476,8 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
   }, [currentPage, page])
 
   return (
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="lg:overflow-hidden lg:rounded-md lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm">
+      <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:border-b lg:border-slate-100 lg:bg-slate-50">
         <div>
           <div className="text-sm font-bold text-slate-800">สต็อกทั้งหมด</div>
           <div className="mt-0.5 text-xs font-medium text-slate-500">เริ่มต้นเรียงตามมูลค่าสูงสุด</div>
@@ -1538,7 +1539,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
           ))}
         </div>
       </div>
-      <div className="border-b border-slate-100 bg-white p-3 lg:hidden">
+      <div className="p-3 lg:hidden">
         <div className="flex gap-2">
           <input
             aria-label="ค้นหา Stock"
@@ -1666,7 +1667,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
             </tr>
           </thead>
           <tbody>
-            {isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {pagedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td align="center" mono className="font-bold text-amber-700">{row.code}</Td>
@@ -1684,14 +1685,14 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
       </div>
 
       {/* Mobile View */}
-      <div className="block lg:hidden divide-y divide-slate-100">
+      <div className="block space-y-3 lg:hidden">
         {isLoading && !totalRows ? (
           <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>
         ) : !totalRows ? (
           <div className="py-8 text-center text-slate-400 text-xs">ไม่พบ Stock ตามตัวกรองนี้</div>
         ) : (
           pagedRows.map((row) => (
-            <div key={row.id} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
+            <div key={row.id} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 text-xs shadow-sm transition">
               <div className="flex justify-between items-start">
                 <div>
                   <span className="font-mono text-amber-700 font-bold block">{row.code}</span>
@@ -2181,7 +2182,7 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      <div className="flex justify-between items-center border-b border-orange-100 bg-orange-50/50 px-4 py-3 font-bold text-orange-700 text-sm">
+      <div className="flex justify-between items-center border-b border-orange-100 bg-orange-50/50 px-4 py-3 font-bold text-orange-700 text-sm dark:border-orange-400/30 dark:bg-orange-500/10 dark:text-orange-300">
         <span> ค่าใช้จ่ายผิดปกติ ({rows.length}) — สูงเกิน mean + 1.5×stddev</span>
         {columnResize.hasCustomWidths && (
           <button

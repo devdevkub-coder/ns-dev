@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -372,10 +373,10 @@ export function ProductTrackingPageClient({
       </div>
 
       <Tabs className="min-w-0" value={view} onValueChange={(value) => setView(value as 'list' | 'top10' | 'yearCompare')}>
-        <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
-          <TabsTrigger value="list" variant="line">รายการ</TabsTrigger>
-          <TabsTrigger value="top10" variant="line">10 อันดับในหมวด</TabsTrigger>
-          <TabsTrigger value="yearCompare" variant="line">รายปี</TabsTrigger>
+        <TabsList className="w-full flex-wrap" variant="line">
+          <TabsTrigger className="flex-1 min-w-[140px]" value="list" variant="line">รายการ</TabsTrigger>
+          <TabsTrigger className="flex-1 min-w-[140px]" value="top10" variant="line">10 อันดับในหมวด</TabsTrigger>
+          <TabsTrigger className="flex-1 min-w-[140px]" value="yearCompare" variant="line">รายปี</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -555,7 +556,7 @@ export function ProductTrackingPageClient({
       {columnResize.hasCustomWidths && (
         <div className="flex justify-end">
           <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none hidden lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -632,7 +633,7 @@ export function ProductTrackingPageClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
+              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
               {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ไม่มีข้อมูลติดตามสินค้า</td></tr> : null}
               {!isLoading && pagedRows.map((row) => (
                 <tr key={row.id} className="cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
@@ -1004,11 +1005,11 @@ function YearCompare({ rows }: { rows: ProductTrackingRow[] }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-slate-500">แสดงผล:</span>
         <Tabs value={mode} onValueChange={(value) => setMode(value as ProductYearCompareMode)} className="gap-0">
-          <TabsList variant="line" className="flex-wrap overflow-x-auto">
-            <TabsTrigger variant="line" value="buyQty">ซื้อ กก.</TabsTrigger>
-            <TabsTrigger variant="line" value="buyAmount">ยอดซื้อ</TabsTrigger>
-            <TabsTrigger variant="line" value="sellQty">ขาย กก.</TabsTrigger>
-            <TabsTrigger variant="line" value="salesAmount">ยอดขาย</TabsTrigger>
+          <TabsList variant="line" className="w-full flex-wrap overflow-x-auto sm:w-auto">
+            <TabsTrigger className="flex-1 sm:flex-none" variant="line" value="buyQty">ซื้อ กก.</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" variant="line" value="buyAmount">ยอดซื้อ</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" variant="line" value="sellQty">ขาย กก.</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" variant="line" value="salesAmount">ยอดขาย</TabsTrigger>
           </TabsList>
         </Tabs>
         {columnResize.hasCustomWidths ? (

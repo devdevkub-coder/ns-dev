@@ -484,7 +484,7 @@ function DashboardView(props: {
             ตัวกรอง {hasActiveDashboardFilters ? '(มี)' : ''}
           </button>
         </div>
-        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+        <div className="mt-2 flex gap-2">
           {[
             ['year', 'ปีนี้'],
             ['quarter', 'ไตรมาส'],
@@ -492,7 +492,7 @@ function DashboardView(props: {
             ['week', '7 วัน'],
             ['today', 'วันนี้'],
           ].map(([key, label]) => (
-            <button className={`h-9 shrink-0 rounded-md border px-3 text-xs font-medium outline-none transition focus:ring-2 focus:ring-slate-200 ${rangeMode === key ? 'border-slate-700 bg-slate-700 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} key={`mobile-${key}`} onClick={() => applyPeriod(key)} type="button">{label}</button>
+            <button className={`h-9 min-w-0 flex-1 rounded-md border px-1 text-xs font-medium outline-none transition focus:ring-2 focus:ring-slate-200 ${rangeMode === key ? 'border-slate-700 bg-slate-700 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} key={`mobile-${key}`} onClick={() => applyPeriod(key)} type="button">{label}</button>
           ))}
         </div>
         <div className="mt-2 flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
@@ -673,7 +673,7 @@ function DashboardView(props: {
           <DashboardChartCard title="อายุลูกหนี้และเจ้าหนี้">
             <div className="mb-2 flex justify-end">
               {agingResize.hasCustomWidths ? (
-                <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-normal text-slate-500 hover:bg-slate-50" type="button" onClick={agingResize.resetColumnWidths}>
+                <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-normal text-slate-500 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={agingResize.resetColumnWidths}>
                   คืนค่าเดิมตาราง
                 </button>
               ) : null}
@@ -739,13 +739,13 @@ function DashboardView(props: {
       </div>
 
       <Tabs className="gap-2" value={detailTab} onValueChange={(value) => setDetailTab(value as DashboardDetailTab)}>
-        <TabsList className="w-full overflow-x-auto" variant="line">
+        <TabsList className="w-full" variant="line">
           {dashboardDetailTabs.map((tab) => {
             return (
               <TabsTrigger
                 key={tab.key}
                 aria-label={`${tab.label}: ${tab.summary}`}
-                className="px-3 text-xs sm:text-sm"
+                className="min-w-0 flex-1 px-1 text-xs sm:text-sm"
                 value={tab.key}
                 variant="line"
               >
@@ -772,7 +772,7 @@ function DashboardView(props: {
         <DashboardChartCard title="มูลค่าสินค้าตามหมวด">
           <div className="mb-2 flex justify-end">
             {stockGroupResize.hasCustomWidths ? (
-              <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50" type="button" onClick={stockGroupResize.resetColumnWidths}>
+              <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={stockGroupResize.resetColumnWidths}>
                 คืนค่าเดิมตาราง
               </button>
             ) : null}
@@ -934,6 +934,33 @@ function DashboardChartCard({ children, className = '', title }: { children: Rea
   return <div className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${className}`.trim()}><div className="mb-3 text-sm font-bold text-slate-800">{title}</div>{children}</div>
 }
 
+function DateNavBar({ date, reportHref, reportLabel, setDate }: { date: string; reportHref: string; reportLabel: string; setDate: (value: string) => void }) {
+  const dateButtonClass = 'h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200'
+  const isToday = date === today()
+  const todayButtonClass = isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`
+
+  function shiftDate(days: number) {
+    const next = new Date(`${date}T00:00:00`)
+    next.setDate(next.getDate() + days)
+    setDate(localDateInputValue(next))
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:p-4">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="hidden text-xs font-semibold text-slate-600 sm:inline">ข้อมูลวันที่:</span>
+        <button className={`${dateButtonClass} shrink-0`} type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
+        <DatePickerInput className="h-9 min-w-[120px] flex-1 sm:w-[150px] sm:flex-none" value={date} onChange={setDate} />
+        <button className={`${dateButtonClass} shrink-0 disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
+      </div>
+      <div className="flex items-center gap-2">
+        <button className={`${todayButtonClass} shrink-0`} type="button" onClick={() => setDate(today())}>วันนี้</button>
+        <Link className="h-9 inline-flex min-w-0 flex-1 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:ml-auto sm:flex-none sm:justify-start" href={reportHref}>{reportLabel}</Link>
+      </div>
+    </div>
+  )
+}
+
 function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; date: string; setDate: (value: string) => void }) {
   const [activeTab, setActiveTab] = useState<OwnerDailyTab>('ar')
   const plan = data?.ownerDaily.cashPlan
@@ -948,30 +975,15 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
     name: `งวด ${row.installmentNo} · ครบกำหนด ${row.due}`,
   }))
   const expenseRows = (data?.ownerDaily.expensesToday ?? []).map((row) => ({ amount: row.amount, docNo: row.docNo, name: row.payee }))
-  const dateButtonClass = 'h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200'
-  const isToday = date === today()
   const pendingItems = [
     { label: 'บิลซื้อแบบร่าง', value: String(safeNumber(pending.pendingPurchaseCount).toLocaleString('th-TH')) },
     { label: 'บิลขายแบบร่าง', value: String(safeNumber(pending.pendingSalesCount).toLocaleString('th-TH')) },
     { label: 'สินค้าสำเร็จรูปพร้อมขาย', note: money(pending.fgValue), value: `${money(pending.fgQty)} กก.` },
     { label: 'รายการซื้อขายรอรับเงิน', note: money(pending.tradingPendingValue), value: String(safeNumber(pending.tradingPending).toLocaleString('th-TH')) },
   ]
-  function shiftDate(days: number) {
-    const next = new Date(`${date}T00:00:00`)
-    next.setDate(next.getDate() + days)
-    setDate(next.toISOString().slice(0, 10))
-  }
-
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <span className="text-xs font-semibold text-slate-600">ข้อมูลวันที่:</span>
-        <button className={dateButtonClass} type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
-        <DatePickerInput className="h-9 w-[140px]" value={date} onChange={setDate} />
-        <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
-        <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
-        <Link className="ml-auto h-9 inline-flex items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" href={`/daily-report?date=${date}`}>ดูยอดขายวันนี้ (Daily Report) →</Link>
-      </div>
+      <DateNavBar date={date} reportHref={`/daily-report?date=${date}`} reportLabel="ดูยอดขายวันนี้ (Daily Report) →" setDate={setDate} />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1042,28 +1054,15 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
   const purchaseCount = safeNumber(summary.purchaseCount)
   const salesCount = safeNumber(summary.salesCount)
   const analytics = data?.dailyReport.analytics
-  const isToday = date === today()
   const purchaseAmount = safeNumber(summary.purchaseAmount)
   const purchaseQty = safeNumber(summary.purchaseQty)
   const salesAmount = safeNumber(summary.salesAmount)
   const salesQty = safeNumber(summary.salesQty)
   const gpAmount = salesAmount - safeNumber(analytics?.rangeKpi.cogs)
   const gpPct = safeNumber(analytics?.rangeKpi.gpPct)
-  const dateButtonClass = 'h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200'
-  function shiftDate(days: number) {
-    const next = new Date(`${date}T00:00:00`)
-    next.setDate(next.getDate() + days)
-    setDate(localDateInputValue(next))
-  }
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <button className={dateButtonClass} type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
-        <DatePickerInput className="h-9 w-[140px]" value={date} onChange={setDate} />
-        <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
-        <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
-        <Link className="ml-auto h-9 inline-flex items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" href={`/owner-daily?date=${date}`}>ดูยอดคาดรับวันนี้ (Owner Daily) →</Link>
-      </div>
+      <DateNavBar date={date} reportHref={`/owner-daily?date=${date}`} reportLabel="ดูยอดคาดรับวันนี้ (Owner Daily) →" setDate={setDate} />
       <div className="grid gap-4 md:grid-cols-2">
         <DailyBigCard icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money(purchaseAmount / Math.max(1, purchaseQty))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(purchaseAmount)} weight={money(purchaseQty)} />
         <DailyBigCard icon="📤" label="ยอดขาย" sub={`กำไรขั้นต้น ${money(gpAmount)} (${money(gpPct)}%)`} tone="from-emerald-600 to-teal-700" value={money(salesAmount)} weight={money(salesQty)} />
@@ -1108,13 +1107,15 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
       <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div><h2 className="text-sm font-bold text-slate-900">วิเคราะห์ข้อมูล</h2></div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1 sm:justify-end">
             {['today', 'yesterday', 'last7', 'last30', 'last90', 'month'].map((mode) => (
-              <button key={mode} className={`inline-flex h-9 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors outline-none focus:ring-0 ${rangeMode === mode ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`} type="button" onClick={() => applyRange(mode)}>{rangeLabel(mode)}</button>
+              <button key={mode} className={`inline-flex h-9 min-w-[64px] flex-1 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors outline-none focus:ring-0 sm:min-w-0 sm:flex-none ${rangeMode === mode ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`} type="button" onClick={() => applyRange(mode)}>{rangeLabel(mode)}</button>
             ))}
-            <DatePickerInput className="h-9 w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeFrom} onChange={(value) => { setRangeMode('custom'); setRangeFrom(value) }} />
-            <span className="text-xs text-slate-400">→</span>
-            <DatePickerInput className="h-9 w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeTo} onChange={(value) => { setRangeMode('custom'); setRangeTo(value) }} />
+            <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+              <DatePickerInput className="h-9 min-w-0 flex-1 bg-white text-slate-900 border-slate-300 outline-none sm:w-[130px] sm:flex-none" value={rangeFrom} onChange={(value) => { setRangeMode('custom'); setRangeFrom(value) }} />
+              <span className="shrink-0 text-xs text-slate-400">→</span>
+              <DatePickerInput className="h-9 min-w-0 flex-1 bg-white text-slate-900 border-slate-300 outline-none sm:w-[130px] sm:flex-none" value={rangeTo} onChange={(value) => { setRangeMode('custom'); setRangeTo(value) }} />
+            </div>
           </div>
         </div>
       </div>
@@ -1135,10 +1136,10 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
         <TopSimpleTable rows={analytics?.groupSummary ?? []} title="🥧 มูลค่าตามหมวดสินค้า" />
       </div>
       <Tabs className="mb-4 gap-3" value={detailTab} onValueChange={(value) => setDetailTab(value as AnalyticsDetailTab)}>
-        <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
-          <TabsTrigger value="partners" variant="line">คู่ค้า</TabsTrigger>
-          <TabsTrigger value="products" variant="line">สินค้า</TabsTrigger>
-          <TabsTrigger value="sales" variant="line">การขาย</TabsTrigger>
+        <TabsList className="w-full min-w-0 overflow-x-auto sm:w-auto" variant="line">
+          <TabsTrigger className="flex-1 px-3 sm:flex-none" value="partners" variant="line">คู่ค้า</TabsTrigger>
+          <TabsTrigger className="flex-1 px-3 sm:flex-none" value="products" variant="line">สินค้า</TabsTrigger>
+          <TabsTrigger className="flex-1 px-3 sm:flex-none" value="sales" variant="line">การขาย</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -1218,7 +1219,7 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
         <div className="flex items-center gap-2">
           <span className={`font-mono tabular-nums ${totalTone}`}>{money(rows.reduce((sum, row) => sum + row.amount, 0))}</span>
           {columnResize.hasCustomWidths ? (
-            <button className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
@@ -1318,7 +1319,7 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
         <div className="flex items-center gap-2">
           <span className="font-mono text-amber-700 tabular-nums">{money(rows.reduce((sum, row) => sum + row.amount, 0))}</span>
           {columnResize.hasCustomWidths ? (
-            <button className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
@@ -1491,7 +1492,7 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
       <div className="hidden border-t border-slate-100 p-3 lg:block">
         <div className="mb-2 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
@@ -1585,7 +1586,7 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
         <h3 className="font-bold text-slate-800">{title}</h3>
         <div className="flex items-center gap-2">
           {columnResize.hasCustomWidths ? (
-            <button className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
@@ -1702,7 +1703,7 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="font-bold text-slate-800 text-sm">💰 เงินหมุนประจำวัน</h3>
         {columnResize.hasCustomWidths ? (
-          <button className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800" type="button" onClick={columnResize.resetColumnWidths}>
+          <button className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
             คืนค่าเดิมตาราง
           </button>
         ) : null}

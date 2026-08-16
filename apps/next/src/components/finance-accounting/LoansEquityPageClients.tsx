@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -225,10 +226,10 @@ export function LoanContractsPageClient() {
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard label="วงเงินรวม" value={formatMoney(data?.summary.financed)} tone="blue" />
         <StatCard label="หนี้คงเหลือ" value={formatMoney(data?.summary.outstanding)} tone="cyan" />
-        <StatCard label="เกินกำหนด" value={formatMoney(data?.summary.overdue)} tone="red" />
+        <div className="col-span-2 md:col-span-1"><StatCard label="เกินกำหนด" value={formatMoney(data?.summary.overdue)} tone="red" /></div>
       </div>
 
       {/* Desktop Filter Panel */}
@@ -337,12 +338,12 @@ export function LoanContractsPageClient() {
           </div>
         </MobileFilterSheet>
       ) : null}
-      {/* Pagination Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-4">
+      {/* Pagination Controls — bare row on mobile, card only on desktop */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 mb-4 lg:bg-white lg:p-3 lg:rounded-xl lg:border lg:border-slate-200 lg:shadow-sm">
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {columnResize.hasCustomWidths ? (
             <button
               className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 lg:inline-flex"
@@ -353,7 +354,7 @@ export function LoanContractsPageClient() {
             </button>
           ) : null}
           <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-          <button
+          <div className="flex items-center gap-2"><button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             disabled={currentPage <= 1}
             type="button"
@@ -369,7 +370,7 @@ export function LoanContractsPageClient() {
             onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
           >
             ถัดไป
-          </button>
+          </button></div>
         </div>
       </div>
 
@@ -421,13 +422,13 @@ export function LoanContractsPageClient() {
         </div>
       </div>
 
-      {/* Mobile Card List View */}
-      <div className="block lg:hidden divide-y divide-slate-100 bg-white border border-slate-100 rounded-md overflow-hidden shadow-sm">
-        <div className="p-4 text-xs font-semibold text-slate-500 bg-slate-50">รายการสัญญาเงินกู้</div>
-        {isLoading && <div className="p-4 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>}
-        {!isLoading && rows.length === 0 && <div className="p-4 text-center text-slate-400 text-xs">ไม่มีสัญญา</div>}
+      {/* Mobile Card List View — individual cards per design */}
+      <div className="block space-y-3 lg:hidden">
+        <div className="px-1 text-xs font-semibold text-slate-500">รายการสัญญาเงินกู้</div>
+        {isLoading && <div className="p-4 text-center text-slate-400 text-xs rounded-xl border border-slate-200 bg-white shadow-sm">กำลังโหลดข้อมูล</div>}
+        {!isLoading && rows.length === 0 && <div className="p-4 text-center text-slate-400 text-xs rounded-xl border border-slate-200 bg-white shadow-sm">ไม่มีสัญญา</div>}
         {!isLoading && pagedRows.map((row) => (
-          <div key={row.contractNo} className="p-4 space-y-2 text-xs">
+          <div key={row.contractNo} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 text-xs shadow-sm">
             <div className="flex justify-between items-start">
               <div>
                 <span className="block whitespace-nowrap font-mono text-sm font-semibold text-blue-700">{row.contractNo}</span>
@@ -481,7 +482,7 @@ export function LoanDashboardPageClient() {
         <StatCard label="งวดใน 30 วัน" value={data?.summary.due30 ?? 0} tone="blue" />
         <StatCard label="วงเงิน OD" value={formatMoney(data?.summary.odLimit)} tone="cyan" />
         <StatCard label="OD ใช้ไป" value={formatMoney(data?.summary.odUsed)} tone="amber" />
-        <StatCard label="OD เหลือใช้" value={formatMoney(data?.summary.odAvailable)} tone="blue" />
+        <div className="col-span-2 md:col-span-1"><StatCard label="OD เหลือใช้" value={formatMoney(data?.summary.odAvailable)} tone="blue" /></div>
       </div>
       <Panel title=" ภาระหนี้แยกตามประเภท">{(data?.byType ?? []).map((row) => <Bar key={row.label} color="bg-cyan-500" label={row.label} max={data?.summary.totalOutstanding ?? 0} value={row.value} />)} {!isLoading && (data?.byType.length ?? 0) === 0 ? <EmptyText>ยังไม่มีข้อมูลสินเชื่อ</EmptyText> : null}</Panel>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -708,8 +709,8 @@ export function OpeningBalancePageClient() {
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
       <Tabs value={activeTab} onValueChange={(value) => { setActiveTab(value); if (value === 'AP ต้นทุน') setBillImportType('purchase'); if (value === 'AR ลูกหนี้') setBillImportType('sales') }} className="gap-0">
-        <TabsList variant="line" className="w-full flex-wrap overflow-x-auto">
-          {tabs.map((tab) => <TabsTrigger key={tab} value={tab} variant="line">{tab}</TabsTrigger>)}
+        <TabsList variant="line" className="w-full flex-nowrap overflow-x-auto">
+          {tabs.map((tab) => <TabsTrigger className="min-w-fit whitespace-nowrap px-3" key={tab} value={tab} variant="line">{tab}</TabsTrigger>)}
         </TabsList>
       </Tabs>
       {activeTab === 'สต็อก' ? <section className="space-y-4">
@@ -761,7 +762,7 @@ export function OpeningBalancePageClient() {
         </Panel>
       </section> : null}
       {activeTab !== 'สต็อก' ? <>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="AR" value={formatMoney(data?.summary.ar)} tone="blue" /><StatCard label="AP ต้นทุน" value={formatMoney(data?.summary.apCost)} tone="red" /><StatCard label="AP ค่าใช้จ่าย" value={formatMoney(data?.summary.apExpense)} tone="red" /><StatCard label="สต็อก" value={formatMoney(data?.summary.stock)} tone="amber" /><StatCard label="สุทธิอื่นๆ" value={formatMoney(data?.summary.netOther)} /></div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="AR" value={formatMoney(data?.summary.ar)} tone="blue" /><StatCard label="AP ต้นทุน" value={formatMoney(data?.summary.apCost)} tone="red" /><StatCard label="AP ค่าใช้จ่าย" value={formatMoney(data?.summary.apExpense)} tone="red" /><StatCard label="สต็อก" value={formatMoney(data?.summary.stock)} tone="amber" /><div className="col-span-2 md:col-span-1"><StatCard label="สุทธิอื่นๆ" value={formatMoney(data?.summary.netOther)} /></div></div>
       <Panel title="ข้อมูลพื้นฐาน"><div className="grid grid-cols-2 gap-3 text-sm"><ReadField label="วันที่ตัดยอด" value="2026-04-30" /><ReadField label="วันเริ่มใช้งาน" value="2026-05-01" /></div><div className="mt-3 text-xs text-slate-400">อัปเดตล่าสุด: {data?.row.updatedAt || '-'}</div></Panel>
       {activeTab === 'AP ต้นทุน' || activeTab === 'AR ลูกหนี้' ? <>
         <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4 lg:grid-cols-3">
@@ -837,12 +838,12 @@ export function OpeningBalancePageClient() {
         </div>
       </div>
 
-      {/* Mobile Card List View */}
-      <div className="block lg:hidden divide-y divide-slate-100 bg-white border border-slate-100 rounded-md overflow-hidden shadow-sm">
-        <div className="p-4 text-xs font-semibold text-slate-500 bg-slate-50">บัญชีและยอดเปิดบัญชี</div>
-        {accounts.length === 0 && <div className="p-4 text-center text-slate-400 text-xs">ไม่มีข้อมูล</div>}
+      {/* Mobile Card List View — individual cards per design */}
+      <div className="block space-y-3 lg:hidden">
+        <div className="px-1 text-xs font-semibold text-slate-500">บัญชีและยอดเปิดบัญชี</div>
+        {accounts.length === 0 && <div className="p-4 text-center text-slate-400 text-xs rounded-xl border border-slate-200 bg-white shadow-sm">ไม่มีข้อมูล</div>}
         {sortedRows.map((account) => (
-          <div key={`${account.code || account.name}-${account.name}`} className="p-4 space-y-2 text-xs">
+          <div key={`${account.code || account.name}-${account.name}`} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 text-xs shadow-sm">
             <div className="flex justify-between items-start">
               <div>
                 <span className="font-semibold text-slate-900 text-sm block">{account.name}</span>
@@ -890,9 +891,9 @@ export function HistoricalDataPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       <Tabs className="gap-0" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
         <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-          <TabsTrigger value="expense" variant="line">ค่าใช้จ่าย (Expenses)</TabsTrigger>
-          <TabsTrigger value="pnl" variant="line">งบกำไรขาดทุน (P&amp;L)</TabsTrigger>
-          <TabsTrigger value="cashflow" variant="line">งบกระแสเงินสด</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="expense" variant="line">ค่าใช้จ่าย (Expenses)</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="pnl" variant="line">งบกำไรขาดทุน (P&amp;L)</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="cashflow" variant="line">งบกระแสเงินสด</TabsTrigger>
         </TabsList>
       </Tabs>
       {/* Desktop Table View */}
@@ -1092,7 +1093,7 @@ function ReadField({ label, value }: { label: string; value: string }) {
 }
 
 function HistoricalRows({ isLoading, months, rows }: { isLoading: boolean; months: HistoricalPayload['months']; rows: HistoricalDisplayRow[] }) {
-  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={months.length + 2}>กำลังโหลดข้อมูล</td></tr>
+  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={months.length + 2}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr>
   if (rows.length === 0) return <tr><td className="py-8 text-center text-slate-400" colSpan={months.length + 2}>ยังไม่มีข้อมูลย้อนหลัง</td></tr>
   return rows.map((row) => (
     <tr key={row.category} className="transition-colors hover:bg-slate-50/50">
@@ -1128,7 +1129,7 @@ function HistoricalRowsMobile({ isLoading, months, rows }: { isLoading: boolean;
 }
 
 function LoadingOrEmpty({ colSpan, emptyText = 'ยังไม่มีข้อมูล', isLoading, rows }: { colSpan: number; emptyText?: string; isLoading: boolean; rows: number }) {
-  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}>กำลังโหลดข้อมูล</td></tr>
+  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr>
   if (rows === 0) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}>{emptyText}</td></tr>
   return null
 }

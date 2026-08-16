@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
@@ -12,6 +13,7 @@ import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 
 type SelectOption = {
   active: boolean | null
@@ -73,7 +75,9 @@ type TablePaginationProps = {
   currentPage: number
   isLoading: boolean
   onNext: () => void
+  onPageSizeChange: (value: number) => void
   onPrevious: () => void
+  pageSize: number
   totalLabel: string
   totalPages: number
 }
@@ -142,9 +146,10 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
     ]
   }, [branchId, data?.filters.customers])
   const [from, setFrom] = useState(initialFilters?.from ?? currentMonthStart())
+  const [detailPageSize, setDetailPageSize] = useState(25)
   const [page, setPage] = useState(1)
   const [summaryPage, setSummaryPage] = useState(1)
-  const summaryPageSize = 50
+  const [summaryPageSize, setSummaryPageSize] = useState(25)
   const [q, setQ] = useState('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [sortKey, setSortKey] = useState<SortKey>('dueDate')
@@ -207,7 +212,7 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
   const query = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
-      pageSize: '50',
+      pageSize: String(detailPageSize),
       sortDirection,
       sortKey,
     })
@@ -220,7 +225,7 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
     if (status) params.set('status', status)
     if (to) params.set('to', to)
     return params
-  }, [branchId, bucket, channelId, customerId, from, page, q, sortDirection, sortKey, status, to])
+  }, [branchId, bucket, channelId, customerId, detailPageSize, from, page, q, sortDirection, sortKey, status, to])
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -362,11 +367,11 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
       </div>
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as 'summary' | 'detail')}>
-        <TabsList className="overflow-x-auto" variant="line">
-          <TabsTrigger value="summary" variant="line">
+        <TabsList className="w-full overflow-x-auto sm:w-auto" variant="line">
+          <TabsTrigger className="flex-1 sm:flex-none" value="summary" variant="line">
           📊 สรุปตามลูกค้า
           </TabsTrigger>
-          <TabsTrigger value="detail" variant="line">
+          <TabsTrigger className="flex-1 sm:flex-none" value="detail" variant="line">
           📄 รายบิล
           </TabsTrigger>
         </TabsList>
@@ -443,9 +448,9 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
 
         {/* Mobile View (Collapsible Filters) */}
         <div className="block space-y-2.5 2xl:hidden">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
-              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+              className={`inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
@@ -454,7 +459,7 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
               ตัวกรอง
             </button>
             <button
-              className="ml-auto inline-flex h-9 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
               disabled={isExporting}
               type="button"
               onClick={() => void exportXlsx()}
@@ -553,7 +558,9 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
             isLoading,
             totalLabel: `พบทั้งหมด ${summaryRows.length.toLocaleString('th-TH')} รายการ`,
             totalPages: summaryTotalPages,
+            pageSize: summaryPageSize,
             onNext: () => setSummaryPage((current) => Math.min(summaryTotalPages, current + 1)),
+            onPageSizeChange: (value) => { setSummaryPageSize(value); setSummaryPage(1) },
             onPrevious: () => setSummaryPage((current) => Math.max(1, current - 1)),
           }}
           onToggleExpand={toggleCustomerExpand}
@@ -576,7 +583,9 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
             isLoading,
             totalLabel: `พบทั้งหมด ${(data?.pagination.totalRows ?? 0).toLocaleString('th-TH')} รายการ`,
             totalPages,
+            pageSize: detailPageSize,
             onNext: () => setPage((current) => Math.min(totalPages, current + 1)),
+            onPageSizeChange: (value) => { setDetailPageSize(value); setPage(1) },
             onPrevious: () => setPage((current) => Math.max(1, current - 1)),
           }}
         />
@@ -592,7 +601,9 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
             isLoading={isLoading}
             totalLabel={`พบทั้งหมด ${summaryRows.length.toLocaleString('th-TH')} รายการ`}
             totalPages={summaryTotalPages}
+            pageSize={summaryPageSize}
             onNext={() => setSummaryPage((current) => Math.min(summaryTotalPages, current + 1))}
+            onPageSizeChange={(value) => { setSummaryPageSize(value); setSummaryPage(1) }}
             onPrevious={() => setSummaryPage((current) => Math.max(1, current - 1))}
           />
           {isLoading ? (
@@ -725,7 +736,9 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
             isLoading={isLoading}
             totalLabel={`พบทั้งหมด ${(data?.pagination.totalRows ?? 0).toLocaleString('th-TH')} รายการ`}
             totalPages={totalPages}
+            pageSize={detailPageSize}
             onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
+            onPageSizeChange={(value) => { setDetailPageSize(value); setPage(1) }}
             onPrevious={() => setPage((current) => Math.max(1, current - 1))}
           />
           {isLoading ? (
@@ -842,7 +855,7 @@ function DetailTable({
           </tr>
         </thead>
         <tbody>
-          {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
+          {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={9}>ไม่มีลูกหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
             <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.aging > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.aging > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
@@ -1011,33 +1024,38 @@ function TableToolbar({
   return (
     <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
       <div>{pagination.totalLabel}</div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-          disabled={pagination.currentPage <= 1 || pagination.isLoading}
-          type="button"
-          onClick={pagination.onPrevious}
-        >
-          ก่อนหน้า
-        </button>
-        <span className="px-1">หน้า {pagination.currentPage} / {pagination.totalPages}</span>
-        <button
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-          disabled={pagination.currentPage >= pagination.totalPages || pagination.isLoading}
-          type="button"
-          onClick={pagination.onNext}
-        >
-          ถัดไป
-        </button>
-        {onResetWidths ? (
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+        <div className="flex items-center gap-2">
+          <PageSizeDropdown disabled={pagination.isLoading} value={pagination.pageSize} onChange={pagination.onPageSizeChange} />
+        </div>
+        <div className="flex items-center gap-2">
           <button
-            className="h-9 rounded-md bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            disabled={pagination.currentPage <= 1 || pagination.isLoading}
             type="button"
-            onClick={onResetWidths}
+            onClick={pagination.onPrevious}
           >
-            คืนค่าเดิมตาราง
+            ก่อนหน้า
           </button>
-        ) : null}
+          <span className="px-1">หน้า {pagination.currentPage} / {pagination.totalPages}</span>
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            disabled={pagination.currentPage >= pagination.totalPages || pagination.isLoading}
+            type="button"
+            onClick={pagination.onNext}
+          >
+            ถัดไป
+          </button>
+          {onResetWidths ? (
+            <button
+              className="h-9 rounded-md bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-200 hidden lg:inline-flex"
+              type="button"
+              onClick={onResetWidths}
+            >
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   )
@@ -1047,17 +1065,24 @@ function MobileTablePagination({
   currentPage,
   isLoading,
   onNext,
+  onPageSizeChange,
   onPrevious,
+  pageSize,
   totalLabel,
   totalPages,
 }: TablePaginationProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl bg-white p-3 text-sm text-slate-600 shadow sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
       <div>{totalLabel}</div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={currentPage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={onPrevious}>ก่อนหน้า</Button>
-        <span>หน้า {currentPage} / {totalPages}</span>
-        <Button disabled={currentPage >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={onNext}>ถัดไป</Button>
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+        <div className="flex items-center gap-2">
+          <PageSizeDropdown disabled={isLoading} value={pageSize} onChange={onPageSizeChange} />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button disabled={currentPage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={onPrevious}>ก่อนหน้า</Button>
+          <span>หน้า {currentPage} / {totalPages}</span>
+          <Button disabled={currentPage >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={onNext}>ถัดไป</Button>
+        </div>
       </div>
     </div>
   )
@@ -1131,7 +1156,7 @@ function SummaryTable({
           </tr>
         </thead>
         <tbody>
-          {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
+          {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={9}>ไม่มีลูกหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => {
             const isExpanded = expandedCustomers.has(row.customerId)

@@ -58,7 +58,7 @@ function timelineLabel(eventKey: string, action: string, type: WeightTicketType)
 }
 
 function timelineDotClass(action: string, isLatest: boolean) {
-  if (!isLatest) return 'bg-slate-300'
+  if (!isLatest) return 'bg-slate-300 dark:bg-slate-500'
   if (action === 'cancelled' || action === 'released_from_purchase_bill') return 'bg-rose-500'
   if (action === 'edited' || action === 'usage_status_changed' || action === 'status_synced') return 'bg-amber-500'
   if (action === 'allocated_to_purchase_bill') return 'bg-blue-500'

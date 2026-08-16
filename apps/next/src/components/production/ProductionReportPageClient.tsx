@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -785,7 +786,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? <tr><td className="py-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
+                {isLoading ? <tr><td className="py-6 text-center text-slate-500" colSpan={13}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
                 {!isLoading && costRows.map((row, index) => {
                   return (
                     <tr key={String(row.id ?? index)} className="border-t border-slate-100 hover:bg-slate-50">
@@ -873,9 +874,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             return (
               <button
                 key={option.value}
-                className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+                className={`inline-flex h-8 flex-1 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
                   isActive
-                    ? 'border-slate-700 bg-slate-700 text-white'
+                    ? 'border-blue-600 bg-blue-600 text-white'
                     : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
                 }`}
                 type="button"
@@ -964,7 +965,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <Tabs className="min-w-0 lg:hidden" value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'products')}>
           <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
             {(['overview', 'products'] as const).map((tab) => (
-              <TabsTrigger className="min-w-0 shrink-0 px-3 text-xs" key={tab} value={tab} variant="line">
+              <TabsTrigger className="flex-1 shrink-0 px-3 text-xs sm:flex-none" key={tab} value={tab} variant="line">
                 {tab === 'overview' ? 'ภาพรวม' : 'สินค้า'}
               </TabsTrigger>
             ))}
@@ -1329,9 +1330,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       }}
     >
       <TabsList className="w-full overflow-x-auto" variant="line">
-        <TabsTrigger value="orders" variant="line">รายการใบสั่งผลิต</TabsTrigger>
-        <TabsTrigger value="wip" variant="line">งานระหว่างทำคงเหลือ</TabsTrigger>
-        <TabsTrigger value="products" variant="line">สรุปตามสินค้า</TabsTrigger>
+        <TabsTrigger className="flex-1 sm:flex-none" value="orders" variant="line">รายการใบสั่งผลิต</TabsTrigger>
+        <TabsTrigger className="flex-1 sm:flex-none" value="wip" variant="line">งานระหว่างทำคงเหลือ</TabsTrigger>
+        <TabsTrigger className="flex-1 sm:flex-none" value="products" variant="line">สรุปตามสินค้า</TabsTrigger>
       </TabsList>
     </Tabs>
   )
@@ -1372,7 +1373,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           </>
         ) : null}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
         {(mode !== 'report' || reportTab === 'orders') && columnResize.hasCustomWidths ? (
           <Button className="hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
             คืนค่าเดิมตาราง
@@ -1389,7 +1390,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           </Button>
         ) : null}
         <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-        <Button
+        <div className="flex items-center gap-2"><Button
           disabled={paginationCurrentPage <= 1}
           size="sm"
           type="button"
@@ -1407,7 +1408,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           onClick={() => setPage(Math.min(paginationTotalPages, paginationCurrentPage + 1))}
         >
           ถัดไป
-        </Button>
+        </Button></div>
       </div>
     </div>
   )
@@ -1469,7 +1470,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       </tr>
                     </thead>
                     <tbody>
-                      {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={configs.wip.columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+                      {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={configs.wip.columns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
                       {!isLoading && pagedWipRows.map((row, index) => {
                         const ageDays = Math.max(0, Math.floor((new Date().getTime() - new Date(String(row.date ?? '')).getTime()) / (1000 * 60 * 60 * 24)))
                         return (
@@ -1577,7 +1578,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   </tr>
                 </thead>
                 <tbody>
-                  {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={productSummaryTableColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+                  {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={productSummaryTableColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
                   {!isLoading && pagedProductSummary.map((item) => (
                     <tr key={item.name} className="hover:bg-slate-50">
                       <td className="ns-table-textual-column px-3 py-3 text-left text-slate-700">{item.name}</td>
@@ -1655,7 +1656,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               </tr>
             </thead>
             <tbody>
-              {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={config.columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+              {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={config.columns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
               {!isLoading && pagedFilteredRows.map((row, index) => (
                 <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}>
                   {config.columns.map((column) => {
@@ -1877,17 +1878,17 @@ function DashboardStatusKpi({ items }: { items: Array<{ count: number; status: s
   ]
 
   return (
-    <div className="col-span-2 flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5 md:col-span-1">
+    <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 sm:h-12 sm:w-12">
         <FileText aria-hidden="true" className="size-5 sm:size-6" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium text-emerald-600">สถานะการผลิต</div>
-        <div className="mt-2 grid grid-cols-3 divide-x divide-slate-200">
+        <div className="mt-2 space-y-1">
           {visibleItems.map((item) => (
-            <div className="min-w-0 px-2 first:pl-0 last:pr-0" key={item.label}>
-              <div className={`truncate text-[11px] font-medium ${item.labelClass}`} title={item.label}>{item.label}</div>
-              <div className={`mt-0.5 font-mono text-base font-bold leading-tight tabular-nums ${item.valueClass}`}>{item.value.toLocaleString('th-TH')}</div>
+            <div className="flex items-center justify-between gap-2" key={item.label}>
+              <div className={`min-w-0 truncate text-[11px] font-medium ${item.labelClass}`} title={item.label}>{item.label}</div>
+              <div className={`shrink-0 font-mono text-base font-bold leading-tight tabular-nums ${item.valueClass}`}>{item.value.toLocaleString('th-TH')}</div>
             </div>
           ))}
         </div>
@@ -1931,7 +1932,7 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
   const [containerWidth, setContainerWidth] = useState(0)
   const max = Math.max(1, ...rows.flatMap((row) => [row.input, row.output, row.loss]))
   const yMax = niceChartMax(max)
-  const chartWidth = Math.max(640, rows.length * 96, containerWidth)
+  const chartWidth = Math.max(rows.length * 96, containerWidth)
   const chartHeight = 280
   const paddingLeft = 56
   const paddingRight = 28
@@ -1965,7 +1966,7 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
         {controls}
       </div>
       {type === 'line' ? (
-        <div className="bg-white p-4">
+        <div className="bg-white px-4 pb-4 pt-3">
           <div className="mb-3 flex flex-wrap justify-end gap-4 text-xs font-medium text-slate-500">
             {series.map((item) => (
               <span key={item.key} className="inline-flex items-center gap-1.5">
@@ -1974,14 +1975,14 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
               </span>
             ))}
           </div>
-          <div ref={chartContainerRef} className="overflow-x-auto">
+          <div ref={chartContainerRef} className="-mx-4 overflow-x-auto">
           {rows.length ? (
             <svg aria-label={title} className="h-[220px] sm:h-[260px] lg:h-[300px]" preserveAspectRatio="xMidYMid meet" role="img" style={{ minWidth: chartWidth, width: chartWidth }} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
               {ticks.map((value) => {
                 const y = yFor(value)
                 return (
                   <g key={value}>
-                    <line stroke="#e2e8f0" strokeWidth="1" x1={paddingLeft} x2={chartWidth - paddingRight} y1={y} y2={y} />
+                    <line className="stroke-slate-200" strokeWidth="1" x1={paddingLeft} x2={chartWidth - paddingRight} y1={y} y2={y} />
                     <text fill="#94a3b8" fontSize="10" textAnchor="end" x={paddingLeft - 10} y={y + 3}>
                       {formatChartTick(value)}
                     </text>
@@ -1990,10 +1991,10 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
               })}
               {rows.map((row, index) => {
                 const x = xFor(index)
-                return <line key={row.label} stroke="#f1f5f9" strokeWidth="1" x1={x} x2={x} y1={paddingTop} y2={chartHeight - paddingBottom} />
+                return <line className="stroke-slate-200" key={row.label} strokeWidth="1" x1={x} x2={x} y1={paddingTop} y2={chartHeight - paddingBottom} />
               })}
-              <line stroke="#cbd5e1" strokeWidth="1.25" x1={paddingLeft} x2={chartWidth - paddingRight} y1={chartHeight - paddingBottom} y2={chartHeight - paddingBottom} />
-              <line stroke="#cbd5e1" strokeWidth="1.25" x1={paddingLeft} x2={paddingLeft} y1={paddingTop} y2={chartHeight - paddingBottom} />
+              <line className="stroke-slate-300" strokeWidth="1.25" x1={paddingLeft} x2={chartWidth - paddingRight} y1={chartHeight - paddingBottom} y2={chartHeight - paddingBottom} />
+              <line className="stroke-slate-300" strokeWidth="1.25" x1={paddingLeft} x2={paddingLeft} y1={paddingTop} y2={chartHeight - paddingBottom} />
               {series.filter((item) => item.key !== 'loss').map((item) => (
                 <path
                   key={`${item.key}-area`}

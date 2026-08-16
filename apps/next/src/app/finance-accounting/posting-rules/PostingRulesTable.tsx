@@ -55,7 +55,7 @@ export function PostingRulesTable({ rows }: { rows: readonly RuleGroup[] }) {
           </div>
           {columnResize.hasCustomWidths ? (
             <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-700 hover:bg-slate-50 focus-visible:outline-none"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-700 hover:bg-slate-50 focus-visible:outline-none hidden lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >

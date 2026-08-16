@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { Check, Copy, X, Plus, Printer } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
@@ -3405,8 +3406,8 @@ export function MoneyMovementPageClient({
           onValueChange={(value) => switchMoneyTab(value as ReceiptTab)}
         >
           <TabsList className="w-full" variant="line">
-            <TabsTrigger value="entry" variant="line">{mode === 'payment' ? 'จ่ายเงิน' : 'รับเงินลูกค้า'}</TabsTrigger>
-            <TabsTrigger value="history" variant="line">{mode === 'payment' ? 'ประวัติ' : 'ประวัติการรับเงิน'}</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" value="entry" variant="line">{mode === 'payment' ? 'จ่ายเงิน' : 'รับเงินลูกค้า'}</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" value="history" variant="line">{mode === 'payment' ? 'ประวัติ' : 'ประวัติการรับเงิน'}</TabsTrigger>
           </TabsList>
         </Tabs>
       ) : null}
@@ -3414,9 +3415,9 @@ export function MoneyMovementPageClient({
       {mode === 'receipt' && showEntrySection ? (
         <>
           <div className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <UiInput
-                className="h-9 min-w-[220px] flex-1 rounded-md"
+                className="col-span-2 h-9 min-w-0 rounded-md"
                 placeholder="ค้นหาเลขที่ใบรับเงิน / Sales Bill"
                 type="search"
                 value={billSearch}
@@ -3424,13 +3425,23 @@ export function MoneyMovementPageClient({
               />
               <UiInput
                 aria-label="ค้นหาลูกค้า"
-                className="h-9 w-full rounded-md sm:w-[220px]"
+                className="h-9 min-w-0 rounded-md"
                 placeholder="ค้นหาลูกค้า"
                 type="search"
                 value={receiptQueueCustomerSearch}
                 onChange={(event) => setReceiptQueueCustomerSearch(event.target.value)}
               />
-              <div className="flex w-full items-center gap-2 sm:w-auto">
+              <BranchSelectCombobox
+                branches={(data.branches ?? []).filter((branch) => branch.active)}
+                className="w-full"
+                controlSize="filter"
+                inputId="receipt-queue-branch-filter"
+                label=""
+                placeholder="ทุกสาขา"
+                value={branchFilter}
+                onChange={(value) => setBranchFilter(value ?? '')}
+              />
+              <div className="col-span-2 flex items-center gap-2">
                 <span className="shrink-0 text-xs font-semibold text-slate-500">วันที่:</span>
                 <DatePickerInput
                   ariaLabel="วันที่เริ่มต้น"
@@ -3450,19 +3461,9 @@ export function MoneyMovementPageClient({
                   onChange={setReceiptQueueDateTo}
                 />
               </div>
-              <BranchSelectCombobox
-                branches={(data.branches ?? []).filter((branch) => branch.active)}
-                className="w-full sm:w-auto"
-                controlSize="filter"
-                inputId="receipt-queue-branch-filter"
-                label=""
-                placeholder="ทุกสาขา"
-                value={branchFilter}
-                onChange={(value) => setBranchFilter(value ?? '')}
-              />
               {hasActiveBillFilters ? (
                 <UiButton
-                  className="h-9 font-normal"
+                  className="col-span-2 h-9 font-normal"
                   size="sm"
                   type="button"
                   variant="secondary"
@@ -3489,12 +3490,12 @@ export function MoneyMovementPageClient({
 
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <div>พบ <span className="font-semibold text-slate-900">{receiptBillTotalRows}</span> รายการ</div>
-            <div className="flex flex-wrap items-center gap-2">
-              {receiptQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={receiptQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
+            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+              {receiptQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={receiptQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
               <PageSizeDropdown options={pageSizeOptions} value={billPageSize} onChange={setBillPageSize} />
-              <UiButton className="h-9 font-normal" disabled={receiptBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+              <div className="flex items-center gap-2"><UiButton className="h-9 font-normal" disabled={receiptBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
               <span className="px-1">หน้า {receiptBillCurrentPage} / {receiptBillTotalPages}</span>
-              <UiButton className="h-9 font-normal" disabled={receiptBillCurrentPage >= receiptBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(receiptBillTotalPages, value + 1))}>ถัดไป</UiButton>
+              <UiButton className="h-9 font-normal" disabled={receiptBillCurrentPage >= receiptBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(receiptBillTotalPages, value + 1))}>ถัดไป</UiButton></div>
             </div>
           </div>
 
@@ -3579,7 +3580,7 @@ export function MoneyMovementPageClient({
                 </tr>
               </TableHeader>
               <TableBody className="divide-y divide-slate-100">
-                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={receiptQueueColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={receiptQueueColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
                 {!isLoading && receiptBillPageRows.map((bill) => {
                   const balance = bill.receivableBalance ?? 0
                   const receivedAmount = Math.max(0, (bill.totalAmount ?? 0) - balance)
@@ -3663,14 +3664,14 @@ export function MoneyMovementPageClient({
                 </UiButton>
               ) : null}
             </div>
-            <div aria-label="กรองคิวรอจ่ายตามประเภทเอกสาร" className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2" role="group">
-              <span className="text-xs text-slate-500">ประเภทเอกสาร:</span>
+            <div aria-label="กรองคิวรอจ่ายตามประเภทเอกสาร" className="flex w-full flex-wrap items-center gap-2 border-t border-slate-100 pt-2 sm:w-auto" role="group">
+              <span className="shrink-0 text-xs text-slate-500">ประเภทเอกสาร:</span>
               {paymentQueueSourceOptions.map((option) => {
                 const isActive = billSourceFilter === option.value
                 return (
                   <button
                     aria-pressed={isActive}
-                    className={`rounded-md border px-3 py-1 text-xs font-medium ${isActive ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    className={`min-w-fit flex-1 rounded-md border px-3 py-1 text-center text-xs font-medium sm:flex-none ${isActive ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
                     key={option.value}
                     type="button"
                     onClick={() => setBillSourceFilter(option.value)}
@@ -3683,12 +3684,12 @@ export function MoneyMovementPageClient({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <div>พบทั้งหมด <span className="font-semibold text-slate-900">{supplierBillTotalRows}</span> รายการ</div>
-            <div className="flex flex-wrap items-center gap-2">
-              {paymentQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={paymentQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
+            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+              {paymentQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={paymentQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
               <PageSizeDropdown options={pageSizeOptions} value={billPageSize} onChange={setBillPageSize} />
-              <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+              <div className="flex items-center gap-2"><UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
               <span className="px-1">หน้า {supplierBillCurrentPage} / {supplierBillTotalPages}</span>
-              <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage >= supplierBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(supplierBillTotalPages, value + 1))}>ถัดไป</UiButton>
+              <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage >= supplierBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(supplierBillTotalPages, value + 1))}>ถัดไป</UiButton></div>
             </div>
           </div>
 
@@ -3795,7 +3796,7 @@ export function MoneyMovementPageClient({
                   </tr>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
-                  {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={paymentQueueColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                  {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={paymentQueueColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
                   {!isLoading && supplierBillPageRows.map((bill) => {
                     const balance = bill.payableBalance ?? 0
                     const supplier = supplierMap.get(bill.supplierId ?? '')
@@ -4575,7 +4576,7 @@ export function MoneyMovementPageClient({
                   <>พบทั้งหมด <span className="font-semibold text-slate-900">{historyTotalRows}</span> รายการ</>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
                 {selectedReceiptIds.length > 0 && (
                   <UiButton
                     className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs py-1 h-9 gap-1 flex items-center border-0"
@@ -4587,11 +4588,11 @@ export function MoneyMovementPageClient({
                     พิมพ์ใบเสร็จที่เลือก ({selectedReceiptIds.length})
                   </UiButton>
                 )}
-                {historyColumnResize.hasCustomWidths ? <UiButton className="font-normal" size="sm" type="button" variant="outline" onClick={historyColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
+                {historyColumnResize.hasCustomWidths ? <UiButton className="font-normal hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={historyColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
                 <PageSizeDropdown options={pageSizeOptions} value={historyPageSize} onChange={setHistoryPageSize} />
-                <UiButton className="font-normal" disabled={historyCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+                <div className="flex items-center gap-2"><UiButton className="font-normal" disabled={historyCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
                 <span className="px-1">หน้า {historyCurrentPage} / {historyTotalPages}</span>
-                <UiButton className="font-normal" disabled={historyCurrentPage >= historyTotalPages} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.min(historyTotalPages, value + 1))}>ถัดไป</UiButton>
+                <UiButton className="font-normal" disabled={historyCurrentPage >= historyTotalPages} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.min(historyTotalPages, value + 1))}>ถัดไป</UiButton></div>
               </div>
             </div>
 
@@ -5195,7 +5196,7 @@ function PaymentHistoryDetailDialog({
                               <div className="mt-1 truncate text-xs">{event.actor || '-'}</div>
                             </div>
                             <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
-                              <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${isLatest ? detailDotClass(event.tone) : 'bg-slate-300'}`} />
+                              <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${isLatest ? detailDotClass(event.tone) : 'bg-slate-300 dark:bg-slate-500'}`} />
                               <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-sm font-medium text-slate-800">{event.title}</div>
                                 <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${detailToneTextClass(event.tone)}`}>

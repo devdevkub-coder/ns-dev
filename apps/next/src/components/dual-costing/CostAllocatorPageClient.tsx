@@ -399,17 +399,15 @@ export function CostAllocatorPageClient() {
 
       <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะจับคู่ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step0} onClick={() => toggleSection('step0')} />}>
         {!collapsedSections.step0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {sourceTypeButtons.map((item) => {
             const active = sourceType === item
             return (
               <button
                 key={item}
-                className={
-                  active
+                className={`${active
                     ? 'rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
-                    : 'rounded-xl border border-slate-100 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-100'
-                }
+                    : 'rounded-xl border border-slate-100 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-100'} w-full ${item === 'production' ? 'col-span-2' : ''}`}
                 type="button"
                 onClick={() => {
                   setSourceType(item)
@@ -550,14 +548,14 @@ export function CostAllocatorPageClient() {
               <div>
                 พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
                 {targetColumnResize.hasCustomWidths ? (
                   <Button className="h-9 text-sm font-normal" size="sm" type="button" variant="outline" onClick={targetColumnResize.resetColumnWidths}>
                     คืนค่าเดิมตาราง
                   </Button>
                 ) : null}
                 <PageSizeDropdown options={[5, 10, 25, 50]} value={pageSize} onChange={setPageSize} />
-                <button
+                <div className="flex items-center gap-2"><button
                   className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                   disabled={currentPage <= 1}
                   type="button"
@@ -573,7 +571,7 @@ export function CostAllocatorPageClient() {
                   onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
                 >
                   ถัดไป
-                </button>
+                </button></div>
               </div>
             </div>
 

@@ -371,7 +371,7 @@ export function CompanyProfilePageClient() {
               {branches.length.toLocaleString('th-TH')} สาขา
             </div>
           </div>
-          <div className="space-y-2 max-h-[300px] lg:max-h-[60vh] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-2 max-h-[300px] lg:max-h-[60vh] overflow-y-auto pr-1 lg:grid-cols-1">
             {branches.length ? branches.map((branch) => {
               const selected = branch.id === selectedBranchId
               return (
@@ -443,8 +443,8 @@ export function CompanyProfilePageClient() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 rounded-md bg-slate-50 p-4">
-        <button className="w-full sm:w-auto rounded-md bg-blue-600 px-6 py-2 font-bold text-white hover:bg-blue-700 disabled:opacity-60 h-10 flex items-center justify-center" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void save()}>
+      <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-50 p-4 sm:flex sm:flex-row">
+        <button className="w-full col-span-2 sm:col-span-1 sm:w-auto rounded-md bg-blue-600 px-6 py-2 font-bold text-white hover:bg-blue-700 disabled:opacity-60 h-10 flex items-center justify-center" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void save()}>
           {isSaving ? 'กำลังบันทึก...' : '💾 บันทึก'}
         </button>
         <button className="w-full sm:w-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60 h-10 flex items-center justify-center font-semibold" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void previewReceipt()}>👁 ดูตัวอย่างใบรับสินค้า</button>

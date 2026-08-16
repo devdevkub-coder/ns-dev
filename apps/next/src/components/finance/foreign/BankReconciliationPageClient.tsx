@@ -303,7 +303,7 @@ function Panel({
         <h3 className="text-sm font-semibold">{title}</h3>
         {hasCustomWidths && onResetWidths && (
           <button
-            className="rounded bg-white/85 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200 hover:bg-white hover:text-slate-900 transition-colors"
+            className="rounded bg-white/85 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200 hover:bg-white hover:text-slate-900 transition-colors hidden lg:inline-flex"
             type="button"
             onClick={onResetWidths}
           >

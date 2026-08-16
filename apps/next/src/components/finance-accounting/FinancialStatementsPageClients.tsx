@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Activity, ArrowDownRight, ArrowUpRight, Building2, ChartColumnBig, Download, Landmark, Scale, SlidersHorizontal, TrendingUp, Wallet } from 'lucide-react'
@@ -446,24 +447,24 @@ export function PlStatementPageClient({ initialFilters }: { initialFilters?: { b
       </div>
 
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
-        <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-xs font-semibold text-slate-500">งบกำไรขาดทุน</div>
             <div className="truncate text-sm font-bold text-slate-800">{periodLabel}</div>
             <div className="truncate text-xs text-slate-500">{selectedBranch} · {activeBasis}</div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
-            <button type="button" className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40" onClick={openMobileFilters}>
-              <SlidersHorizontal aria-hidden="true" className="size-3.5" />
-              ตัวกรอง{branchId || costBasis !== 'WAC' ? ' (มี)' : ''}
-            </button>
-          </div>
         </div>
-        <div className="mt-3 flex gap-1.5 overflow-x-auto">
+        <div className="mt-3 grid grid-cols-3 gap-1.5">
           <QuickPill active={viewMode === 'period'} label="ช่วงวันที่" onClick={() => setViewMode('period')} />
           <QuickPill active={viewMode === 'month'} label="รายเดือน" onClick={() => setViewMode('month')} />
           <QuickPill active={viewMode === 'yearly'} label="รายปี" onClick={() => setViewMode('yearly')} />
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
+          <button type="button" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40" onClick={openMobileFilters}>
+            <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+            ตัวกรอง{branchId || costBasis !== 'WAC' ? ' (มี)' : ''}
+          </button>
         </div>
       </div>
 
@@ -927,7 +928,7 @@ export function CashFlowStatementPageClient({ initialFilters }: { initialFilters
             ตัวกรอง{branchId ? ' (มี)' : ''}
           </button>
         </div>
-        <div className="mt-3 flex gap-1.5 overflow-x-auto">
+        <div className="mt-3 grid grid-cols-2 gap-1.5">
           <button
             type="button"
             onClick={() => { setFrom(monthStart()); setTo(today()) }}
@@ -1031,7 +1032,7 @@ export function CashFlowStatementPageClient({ initialFilters }: { initialFilters
           <Waterfall rows={[['ดำเนินงาน', operating], ['ลงทุน', investing], ['จัดหาเงิน', financing]]} />
         </AnalysisPanel>
         <AnalysisPanel subtitle="ตัวเลขสรุปแบบเร็วสำหรับผู้บริหารก่อน drill ลงรายละเอียดรายการ" title="ตัวเลขรวมทั้งงวด">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
             <MiniMetric label="เงินสดรับรวม" tone="emerald" value={money(totalInflow)} />
             <MiniMetric label="เงินสดจ่ายรวม" tone="red" value={money(totalOutflow)} />
             <MiniMetric label="โอนเงินภายใน (ไม่รวม)" tone="slate" value={money(internalTransfers)} />
@@ -1243,10 +1244,10 @@ function BreakdownDonut({
               ))}
           </g>
         ) : (
-          <circle cx="100" cy="100" fill="none" r={radius} stroke="#e2e8f0" strokeWidth="30" />
+          <circle className="dark:stroke-slate-300" cx="100" cy="100" fill="none" r={radius} stroke="#e2e8f0" strokeWidth="30" />
         )}
         <text x="100" y="98" textAnchor="middle" fontSize="10" fill="#64748b">รวม / Total</text>
-        <text x="100" y="115" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#1e293b">{compactMillion(centerTotal)}</text>
+        <text className="dark:fill-slate-900" x="100" y="115" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#1e293b">{compactMillion(centerTotal)}</text>
         </svg>
       </div>
 
@@ -1302,7 +1303,7 @@ function LegacyBalanceSheetTable({
           <tbody>
             {isLoading ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-400" colSpan={2}>กำลังโหลดข้อมูล</td>
+                <td className="px-4 py-8 text-center text-slate-400" colSpan={2}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td>
               </tr>
             ) : null}
             {!isLoading && groups.flatMap((group) => group.rows).length === 0 ? (
@@ -1395,31 +1396,31 @@ function SplitCard({ cogs, label, revenue, tone }: { cogs: number; label: string
 function MixBreakdownCard({ cogs, cogsLabel = 'COGS', label, revenue, tone }: { cogs: number; cogsLabel?: string; label: string; revenue: number; tone: 'emerald' | 'violet' }) {
   const grossProfit = revenue - cogs
   const margin = revenue > 0 ? grossProfit / revenue * 100 : 0
-  const shellClass = tone === 'emerald' ? 'border-emerald-200 bg-emerald-50/70' : 'border-violet-200 bg-violet-50/70'
-  const accentClass = tone === 'emerald' ? 'text-emerald-700' : 'text-violet-700'
+  const shellClass = tone === 'emerald' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-400/30 dark:bg-emerald-500/10' : 'border-violet-200 bg-violet-50/70 dark:border-violet-400/30 dark:bg-violet-500/10'
+  const accentClass = tone === 'emerald' ? 'text-emerald-700 dark:text-emerald-300' : 'text-violet-700 dark:text-violet-300'
 
   return (
     <div className={`rounded-xl border p-3 ${shellClass}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold text-slate-500">กลุ่มธุรกิจ</div>
-          <div className="text-sm font-bold text-slate-800">{label}</div>
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">กลุ่มธุรกิจ</div>
+          <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{label}</div>
         </div>
-        <div className={`rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold shadow-sm ${accentClass}`}>
+        <div className={`rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold shadow-sm dark:bg-slate-800 ${accentClass}`}>
           Margin {percent(margin)}
         </div>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
         <div>
-          <div className="text-slate-500">Revenue / รายได้</div>
-          <div className="mt-1 font-mono font-bold text-slate-800">{money(revenue)}</div>
+          <div className="text-slate-500 dark:text-slate-400">Revenue / รายได้</div>
+          <div className="mt-1 font-mono font-bold text-slate-800 dark:text-slate-100">{money(revenue)}</div>
         </div>
         <div>
-          <div className="text-slate-500">{cogsLabel}</div>
-          <div className="mt-1 font-mono font-bold text-slate-800">{money(cogs)}</div>
+          <div className="text-slate-500 dark:text-slate-400">{cogsLabel}</div>
+          <div className="mt-1 font-mono font-bold text-slate-800 dark:text-slate-100">{money(cogs)}</div>
         </div>
         <div>
-          <div className="text-slate-500">GP / กำไรขั้นต้น</div>
+          <div className="text-slate-500 dark:text-slate-400">GP / กำไรขั้นต้น</div>
           <div className={`mt-1 font-mono font-bold ${accentClass}`}>{money(grossProfit)}</div>
         </div>
       </div>
@@ -1436,28 +1437,28 @@ function StockTradingGpChart({ stockGrossProfit, tradingGrossProfit }: { stockGr
   ] as const
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <div className="text-xs font-semibold text-slate-500">Stock vs Trading GP</div>
+    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/60">
+      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Stock vs Trading GP</div>
       <div className="mt-3 space-y-3">
         {chartRows.map((row) => {
-          const toneClass = row.tone === 'emerald' ? 'bg-emerald-500 text-emerald-700' : 'bg-violet-500 text-violet-700'
+          const toneClass = row.tone === 'emerald' ? 'bg-emerald-500 text-emerald-700 dark:text-emerald-300' : 'bg-violet-500 text-violet-700 dark:text-violet-300'
           const width = Math.max(8, Math.min(100, Math.abs(row.value) / max * 100))
 
           return (
             <div key={row.label}>
               <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                <span className={row.tone === 'emerald' ? 'font-semibold text-emerald-700' : 'font-semibold text-violet-700'}>{row.label}</span>
-                <span className="font-mono font-bold text-slate-700">{money(row.value)}</span>
+                <span className={row.tone === 'emerald' ? 'font-semibold text-emerald-700 dark:text-emerald-300' : 'font-semibold text-violet-700 dark:text-violet-300'}>{row.label}</span>
+                <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(row.value)}</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/60">
                 <div className={`${toneClass.split(' ')[0]} h-full rounded-full`} style={{ width: `${width}%` }} />
               </div>
             </div>
           )
         })}
       </div>
-      <div className="mt-3 border-t border-slate-100 pt-2 text-center text-xs font-semibold text-slate-500">
-        Total GP: <span className="font-mono text-slate-800">{money(totalGrossProfit)}</span>
+      <div className="mt-3 border-t border-slate-100 pt-2 text-center text-xs font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+        Total GP: <span className="font-mono text-slate-800 dark:text-slate-100">{money(totalGrossProfit)}</span>
       </div>
     </div>
   )
@@ -1677,8 +1678,8 @@ function Waterfall({ legacyRed = false, rows }: { legacyRed?: boolean; rows: Arr
             <span className={value < 0 && legacyRed ? 'font-semibold text-red-600' : 'text-slate-600'}>{label}</span>
             <b className={value < 0 ? 'text-red-700' : legacyRed ? 'text-emerald-700' : 'text-slate-800'}>{money(value)}</b>
           </div>
-          <div className={`h-2 overflow-hidden rounded-full ${legacyRed ? 'bg-red-50' : 'bg-slate-100'}`}>
-            <div className={`h-full rounded-full ${value < 0 ? (legacyRed ? 'bg-red-500' : 'bg-red-400') : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, Math.abs(value) / max * 100)}%` }} />
+          <div className={`h-2 overflow-hidden rounded-full ${legacyRed ? 'bg-red-50 dark:bg-red-500/20' : 'bg-slate-100 dark:bg-slate-700/60'}`}>
+            <div className={`h-full rounded-full ${value < 0 ? 'bg-red-400 dark:bg-red-600' : 'bg-emerald-500 dark:bg-emerald-600'}`} style={{ width: `${Math.min(100, Math.abs(value) / max * 100)}%` }} />
           </div>
         </div>
       ))}
@@ -1724,21 +1725,21 @@ function CashFlowRealityLines({
         const isNegative = row.value < 0
         const width = isBalance ? balanceWidth(row.value) : Math.min(100, Math.abs(row.value) / maxMagnitude * 100)
         const barClassName = isBalance
-          ? 'bg-emerald-500'
+          ? 'bg-emerald-500 dark:bg-emerald-600'
           : isNegative
-            ? 'bg-red-400'
+            ? 'bg-red-400 dark:bg-red-600'
             : row.value > 0
-              ? 'bg-emerald-500'
-              : 'bg-slate-300'
-        const valueClassName = isNegative ? 'text-red-700' : isBalance || row.value > 0 ? 'text-slate-800' : 'text-slate-500'
+              ? 'bg-emerald-500 dark:bg-emerald-600'
+              : 'bg-slate-300 dark:bg-slate-500'
+        const valueClassName = isNegative ? 'text-red-700 dark:text-red-500' : isBalance || row.value > 0 ? 'text-slate-800 dark:text-slate-700' : 'text-slate-500'
 
         return (
           <div key={row.label} className="text-xs">
             <div className="mb-1 flex items-center justify-between gap-3">
-              <span className="text-slate-600">{row.label}</span>
+              <span className="text-slate-600 dark:text-slate-300">{row.label}</span>
               <b className={valueClassName}>{money(row.value)}</b>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/60">
               <div className={`h-full rounded-full transition-all ${barClassName}`} style={{ minWidth: row.value === 0 ? '0px' : '2px', width: `${width}%` }} />
             </div>
           </div>
@@ -1757,7 +1758,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
         <div className="text-sm font-bold text-slate-700">{title}</div>
         {columnResize.hasCustomWidths ? (
           <button
-            className="h-8 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200"
+            className="h-8 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200 hidden lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -1872,7 +1873,7 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
         {columnResize.hasCustomWidths ? (
           <div className="hidden justify-end border-b border-slate-100 bg-white px-3 py-2 lg:flex">
             <button
-              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200"
+              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200 hidden lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
@@ -1941,7 +1942,7 @@ function LoadingOrEmptyMobile({ isLoading, rows }: { isLoading: boolean; rows: n
 }
 
 function LoadingOrEmpty({ colSpan, isLoading, rows }: { colSpan: number; isLoading: boolean; rows: number }) {
-  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}>กำลังโหลดข้อมูล</td></tr>
+  if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr>
   if (rows === 0) return <tr><td className="py-8 text-center text-slate-400" colSpan={colSpan}>ยังไม่มีข้อมูล</td></tr>
   return null
 }

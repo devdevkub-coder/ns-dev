@@ -19,6 +19,33 @@
 - Consistency over novelty: หน้าใกล้เคียงกันควรใช้ interaction และ wording ชุดเดียวกัน
 - Dense but readable: ข้อมูลแน่นได้ แต่ spacing, alignment, และ hierarchy ต้องนิ่ง
 - One source of wording: คำเรียกเอกสาร, สถานะ, สาขา/คลัง, payment terms ต้องไม่สลับไปมา
+- พอดีกรอบ (fit the frame): control/ปุ่ม/แท็บในแถวเดียวกันต้องใช้พื้นที่ให้เต็มกรอบ ไม่ปล่อยให้มีช่องว่างทิ้งขว้าง และไม่ยัดจนข้อความถูกตัด
+
+## Mobile Toolbar / Filter Layout (พอดีกรอบ)
+
+กฎชุดนี้ใช้กับทุกแถบกรอง/ toolbar บนมือถือ (viewport แคบ) ของ active Next app เพื่อให้ทุกกรอบเต็มและเป็นระเบียบ:
+
+- **เต็มกรอบเสมอ**: กลุ่ม control (ปุ่มช่วงวันที่, ช่องวันที่, แท็บ, dropdown, ปุ่ม action) ต้องยืดเต็มความกว้างของกรอบที่อยู่ ไม่ปล่อยช่องว่างท้ายแถว ยกเว้น desktop (sm+) ที่อนุญาตให้ชิดซ้าย/ชิดขวาตาม layout เดิม
+- **คู่วันที่ทำ 2 คอลัมน์**: ช่อง `จากวันที่` + `ถึงวันที่` วางคู่กันในแถวเดียว (`grid grid-cols-2` หรือ flex + `flex-1`)
+- **ตัวที่ 3 ยืดเต็มแถว**: ถ้ามี 3 control (เช่น จาก + ถึง + สาขา) ให้ตัวที่ 3 กินเต็มแถวด้านล่าง (`col-span-2 md:col-span-1`); ถ้ามี 3 ปุ่มให้ 2 ปุ่มบน + ปุ่มยาวเต็มแถวล่าง
+- **แท็บ/segmented เต็มแถว**: แถบแท็บ (เช่น `ทั้งหมด / ซื้อ / ขาย / ค่าใช้จ่าย`) กระจายเต็มความกว้าง (`TabsList w-full` + trigger `flex-1`) ไม่ติดซ้ายแล้วขวาโล่ง
+- **Line tabs (`variant="line"`) — ทุกหน้าบังคับ: มือถือเต็มกรอบ, desktop คงขนาดเนื้อหา**: ใช้กับทุกแท็บ line tabs ทั่วทั้งระบบ (111 หน้า) — กลุ่ม 2–4 แท็บ label สั้น ให้ `TabsList` มี `w-full sm:w-auto` + แต่ละ `TabsTrigger` มี `flex-1 sm:flex-none` (มือถือยืดเท่ากันเต็มกรอบ ไม่มีช่องว่างขวา, desktop กลับเป็นขนาดเนื้อหาตามเดิม) — ห้ามใส่ `min-w-0` บน trigger (จะทำให้ flex item หดต่ำกว่าเนื้อหา ข้อความล้น/ถูกตัดตอน label ยาว); ถ้า 5+ แท็บ หรือ label ยาว (เช่น `WorkingCapital`, `PaymentApproval`, `ProductionOrders`) ให้คง `overflow-x-auto` เลื่อนแบบเดิม ไม่ยัด flex-1 — ตัวอย่างที่ทำแล้ว: Analytics Dashboard (`คู่ค้า/สินค้า/การขาย`), Stock Balance (`Matrix/รายสินค้า`), Trading Dashboard (`แยกตามสินค้า/รายการซื้อ/รายการขาย`), PO Outstanding (`PO ซื้อ/PO ขาย`)
+- **ปุ่มกลุ่มเดือนอยู่ในแถวเดียวเสมอ**: `← เดือนก่อน | <ช่องเดือนยืดหยุ่น flex-1> | เดือนถัดไป →` ต้องไม่หักลงแถวใหม่กลางแถว
+- **ปุ่ม presets ยืดเต็มแถวแต่รักษากลุ่มเดิม**: ปุ่มช่วงเวลา (เช่น `วันนี้/เมื่อวาน/7 วัน/30 วัน/90 วัน/เดือนนี้`) ใช้ `flex-1` + `min-w-*` เพื่อให้กระจายเต็มแถว โดยคงจำนวนปุ่มต่อแถวตามกลุ่มเดิม (ไม่ยัดทุกปุ่มในแถวเดียวจนแคบ)
+- **ปุ่มหลัก (export/action) แยกแถวเต็มความกว้าง**: บนมือถือปุ่ม เช่น `ส่งออก Excel` วางเป็นแถวเต็มความกว้างของตัวเอง อย่าแออัด 3+ control ในแถวเดียวจนข้อความถูกตัด (เช่น `ส่งออก Ex...`)
+- **ปุ่ม `ส่งออก Excel` ทุกหน้าต้องเป็นสีเขียวเดียวกัน**: ใช้ `bg-emerald-600 hover:bg-emerald-700 text-white` หรือ shared `Button variant="export"` (`border-emerald-700 bg-emerald-600 ...`) ทุกจุดทั่วระบบ (41 ไฟล์) — ห้ามใช้สีอื่น/ลืมใส่ variant กับปุ่ม export
+- **ฟอร์มกรองที่เปิดบนมือถือตรง ๆ (ไม่ซ่อนใน sheet) ห้ามเรียงซ้อน 1 คอลัมน์ทุกช่อง**: ถ้ามี 2 ช่องสั้น (ช่องค้นหา 2 ช่อง, สาขา + ประเภทบัญชี) ให้วางคู่กัน 2 คอลัมน์ (`grid grid-cols-2`); ช่องที่ค่ายาว (ชื่อบัญชี/ลูกค้า) กินเต็มแถว (`col-span-2`); ปุ่ม action คู่กัน (เช่น `ตัวกรอง` + `ส่งออก Excel`) วาง `grid-cols-2` สูงเท่ากันเต็มกรอบ
+- **select ที่มีค่ายาว (เช่น `เลขที่บัญชี · ชื่อ · ธนาคาร · สาขา`) ต้องได้ความกว้างเต็มแถว ไม่บีบครึ่งกรอบจนชื่อถูกตัด**: ช่องสั้น ๆ อย่าง `ทุกสาขา` / `ทุกประเภทบัญชีบริษัท` เท่านั้นที่วางคู่กันได้
+- **ฟอร์ม (entry form) อย่าเรียงช่องเดียวเต็มแถวทุกช่อง**: ช่องสั้น 2 ตัววางคู่กัน 2 คอลัมน์ (`grid grid-cols-2` + `md:grid-cols-N`), ช่องที่ label ยาว (เช่น `บัญชี FCD และสกุลเงิน`, `ยอด THB เข้าบัญชีจริง (หลังหัก fee)`) กินเต็มแถว (`col-span-2 md:col-span-1`), ปุ่มบันทึกเต็มแถว — เช่น ฟอร์ม 8 ช่องควรเหลือ ~6 แถว
+- **แถวตัวกรอง 3 ชิ้น: ตัวค้นหาหลักเต็มแถว + ช่องสั้น 2 ช่องคู่กัน**: เช่น `ค้นหา...` (เต็มแถว) แล้ว `[ทุก Supplier][ทุกสินค้า]` คู่กัน ใช้ inner flex: `<div class="flex w-full gap-2 sm:w-auto"><div class="min-w-0 flex-1 sm:flex-none sm:min-w-[180px]">...` — อย่าใช้ `flex-1` + `basis-1/2` บน element เดียวกัน เพราะ `flex-1` (flex-basis:0%) ทับ `basis-*` แล้วบวก gap ทำให้ flex-wrap แตกแถว (กับดักที่เจอจริงในหน้า PO Outstanding)
+- **ทุก `display: grid` ต้องประกาศคอลัมน์ชัดเจน (`grid-cols-1` / `grid-cols-2` / `lg:grid-cols-N`)**: `display: grid` ที่ไม่มี `grid-template-columns` จะสร้าง implicit คอลัมน์ขนาด `auto` = **max-content ของลูก** — ถ้าลูกมีเนื้อหากว้าง (เช่น ชื่อยาว/ยอดเงิน) ทั้งคอลัมน์จะขยายเกินกรอบแม่ ล้นขวาเป็นร้อย px โดยที่โค้ดดูปกติ (กับดักที่เจอจริงในหน้า Cash Flow Analysis: คอลัมน์ `grid min-w-0 gap-4` ลูกทุกใบกว้าง 680px ในกรอบ 405px — แก้โดยเพิ่ม `grid-cols-1`)
+
+- **ปุ่ม `คืนค่าเดิมตาราง` ต้องซ่อนบนมือถือถ้าตารางนั้นถูกซ่อนบนมือถือ**: ปุ่ม reset column width ใช้ได้เฉพาะที่ตารางแสดงจริง; ถ้าตารางเป็นแบบ desktop-only (`hidden ... lg:block`/`lg:table` + mobile card list) ปุ่มต้องมี `hidden lg:inline-flex` (หรือระดับ breakpoint เดียวกับ wrapper ตาราง) ไม่โผล่บนมือถือที่ไม่มีตาราง
+- **Pagination บนมือถือ: `พบทั้งหมด` อยู่บน, `25/หน้า` อยู่ซ้าย, ปุ่ม `ก่อนหน้า | หน้า X/Y | ถัดไป` ชิดขวา**: บนมือถือแถว pagination ต้องเป็น `flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto` — `PageSizeDropdown` (และปุ่มอื่นฝั่งซ้าย) อยู่ซ้าย, กลุ่มปุ่ม pager ห่อใน `<div className="flex items-center gap-2">` อยู่ขวา (ด้านขวาจะได้ไม่ว่าง); desktop คงเดิม (`sm:w-auto` ให้กลุ่มชิดขวาตาม outer `justify-between`); `พบทั้งหมด X รายการ` อยู่แถวบนสุดของ pagination เสมอ (ทุกหน้าเหมือนกัน)
+- **ทุกหน้าเช็คทั้งหน้า**: ก่อนสรุปว่าผ่าน ให้ดูทั้งหน้าใน viewport มือถือ (≈410px) ไม่ใช่ดูเฉพาะจุดแรกที่เห็น
+- **ปฏิทินแบบ grid 7 วัน บนมือถือต้องเป็น list รายวัน**: ถ้าหน้าแสดงปฏิทินรายเดือนแบบ `grid-cols-7` (เช่น `/cash-flow-calendar`) บนมือถือ cell กว้างแค่ ~60px ทำให้ยอดเงินยาว ๆ ถูกบีบอ่านยาก — ให้มือถือแสดงเป็นรายการวันละแถวเต็มกรอบ: `[วันที่][↑/↓ เงิน][ยอดสะสม][badge จำนวน]` (wrap ทั้งตารางใน `md:hidden`, คง grid 7 คอลัมน์เดิมบน desktop ด้วย `hidden md:block` + หัววัน `hidden md:grid`) — คง `data-cash-day` + onClick/onPointerDown เดิมไว้เพื่อเปิด modal รายละเอียด
+- **Checklist ตรวจแท็บทุกหน้า (บังคับ)**: (1) แท็บ 2–4 ตัว label สั้น ต้องยืดเต็มกรอบบนมือถือ (`flex-1 sm:flex-none` + `TabsList w-full sm:w-auto`); (2) แท็บ 5+ ตัว หรือ label ยาว ต้องเลื่อนได้ด้วย `overflow-x-auto` ไม่ยัดจนข้อความถูกตัด; (3) บน desktop ต้องเป็นขนาดเนื้อหาตามเดิม (`sm:flex-none`/`sm:w-auto`) ไม่ยืดเต็มจอ; (4) ห้าม `min-w-0` บน trigger
+- ถ้าหน้าใดต้องวางต่างจากกฎนี้ (เช่น ฟอร์มแนวนอนใน sheet) ให้บันทึก override ระบุหน้า + เหตุผลใน `docs/migration/00-current-work.md`
 
 ## Wording Baseline
 
@@ -67,6 +94,10 @@
 - dark surface ใช้ความต่างของพื้นหลังเป็นลำดับแรก: page, surface, และ surface-soft ต้องต่างกันพอให้แยกพื้นที่ได้ โดยไม่เพิ่มกรอบทึบทุกจุด
 - dark border ใช้ slate โปร่งสองระดับ: ปกติสำหรับ row/table separator และ strong สำหรับ input, panel boundary, หรือจุดที่ต้องแบ่งกลุ่มจริง ๆ; ห้ามใช้ border สีทึบล้อมทุก card และทุก cell
 - สี semantic ใช้เฉพาะสถานะหรือความหมายทางธุรกิจ เช่น กำไรบวก/ลบ, error, warning; metric ปกติใช้ neutral text ไม่กำหนดสีคนละสีทุกใบ
+- **Dark mode: ทุกหลอด/bar/แท่ง/ส่วนของกราฟต้องมองเห็นชัด ไม่กลืนพื้นหลัง**: ห้ามใช้สีที่ dark remap แล้วเข้มจนกลืนกับ surface เช่น `bg-slate-300` (dark = `#475569`), `bg-red-400` (dark = `#dc2626`) บนพื้นเข้ม; ทุกจุดที่ใช้สีเติม (fill/bar/track) ต้องมี `dark:` variant กำกับเป็น shade ที่สว่างขึ้น (เช่น `bg-emerald-500 dark:bg-emerald-600`, `bg-red-400 dark:bg-red-600`, `bg-slate-300 dark:bg-slate-500`) และ track ของ bar ให้ใช้ `dark:bg-slate-700/60` เพื่อให้เห็นรางกับตัวหลอดแยกกันชัด
+- **Dark mode: ห้ามสีทึบ/แก่เด็ดขาด ต้องเป็นสีสว่างเท่านั้น**: ทุก fill ที่เป็น bar, หลอด, แท่ง, จุด, donut segment, pie slice, area, badge สี, และ KPI สีใน dark mode ต้องใช้ shade สว่าง (โทนกลางขึ้นไป เช่น `-400`/`-500`/`-600` ตาม remap ของระบบที่ให้ค่าสว่าง) เท่านั้น — ห้ามสีเข้มทึบแบบ dark navy/dark green/dark red ที่กลืนกับพื้นหลังหรือดูจม; เกณฑ์ตัดสินคือหลอดต้องแยกชัดจากพื้นหลัง (track/surface) ทันทีที่มอง โดยไม่ต้องเพ่ง ตัวอย่างสีที่ผ่าน: `bg-blue-500` (dark = `#3b82f6`), `bg-emerald-500` (dark = `#10b981`), `bg-red-500` (dark = `#ef4444`), `bg-amber-500` (dark = `#f59e0b`); สีที่ห้าม: `rgba(30,64,175,0.58)`-แบบทึบเข้ม, `bg-slate-300` ที่ dark เป็น `#475569`, และสี 50-300 ที่ dark remap แล้วเป็นโทนเข้ม
+- **Dark mode: ตรวจทั้งหน้า ไม่ใช่แค่จุดที่เห็น**: ก่อนสรุปว่าหน้าไหนผ่าน ต้องสลับเป็น dark mode ดูทั้งหน้า (ทุก card, ทุก bar, ทุกตาราง) ไม่ใช่แค่ดูเฉพาะจุดที่ถูกชี้; ตัวเลขติดลบใน dark mode ต้องเป็นโทนแดงอ่อน (`dark:text-red-500` ขึ้นไป) ที่อ่านบนพื้นเข้มได้
+- **ห้ามใช้ selector substring จับ shade ผิดตัว (เช่น `[class*="bg-blue-50"]` ไปโดน `bg-blue-500`)**: คลาส `bg-{color}-50` เป็น prefix ของ `bg-{color}-500` — ถ้าเขียน `[class*="bg-blue-50"]` จะเผลอบังคับสีหลอด bar/จุด `bg-blue-500` (ที่ dark var ให้ `#3b82f6` สว่างอยู่แล้ว) ให้กลายเป็น `rgba(30,64,175,0.58)` น้ำเงินเข้มทึบกลืนพื้นหลังใน dark mode ต้องใช้ exact token match `[class~="bg-blue-50"]` แทน (ยืนยัน: `globals.css` rule กลุ่ม dark tinted background ทั้ง 10 จุด แก้เป็น `~=` แล้ว); ก่อนเขียน selector จับ class ให้เช็คเสมอว่ามันไปแมทช์ shade ที่สูงกว่า (500/600/…) ด้วยหรือไม่ เพราะหลอด bar ที่ `bg-{color}-500` ต้องคงสีสว่างใน dark
 
 ## Searchable Dropdown
 
@@ -160,6 +191,7 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
 - label เช่น `ประเภท:` / `สถานะ:` ใช้ `text-xs text-slate-500`
 - segmented button baseline:
   - `rounded-md border px-3 py-1 text-xs font-medium`
+  - height target: `h-9` — chips must match the h-9 filter-row controls beside them (enforced globally in globals.css for `rounded-md border px-3 py-1 text-xs` buttons)
 - active:
   - `border-slate-500 bg-slate-600 text-white`
 - inactive:
@@ -952,6 +984,32 @@ Override ต้อง:
 
 ---
 
+## Animation Spec
+
+Animation ในโปรเจ็กต์มีชุดเดียวกลาง (`globals.css` `@theme` + คลาส `.skeleton` + rule ปุ่มกด) ใช้ class `animate-*` จาก toolkit นี้เท่านั้น ห้ามสร้าง animation แยกหน้าเอง:
+
+**หลักการกลาง (ทุก animation):**
+- ระยะเวลา **150–250ms** (จบเร็ว รู้สึกไว ไม่รู้สึกช้า) ยกเว้น draw-in กราฟ 300–400ms และ shimmer loop 1.4s
+- **ease-out** เสมอ; animate แค่ `transform` + `opacity` เท่านั้น (GPU ไม่กระตุก) ห้าม animate width/height ที่ทำให้ layout กระโดด
+- `prefers-reduced-motion` ปิดทุก animation (มี global rule อยู่แล้ว) — ห้ามเขียน animation นอกระบบที่ reduced-motion ไม่ครอบคลุม
+- ห้าม animate ตารางใหญ่ทีละแถว, spring/bounce, parallax
+
+**Toolkit ที่มีอยู่:**
+- `animate-fade-in` / `animate-fade-out` — fade พื้นหลัง overlay (180/150ms)
+- `animate-fade-in-up` / `animate-scale-in` — เข้าฉากทั่วไป
+- `animate-slide-in-up` — แผง bottom sheet เลื่อนขึ้น (240ms)
+- `animate-dialog-in` / `animate-dialog-out` — **ต้องรวม translate(-50%,-50%) ไว้ใน keyframes เสมอ** เพราะ DialogContent จัดกลางด้วย `-translate-x/y-1/2`; ถ้า keyframes ไม่มี translate กล่องจะกระโดดระหว่างเปิด/ปิด
+- `animate-shimmer` + คลาส `.skeleton` — Skeleton component (`components/ui/Skeleton.tsx`); โทน base/sweep ปรับตามธีมเอง
+- ปุ่มกด: `button.transition(-all/-colors):active` ได้ `scale(0.98)` อัตโนมัติ (transition property เดิมของ Tailwind ครอบ transform อยู่แล้ว)
+
+**จุดที่บังคับใช้ตอนนี้:**
+- **Sidebar dropdown** (ทุกเมนู/ทุก section) — slide height + fade ด้วยเทคนิค `grid-template-rows` (`NavPanel` ใน `AppNavigation.tsx`), ลูกศรหมุน 90° (`SidebarChevron`); collapsed ต้อง `invisible` เพื่อกัน focus หลงเข้าไป
+- **Dialog/Modal** — Radix `data-[state=open/closed]` บน Overlay + Content (enter/exit ครบ)
+- **MobileFilterSheet** — overlay fade + แผง slide ขึ้น
+- **Loading แทนข้อความ "กำลังโหลดข้อมูล"** — ใช้ `<Skeleton />` กลางช่องว่างของแถวตาราง (เก็บ `<span className="sr-only">กำลังโหลดข้อมูล</span>` ไว้เพื่อ a11y และ design-contract test)
+
+---
+
 ## Implementation References
 
 reference implementation ที่ใช้อ้างอิงได้ตอนนี้:
@@ -967,6 +1025,8 @@ reference implementation ที่ใช้อ้างอิงได้ตอ�
 เวลาเริ่มหน้าใหม่ ให้ดู reference ที่ใกล้ domain ที่สุดก่อน
 
 ## Change Log
+
+- 2026-08-16: Added the project-wide Animation Spec (see "Animation Spec" section): one shared toolkit in `globals.css` (fade-in/out, fade-in-up, scale-in, slide-in-up, dialog-in/out, shimmer + `.skeleton`, button-press scale), sidebar dropdowns animate with the `grid-template-rows` slide + chevron rotation, Dialog/Modal and MobileFilterSheet get enter/exit motion via `data-state`/animation classes, and plain "กำลังโหลดข้อมูล" table cells were replaced with the shared `Skeleton` shimmer (sr-only text kept). All motion is 150–250ms ease-out on transform/opacity only and collapses under `prefers-reduced-motion`.
 
 - 2026-08-02: Clarified the compact list/report exception: when a page has no segmented/status controls for a lower row, it must not render an otherwise empty action row. Keep the real page action in a right-aligned `ml-auto` group on the control toolbar instead.
 

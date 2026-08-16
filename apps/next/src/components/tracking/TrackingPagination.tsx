@@ -29,14 +29,14 @@ export function TrackingPagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
       <span>พบทั้งหมด {totalRows.toLocaleString('th-TH')} รายการ</span>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
         <PageSizeDropdown disabled={isLoading} options={trackingPageSizeOptions} value={pageSize} onChange={(size) => {
           onPageSizeChange(size as TrackingPageSize)
           onPageChange(1)
         }} />
-        <Button className="h-9" disabled={currentPage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => onPageChange(Math.max(1, currentPage - 1))}>ก่อนหน้า</Button>
+        <div className="flex items-center gap-2"><Button className="h-9" disabled={currentPage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => onPageChange(Math.max(1, currentPage - 1))}>ก่อนหน้า</Button>
         <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-        <Button className="h-9" disabled={currentPage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}>ถัดไป</Button>
+        <Button className="h-9" disabled={currentPage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}>ถัดไป</Button></div>
       </div>
     </div>
   )

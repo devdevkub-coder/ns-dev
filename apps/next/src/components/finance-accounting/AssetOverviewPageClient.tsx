@@ -86,14 +86,14 @@ export function AssetOverviewPageClient({ initialFilters }: { initialFilters?: {
 
   return (
     <section className="space-y-4 text-slate-800">
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+      <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm md:flex md:flex-wrap md:items-center md:gap-2">
         <DatePickerInput
-          className="w-[140px] border-slate-300 bg-white text-slate-900 outline-none focus:ring-0 h-9 rounded-md"
+          className="w-full border-slate-300 bg-white text-slate-900 outline-none focus:ring-0 h-9 rounded-md md:w-[140px]"
           value={asOf}
           onChange={setAsOf}
         />
         <Select
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:ring-0 focus:border-slate-400 h-9 transition-colors"
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:ring-0 focus:border-slate-400 h-9 transition-colors md:w-auto md:min-w-[180px]"
           value={branchId}
           onChange={(event) => setBranchId(event.target.value)}
         >
@@ -101,7 +101,7 @@ export function AssetOverviewPageClient({ initialFilters }: { initialFilters?: {
           {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
         </Select>
         <button
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
+          className="col-span-2 h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 md:col-span-1 md:w-auto"
           type="button"
           onClick={() => { setAsOf(today()); setBranchId('ALL') }}
         >
@@ -111,7 +111,7 @@ export function AssetOverviewPageClient({ initialFilters }: { initialFilters?: {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <DarkKpi label="สินทรัพย์รวม" value={summary.totalAsset} />
         <DarkKpi label="หนี้สินรวม" value={summary.totalDebt} />
         <DarkKpi up label="มูลค่าสุทธิ" value={summary.netWorth} />
@@ -308,7 +308,7 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
         {columnResize.hasCustomWidths ? (
           <div className="flex justify-end border-b border-slate-100 bg-white px-3 py-2">
             <button
-              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200"
+              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200 hidden lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >

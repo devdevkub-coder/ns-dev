@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -712,22 +713,26 @@ export function PoSellPageClient() {
 
   const listControls = (
     <>
-      <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-      <div className="flex items-center gap-2">
-        {columnResize.hasCustomWidths ? (
-          <UiButton
-            size="xs"
-            variant="outline"
-            type="button"
-            onClick={columnResize.resetColumnWidths}
-          >
-            คืนค่าเดิมตาราง
-          </UiButton>
-        ) : null}
-        <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-        <UiButton disabled={currentPage <= 1} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
-        <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-        <UiButton disabled={currentPage >= totalPages} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton>
+      <div className="w-full sm:w-auto">พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+        <div className="flex items-center gap-2">
+          {columnResize.hasCustomWidths ? (
+            <UiButton className="hidden lg:inline-flex"
+              size="xs"
+              variant="outline"
+              type="button"
+              onClick={columnResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </UiButton>
+          ) : null}
+          <PageSizeDropdown value={pageSize} onChange={setPageSize} />
+        </div>
+        <div className="flex items-center gap-2">
+          <UiButton disabled={currentPage <= 1} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <UiButton disabled={currentPage >= totalPages} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton>
+        </div>
       </div>
     </>
   )
@@ -978,7 +983,7 @@ export function PoSellPageClient() {
           </tr>
         </TableHeader>
         <TableBody>
-          {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={poSellColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+          {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={poSellColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
           {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={poSellColumns.length}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
           {!isLoading && pageRows.map((row) => (
             <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>

@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState, type ButtonHTMLAttributes } from 'react'
 import { FileText, Coins, CheckCircle, AlertCircle, FileCheck2 } from 'lucide-react'
@@ -181,7 +182,7 @@ function approvalStatusTone(status: ApprovalApRow['approvalStatus']) {
 function approvalStatusDot(status: ApprovalApRow['approvalStatus']) {
   if (status === 'approved') return 'bg-emerald-500'
   if (status === 'voided') return 'bg-red-500'
-  return 'bg-slate-300'
+  return 'bg-slate-300 dark:bg-slate-500'
 }
 
 function approvalRowKindLabel(status: ApprovalStatus) {
@@ -834,7 +835,7 @@ export function PaymentApprovalPageClient() {
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {selectedRowIds.size > 0 && (
             <Button
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs py-1 h-9 gap-1 flex items-center"
@@ -847,11 +848,11 @@ export function PaymentApprovalPageClient() {
               🖨 พิมพ์ใบอนุมัติที่เลือก ({selectedRowIds.size})
             </Button>
           )}
-          {activeColumnResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={activeColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+          {activeColumnResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={activeColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={setPageSize} />
-          <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <div className="flex items-center gap-2"><Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+          <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button></div>
         </div>
       </div>
 
@@ -1085,7 +1086,7 @@ export function PaymentApprovalPageClient() {
                 </tr>
               </TableHeader>
               <TableBody className="divide-y divide-slate-200">
-                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={paymentApprovalApColumnCount}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={paymentApprovalApColumnCount}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
                 {!isLoading && apRows.map((row) => {
                   const isVoided = row.approvalStatus === 'voided'
                   return (
@@ -1175,7 +1176,7 @@ export function PaymentApprovalPageClient() {
                 </tr>
               </TableHeader>
               <TableBody className="divide-y divide-slate-200">
-                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={paymentApprovalExpenseColumnCount}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={paymentApprovalExpenseColumnCount}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
                 {!isLoading && expenseRows.map((row) => {
                   const overdue = row.dueDate ? row.dueDate < new Date().toISOString().slice(0, 10) : false
                   const isPettyReturn = row.sourceType === 'petty_advance_return'

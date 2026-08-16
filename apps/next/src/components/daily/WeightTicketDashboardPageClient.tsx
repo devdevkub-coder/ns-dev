@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import Link from 'next/link'
 import { ArrowUpRight, FileText, RefreshCw, Scale, Truck, TriangleAlert, type LucideIcon } from 'lucide-react'
@@ -254,7 +255,7 @@ export function WeightTicketDashboardPageClient() {
           {dashboardTabs.map((tab) => {
             const count = tabCounts[tab.value]
             return (
-              <TabsTrigger aria-label={tab.label} className="min-w-0 shrink-0 gap-1 px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm" key={tab.value} value={tab.value} variant="line">
+              <TabsTrigger aria-label={tab.label} className="flex-1 shrink-0 gap-1 px-2 text-xs sm:flex-none sm:gap-2 sm:px-3 sm:text-sm" key={tab.value} value={tab.value} variant="line">
                 <span className="min-w-0 truncate">
                   <span className="sm:hidden">{mobileTabLabels[tab.value]}</span>
                   <span className="hidden sm:inline">{tab.label}</span>
@@ -539,7 +540,7 @@ function ProductPanel({ isLoading, rows }: { isLoading: boolean; rows: ProductRo
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td className="p-6 text-center text-slate-400" colSpan={6}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-400" colSpan={6}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={6}>ยังไม่มีข้อมูลตามเงื่อนไข</td></tr> : null}
             {!isLoading && rows.map((row) => (
               <tr key={row.productId} className="hover:bg-slate-50">
@@ -637,7 +638,7 @@ function FlowTablePanel({
           <span className="mx-2 text-slate-300">|</span>
           <span>{followUpLabel} <span className={`font-mono font-bold tabular-nums ${followUpTextClass}`}>{weightText(totalFollowUpWeight)}</span></span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {columnResize.hasCustomWidths ? (
             <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
           ) : null}
@@ -645,9 +646,9 @@ function FlowTablePanel({
             setPageSize(size)
             setPage(1)
           }} />
-          <Button disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+          <div className="flex items-center gap-2"><Button disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
           <span className="px-1 text-sm font-medium text-slate-600">หน้า {page} / {totalPages}</span>
-          <Button disabled={page >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+          <Button disabled={page >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button></div>
         </div>
       </div>
 
@@ -668,7 +669,7 @@ function FlowTablePanel({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={7}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={7}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={7}>{emptyText}</td></tr> : null}
             {!isLoading && pageRows.map((row) => (
               <tr key={row.docNo} className="hover:bg-slate-50">

@@ -1368,8 +1368,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           </div>
           ) : null}
           {isUsersPage ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-300">สถานะ:</span>
+            <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
+              <span className="shrink-0 text-xs text-slate-500 dark:text-slate-300">สถานะ:</span>
               {[
                 { label: 'ทุกสถานะ', value: 'all' },
                 { label: 'ใช้งาน', value: 'active' },
@@ -1378,6 +1378,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
               ].map((option) => (
                 <SegmentedFilterButton
                   active={statusFilter === option.value}
+                  className="flex-1 md:flex-none"
                   key={option.value}
                   type="button"
                   onClick={() => setStatusFilter(option.value as UserStatusFilter)}
@@ -1468,8 +1469,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 onChange={(branchId) => setBranchFilter(branchId ?? 'all')}
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-300">สถานะ:</span>
+            <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
+              <span className="shrink-0 text-xs text-slate-500 dark:text-slate-300">สถานะ:</span>
               {[
                 { label: 'ทุกสถานะ', value: 'all' },
                 { label: 'ใช้งาน', value: 'active' },
@@ -1478,6 +1479,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
               ].map((option) => (
                 <SegmentedFilterButton
                   active={statusFilter === option.value}
+                  className="flex-1 md:flex-none"
                   key={option.value}
                   type="button"
                   onClick={() => setStatusFilter(option.value as UserStatusFilter)}
@@ -1973,8 +1975,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         {!mode ? (
           <Tabs className="gap-0" value={currentTab} onValueChange={(value) => setTab(value as TabKey)}>
             <TabsList className="w-full" variant="line">
-              <TabsTrigger value="users" variant="line">ผู้ใช้</TabsTrigger>
-              <TabsTrigger value="roles" variant="line">หน้าที่งานและสิทธิ์</TabsTrigger>
+              <TabsTrigger className="flex-1 sm:flex-none" value="users" variant="line">ผู้ใช้</TabsTrigger>
+              <TabsTrigger className="flex-1 sm:flex-none" value="roles" variant="line">หน้าที่งานและสิทธิ์</TabsTrigger>
             </TabsList>
           </Tabs>
         ) : null}
@@ -2125,7 +2127,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
         {/* Tab 2: Roles */}
         {!isLoading && currentTab === 'roles' ? <div className="border-b border-slate-200 px-4 pt-3">
-          <Tabs value={rolesViewTab} onValueChange={(value) => setRolesViewTab(value as RolesViewTab)}><TabsList variant="line"><TabsTrigger value="roles" variant="line">Role ตามฝ่าย</TabsTrigger><TabsTrigger value="permissions" variant="line">สิทธิ์รายหน้า</TabsTrigger><TabsTrigger value="master-data" variant="line">สิทธิ์ข้อมูลหลัก</TabsTrigger></TabsList></Tabs>
+          <Tabs value={rolesViewTab} onValueChange={(value) => setRolesViewTab(value as RolesViewTab)}><TabsList className="w-full sm:w-auto" variant="line"><TabsTrigger className="flex-1 sm:flex-none" value="roles" variant="line">Role ตามฝ่าย</TabsTrigger><TabsTrigger className="flex-1 sm:flex-none" value="permissions" variant="line">สิทธิ์รายหน้า</TabsTrigger><TabsTrigger className="flex-1 sm:flex-none" value="master-data" variant="line">สิทธิ์ข้อมูลหลัก</TabsTrigger></TabsList></Tabs>
         </div> : null}
         {!isLoading && currentTab === 'roles' && rolesViewTab === 'permissions' ? (
           <div className="space-y-4 p-4">

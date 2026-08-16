@@ -16,7 +16,7 @@ export function ActiveToggle({ checked, disabled = false, label, labelClassName 
       <button
         aria-checked={checked}
         className={`peer group/switch relative inline-flex h-[18.4px] w-8 shrink-0 items-center rounded-full border border-transparent outline-none transition-all after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-emerald-500 focus-visible:ring-3 focus-visible:ring-emerald-100 ${
-          checked ? 'bg-emerald-600' : 'bg-slate-300'
+          checked ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-500'
         } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
         disabled={disabled}
         role="switch"

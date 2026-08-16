@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState, type FocusEvent } from 'react'
 import { Plus, X } from 'lucide-react'
@@ -747,13 +748,13 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         </DialogContent>
       </Dialog>
 
-      {isLoading ? <div className="rounded-xl bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
+      {isLoading ? <div className="space-y-3 rounded-xl bg-white p-6 shadow"><div className="flex items-center justify-between gap-4"><Skeleton className="h-5 w-44" /><Skeleton className="h-5 w-24" /></div><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><span className="sr-only">กำลังโหลดข้อมูล</span></div> : null}
 
       {!isLoading ? (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <div>พบทั้งหมด <span className="font-semibold text-slate-900">{total}</span> รายการ</div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
               {columnResize.hasCustomWidths ? (
                 <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
                   คืนค่าเดิมตาราง
@@ -763,9 +764,9 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                 setPageSize(size)
                 setPage(1)
               }} />
-              <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+              <div className="flex items-center gap-2"><Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
               <span className="px-1 text-xs">หน้า {currentPage} / {totalPages}</span>
-              <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+              <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button></div>
             </div>
           </div>
 

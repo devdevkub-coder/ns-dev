@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowUpDown, Coins, Scale } from 'lucide-react'
@@ -214,21 +215,21 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
             onChange={(event) => setSearch(event.target.value)}
           />
           <span className="text-xs text-slate-500">วันที่:</span>
-          <DatePickerInput className="h-9" id="bill-swap-history-date-from" value={dateFrom} onChange={setDateFrom} />
+          <DatePickerInput className="h-9 min-w-0 flex-1 sm:flex-none sm:w-[130px]" id="bill-swap-history-date-from" value={dateFrom} onChange={setDateFrom} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput className="h-9" id="bill-swap-history-date-to" value={dateTo} onChange={setDateTo} />
+          <DatePickerInput className="h-9 min-w-0 flex-1 sm:flex-none sm:w-[130px]" id="bill-swap-history-date-to" value={dateTo} onChange={setDateTo} />
           {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {hasCustomWidths ? <Button size="sm" type="button" variant="outline" className="hidden lg:inline-flex" onClick={resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-          <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <div className="flex items-center gap-2"><Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+          <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button></div>
         </div>
       </div>
 
@@ -321,7 +322,7 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50">
                 <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{row.swapDate}</td>

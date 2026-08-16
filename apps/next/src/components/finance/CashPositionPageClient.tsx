@@ -54,9 +54,9 @@ function typeClass(type: string) {
 }
 
 function accountBarClass(type: string) {
-  if (type === 'OD') return 'bg-amber-400'
-  if (type === 'เงินสด') return 'bg-emerald-400'
-  return 'bg-blue-400'
+  if (type === 'OD') return 'bg-amber-400 dark:bg-amber-500'
+  if (type === 'เงินสด') return 'bg-emerald-400 dark:bg-emerald-500'
+  return 'bg-blue-400 dark:bg-blue-500'
 }
 
 type CashPositionColumnKey = 'code' | 'name' | 'type' | 'bankName' | 'accountNo' | 'currency' | 'odLimit' | 'balance' | 'source'
@@ -153,25 +153,25 @@ export function CashPositionPageClient() {
   const topBalance = topAccounts[0]?.balance ?? 0
   const donut = liquidTotal > 0
     ? `conic-gradient(#10b981 0 ${(cashTotal / liquidTotal) * 100}%, #3b82f6 ${(cashTotal / liquidTotal) * 100}% ${((cashTotal + bankTotal) / liquidTotal) * 100}%, #6366f1 ${((cashTotal + bankTotal) / liquidTotal) * 100}% 100%)`
-    : '#e2e8f0'
+    : 'var(--color-slate-200)'
 
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-        <DatePickerInput ariaLabel="ณ วันที่" className="h-9 w-36" value={asOf} onChange={setAsOf} />
-        <BranchSelectCombobox allOptionLabel="ทุกสาขาที่มีสิทธิ์" branches={data?.filters.branches ?? []} className="w-[12rem]" controlSize="filter" includeAllOption inputId="cash-position-branch-filter" label="" placeholder="ทุกสาขาที่มีสิทธิ์" value={branchId === 'ALL' ? null : branchId} onChange={(value) => setBranchId(value ?? 'ALL')} />
-        <Select aria-label="กลุ่มบัญชี" className="h-9 w-40 text-sm" value={accountGroup} onChange={(event) => setAccountGroup(event.target.value)}>
+      <div className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm md:flex md:flex-wrap md:items-end">
+        <DatePickerInput ariaLabel="ณ วันที่" className="h-9 w-full md:w-36" value={asOf} onChange={setAsOf} />
+        <Select aria-label="กลุ่มบัญชี" className="h-9 w-full md:w-40 text-sm" value={accountGroup} onChange={(event) => setAccountGroup(event.target.value)}>
           <option value="ALL">ทุกบัญชีเงิน</option>
           <option value="cash">เงินสด</option>
           <option value="bank">บัญชีธนาคาร</option>
           <option value="fcd">บัญชี FCD</option>
         </Select>
-        <button className="ml-auto inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700" type="button" onClick={exportXlsx}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</button>
+        <BranchSelectCombobox allOptionLabel="ทุกสาขาที่มีสิทธิ์" branches={data?.filters.branches ?? []} className="col-span-2 w-full md:col-span-1 md:w-[12rem]" controlSize="filter" includeAllOption inputId="cash-position-branch-filter" label="" placeholder="ทุกสาขาที่มีสิทธิ์" value={branchId === 'ALL' ? null : branchId} onChange={(value) => setBranchId(value ?? 'ALL')} />
+        <button className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 md:col-span-1 md:ml-auto md:w-auto" type="button" onClick={exportXlsx}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</button>
       </div>
 
-      <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
         <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="สภาพคล่องสุทธิ" note="= เงินสด + ธนาคาร + FCD + ลูกหนี้ − เจ้าหนี้ − OD ใช้ไป" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
 
         <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
@@ -189,7 +189,7 @@ export function CashPositionPageClient() {
           </div>
         </div>
 
-        <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
+        <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm col-span-2 md:col-span-1">
           <div className="mb-2 text-sm font-bold text-slate-700">⚖ ลูกหนี้เทียบเจ้าหนี้</div>
           <div className="space-y-3 text-sm">
             <div>
@@ -242,7 +242,7 @@ export function CashPositionPageClient() {
           <h3 className="font-semibold text-slate-900">รายละเอียดบัญชีเงินทั้งหมด (มูลค่าทางบัญชี THB)</h3>
           {columnResize.hasCustomWidths ? (
             <button
-              className="rounded-xl border border-slate-300 px-2 py-0.5 bg-white text-slate-700 hover:bg-slate-50 text-xs"
+              className="rounded-xl border border-slate-300 px-2 py-0.5 bg-white text-slate-700 hover:bg-slate-50 text-xs hidden lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >

@@ -75,8 +75,8 @@ export function WeightTicketsPageClient({
     <div className="space-y-5">
       <Tabs value={activeType} onValueChange={(value) => changeType(value as WeightTicketType)}>
         <TabsList className="w-full justify-start" variant="line">
-          <TabsTrigger value="WTI" variant="line">ใบรับของ WTI</TabsTrigger>
-          <TabsTrigger value="WTO" variant="line">ใบส่งของ WTO</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="WTI" variant="line">ใบรับของ WTI</TabsTrigger>
+          <TabsTrigger className="flex-1 sm:flex-none" value="WTO" variant="line">ใบส่งของ WTO</TabsTrigger>
         </TabsList>
       </Tabs>
       {form}

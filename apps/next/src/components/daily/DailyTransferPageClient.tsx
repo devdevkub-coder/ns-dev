@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
@@ -499,12 +500,12 @@ export function DailyTransferPageClient() {
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
           <span className="ml-2 text-slate-500">· ยอดโอนรวม <span className="font-semibold text-slate-900">{formatMoney(totalAmount)}</span></span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {columnResize.hasCustomWidths ? <Button className="font-normal" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+          {columnResize.hasCustomWidths ? <Button className="font-normal hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={setPageSize} />
-          <Button className="font-normal" disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <div className="flex items-center gap-2"><Button className="font-normal" disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <Button className="font-normal" disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+          <Button className="font-normal" disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button></div>
         </div>
       </div>
 
@@ -694,7 +695,7 @@ export function DailyTransferPageClient() {
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
-            {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={transferColumns.length}>กำลังโหลดข้อมูล</td></TableRow> : null}
+            {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={transferColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></TableRow> : null}
             {!isLoading && pagedRows.map((row, index) => (
               <TableRow
                 key={row.id}

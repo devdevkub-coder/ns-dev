@@ -433,12 +433,12 @@ function TablePaginationToolbar({
     <div className="border-b border-slate-100 bg-white px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div className="font-semibold text-slate-500">พบทั้งหมด {count(totalItems)} รายการ</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {onResetWidths ? (
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={onResetWidths}>คืนค่าเดิมตาราง</button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={onResetWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
           <PageSizeDropdown options={SALES_PLAN_PAGE_SIZE_OPTIONS} value={pageSize} onChange={onPageSizeChange} />
-          <button
+          <div className="flex items-center gap-2"><button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-600 outline-none hover:bg-slate-50 disabled:opacity-40"
             disabled={page <= 1}
             type="button"
@@ -454,7 +454,7 @@ function TablePaginationToolbar({
             onClick={() => onPageChange(page + 1)}
           >
             ถัดไป
-          </button>
+          </button></div>
         </div>
       </div>
     </div>
@@ -1815,8 +1815,8 @@ export function SalesPlanPageClient() {
   )
 }
 
-function Field({ children, label }: { children: ReactNode; label: string }) {
-  return <label className="space-y-1 text-xs font-bold text-slate-600 block"><span>{label}</span>{children}</label>
+function Field({ children, className = '', label }: { children: ReactNode; className?: string; label: string }) {
+  return <label className={`space-y-1 text-xs font-bold text-slate-600 block ${className}`.trim()}><span>{label}</span>{children}</label>
 }
 
 function PendingStatCard({ label, sublabel, tone = 'neutral', value }: { label: string; sublabel: string; tone?: 'danger' | 'info' | 'neutral' | 'pending' | 'success'; value: string }) {
@@ -2154,10 +2154,10 @@ export function SalesCommissionPageClient() {
 
         <Tabs value={drilldownTab} onValueChange={(value) => setDrilldownTab(value as CommissionDrilldownTab)}>
           <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-            <TabsTrigger value="categoryAll" variant="line">ยอดรวมตามหมวด</TabsTrigger>
-            <TabsTrigger value="commissionableCategories" variant="line">ยอดได้คอม</TabsTrigger>
-            <TabsTrigger value="suppliers" variant="line">ผู้ขาย</TabsTrigger>
-            <TabsTrigger value="items" variant="line">รายการสินค้า</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" value="categoryAll" variant="line">ยอดรวมตามหมวด</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" value="commissionableCategories" variant="line">ยอดได้คอม</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" value="suppliers" variant="line">ผู้ขาย</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" value="items" variant="line">รายการสินค้า</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -2165,7 +2165,7 @@ export function SalesCommissionPageClient() {
           <Panel title="ยอดรวมตามหมวดสินค้า">
             {table1Resize.hasCustomWidths ? (
               <div className="mb-2 hidden justify-end lg:flex">
-                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table1Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={table1Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
               </div>
             ) : null}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -2231,7 +2231,7 @@ export function SalesCommissionPageClient() {
           <Panel title="ยอดซื้อที่ได้รับค่าคอมมิชชั่นตามหมวดสินค้า">
             {table2Resize.hasCustomWidths ? (
               <div className="mb-2 hidden justify-end lg:flex">
-                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table2Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={table2Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
               </div>
             ) : null}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -2297,7 +2297,7 @@ export function SalesCommissionPageClient() {
           <Panel title="ผู้ขายในความดูแล">
           {table3Resize.hasCustomWidths ? (
             <div className="mb-2 hidden justify-end lg:flex">
-              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table3Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={table3Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             </div>
           ) : null}
           <div className="mb-3 hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -2404,7 +2404,7 @@ export function SalesCommissionPageClient() {
           </div>
           {table4Resize.hasCustomWidths ? (
             <div className="mb-2 hidden justify-end lg:flex">
-              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table4Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={table4Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             </div>
           ) : null}
           <div className="mb-3 hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -2524,14 +2524,14 @@ export function SalesCommissionPageClient() {
     <section className="space-y-4 text-[13.5px]">
       {/* Filters Toolbar */}
       <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-        <div className="grid items-end gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-2 items-end gap-3 md:grid-cols-3">
           <Field label="จากวันที่">
             <DatePickerInput className="mt-1 h-9 w-full" value={from} onChange={setFrom} />
           </Field>
           <Field label="ถึงวันที่">
             <DatePickerInput className="mt-1 h-9 w-full" value={to} onChange={setTo} />
           </Field>
-          <Field label="สาขา">
+          <Field className="col-span-2 md:col-span-1" label="สาขา">
             <BranchSelectCombobox branches={data?.filters.branches ?? []} className="mt-1 w-full" controlSize="filter" inputId="commission-overview-branch-filter" label="" placeholder="ทั้งหมด" value={branchId || null} onChange={(value) => setBranchId(value ?? '')} />
           </Field>
         </div>
@@ -2579,12 +2579,12 @@ export function SalesCommissionPageClient() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold text-slate-900">สรุปยอดตามพนักงานขาย</h2>
-          <div aria-label="ตัวกรองการ์ดพนักงานขาย" className="flex flex-wrap items-center gap-2" role="group">
-            <span className="text-xs font-medium text-slate-500">แสดง:</span>
+          <div aria-label="ตัวกรองการ์ดพนักงานขาย" className="flex w-full flex-wrap items-center gap-2 sm:w-auto" role="group">
+            <span className="shrink-0 text-xs font-medium text-slate-500">แสดง:</span>
             {commissionSalesCardFilterOptions.map((option) => (
               <button
                 aria-pressed={salesCardFilter === option.value}
-                className={`rounded-md border px-3 py-1 text-xs font-medium transition ${salesCardFilter === option.value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                className={`min-w-0 flex-1 rounded-md border px-3 py-1 text-xs font-medium transition sm:flex-none ${salesCardFilter === option.value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
                 key={option.value}
                 type="button"
                 onClick={() => setSalesCardFilter(option.value)}
@@ -2658,7 +2658,7 @@ export function SalesCommissionPageClient() {
 
         {summaryResize.hasCustomWidths ? (
           <div className="mb-2 hidden justify-end lg:flex">
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           </div>
         ) : null}
         <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">

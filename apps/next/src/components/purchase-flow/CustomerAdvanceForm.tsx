@@ -805,16 +805,16 @@ export function CustomerAdvanceForm() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
             <span>พบทั้งหมด {data.pagination.totalRows.toLocaleString('th-TH')} รายการ</span>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
               <PageSizeDropdown value={pageSize} onChange={(value) => { setPageSize(value); setPage(1) }} />
-              {columnResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-              <Button aria-label="หน้าก่อนหน้า" disabled={!canPrevious} size="sm" type="button" variant="outline" onClick={() => setPage((current) => current - 1)}>
+              {columnResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+              <div className="flex items-center gap-2"><Button aria-label="หน้าก่อนหน้า" disabled={!canPrevious} size="sm" type="button" variant="outline" onClick={() => setPage((current) => current - 1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="px-1">หน้า {data.pagination.page} / {data.pagination.totalPages}</span>
               <Button aria-label="หน้าถัดไป" disabled={!canNext} size="sm" type="button" variant="outline" onClick={() => setPage((current) => current + 1)}>
                 <ChevronRight className="h-4 w-4" />
-              </Button>
+              </Button></div>
             </div>
           </div>
           <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">

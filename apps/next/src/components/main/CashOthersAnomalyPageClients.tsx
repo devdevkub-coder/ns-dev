@@ -70,11 +70,10 @@ export function CashOthersSummaryPageClient() {
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <label className="text-xs font-bold text-slate-500">ณ วันที่</label>
-        <DatePickerInput className="h-9 w-[140px]" value={asOf} onChange={setAsOf} />
-        <span className="flex-1" />
+        <label className="shrink-0 text-xs font-bold text-slate-500">ณ วันที่</label>
+        <DatePickerInput className="h-9 w-full min-w-0 flex-1 sm:w-[180px] sm:flex-none" value={asOf} onChange={setAsOf} />
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <Grand icon="💰" label="สินทรัพย์รวม" value={summary.totalAsset} />
         <Grand icon="📉" label="หนี้สินรวม" value={summary.totalDebt} />
         <Grand icon="⚖️" label="มูลค่าสุทธิ" value={summary.netWorth} />
@@ -317,7 +316,7 @@ function Table({ alignments, headers, rows }: { alignments?: Array<'center' | 'l
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end px-3 pt-3 lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
         </div>
       ) : null}
       <div className="hidden overflow-x-auto lg:block">

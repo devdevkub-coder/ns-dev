@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -6,6 +7,7 @@ import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -74,6 +76,8 @@ export function FxGainLossReportPageClient() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sortKey, setSortKey] = useState<FxGainLossColumnKey | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const latestLoadRequestRef = useRef(0)
   const columnResize = useResizableColumns('finance.foreign.fx-gain-loss-report.main.v1', fxGainLossColumns)
   const hasFilters = Boolean(fromDate || toDate || currency !== 'all' || refType !== 'all')
@@ -134,21 +138,30 @@ export function FxGainLossReportPageClient() {
     setSortDirection('asc')
   }
 
-  const tableControls = (
-    <>
-      <div>
-        พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
-      </div>
-      {columnResize.hasCustomWidths ? (
-        <button
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-          type="button"
-          onClick={columnResize.resetColumnWidths}
-        >
-          คืนค่าเดิมตาราง
-        </button>
-      ) : null}
-    </>
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const displayRows = sortedRows.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+  const pagerGroup = (
+    <div className="flex items-center gap-2">
+      <button
+        className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+        disabled={safePage <= 1 || isLoading}
+        type="button"
+        onClick={() => setPage((current) => Math.max(1, current - 1))}
+      >
+        ก่อนหน้า
+      </button>
+      <span className="px-1">หน้า {safePage} / {totalPages}</span>
+      <button
+        className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+        disabled={safePage >= totalPages || isLoading}
+        type="button"
+        onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+      >
+        ถัดไป
+      </button>
+    </div>
   )
 
   return (
@@ -230,19 +243,44 @@ export function FxGainLossReportPageClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
         <MetricCard label="FX Gain รวม" tone="gain" value={data?.summary.totalGain ?? 0} />
         <MetricCard label="FX Loss รวม" tone="loss" value={data?.summary.totalLoss ?? 0} />
-        <MetricCard label="Net FX G/L" tone="net" value={data?.summary.net ?? 0} />
+        <MetricCard className="col-span-2 md:col-span-1" label="Net FX G/L" tone="net" value={data?.summary.net ?? 0} />
       </div>
 
       <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
-        {tableControls}
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
+        </div>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+          <PageSizeDropdown disabled={isLoading} value={pageSize} onChange={(value) => { setPageSize(value); setPage(1) }} />
+          {pagerGroup}
+        </div>
       </div>
 
       <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-          {tableControls}
+          <div>
+            พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
+          </div>
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+            <div className="flex items-center gap-2">
+              <PageSizeDropdown disabled={isLoading} value={pageSize} onChange={(value) => { setPageSize(value); setPage(1) }} />
+            </div>
+            <div className="flex items-center gap-2">
+              {columnResize.hasCustomWidths ? (
+                <button
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hidden lg:inline-flex"
+                  type="button"
+                  onClick={columnResize.resetColumnWidths}
+                >
+                  คืนค่าเดิมตาราง
+                </button>
+              ) : null}
+              {pagerGroup}
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
@@ -267,9 +305,9 @@ export function FxGainLossReportPageClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxGainLossColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxGainLossColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={fxGainLossColumns.length}>ยังไม่มี FX Gain/Loss</td></tr> : null}
-            {!isLoading && sortedRows.map((row) => (
+            {!isLoading && displayRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
                 <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(row.date)}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-slate-700">{row.transactionType}</td>
@@ -300,7 +338,7 @@ export function FxGainLossReportPageClient() {
         {!isLoading && !error && sortedRows.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มี FX Gain/Loss</div>
         ) : null}
-        {!isLoading && sortedRows.map((row) => (
+        {!isLoading && displayRows.map((row) => (
           <div
             key={row.id}
             className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-2 text-sm"
@@ -359,6 +397,6 @@ function getFxGainLossSortValue(row: FxGainLossRow, key: FxGainLossColumnKey): s
   return row[key] ?? ''
 }
 
-function MetricCard({ label, tone, value }: { label: string; tone: 'gain' | 'loss' | 'net'; value: number }) {
-  return <SharedKpiCard label={label} tone={tone} value={formatMoney(value)} />
+function MetricCard({ className, label, tone, value }: { className?: string; label: string; tone: 'gain' | 'loss' | 'net'; value: number }) {
+  return <SharedKpiCard className={className} label={label} tone={tone} value={formatMoney(value)} />
 }

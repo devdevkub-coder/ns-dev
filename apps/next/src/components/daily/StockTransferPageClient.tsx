@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Edit3, Plus, Send, XCircle } from 'lucide-react'
@@ -605,12 +606,12 @@ export function StockTransferPageClient() {
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{data.summary.totalRows.toLocaleString('th-TH')}</span> รายการ
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {columnResize.hasCustomWidths ? <Button className="h-9" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+          {columnResize.hasCustomWidths ? <Button className="h-9 hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <PageSizeDropdown value={pageSize} onChange={setPageSize} />
-          <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <div className="flex items-center gap-2"><Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+          <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button></div>
         </div>
       </div>
 
@@ -1123,7 +1124,7 @@ export function StockTransferPageClient() {
             </tr>
           </TableHeader>
           <TableBody>
-            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={visibleColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={visibleColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
             {!isLoading && sortedRows.map((row) => (
               <TableRow
                 key={row.id}

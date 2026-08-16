@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -160,7 +161,7 @@ export function CustomerAdvancePageClient() {
       <div className="hidden overflow-hidden rounded-md border border-slate-200/60 bg-white shadow-sm lg:block">
         <div className="flex justify-end border-b border-slate-100 bg-slate-50 p-2">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="text-xs text-blue-600 hover:underline hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
@@ -187,7 +188,7 @@ export function CustomerAdvancePageClient() {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={11}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มี Customer Advance</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 transition-colors hover:bg-slate-50/50">

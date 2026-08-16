@@ -206,7 +206,7 @@ export function CashFlowCalendarPageClient() {
         <Metric label="เงินเข้ารวม" value={money(summary.totalIn)} tone="emerald" />
         <Metric label="เงินออกรวม" value={money(summary.totalOut)} tone="red" />
         <Metric label="กระแสเงินสดสุทธิ" value={money((summary.totalIn ?? 0) - (summary.totalOut ?? 0))} tone={(summary.totalIn ?? 0) >= (summary.totalOut ?? 0) ? 'blue' : 'red'} />
-        <Metric label="ยอดปลายเดือน" value={money(summary.endingCash)} tone="gradient" />
+        <div className="col-span-2 md:col-span-1"><Metric label="ยอดปลายเดือน" value={money(summary.endingCash)} tone="gradient" /></div>
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="📈 เงินเข้า-ออกรายวัน">
@@ -216,11 +216,13 @@ export function CashFlowCalendarPageClient() {
           <RunningBalanceLineChart days={data?.days ?? []} maxBalance={maxBalance} minBalance={minBalance} />
         </Panel>
       </div>
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
-        <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100 text-center text-xs font-bold text-slate-600">{weekdays.map((day, index) => <div key={day} className={`p-2.5 ${index === 0 || index === 6 ? 'text-red-500' : ''}`}>{day}</div>)}</div>
-        {(data?.weeks ?? []).map((week, weekIndex) => <div key={weekIndex} className="grid grid-cols-7 border-t border-slate-100">{week.map((day, dayIndex) => day ? <button key={day.date} aria-label={`ดูรายการวันที่ ${day.date}`} className={`min-h-[110px] border-r border-slate-100 p-2 text-left text-xs transition hover:bg-slate-50/50 outline-none ${day.isNegative ? 'bg-red-50/30' : 'bg-white'} ${day.isToday ? 'ring-2 ring-amber-400 ring-inset' : ''}`} data-cash-day={day.date} type="button" onClick={() => setSelectedDayDate(day.date)} onPointerDown={() => setSelectedDayDate(day.date)}><div className="flex items-start justify-between"><span className={`font-bold ${day.weekday === 0 || day.weekday === 6 ? 'text-red-500' : 'text-slate-600'}`}>{day.day}</span>{day.entryCount ? <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-bold text-blue-700">{day.entryCount}</span> : null}</div><div className="mt-2 space-y-1 font-mono text-xs"><div className="text-emerald-700 font-semibold">↑ {money(day.cashIn)}</div><div className="text-red-700 font-semibold">↓ {money(day.cashOut)}</div><div className={`border-t border-slate-100 pt-1 font-bold ${day.ending < 0 ? 'text-red-600' : 'text-slate-700'}`}>{money(day.ending)}</div></div></button> : <div key={`empty-${weekIndex}-${dayIndex}`} className="min-h-[110px] border-r border-slate-100 bg-slate-50/50" />)}</div>)}
+      <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
+        <div className="hidden md:grid grid-cols-7 bg-slate-50 border-b border-slate-100 text-center text-xs font-bold text-slate-600 dark:bg-slate-800/50 dark:border-slate-800 dark:text-slate-400">{weekdays.map((day, index) => <div key={day} className={`p-2.5 ${index === 0 || index === 6 ? 'text-red-500 dark:text-red-400' : ''}`}>{day}</div>)}</div>
+        <div className="md:hidden">{(data?.days ?? []).map((day) => <button key={day.date} aria-label={`ดูรายการวันที่ ${day.date}`} className={`flex w-full items-center gap-3 border-b border-slate-100 px-3 py-2.5 text-left outline-none transition hover:bg-slate-50/50 dark:border-slate-800 dark:hover:bg-slate-800/50 ${day.isToday ? 'ring-1 ring-amber-400 ring-inset' : ''} ${day.isNegative ? 'bg-red-50/30 dark:bg-red-950/20' : 'bg-white dark:bg-slate-900'}`} data-cash-day={day.date} type="button" onClick={() => setSelectedDayDate(day.date)} onPointerDown={() => setSelectedDayDate(day.date)}><span className={`w-10 shrink-0 text-center font-bold ${day.weekday === 0 || day.weekday === 6 ? 'text-red-500 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>{day.day}</span><span className="flex min-w-0 flex-1 flex-col gap-0.5 font-mono text-xs"><span className="truncate text-emerald-700 dark:text-emerald-400 font-semibold">↑ {money(day.cashIn)}</span><span className="truncate text-red-700 dark:text-red-400 font-semibold">↓ {money(day.cashOut)}</span></span><span className={`shrink-0 font-mono text-xs font-bold ${day.ending < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>{money(day.ending)}</span>{day.entryCount ? <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">{day.entryCount}</span> : null}</button>)}</div>
+        <div className="hidden md:block">{(data?.weeks ?? []).map((week, weekIndex) => <div key={weekIndex} className="grid grid-cols-7 border-t border-slate-100 dark:border-slate-800">{week.map((day, dayIndex) => day ? <button key={day.date} aria-label={`ดูรายการวันที่ ${day.date}`} className={`min-h-[110px] border-r border-slate-100 p-2 text-left text-xs transition hover:bg-slate-50/50 outline-none dark:border-slate-800 dark:hover:bg-slate-800/50 ${day.isNegative ? 'bg-red-50/30 dark:bg-red-950/20' : 'bg-white dark:bg-slate-900'} ${day.isToday ? 'ring-2 ring-amber-400 ring-inset' : ''}`} data-cash-day={day.date} type="button" onClick={() => setSelectedDayDate(day.date)} onPointerDown={() => setSelectedDayDate(day.date)}><div className="flex items-start justify-between"><span className={`font-bold ${day.weekday === 0 || day.weekday === 6 ? 'text-red-500 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>{day.day}</span>{day.entryCount ? <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">{day.entryCount}</span> : null}</div><div className="mt-2 space-y-1 font-mono text-xs"><div className="text-emerald-700 dark:text-emerald-400 font-semibold">↑ {money(day.cashIn)}</div><div className="text-red-700 dark:text-red-400 font-semibold">↓ {money(day.cashOut)}</div><div className={`border-t border-slate-100 pt-1 font-bold dark:border-slate-800 ${day.ending < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>{money(day.ending)}</div></div></button> : <div key={`empty-${weekIndex}-${dayIndex}`} className="min-h-[110px] border-r border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/30" />)}</div>)}
+        </div>
       </div>
-      <div className="flex flex-wrap gap-3 text-xs text-slate-500"><Legend color="bg-emerald-500" text="เงินเข้า" /><Legend color="bg-red-500" text="เงินออก" /><Legend color="bg-red-100" text="ยอดติดลบ" /><Legend color="bg-amber-300" text="วันนี้" /><span>คลิกแต่ละวันเพื่อดูรายการละเอียด</span></div>
+      <div className="flex flex-wrap gap-3 text-xs text-slate-500"><Legend color="bg-emerald-500" text="เงินเข้า" /><Legend color="bg-red-500" text="เงินออก" /><Legend color="bg-red-100 dark:bg-red-500/50" text="ยอดติดลบ" /><Legend color="bg-amber-300 dark:bg-amber-500" text="วันนี้" /><span>คลิกแต่ละวันเพื่อดูรายการละเอียด</span></div>
       {error ? <ErrorBox text={error} /> : null}
       {selectedDay ? <CashDayModal day={selectedDay} onClose={() => setSelectedDayDate('')} /> : null}
     </section>
@@ -366,12 +368,12 @@ export function BusinessCalendarPageClient() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <MonthControls month={month} setMonth={setMonth} />
-        <Tabs className="gap-0" value={mode} onValueChange={(value) => setMode(value as Mode)}>
-          <TabsList aria-label="เลือกข้อมูลปฏิทินธุรกิจ" variant="line">
-            <TabsTrigger value="combined" variant="line">ทั้งหมด</TabsTrigger>
-            <TabsTrigger value="purchase" variant="line">ซื้อ</TabsTrigger>
-            <TabsTrigger value="sales" variant="line">ขาย</TabsTrigger>
-            <TabsTrigger value="expense" variant="line">ค่าใช้จ่าย</TabsTrigger>
+        <Tabs className="w-full min-w-0 gap-0 sm:w-auto sm:flex-1" value={mode} onValueChange={(value) => setMode(value as Mode)}>
+          <TabsList aria-label="เลือกข้อมูลปฏิทินธุรกิจ" className="w-full" variant="line">
+            <TabsTrigger className="flex-1" value="combined" variant="line">ทั้งหมด</TabsTrigger>
+            <TabsTrigger className="flex-1" value="purchase" variant="line">ซื้อ</TabsTrigger>
+            <TabsTrigger className="flex-1" value="sales" variant="line">ขาย</TabsTrigger>
+            <TabsTrigger className="flex-1" value="expense" variant="line">ค่าใช้จ่าย</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -394,7 +396,7 @@ export function BusinessCalendarPageClient() {
         <Panel title="💰 GP สะสมรายวัน">
           <div className="mb-3 text-xs text-slate-500">เส้นม่วง = GP สะสม · แท่งสีจาง = GP รายวัน</div>
           <div className="flex h-48 items-end gap-1 border-b border-l border-slate-100 bg-slate-50 px-2 pb-1 bg-slate-50/20 rounded-b-lg">
-            {gpRows.map((row) => <div key={row.date} className="relative flex h-full flex-1 items-end"><span className="w-full rounded-t bg-purple-200/50" style={{ height: `${pct(Math.abs(row.daily), maxRunningGp)}%` }} /><span className="absolute bottom-0 left-1/2 w-1 -translate-x-1/2 rounded-t bg-purple-600" style={{ height: `${pct(Math.abs(row.running), maxRunningGp)}%` }} /></div>)}
+            {gpRows.map((row) => <div key={row.date} className="relative flex h-full flex-1 items-end"><span className="w-full rounded-t bg-purple-200/50 dark:bg-purple-700/50" style={{ height: `${pct(Math.abs(row.daily), maxRunningGp)}%` }} /><span className="absolute bottom-0 left-1/2 w-1 -translate-x-1/2 rounded-t bg-purple-600" style={{ height: `${pct(Math.abs(row.running), maxRunningGp)}%` }} /></div>)}
           </div>
         </Panel>
       </div>
@@ -406,10 +408,10 @@ export function BusinessCalendarPageClient() {
 
 function MonthControls({ month, setMonth }: { month: string; setMonth: (month: string) => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none" type="button" onClick={() => setMonth(shiftMonth(month, -1))}>← เดือนก่อน</button>
-      <input className="h-9 rounded-md border border-slate-300 px-3 text-sm font-medium outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-      <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none" type="button" onClick={() => setMonth(shiftMonth(month, 1))}>เดือนถัดไป →</button>
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <button className="h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none" type="button" onClick={() => setMonth(shiftMonth(month, -1))}>← เดือนก่อน</button>
+      <input className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 px-3 text-sm font-medium outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+      <button className="h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none" type="button" onClick={() => setMonth(shiftMonth(month, 1))}>เดือนถัดไป →</button>
     </div>
   )
 }
@@ -442,7 +444,7 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -560,7 +562,7 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -694,7 +696,7 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
           {/* Desktop Table View */}
           {columnResize.hasCustomWidths ? (
             <div className="mb-2 hidden justify-end sm:flex">
-              <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+              <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50 hidden lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             </div>
           ) : null}
           <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm sm:block">

@@ -1,4 +1,5 @@
 'use client'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
@@ -285,7 +286,7 @@ export function CashFlowAnalysisPageClient({ initialFilters }: { initialFilters?
           {displayData.fcdBalances?.length ? <FcdBalanceStrip rows={displayData.fcdBalances} /> : null}
 
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3" data-cash-analysis-columns>
-            <div className="grid min-w-0 gap-4 lg:col-span-2" data-cash-analysis-primary-column>
+            <div className="grid grid-cols-1 min-w-0 gap-4 lg:col-span-2" data-cash-analysis-primary-column>
               <AnalysisPanel
                 subtitle="เปรียบเทียบผลกำไรตามเกณฑ์คงค้างกับเงินสดที่เกิดขึ้นจริง · หน่วย: บาท"
                 title="กำไรก่อนภาษีเทียบกระแสเงินสดจริง"
@@ -305,7 +306,7 @@ export function CashFlowAnalysisPageClient({ initialFilters }: { initialFilters?
               </AnalysisPanel>
             </div>
 
-            <div className="grid min-w-0 gap-4" data-cash-analysis-supporting-column>
+            <div className="grid grid-cols-1 min-w-0 gap-4" data-cash-analysis-supporting-column>
               <AnalysisPanel subtitle="เทียบเงินสด ลูกหนี้ และสินค้าคงคลัง · หน่วย: บาท" title="โครงสร้างเงินสดและทุนหมุนเวียน">
                 <CapitalStructureChart ar={displayData.charts.trap.ar} cash={displayData.charts.trap.cash} stock={displayData.charts.trap.stock} />
               </AnalysisPanel>
@@ -389,7 +390,7 @@ export function CashFlowForecastCalendarPageClient({ initialFilters }: { initial
             {[7, 30, 90].map((item) => (
               <button
                 key={item}
-                className={`h-9 rounded-md border px-3 text-xs font-medium ${horizon === item ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                className={`h-9 flex-1 rounded-md border px-3 text-xs font-medium whitespace-nowrap ${horizon === item ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
                 type="button"
                 onClick={() => setHorizon(item)}
               >
@@ -461,7 +462,7 @@ export function CashFlowForecastCalendarPageClient({ initialFilters }: { initial
           <KpiCardGrid className="lg:grid-cols-3 xl:grid-cols-3">
             <SharedKpiCard className={analysisKpiClassName} icon={<Wallet aria-hidden="true" className="size-5" />} label="เงินสดเริ่มต้น" note={`ณ ${shortThaiDate(displayStartDate)}`} tone="blue" value={money(displayData.summary.startCash)} />
             <SharedKpiCard className={analysisKpiClassName} icon={<ArrowDownLeft aria-hidden="true" className="size-5" />} label="Expected In" note="เงินรับที่ถึงกำหนดในช่วง forecast" tone="cyan" value={`+${money(displayData.summary.totalIn)}`} />
-            <SharedKpiCard className={analysisKpiClassName} icon={<ArrowUpRight aria-hidden="true" className="size-5" />} label="Expected Out" note="เงินจ่ายที่ถึงกำหนดในช่วง forecast" tone="orange" value={`-${money(displayData.summary.totalOut)}`} />
+            <SharedKpiCard className={`${analysisKpiClassName} col-span-2 lg:col-span-1`} icon={<ArrowUpRight aria-hidden="true" className="size-5" />} label="Expected Out" note="เงินจ่ายที่ถึงกำหนดในช่วง forecast" tone="orange" value={`-${money(displayData.summary.totalOut)}`} />
           </KpiCardGrid>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -695,9 +696,9 @@ function ComparisonBar({ dataKey, label, max, tone, value }: { dataKey: 'cash' |
   const normalizedValue = finiteOrUndefined(value)
   const width = normalizedValue == null ? 0 : Math.min(100, Math.abs(normalizedValue) / Math.max(max, 1) * 100)
   const direction = normalizedValue == null ? 'ไม่มีข้อมูล' : normalizedValue < 0 ? 'ติดลบ' : normalizedValue > 0 ? 'เป็นบวก' : 'ศูนย์'
-  const fillClass = normalizedValue == null || normalizedValue === 0 ? 'bg-slate-300' : normalizedValue < 0 ? 'bg-rose-500' : tone === 'emerald' ? 'bg-emerald-500' : 'bg-blue-500'
+  const fillClass = normalizedValue == null || normalizedValue === 0 ? 'bg-slate-300 dark:bg-slate-500' : normalizedValue < 0 ? 'bg-rose-500' : tone === 'emerald' ? 'bg-emerald-500' : 'bg-blue-500'
   const valueClass = normalizedValue == null || normalizedValue === 0 ? 'text-slate-700' : normalizedValue < 0 ? 'text-rose-700' : tone === 'emerald' ? 'text-emerald-700' : 'text-blue-700'
-  const badgeClass = normalizedValue == null || normalizedValue === 0 ? 'bg-slate-100 text-slate-600' : normalizedValue < 0 ? 'bg-rose-100 text-rose-700' : tone === 'emerald' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+  const badgeClass = normalizedValue == null || normalizedValue === 0 ? 'bg-slate-100 text-slate-600 dark:bg-slate-300/20' : normalizedValue < 0 ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20' : tone === 'emerald' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20'
 
   return (
     <div>
@@ -708,7 +709,7 @@ function ComparisonBar({ dataKey, label, max, tone, value }: { dataKey: 'cash' |
         </div>
         <span className={`shrink-0 font-mono text-base font-bold tabular-nums ${valueClass}`}>{money(normalizedValue)}</span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${label} ${money(normalizedValue)} บาท ขนาดเปรียบเทียบ ${width.toFixed(1)} เปอร์เซ็นต์ของค่าสูงสุด`}>
+      <div className="h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/60" role="img" aria-label={`${label} ${money(normalizedValue)} บาท ขนาดเปรียบเทียบ ${width.toFixed(1)} เปอร์เซ็นต์ของค่าสูงสุด`}>
         {normalizedValue != null ? <div className={`h-full rounded-full ${fillClass}`} data-cash-comparison-bar={dataKey} style={{ width: `${width}%` }} /> : null}
       </div>
     </div>
@@ -983,7 +984,7 @@ function InsightCard({ insight }: { insight: Insight }) {
   const Icon = insight.type === 'danger' ? AlertTriangle : insight.type === 'warn' ? Gauge : CheckCircle2
   const iconClass = insight.type === 'danger' ? 'bg-rose-100 text-rose-700' : insight.type === 'warn' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
   return (
-    <article className="flex gap-3 border-t border-slate-100 py-4 first:pt-0 md:[&:nth-child(2)]:pt-0">
+    <article className="flex gap-3 border-t border-slate-100 py-4 first:border-t-0 first:pt-0 md:[&:nth-child(2)]:border-t-0 md:[&:nth-child(2)]:pt-0">
       <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${iconClass}`}>
         <Icon aria-hidden="true" className="size-4" />
       </span>
@@ -1125,7 +1126,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td className="py-8 text-center text-slate-400" colSpan={detailColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading ? <tr><td className="py-8 text-center text-slate-400" colSpan={detailColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></td></tr> : null}
             {!isLoading ? sortedRows.map((row) => (
               <tr key={row.label} className="transition-colors hover:bg-slate-50">
                 <td className="px-3 py-3 text-slate-700">

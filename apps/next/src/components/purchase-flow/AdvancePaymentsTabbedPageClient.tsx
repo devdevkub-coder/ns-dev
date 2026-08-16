@@ -38,11 +38,11 @@ export function AdvancePaymentsTabbedPageClient() {
   return (
     <Tabs value={activeTab} onValueChange={changeTab}>
       <div className="border-b border-slate-200">
-        <TabsList variant="line" aria-label="ประเภทเงินล่วงหน้า">
-          <TabsTrigger value="payment" variant="line">
+        <TabsList className="w-full sm:w-auto" variant="line" aria-label="ประเภทเงินล่วงหน้า">
+          <TabsTrigger className="flex-1 sm:flex-none" value="payment" variant="line">
             จ่ายเงินล่วงหน้า
           </TabsTrigger>
-          <TabsTrigger value="receipt" variant="line">
+          <TabsTrigger className="flex-1 sm:flex-none" value="receipt" variant="line">
             รับเงินล่วงหน้า
           </TabsTrigger>
         </TabsList>
