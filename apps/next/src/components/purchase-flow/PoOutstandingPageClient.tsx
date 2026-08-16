@@ -219,9 +219,9 @@ export function PoOutstandingPageClient() {
             setSortKey(undefined)
           }}
         >
-          <TabsList className="w-full" variant="line">
-            <TabsTrigger className="min-w-0 flex-1" value="buy" variant="line">PO ซื้อ คงเหลือ ({data?.summary.buyCount ?? 0})</TabsTrigger>
-            <TabsTrigger className="min-w-0 flex-1" value="sell" variant="line">PO ขาย คงเหลือ ({data?.summary.sellCount ?? 0})</TabsTrigger>
+          <TabsList className="w-full sm:w-auto" variant="line">
+            <TabsTrigger className="flex-1 sm:flex-none" value="buy" variant="line">PO ซื้อ คงเหลือ ({data?.summary.buyCount ?? 0})</TabsTrigger>
+            <TabsTrigger className="flex-1 sm:flex-none" value="sell" variant="line">PO ขาย คงเหลือ ({data?.summary.sellCount ?? 0})</TabsTrigger>
           </TabsList>
         </Tabs>
 

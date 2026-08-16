@@ -1360,8 +1360,11 @@ aside a:visited {
 
 /* Segmented filter chips render ~28-30px tall from `px-3 py-1 text-xs` alone, which
    sits visibly lower than the h-9 (36px) filter controls beside them. Pin them to h-9
-   so every control in a filter row shares one height (design.md: filter row = h-9). */
-button[class*="rounded-md"][class*="border"][class*="px-3 py-1"][class*="text-xs"] {
+   so every control in a filter row shares one height (design.md: filter row = h-9).
+   Exact-token match so `px-3 py-1.5 h-11` buttons (e.g. DailyPettyAdvance type chips)
+   are not forced to h-9: `py-1.5` must not satisfy `[class~="py-1"]`, and any button
+   that already declares its own height keeps it. */
+button[class*="rounded-md"][class*="border"][class~="px-3"][class~="py-1"][class*="text-xs"]:not([class*="h-"]) {
   display: inline-flex;
   align-items: center;
   height: 2.25rem;
