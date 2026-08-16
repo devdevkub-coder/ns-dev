@@ -34,7 +34,7 @@ vi.mock('@/lib/weight-tickets', async (importOriginal) => ({
   patchWeightTicketChanges: mocks.patchWeightTicketChanges,
 }))
 
-import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketChangedLineIds, getWeightTicketImpuritySaveLineIds, getWeightTicketScopedAddChangedLineIds, getWeightTicketSectionDraftLineIds, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
+import { changeWeightTicketProduct, createNewWeightTicketImpurityLine, getProductCardImages, getWeightTicketChangedLineIds, getWeightTicketImpuritySaveLineIds, getWeightTicketScopedAddChangedLineIds, getWeightTicketSectionDraftLineIds, getWeightTicketServerErrorMessage, getWeightTicketValidationFocusTarget, mapWeightTicketServerFieldErrors, mergeWeightTicketFormAfterPatch, remapWeightTicketLineIds, remapWeightTicketLineKey, replaceWeightTicketSectionLines, requirePersistedWeightTicketLineId, resolvePersistedWeightTicketLotSource, shouldPersistWeightTicketBeforeAdding, WeightTicketFormCore } from './WeightTicketFormCore'
 
 const formSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketFormCore.tsx'),
@@ -141,7 +141,7 @@ describe('weight-ticket product entry start contract', () => {
   })
 
   it('uses the ticket returned by the header save as the section-save identity', () => {
-    expect(formSource).toContain('const baselineTicket = savedTicket')
+    expect(formSource).toContain('const baselineTicket = savedTicketRef.current')
     expect(formSource).toContain('if (!baselineTicket) {')
     expect(formSource).not.toContain('if (!baselineTicket || !editingTicketId) {')
     expect(formSource).toContain('id: baselineTicket.id')
@@ -150,9 +150,9 @@ describe('weight-ticket product entry start contract', () => {
   it('reconciles temporary section line IDs from the explicit server mapping', () => {
     expect(weightTicketApiSource).toContain('lineIdMap')
     expect(weightTicketClientSource).toContain('weightTicketSaveResultSchema')
-    expect(formSource).toContain('requirePersistedWeightTicketLineId(ticket.lineIdMap, sectionId)')
+    expect(formSource).toContain('requirePersistedWeightTicketLineId(ticket.lineIdMap, sectionRootId)')
     expect(formSource).not.toContain('const persistedRootId = ticket.lineIdMap[sectionId] ?? sectionId')
-    expect(formSource).toContain('remapWeightTicketLineIds(current.lines, ticket.lineIdMap)')
+    expect(formSource).toContain('lines: remapWeightTicketLineIds(currentFormForPatch.lines, ticket.lineIdMap)')
   })
 
   it('keeps blank child lots limited to explicitly marked incremental saves', () => {
@@ -167,22 +167,41 @@ describe('weight-ticket product entry start contract', () => {
 
   it('broadcasts only explicitly changed or newly persisted lines during a scoped lot add', () => {
     expect(getWeightTicketScopedAddChangedLineIds(
-      [{ id: 'lot-1' }, { id: 'lot-2' }, { id: 'lot-3' }],
+      [{ id: 'lot-1', version: 1 }, { id: 'lot-2', version: 1 }, { id: 'lot-3', version: undefined }],
       new Map([['lot-1', 'same'], ['lot-2', 'before']]),
       ['lot-1', 'lot-2', 'other-section-line'],
       new Set(['lot-1', 'lot-2', 'lot-3']),
       (line) => line.id === 'lot-2' ? 'after' : line.id === 'lot-3' ? 'new' : 'same',
+      (line) => line.version == null,
     )).toEqual(new Set(['lot-2', 'lot-3']))
   })
 
-  it('removes stale dirty line ids from full and section PATCH payloads', () => {
+  it('does not treat a persisted remote line missing from the local baseline as a local change', () => {
+    expect(getWeightTicketScopedAddChangedLineIds(
+      [{ id: 'remote-line', version: 4 }, { id: 'local-line', version: undefined }],
+      new Map(),
+      [],
+      new Set(['remote-line', 'local-line']),
+      (line) => line.id,
+      (line) => line.version == null,
+    )).toEqual(new Set(['local-line']))
+  })
+
+  it('keeps scalar line edits out of unrelated descendant write sets', () => {
+    expect(formSource).toContain('const changedIds = new Set([lineId])')
+    expect(formSource).toContain('markLinesDirty(changedIds)')
+    expect(formSource).not.toContain('markLinesDirty(cleanedLines.filter((line) => relatedIds.has(line.id)).map((line) => line.id))')
+  })
+
+  it('keeps full saves diff-aware while section PATCH uses the explicit dirty set', () => {
     expect(getWeightTicketChangedLineIds(
       [{ id: 'line-1' }, { id: 'line-2' }, { id: 'new-line' }],
       new Map([['line-1', 'same'], ['line-2', 'before']]),
       (line) => line.id === 'line-2' ? 'after' : line.id === 'new-line' ? 'new' : 'same',
     )).toEqual(new Set(['line-2', 'new-line']))
     expect(formSource).toContain('const changedLineIds = getWeightTicketChangedLineIds(')
-    expect(formSource).toContain('const changedIds = getWeightTicketChangedLineIds(')
+    expect(formSource).toContain('const changedIds = getWeightTicketScopedAddChangedLineIds(')
+    expect(formSource).toContain('lines: savedSectionLines.filter((line) => changedIds.has(line.id)).map')
   })
 
   it('rejects an incomplete section line ID mapping instead of retaining a temporary ID', () => {
@@ -202,6 +221,92 @@ describe('weight-ticket product entry start contract', () => {
       { id: '101', name: 'A saved' },
       { id: '201', name: 'B' },
     ])
+  })
+
+  it('merges remote-only persisted lines into the live form after a PATCH', () => {
+    const line = (id: string, version: number | undefined, grossWeight: string) => ({
+      containerDeductionWeight: '0',
+      deductionMode: 'none' as const,
+      deductionValue: '0',
+      grossWeight,
+      id,
+      imageFiles: [],
+      imageNames: [],
+      impurityId: '',
+      note: '',
+      parentId: undefined,
+      productId: 'SKU-1',
+      version,
+      warehouseId: '',
+    })
+    const baseForm = (lines: ReturnType<typeof line>[]) => ({
+      branchId: 'branch-1',
+      branchName: 'Branch 1',
+      lines,
+      partyId: 'party-1',
+      partyName: 'Party 1',
+      remark: '',
+      type: 'WTI' as const,
+      vehicleImageFiles: [],
+      vehicleNo: 'AA-001',
+      godownName: '',
+    })
+    const merged = mergeWeightTicketFormAfterPatch({
+      currentForm: baseForm([line('line-y', 1, '20')]),
+      returnedForm: baseForm([line('line-y', 2, '20'), line('line-x', 1, '10')]),
+      lineIdMap: {},
+      changedLineIds: new Set(),
+      deletedLineIds: new Set(),
+    })
+
+    expect(merged.lines.map((entry) => entry.id)).toEqual(['line-y', 'line-x'])
+  })
+
+  it('keeps local dirty/draft lines while dropping persisted lines absent from the response', () => {
+    const line = (id: string, version: number | undefined) => ({
+      containerDeductionWeight: '0',
+      deductionMode: 'none' as const,
+      deductionValue: '0',
+      grossWeight: '10',
+      id,
+      imageFiles: [],
+      imageNames: [],
+      impurityId: '',
+      note: '',
+      parentId: undefined,
+      productId: 'SKU-1',
+      version,
+      warehouseId: '',
+    })
+    const form = (lines: ReturnType<typeof line>) => ({
+      branchId: 'branch-1',
+      branchName: 'Branch 1',
+      lines: [lines],
+      partyId: 'party-1',
+      partyName: 'Party 1',
+      remark: 'local remark',
+      type: 'WTO' as const,
+      vehicleImageFiles: [],
+      vehicleNo: 'AA-001',
+      godownName: '',
+    })
+    const merged = mergeWeightTicketFormAfterPatch({
+      currentForm: form(line('line-dirty', 1)),
+      returnedForm: form(line('line-remote', 2)),
+      lineIdMap: {},
+      changedLineIds: new Set(['line-dirty']),
+      deletedLineIds: new Set(),
+    })
+    const withDraft = mergeWeightTicketFormAfterPatch({
+      currentForm: form(line('client-draft', undefined)),
+      returnedForm: form(line('line-remote', 2)),
+      lineIdMap: {},
+      changedLineIds: new Set(),
+      deletedLineIds: new Set(),
+    })
+
+    expect(merged.lines.map((entry) => entry.id)).toEqual(['line-remote'])
+    expect(withDraft.lines.map((entry) => entry.id)).toEqual(['line-remote', 'client-draft'])
   })
 
   it('rebinds a new lot to the persisted source line after auto-save', () => {
@@ -663,6 +768,7 @@ describe('weight-ticket product editor behavior', () => {
     }) => ({
       ...persistedDraftTicket,
       documentNo: values.type === 'WTO' ? 'WTO-TEST-001' : persistedDraftTicket.documentNo,
+      lineIdMap: Object.fromEntries(values.lines.map((line) => [String(line.id), String(line.id)])),
       lines: values.lines.map((line, index) => ({
         ...line,
         impurityName: '',

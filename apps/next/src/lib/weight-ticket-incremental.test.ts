@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { weightTicketDeleteLinesSchema, weightTicketIncrementalPatchSchema, weightTicketUpdateSchema } from './weight-tickets'
+import { selectWeightTicketPatchLines, weightTicketDeleteLinesSchema, weightTicketIncrementalPatchSchema, weightTicketUpdateSchema } from './weight-tickets'
 
 const header = {
   branchId: '01',
@@ -52,6 +52,18 @@ function update(overrides: Record<string, unknown> = {}) {
 }
 
 describe('weight-ticket incremental PATCH contract', () => {
+  it('sends only changed line records for a section PATCH', () => {
+    const lines = [
+      { id: 'line-1', grossWeight: 100 },
+      { id: 'line-2', grossWeight: 200 },
+      { id: 'line-3', grossWeight: 300 },
+    ]
+
+    expect(selectWeightTicketPatchLines(lines, new Set(['line-2']))).toEqual([
+      { id: 'line-2', grossWeight: 200 },
+    ])
+  })
+
   it('requires a complete persisted line baseline', () => {
     expect(weightTicketIncrementalPatchSchema.safeParse(patch()).success).toBe(true)
     expect(weightTicketIncrementalPatchSchema.safeParse(patch({ collaborationBaseLineIds: undefined })).success).toBe(false)
@@ -69,6 +81,40 @@ describe('weight-ticket incremental PATCH contract', () => {
   it('requires section identity for a section PATCH', () => {
     expect(weightTicketIncrementalPatchSchema.safeParse(patch({ scope: 'section' })).success).toBe(false)
     expect(weightTicketIncrementalPatchSchema.safeParse(patch({ scope: 'section', sectionLineIds: ['line-1'] })).success).toBe(true)
+  })
+
+  it('rejects a section write set that is outside the section or missing its line payload', () => {
+    expect(weightTicketIncrementalPatchSchema.safeParse(patch({
+      scope: 'section',
+      sectionLineIds: ['line-1'],
+      collaborationChangedLineIds: ['line-2'],
+    })).success).toBe(false)
+    expect(weightTicketIncrementalPatchSchema.safeParse(patch({
+      scope: 'section',
+      sectionLineIds: ['line-1'],
+      collaborationChangedLineIds: ['line-1'],
+    })).success).toBe(false)
+    expect(weightTicketIncrementalPatchSchema.safeParse(patch({
+      scope: 'section',
+      sectionLineIds: ['line-1'],
+      collaborationChangedLineIds: ['line-1'],
+      lines: [{
+        containerDeductionWeight: 0,
+        deductionMode: 'none',
+        deductionValue: 0,
+        grossWeight: 100,
+        id: 'line-1',
+        imageNames: ['image-key'],
+        impurityId: '',
+        impurityProductId: '',
+        note: '',
+        productId: 'SKU001',
+        warehouseId: 'WH001',
+        parentId: undefined,
+        impuritySourceLineId: undefined,
+        version: 1,
+      }],
+    })).success).toBe(true)
   })
 
   it('requires a baseline version for every deleted line', () => {

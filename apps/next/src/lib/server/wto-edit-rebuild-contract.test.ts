@@ -165,21 +165,28 @@ describe('WTO delivered edit release/rebuild contract', () => {
       .toBeLessThan(editRouteSource.indexOf('await releaseActiveWtoPendingOut(tx, {'))
   })
 
-  it('does not bypass stale baseline conflicts for the same actor', () => {
+  it('applies last-writer-wins to draft lines without weakening delivered WTO guards', () => {
     expect(editRouteSource).toContain('const hasStaleCollaborationBaseline = collaborationBaseUpdatedAt !== collaborationCurrentUpdatedAt.toISOString()')
+    expect(editRouteSource).toContain('const latestLines = existing.weight_ticket_lines')
+    expect(editRouteSource).toContain('const remoteDeletedChangedLineIds = selectWeightTicketRemoteDeletedChangedLineIds(')
+    expect(editRouteSource).toContain('const effectiveCollaborationChangedLineIds = new Set(')
+    expect(editRouteSource).toContain('line != null && !collaborationDeletedLineIds.has(line.id)')
+    expect(editRouteSource).toContain('mergeWeightTicketSectionLinesByChangeSet')
     expect(editRouteSource).not.toContain('existing.updated_by !== actor')
-    expect(editRouteSource).toContain('const collaborationLineIds = new Set([...collaborationChangedLineIds, ...collaborationDeletedLineIds])')
+    expect(editRouteSource).not.toContain('const conflictingLineIds = latestLines')
   })
 
   it('checks the locked document timestamp before deleting lines', () => {
-    expect(editRouteSource).toContain('if (deleteLines.data.collaborationBaseUpdatedAt !== locked.updated_at.toISOString())')
+    expect(editRouteSource).toContain('const isDeliveredWtoDelete = locked.doc_type === \'WTO\' && locked.status === \'delivered\'')
+    expect(editRouteSource).toContain('if (isDeliveredWtoDelete && deleteLines.data.collaborationBaseUpdatedAt !== locked.updated_at.toISOString())')
     expect(editRouteSource).toContain("operation: 'delete_lines'")
   })
 
   it('rechecks branch scope and derives audit/realtime previous values from the locked row', () => {
     expect(editRouteSource).toContain('if (scopedBranchIds !== null && !scopedBranchIds.includes(previousBranchId))')
     expect(editRouteSource).toContain('const previousDocumentNo = existing.doc_no')
-    expect(editRouteSource).toContain('return { beforeSnapshot, eventLineIds: resolvedChangedLineIds, imageChanged, lineIdMap, previousDocumentNo, previousHeader: currentHeader, ticket }')
+    expect(editRouteSource).toContain('eventDeletedLineIds: resolvedDeletedLineIds')
+    expect(editRouteSource).toContain('ignoredRemoteDeletedLineIds: [...remoteDeletedChangedLineIds]')
     expect(editRouteSource).toContain('const effectiveBranch = requestOwnsBranch')
     expect(editRouteSource).toContain('where: { active: true, code: effectiveValues.branchId.toUpperCase() }')
     expect(editRouteSource).toContain('const lockedBranchId = locked.branches?.code')
@@ -199,13 +206,14 @@ describe('WTO delivered edit release/rebuild contract', () => {
   })
 
   it('fails closed when a changed line cannot be mapped to a persisted id', () => {
-    expect(editRouteSource).toContain('const unresolvedChangedLineIds = [...collaborationChangedLineIds]')
+    expect(editRouteSource).toContain('const unresolvedChangedLineIds = selectWeightTicketUnresolvedChangedLineIds(')
     expect(editRouteSource).toContain('throw new WeightTicketDataContractError(`ไม่สามารถระบุรายการที่เปลี่ยนแปลงหลังบันทึก: ${unresolvedChangedLineIds.join(\', \')}`)')
   })
 
-  it('treats an edited line deleted by another user as a conflict', () => {
-    expect(editRouteSource).toContain('const missingChangedLineIds = [...collaborationLineIds]')
-    expect(editRouteSource).toContain('if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds, [], {')
+  it('keeps a latest draft line write addressable when the previous row is no longer current', () => {
+    expect(editRouteSource).not.toContain('const missingChangedLineIds = [...collaborationLineIds]')
+    expect(editRouteSource).not.toContain('if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds, [], {')
+    expect(editRouteSource).toContain('const lineIdByLineNo = new Map')
     expect(editRouteSource).toMatch(/effectiveValues = \{[\s\S]*?lines: values\.saveScope === 'section'/)
   })
 
@@ -243,7 +251,9 @@ describe('WTO delivered edit release/rebuild contract', () => {
     expect(formSource).toContain('setSavedTicket(ticket)')
     expect(formSource).toContain('version: line.version')
     expect(formSource).toContain('const deletedLineIdsRef = useRef<Set<string>>(new Set())')
+    expect(formSource).toContain('const remoteDeletedLineIdsRef = useRef<Set<string>>(new Set())')
     expect(formSource).toContain('if (deletedLineIdsRef.current.has(latestLine.id)) return null')
+    expect(formSource).toContain('if (remoteDeletedLineIdsRef.current.has(latestLine.id)) return null')
     expect(formSource).toContain('setSavedTicket(ticket)')
     expect(formSource).toContain('line.version != null || baselineLines.has(line.id)')
     expect(formSource).toContain('function markLinesDeleted(lineIds: Iterable<string>)')

@@ -641,6 +641,25 @@ export const weightTicketIncrementalPatchSchema = z.object({
       path: ['sectionLineIds'],
     })
   }
+  if (value.scope === 'section' && value.sectionLineIds) {
+    const sectionLineIds = new Set(value.sectionLineIds)
+    const submittedLineIds = new Set(value.lines.map((line) => line.id))
+    value.collaborationChangedLineIds.forEach((lineId, index) => {
+      if (!sectionLineIds.has(lineId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'รายการที่เปลี่ยนแปลงอยู่นอก section ที่กำลังบันทึก',
+          path: ['collaborationChangedLineIds', index],
+        })
+      } else if (!submittedLineIds.has(lineId) && !value.deletedLineIds.includes(lineId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'ไม่พบข้อมูลของรายการที่เปลี่ยนแปลง',
+          path: ['collaborationChangedLineIds', index],
+        })
+      }
+    })
+  }
 })
 
 export type WeightTicketIncrementalPatch = z.infer<typeof weightTicketIncrementalPatchSchema>
@@ -879,6 +898,13 @@ export const weightTicketConfirmSchema = z.object({
 
 export type WeightTicketFormValues = z.infer<typeof weightTicketFormSchema>
 export type WeightTicketUpdateValues = z.infer<typeof weightTicketUpdateSchema>
+
+export function selectWeightTicketPatchLines<T extends { id: string }>(
+  lines: readonly T[],
+  changedLineIds: ReadonlySet<string>,
+) {
+  return lines.filter((line) => changedLineIds.has(line.id))
+}
 
 export function createWeightTicketLine(id = createClientUuid()): WeightTicketLine {
   return {
@@ -1517,12 +1543,11 @@ export async function patchWeightTicketChanges(
       ...(changedHeaderFields.has('vehicleNo') ? { vehicleNo: values.vehicleNo } : {}),
       ...(changedHeaderFields.has('godownName') ? { godownName: values.godownName } : {}),
     },
-    // A section PATCH must carry the complete section so the server can
-    // validate parent/child relationships and preserve unchanged siblings.
-    // `collaborationChangedLineIds` remains the exact write/event scope.
-    lines: values.saveScope === 'section'
-      ? values.lines
-      : values.lines.filter((line) => changedLineIds.has(line.id)),
+    // The form keeps the complete section locally for validation and merge
+    // context, but the network PATCH carries only the changed line records.
+    // The server rebuilds the effective section from its latest locked state,
+    // so unchanged siblings are preserved without being re-sent by the client.
+    lines: selectWeightTicketPatchLines(values.lines, changedLineIds),
     deletedLineIds: values.collaborationDeletedLineIds,
     sectionLineIds: values.sectionLineIds,
     collaborationBaseLineIds: baseLineIds,

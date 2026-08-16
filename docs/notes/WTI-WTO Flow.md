@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
@@ -31,10 +31,23 @@ What is what: สิ่งเจือปนเป็นรายการย่
 
 - การสร้างเอกสารใหม่ยังใช้ form contract ที่ไม่ต้องมี baseline ได้ แต่ `PUT` ของเอกสารเดิมต้องส่ง `collaborationBaseLineIds`, version ของทุก line, `collaborationBaseHeader`, รายการ `collaborationChangedLineIds`/`collaborationDeletedLineIds`, รายการ header fields ที่ผู้ใช้แก้, `draftLineIds` และ `collaborationBaseUpdatedAt` มาครบจาก client. `PATCH save_changes` และ `PATCH delete_lines` ใช้กติกาเดียวกัน โดยการลบต้องมี version และเวลา baseline ของ line ที่ลบ.
 - Server ห้ามเติม baseline จากข้อมูลปัจจุบันในฐานข้อมูล ห้ามแปลงเวลา baseline ที่หายเป็น `null` และห้ามแปลง line version ที่หายเป็น `1`. ถ้า metadata collaboration ไม่ครบ ให้ validation/contract error เพื่อให้ caller โหลด snapshot ล่าสุดแล้วส่งใหม่ ไม่เขียนทับข้อมูลของผู้ใช้อื่นเงียบ ๆ.
-- `savedTicket` คือ collaboration baseline ที่ผ่านการ merge เพื่อรักษา local dirty state ส่วน `loadedTicket` คือ snapshot ล่าสุดจาก server; การตรวจ conflict และการสร้าง PATCH ใช้ baseline ที่บันทึกไว้เท่านั้น ไม่ใช้ snapshot ล่าสุดเป็น fallback. Realtime ใช้ persisted line UUID/changed fields จาก event แล้ว reload เฉพาะส่วนที่เกี่ยวข้อง.
-- `PATCH save_changes` ต้องส่ง `header`, `lines` และ `deletedLineIds` ตาม contract ครบ แม้ค่าจะเป็น object/array ว่าง; server overlay header ที่ไม่ถูกแก้ด้วยค่าปัจจุบันจากแถวที่ lock ใน DB เพื่อคงข้อมูลเดิมของเอกสาร ไม่ใช้ baseline หรือค่า default เป็นแหล่งแทน. Section PATCH ส่งทั้ง parent/child ใน section เพื่อ validate ความสัมพันธ์ แต่ `collaborationChangedLineIds` ยังเป็นขอบเขตเขียนและ broadcast เท่านั้น.
+- `savedTicket` คือ collaboration baseline ที่ผ่านการ merge เพื่อรักษา local dirty state ส่วน `loadedTicket` คือ snapshot ล่าสุดจาก server; การตรวจ conflict และการสร้าง PATCH ใช้ baseline ที่บันทึกไว้เท่านั้น ไม่ใช้ snapshot ล่าสุดเป็น fallback. Realtime ใช้ persisted line ID (`weight_ticket_lines.id`)/changed fields จาก event แล้ว reload เฉพาะส่วนที่เกี่ยวข้อง.
+- `PATCH save_changes` ต้องส่ง `header`, `lines` และ `deletedLineIds` ตาม contract ครบ แม้ค่าจะเป็น object/array ว่าง; server overlay header ที่ไม่ถูกแก้ด้วยค่าปัจจุบันจากแถวที่ lock ใน DB เพื่อคงข้อมูลเดิมของเอกสาร ไม่ใช้ baseline หรือค่า default เป็นแหล่งแทน. Section PATCH ส่งเฉพาะ line record ที่อยู่ใน `collaborationChangedLineIds` และส่ง `sectionLineIds` เป็น metadata ของขอบเขตเต็ม; server อ่าน section ล่าสุดจากแถวที่ lock แล้ว merge sibling ที่ไม่ได้เปลี่ยนก่อน validate/persist.
 
-What is what: baseline คือ snapshot ที่ผู้ใช้เริ่มแก้และ metadata ที่ใช้พิสูจน์ ownership ของการแก้ไข; current snapshot คือข้อมูลล่าสุดของ server. Why it has to be like this: การแยกสอง snapshot ทำให้การแก้คนละเต๋า merge ได้ แต่การแก้เต๋า/หัวเอกสารเดียวกันยังตรวจ version และ updated-at แล้วแจ้ง conflict ได้ตรงรายการ.
+What is what: baseline คือ snapshot ที่ผู้ใช้เริ่มแก้และ metadata ที่ใช้ระบุขอบเขตการเขียน; current snapshot คือข้อมูลล่าสุดของ server. Why it has to be like this: การแยกสอง snapshot ทำให้ server รับเฉพาะรายการที่ผู้ใช้กำลังส่ง และเก็บรายการอื่นที่ถูกเพิ่มจากผู้ใช้อื่นไว้ได้ โดยไม่เปลี่ยนตัวตนของ line.
+
+### Current draft last-writer-wins policy (2026-08-15)
+
+กติกานี้เป็นกติกาปัจจุบัน และมีผลแทนข้อความออกแบบเก่าด้านล่างที่พูดถึงการชนกันของ line แบบ `409`:
+
+- สำหรับเอกสาร `draft` ทั้ง WTI และ WTO การเพิ่ม/แก้ไข/บันทึกสินค้า, เต๋า และสิ่งเจือปนใช้ PATCH แบบ targeted write set. `collaborationChangedLineIds` และ `collaborationDeletedLineIds` คือรายการที่ request นี้มีสิทธิ์เขียนเท่านั้น; ใช้ persisted line ID (`weight_ticket_lines.id`) เป็น identity ไม่ใช้ `line_no`.
+- ถ้าผู้ใช้สองคนแก้ line ID เดียวกัน ให้ transaction ที่ commit ล่าสุดเป็นค่าที่เชื่อถือได้ (last writer wins). ไม่หยุดด้วย version หรือ `updated_at` conflict สำหรับ draft line เดียวกัน. line อื่นที่ request ไม่ได้แก้ รวมถึง line ที่ผู้ใช้อื่นเพิ่มหลังจากเปิดเอกสาร ต้องถูกเก็บไว้.
+- การลบ draft line เป็น idempotent: ถ้าอีกคนลบไปแล้วถือว่าสถานะปลายทางตรงกันและไม่แจ้ง conflict; ถ้ายังอยู่จึงลบเฉพาะ ID ที่ request ระบุ และ broadcast เฉพาะ ID ที่ลบได้จริง.
+- ถ้า request เก่าพยายามแก้ line ID ที่ผู้ใช้อื่นลบไปแล้ว ให้ถือว่าการลบที่ commit ล่าสุดชนะและจบเป็น no-op; กติกานี้ใช้เฉพาะ ID ที่อยู่ใน baseline เดิม ส่วน client ID ที่ไม่เคยอยู่ใน baseline และ map ไม่ได้ยังต้องหยุดด้วย data-contract error.
+- `บันทึกสินค้านี้` และ `เพิ่มเต๋าใหม่` ใช้ pipeline PATCH และการ merge เดียวกัน ต่างกันที่เจตนา: ปุ่มแรกส่ง changed/deleted IDs ของ product section ที่กรอกแล้ว ส่วนปุ่มหลังสร้าง client draft line แล้วส่งการบันทึกเพื่อให้ line ก่อนหน้าคงอยู่และรับ `lineIdMap`/`lot_seq` จาก server.
+- หัวเอกสารยังไม่ใช่ LWW แบบ line: ถ้าผู้ใช้แก้ field หัวเดียวกันกับค่าที่เปลี่ยนไปแล้ว server ยังตอบ `409` เฉพาะ field นั้น. การเปลี่ยนสาขายังคงสร้างเลขที่เอกสารใหม่และทำให้เลขที่เดิมถูก supersede ตามกติกาเอกสาร.
+- WTO ที่ `delivered` ยังคงใช้ guard แบบเข้มงวด เพราะเกี่ยวข้องกับ stock/pending-out; การยืนยัน/แก้ไขที่กระทบ stock ไม่ใช้ LWW เพื่อเขียนทับธุรกรรมที่ถูกใช้งานแล้ว.
+- Realtime `lineIds` และ `deletedLineIds` ต้องมาจาก write set ที่ commit ได้จริงเท่านั้น. การ merge ของ client ต้องติดป้ายเฉพาะ product/lot/impurity ที่อยู่ใน event และไม่ขยายข้อความเตือนไปยัง line อื่น.
 
 ## Attachment upload validation and notification (2026-08-04)
 
@@ -120,9 +133,11 @@ What is what: `pending_out` คือ reservation ของ stock ที่ย�
 
 ## Scoped add performance (2026-08-14)
 
-เมื่อกด `เพิ่มเต๋า`, `เพิ่มสิ่งเจือปน` หรือ `หักสิ่งเจือปนต่อ` ระบบจะ validate และ persist ข้อมูลเดิมของ section ปัจจุบันก่อนเปิดแถวใหม่. PATCH แบบ scoped จะใช้ dirty line เป็น candidate แล้วตรวจ fingerprint กับ baseline ซ้ำอีกชั้น จึงส่งเฉพาะ line ที่เปลี่ยนจริงหรือเป็น line ใหม่ ไม่ส่ง UUID ที่ dirty ค้างแต่ค่ากลับมาตรงกับ baseline และไม่ส่งซ้ำทั้ง section ที่ไม่ได้แก้. ระหว่างรอ save จะรอเฉพาะ upload รูปของ line ใน section เดียวกัน ไม่บล็อกด้วย upload ของรถหรือสินค้าอื่น. WTI และ WTO ใช้ boundary เดียวกัน แต่ server ยังคงบังคับความต่างของเอกสาร เช่น WTO ต้องมีคลังและห้าม impurity แบบสินค้าอื่น.
+เมื่อกด `เพิ่มเต๋า`, `เพิ่มสิ่งเจือปน` หรือ `หักสิ่งเจือปนต่อ` ระบบจะ validate และ persist ข้อมูลเดิมของ section ปัจจุบันก่อนเปิดแถวใหม่. PATCH แบบ scoped จะใช้ dirty line เป็น candidate แล้วตรวจ fingerprint กับ baseline ซ้ำอีกชั้น จึงส่งเฉพาะ line ที่เปลี่ยนจริงหรือเป็น line ใหม่ ไม่ส่ง ID ที่ dirty ค้างแต่ค่ากลับมาตรงกับ baseline และไม่ส่งซ้ำทั้ง section ที่ไม่ได้แก้. ระหว่างรอ save จะรอเฉพาะ upload รูปของ line ใน section เดียวกัน ไม่บล็อกด้วย upload ของรถหรือสินค้าอื่น. WTI และ WTO ใช้ boundary เดียวกัน แต่ server ยังคงบังคับความต่างของเอกสาร เช่น WTO ต้องมีคลังและห้าม impurity แบบสินค้าอื่น.
 
-แต่ละบรรทัดสิ่งเจือปนมีปุ่ม `บันทึกสิ่งเจือปนนี้` ของตัวเอง. การกดปุ่มนี้ใช้ PATCH scope เดิม โดย request จะมี line ของ root section ครบเพื่อให้ server ตรวจโครงสร้าง parent/child ได้ และ `changedLineIds` จะระบุเฉพาะ UUID ของ parent chain, สิ่งเจือปนบรรทัดที่กด และบรรทัดลูกที่สัมพันธ์กัน เพื่อบันทึกทั้ง parent และ child ในครั้งเดียวโดยไม่เขียนทับสายอื่น. ไม่ใช้เลขลำดับที่แสดงบนหน้าจอเป็น identity. เหตุผลคือผู้ใช้หลายคนสามารถแก้สิ่งเจือปนคนละสายพร้อมกันได้ โดยการบันทึกหนึ่งสายไม่เขียนทับสายอื่น.
+สำหรับ `บันทึกสินค้านี้` dirty set ยึดเฉพาะ line ที่ผู้ใช้แก้จริงหรือ line ใหม่ที่ยังไม่มี `version` จาก server; persisted line ที่เพิ่ง merge จาก realtime ของผู้ใช้อื่นจะไม่ถูกอนุมานเป็น local change แม้ไม่มีอยู่ใน baseline เดิม. การแก้ค่าน้ำหนัก/หักภาชนะ/หมายเหตุ/รูปของเต๋าจะ mark เฉพาะเต๋านั้น ส่วน child จะถูกเพิ่มเข้า write set เฉพาะเมื่อ propagation เปลี่ยน field ของ child จริง.
+
+แต่ละบรรทัดสิ่งเจือปนมีปุ่ม `บันทึกสิ่งเจือปนนี้` ของตัวเอง. การกดปุ่มนี้ใช้ PATCH scope เดิม โดย request จะมี line ของ root section ครบเพื่อให้ server ตรวจโครงสร้าง parent/child ได้ และ `changedLineIds` จะระบุเฉพาะ ID ของ parent chain, สิ่งเจือปนบรรทัดที่กด และบรรทัดลูกที่สัมพันธ์กัน เพื่อบันทึกทั้ง parent และ child ในครั้งเดียวโดยไม่เขียนทับสายอื่น. ไม่ใช้เลขลำดับที่แสดงบนหน้าจอเป็น identity. เหตุผลคือผู้ใช้หลายคนสามารถแก้สิ่งเจือปนคนละสายพร้อมกันได้ โดยการบันทึกหนึ่งสายไม่เขียนทับสายอื่น.
 
 What is what: `persistLineIds` คือขอบเขตข้อมูลที่ operation นี้อนุญาตให้เขียน และ `attachmentOwnerIds` คือขอบเขต upload ที่ต้องรอให้เสร็จก่อน persist. หน้า form สร้าง line index ร่วมหนึ่งชุดต่อ state เพื่อเก็บ `byId`, root lines และ parent/child ในการเดิน array รอบเดียว พร้อมสร้าง product lookup ต่อชุด master data จึงไม่สร้าง map/filter/find ซ้ำทุก product section. เลขสิ่งเจือปนเป็น presentation tree เช่น `1`, `1.1`, `1.1.1`; ความสัมพันธ์จริงยังใช้ `id`/`parentId` และ `line_no` ของ server ไม่ใช้เลขที่แสดงแทน identity. Why it has to be like this: server ยังคงเป็น source of truth และตรวจ validation/version ของ line ที่ส่งมา แต่ payload และเวลารอไม่ขยายไปแตะข้อมูลของ section อื่น จึงลด request body และ latency โดยไม่เปลี่ยนลำดับหรือ contract ของ WTI/WTO.
 
@@ -140,7 +155,9 @@ What is what: `persistLineIds` คือขอบเขตข้อมูลท�
 - original และ thumbnail ใช้ storage key แบบ immutable และ cache-control ระยะยาวที่ Storage/CDN; API ที่คืน signed URL ยังคง `private, no-store` เพราะเป็นข้อมูลตามสิทธิ์เอกสาร ไม่ cache response ธุรกิจบน Vercel/browser
 - เหตุผล: การเปิด detail หรือกดดูรูปทั่วไปไม่ควรดึง binary ต้นฉบับหลาย MB ผ่าน origin; การอ่าน original เป็น explicit action ของผู้ใช้เท่านั้น ส่วน thumbnail เป็น presentation asset สำหรับ gallery/list
 
-## WTI Concurrent Draft / Auto-save Design (2026-07-23)
+## Historical WTI Concurrent Draft / Auto-save Design (2026-07-23)
+
+> ส่วนนี้เป็นแนวคิดเดิมเพื่อเก็บบริบทการออกแบบ ปัจจุบันให้ยึด `Current draft last-writer-wins policy (2026-08-15)` ด้านบนเป็นหลัก โดยเฉพาะกติกา line เดียวกันและการแจ้ง realtime.
 
 ### ขอบเขต
 
@@ -206,11 +223,11 @@ add image -> delete image
 
 - เพิ่มเต๋าพร้อมกัน: อนุญาตทั้งสองรายการและสร้างคนละ `line_id`
 - แก้ไขคนละ line: อนุญาตพร้อมกัน
-- แก้ไข line เดียวกัน: ตรวจ `version`; ถ้าข้อมูลเก่าแล้วต้องแจ้ง conflict และห้ามเขียนทับเงียบ ๆ
+- แก้ไข line เดียวกัน: แนวคิดเดิมเคยตรวจ `version`; ปัจจุบัน draft ใช้ last-writer-wins ตาม persisted line ID (`weight_ticket_lines.id`) ส่วน delivered WTO และ header ยังใช้ guard ตามกติกาปัจจุบันด้านบน
 - ลบรูปหรือสิ่งเจือปนซ้ำกัน: Server ต้องตรวจสถานะล่าสุดและทำให้ operation retry ได้โดยไม่สร้างข้อมูลซ้ำ
 - เมื่อเอกสารถูก `received` หรือ `cancelled`: broadcast สถานะใหม่และเปลี่ยนอีกเครื่องเป็น read-only
 
-เมื่อเกิด conflict จากการแก้ไขหรือลบ ระบบต้องตอบ `409` และบันทึก audit event `daily.weight-ticket.collaboration-conflict` ลง `app_audit_logs` โดยเก็บเฉพาะข้อมูลวินิจฉัยที่จำเป็น ได้แก่ operation/scope, เลขที่เอกสาร, persisted line UUID ที่ชน, line version ฝั่ง baseline และปัจจุบัน, header fields, updated-at และ request id เพื่อวิเคราะห์พฤติกรรมจริงของผู้ใช้โดยไม่เก็บน้ำหนัก รูปภาพ หรือ payload ธุรกิจทั้งก้อน หาก audit sink ขัดข้องต้องคงผลลัพธ์ conflict เดิมไว้ ไม่เปลี่ยนเป็นความสำเร็จหรือ error อื่น
+เมื่อเกิด conflict ในขอบเขตที่ยังใช้ guard อยู่ เช่น header หรือ delivered WTO ระบบต้องตอบ `409` และบันทึก audit event `daily.weight-ticket.collaboration-conflict` ลง `app_audit_logs` โดยเก็บเฉพาะข้อมูลวินิจฉัยที่จำเป็น ได้แก่ operation/scope, เลขที่เอกสาร, persisted line ID ที่ชน, line version ฝั่ง baseline และปัจจุบัน, header fields, updated-at และ request id เพื่อวิเคราะห์พฤติกรรมจริงของผู้ใช้โดยไม่เก็บน้ำหนัก รูปภาพ หรือ payload ธุรกิจทั้งก้อน หาก audit sink ขัดข้องต้องคงผลลัพธ์ conflict เดิมไว้ ไม่เปลี่ยนเป็นความสำเร็จหรือ error อื่น. Draft line ที่ใช้ LWW จะไม่สร้าง conflict เพียงเพราะมีผู้ใช้แก้ line เดียวกันภายหลัง
 
 การจับคู่ line ระหว่างผู้ใช้ใช้ persisted `line.id` ที่ Server สร้างเท่านั้น `line_no` ใช้สำหรับลำดับและความสัมพันธ์ parent เท่านั้น ห้ามใช้ `doc_no:line_no` หรือเลขลำดับที่หน้าจอแสดงเป็น fallback identity เพราะอาจทำให้เต๋าคนละรายการถูกมองเป็นรายการเดียวกัน
 
@@ -1296,30 +1313,41 @@ Realtime event ต้องส่งขอบเขตการเปลี่�
   เพิ่ม แก้ หรือลบเต๋า เพื่อไม่ให้การบันทึกคนละเต๋ากลายเป็น conflict ปลอม
 - header ที่ผู้ใช้กำลังแก้คง baseline เดิม ส่วน header ที่ไม่ได้แก้รับค่าล่าสุดจาก server
 
-ผลคือผู้ใช้สองคนสามารถทำงานคนละเต๋าและบันทึกได้โดยไม่ทับกัน ขณะที่การแก้รายการเดียวกัน
-ยังหยุดที่ conflict ให้ผู้ใช้ตรวจสอบก่อนบันทึก. การยืนยัน WTO ที่มีผลต่อ stock ยังคงใช้
-transaction และ guard เดิม ไม่ใช้ realtime เป็นแหล่งยืนยัน stock.
+ผลคือผู้ใช้สองคนสามารถทำงานคนละเต๋าและบันทึกได้โดยไม่ทับกัน และถ้าแก้ persisted line เดียวกัน
+ผู้ที่ commit ล่าสุดเป็นค่าที่เชื่อถือได้ตาม LWW. การยืนยัน WTO ที่มีผลต่อ stock และการแก้ WTO
+ที่ `delivered` ยังคงใช้ transaction และ guard เดิม ไม่ใช้ realtime เป็นแหล่งยืนยัน stock.
 
 ตั้งแต่ 2026-08-15 การส่ง `save_changes` ต้องมี baseline ของ line ที่เป็น persisted identity
 ครบทั้ง `collaborationBaseLineIds` และ `collaborationBaseLineVersions` และ key ของสองชุด
 ต้องตรงกัน. หากข้อมูล baseline ไม่ครบ หรือเป็น section แต่ไม่ระบุ `sectionLineIds` server
-จะตอบ `400` และไม่ใช้การลบแล้วสร้าง line ใหม่แทน เพราะการทำเช่นนั้นจะทำลาย UUID ที่ผู้ใช้อื่น
-กำลังแก้. ก่อนส่ง realtime notice client จะเทียบ fingerprint ของ line กับ baseline แล้ว
+จะตอบ `400` และไม่ใช้การลบแล้วสร้าง line ใหม่แทน เพราะการทำเช่นนั้นจะทำลาย persisted line ID ที่ผู้ใช้อื่นกำลังอ้างถึง.
+ก่อนส่ง realtime notice client จะเทียบ fingerprint ของ line กับ baseline แล้ว
 ส่งเฉพาะ line ที่เปลี่ยนจริงหรือถูกลบจริง; event ที่เข้าระหว่าง save/reload จะถูกรวมไว้และ
 ประมวลผลหลังงานปัจจุบันเสร็จ เพื่อไม่ทิ้งการเปลี่ยนแปลงหรือแจ้งรายการที่ไม่เกี่ยวข้อง.
 
-ทุก existing update/delete ต้องตรวจ `collaborationBaseUpdatedAt` และ `version` กับแถวที่ล็อก
-ใน transaction เดียวกันเสมอ แม้ผู้ส่งจะเป็น user เดิม; หากข้อมูลปัจจุบันเปลี่ยนแล้วต้องตอบ
-`409` ก่อนเขียน. ข้อมูลหัวเอกสารและคู่ค้าที่อ่านจากแถวที่ล็อกต้องมีค่าตาม contract และ audit
-ต้องใช้ค่าชุดเดียวกับที่กำลังเขียนจริง หาก source เดิมขาดข้อมูลบังคับให้ fail closed ไม่เติมค่า
-จาก request เก่า, snapshot อื่น หรือค่าเดา.
+ทุก existing update/delete ต้อง lock และอ่านแถวปัจจุบันใน transaction เดียวกันเสมอ. สำหรับ
+draft line การตรวจ baseline ใช้ระบุ write set เท่านั้น แล้ว commit ล่าสุดชนะและลบแบบ idempotent;
+ไม่ตอบ `409` เพียงเพราะ version หรือ `updated_at` ของ line เปลี่ยน. สำหรับ header และ WTO ที่
+`delivered` ยังคงตรวจ `collaborationBaseUpdatedAt`/`version` และตอบ `409` ก่อนเขียนเมื่อข้อมูล
+ที่มี guard เปลี่ยนแล้ว. ข้อมูลหัวเอกสารและคู่ค้าที่อ่านจากแถวที่ล็อกต้องมีค่าตาม contract และ
+audit ต้องใช้ค่าชุดเดียวกับที่กำลังเขียนจริง หาก source เดิมขาดข้อมูลบังคับให้ fail closed ไม่
+เติมค่าจาก request เก่า, snapshot อื่น หรือค่าเดา.
+
+ตั้งแต่ 2026-08-16 line ที่ถูกสร้างจากฟอร์มจะเก็บ `client_line_id` ซึ่งเป็น UUID จาก client
+ไว้คู่กับ persisted line เพื่อรองรับกรณี PATCH สำเร็จแต่ response หายหรือถูก retry. ก่อน merge
+ทุก update/delete server จะอ่าน mapping นี้จากแถวที่ล็อก แล้วแปลง UUID เป็น `weight_ticket_lines.id`
+จริง โดยไม่ใช้เลขเต๋าที่แสดงบนหน้าจอเป็น identity. ดังนั้นการลบซ้ำจึงเป็น idempotent และถ้า line
+ถูกผู้ใช้อื่นลบไปก่อนแล้วจะไม่ถูกสร้างกลับจากฟอร์มเก่า. Migration ของคอลัมน์และ unique index
+ต้อง apply ก่อนเปิดใช้ code batch นี้ใน environment ใด.
 
 ## การ submit แยกตาม section (2026-08-07)
 
 หนึ่ง section หมายถึงสินค้าแม่หนึ่งรายการพร้อมเต๋าลูก สิ่งเจือปน และรายการซื้อเพิ่มที่อยู่
-ใต้สินค้าเดียวกัน. ปุ่ม `บันทึก section นี้` ส่งเฉพาะ line ของ section นั้นด้วย
-`saveScope=section` และ `sectionLineIds`; server ตรวจว่าไม่ข้ามสินค้าและต้องส่ง section
-เดิมครบก่อน merge ใน transaction. รายการของผู้ใช้อื่นที่อยู่นอก section จะถูกเก็บไว้และ
+ใต้สินค้าเดียวกัน. ปุ่ม `บันทึกสินค้านี้` และ `บันทึกสิ่งเจือปนนี้` ส่งเฉพาะ line record
+ที่เปลี่ยน/เพิ่มจริงด้วย `saveScope=section`, `sectionLineIds` และ changed/deleted write set;
+contract จะ reject write set ที่อยู่นอก section หรือระบุ changed line แต่ไม่ส่ง line/deletion
+ของรายการนั้น. server ตรวจว่าไม่ข้ามสินค้า อ่าน section ล่าสุดจากแถวที่ lock แล้ว merge line
+ที่ไม่ได้เปลี่ยนก่อน validate/persist. รายการของผู้ใช้อื่นที่อยู่นอก section จะถูกเก็บไว้และ
 สรุปน้ำหนัก/stock ของเอกสารยังคำนวณจากข้อมูลทั้งใบ. จึงให้คนหนึ่ง submit เต๋าสินค้า A
 ขณะที่อีกคนแก้เต๋าสินค้า B ได้ โดยไม่ใช้ response ของ section A มาแทนที่ draft ของ B.
 

@@ -320,7 +320,12 @@ export async function POST(request: Request) {
       const lineRows = await assignWeightTicketLotSequences(
         tx,
         createdTicket.id,
-        buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById, warehouseByCode).map((data) => ({ data })),
+        buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById, warehouseByCode).map((data, index) => ({
+          data: {
+            ...data,
+            client_line_id: values.lines[index].id,
+          },
+        })),
       )
       if (values.type === 'WTO' && values.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })

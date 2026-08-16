@@ -33,9 +33,13 @@ import {
   getWeightTicketUsageTimeline,
   getWeightTicketUsageCounts,
   mapWeightTicketRow,
-  mergeWeightTicketSectionLines,
+  mergeWeightTicketSectionLinesByChangeSet,
   resolveWeightTicketActorDisplayNames,
+  selectWeightTicketRemoteDeletedChangedLineIds,
   selectWeightTicketRemovedLineIds,
+  selectWeightTicketUnresolvedChangedLineIds,
+  resolveWeightTicketLineClientIds,
+  resolveWeightTicketDeleteClientIds,
   WeightTicketDataContractError,
   weightTicketActorDisplayName,
   mutableTicketErrorMessage,
@@ -290,14 +294,21 @@ function buildIncrementalFormValues(
   patch: WeightTicketIncrementalPatch,
 ): WeightTicketFormValues {
   if (!existing) throw new Error('ไม่พบใบรับ-ส่งของ')
+  const clientLineIdMap = new Map(
+    existing.weight_ticket_lines
+      .filter((line) => Boolean(line.client_line_id))
+      .map((line) => [line.client_line_id as string, String(line.id)] as const),
+  )
+  const resolveId = (lineId: string) => clientLineIdMap.get(lineId) ?? lineId
+  const patchLines = resolveWeightTicketLineClientIds(patch.lines, clientLineIdMap).lines
   const lineIdByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, String(line.id)] as const))
   const currentLines = existing.weight_ticket_lines.map((line) => persistedLineToFormLine(line, lineIdByLineNo))
-  const deletedIds = new Set(patch.deletedLineIds)
-  const changedById = new Map(patch.lines.map((line) => [line.id, line] as const))
+  const deletedIds = new Set(patch.deletedLineIds.map(resolveId))
+  const changedById = new Map(patchLines.map((line) => [line.id, line] as const))
   const mergedLines = currentLines
     .filter((line) => !deletedIds.has(line.id))
     .map((line) => changedById.get(line.id) ?? line)
-  patch.lines.forEach((line) => {
+  patchLines.forEach((line) => {
     if (!currentLines.some((current) => current.id === line.id) && !deletedIds.has(line.id)) mergedLines.push(line)
   })
 
@@ -308,9 +319,9 @@ function buildIncrementalFormValues(
   const currentVehicleNo = existing.vehicle_no
   if (!currentVehicleNo) throw new WeightTicketDataContractError('ข้อมูลทะเบียนรถเดิมของใบรับ-ส่งของไม่ครบ')
   const header = patch.header
-  const baseLineIds = patch.collaborationBaseLineIds
-  const changedLineIds = patch.collaborationChangedLineIds
-  const sectionLineIds = patch.scope === 'section' ? patch.sectionLineIds : undefined
+  const baseLineIds = patch.collaborationBaseLineIds.map(resolveId)
+  const changedLineIds = patch.collaborationChangedLineIds.map(resolveId)
+  const sectionLineIds = patch.scope === 'section' ? patch.sectionLineIds?.map(resolveId) : undefined
   if (patch.scope === 'section' && (!sectionLineIds || sectionLineIds.length === 0)) {
     throw new Error('ต้องระบุรายการของ section ที่กำลังบันทึก')
   }
@@ -331,11 +342,11 @@ function buildIncrementalFormValues(
   return {
     branchId: effectiveHeader.branchId,
     collaborationBaseLineIds: baseLineIds,
-    collaborationBaseLineVersions: patch.collaborationBaseLineVersions,
+    collaborationBaseLineVersions: Object.fromEntries(Object.entries(patch.collaborationBaseLineVersions).map(([lineId, version]) => [resolveId(lineId), version])),
     collaborationChangedLineIds: changedLineIds,
-    collaborationDeletedLineIds: patch.deletedLineIds,
+    collaborationDeletedLineIds: patch.deletedLineIds.map(resolveId),
     collaborationBaseUpdatedAt: patch.collaborationBaseUpdatedAt,
-    draftLineIds: patch.draftLineIds,
+    draftLineIds: patch.draftLineIds.map(resolveId),
     collaborationBaseHeader: patch.collaborationBaseHeader,
     collaborationChangedHeaderFields: Object.keys(header) as Array<'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'>,
     id: String(existing.id),
@@ -348,6 +359,27 @@ function buildIncrementalFormValues(
     vehicleImageNames: effectiveHeader.vehicleImageNames,
     vehicleNo: effectiveHeader.vehicleNo,
     godownName: effectiveHeader.godownName,
+  }
+}
+
+function resolveWeightTicketCollaborationValues(
+  values: WeightTicketFormValues,
+  clientLineIdMap: ReadonlyMap<string, string>,
+): WeightTicketFormValues {
+  const resolveId = (lineId: string) => clientLineIdMap.get(lineId) ?? lineId
+  const resolvedLines = resolveWeightTicketLineClientIds(values.lines, clientLineIdMap).lines
+  const baseLineVersions = values.collaborationBaseLineVersions
+    ? Object.fromEntries(Object.entries(values.collaborationBaseLineVersions).map(([lineId, version]) => [resolveId(lineId), version]))
+    : undefined
+  return {
+    ...values,
+    collaborationBaseLineIds: values.collaborationBaseLineIds?.map(resolveId),
+    collaborationBaseLineVersions: baseLineVersions,
+    collaborationChangedLineIds: values.collaborationChangedLineIds?.map(resolveId),
+    collaborationDeletedLineIds: values.collaborationDeletedLineIds?.map(resolveId),
+    draftLineIds: values.draftLineIds?.map(resolveId),
+    lines: resolvedLines,
+    sectionLineIds: values.sectionLineIds?.map(resolveId),
   }
 }
 
@@ -596,12 +628,33 @@ async function updateWeightTicket(
       changedHeaderFields: [...changedHeaderFields],
     })
     const ticketId = existing.id
+    const submittedValues = values
     const updateResult = await prisma.$transaction(async (tx) => {
       // Every ticket mutation uses the same lock and then re-reads lifecycle
       // state. PUT must not continue from a draft snapshot after confirm,
       // cancel, or downstream usage has already changed the ticket.
       await tx.$executeRaw`select pg_advisory_xact_lock(${ticketId})`
       const existing = await tx.weight_tickets.findUniqueOrThrow({ include: ticketInclude, where: { id: ticketId } })
+      const persistedClientLineIdMap = new Map(
+        existing.weight_ticket_lines
+          .filter((line) => Boolean(line.client_line_id))
+          .map((line) => [line.client_line_id as string, String(line.id)] as const),
+      )
+      const values = resolveWeightTicketCollaborationValues(submittedValues, persistedClientLineIdMap)
+      if (
+        values.collaborationDeletedLineIds == null
+        || values.collaborationChangedHeaderFields == null
+        || values.collaborationBaseHeader == null
+      ) {
+        throw new WeightTicketDataContractError('ข้อมูล collaboration ของใบรับ-ส่งของไม่ครบ')
+      }
+      const collaborationChangedHeaderFields = values.collaborationChangedHeaderFields
+      const collaborationBaseHeader = values.collaborationBaseHeader
+      const collaborationBaseUpdatedAt = values.collaborationBaseUpdatedAt
+      const collaborationBaseLineIds = new Set(values.collaborationBaseLineIds)
+      const collaborationBaseLineVersions = values.collaborationBaseLineVersions
+      const collaborationChangedLineIds = new Set(values.collaborationChangedLineIds)
+      const collaborationDeletedLineIds = new Set(values.collaborationDeletedLineIds)
       const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
       if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, lockedUsage)) {
         throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
@@ -621,10 +674,18 @@ async function updateWeightTicket(
       existing.weight_ticket_lines.forEach((line) => {
         existingLineById.set(String(line.id), line)
       })
+      const remoteDeletedChangedLineIds = selectWeightTicketRemoteDeletedChangedLineIds(
+        collaborationChangedLineIds,
+        collaborationBaseLineIds,
+        new Set(existingLineById.keys()),
+      )
+      const effectiveCollaborationChangedLineIds = new Set(
+        [...collaborationChangedLineIds].filter((lineId) => !remoteDeletedChangedLineIds.has(lineId)),
+      )
       const imageNamesChanged = (before: string[] | null | undefined, after: string[]) => JSON.stringify(before ?? []) !== JSON.stringify(after)
       const imageChanged = changedHeaderFields.has('vehicleImageNames')
         || values.lines.some((line) => {
-          if (!collaborationChangedLineIds.has(line.id)) return false
+          if (!effectiveCollaborationChangedLineIds.has(line.id)) return false
           const existingLine = existingLineById.get(line.id)
           return !existingLine || imageNamesChanged(existingLine.image_names, line.imageNames)
         })
@@ -667,7 +728,10 @@ async function updateWeightTicket(
             ...values.lines.map((line) => line.id),
             ...values.collaborationDeletedLineIds,
           ])
-          const missingSectionIds = expectedSectionIds.filter((lineId) => !submittedSectionIds.has(lineId))
+          const baselineLineIds = new Set(values.collaborationBaseLineIds)
+          const missingSectionIds = expectedSectionIds.filter((lineId) => (
+            baselineLineIds.has(lineId) && !submittedSectionIds.has(lineId)
+          ))
           if (missingSectionIds.length) {
             throw new WeightTicketWriteValidationError('ข้อมูล section ไม่ครบ กรุณาโหลดข้อมูลล่าสุดแล้วบันทึกใหม่', {})
           }
@@ -687,6 +751,7 @@ async function updateWeightTicket(
       })
       let createdLines: Awaited<ReturnType<typeof prisma.weight_ticket_lines.findMany>>
       let lineIdMap: Record<string, string> = {}
+      let resolvedDeletedLineIds: string[] = []
       let effectiveValues = values
       let effectiveTotals = totals
       // Collaboration-aware saves keep immutable line IDs so another user's
@@ -713,7 +778,7 @@ async function updateWeightTicket(
         godownName: currentGodownName,
       }
       const conflictingHeaderFields = hasStaleCollaborationBaseline
-        ? headerFields.filter((field) => values.collaborationChangedHeaderFields.includes(field) && JSON.stringify(currentHeader[field]) !== JSON.stringify(values.collaborationBaseHeader[field]))
+        ? headerFields.filter((field) => collaborationChangedHeaderFields.includes(field) && JSON.stringify(currentHeader[field]) !== JSON.stringify(collaborationBaseHeader[field]))
         : []
       if (conflictingHeaderFields.length) throw new WeightTicketCollaborationConflictError([], conflictingHeaderFields, {
         baseLineVersions: collaborationBaseLineVersions,
@@ -802,40 +867,15 @@ async function updateWeightTicket(
         !shouldRebuildWtoPendingOut
       ) {
         // Multiple users may be editing the same draft. Persisted DB line ids
-        // are the only identity accepted for collaboration merging.
+        // are the only identity accepted for collaboration merging. The
+        // request's changed/deleted IDs are its exact write set: the latest
+        // transaction wins for those rows, while untouched current rows are
+        // retained from the locked database snapshot.
         const latestLines = existing.weight_ticket_lines
-        const latestLineIds = new Set(latestLines.map((line) => String(line.id)))
-        const collaborationLineIds = new Set([...collaborationChangedLineIds, ...collaborationDeletedLineIds])
-        const missingChangedLineIds = [...collaborationLineIds]
-          .filter((lineId) => collaborationBaseLineVersions[lineId] != null && !latestLineIds.has(lineId))
-        if (missingChangedLineIds.length) throw new WeightTicketCollaborationConflictError(missingChangedLineIds, [], {
-          baseLineVersions: collaborationBaseLineVersions,
-          baseUpdatedAt: collaborationBaseUpdatedAt,
-          changedLineIds: [...collaborationChangedLineIds],
-          currentLineVersions: Object.fromEntries(latestLines.map((line) => [String(line.id), line.version])),
-          scope: values.saveScope === 'section' ? 'section' : 'document',
-        })
-        // Every persisted line mutation is guarded by the exact version from
-        // the client baseline. Actor identity does not weaken this check:
-        // another tab, retry, or background request from the same user is a
-        // separate write and must reload after a conflict.
-        const conflictingLineIds = latestLines
-          .filter((line) => collaborationLineIds.has(String(line.id)))
-          .filter((line) => {
-            const baseVersion = collaborationBaseLineVersions[String(line.id)]
-            return baseVersion == null || line.version !== baseVersion
-          })
-          .map((line) => String(line.id))
-        if (conflictingLineIds.length) throw new WeightTicketCollaborationConflictError(conflictingLineIds, [], {
-          baseLineVersions: collaborationBaseLineVersions,
-          baseUpdatedAt: collaborationBaseUpdatedAt,
-          changedLineIds: [...collaborationChangedLineIds],
-          currentLineVersions: Object.fromEntries(latestLines.map((line) => [String(line.id), line.version])),
-          scope: values.saveScope === 'section' ? 'section' : 'document',
-        })
         const latestLineByClientId = new Map<string, (typeof latestLines)[number]>()
         latestLines.forEach((line) => {
           latestLineByClientId.set(String(line.id), line)
+          if (line.client_line_id) latestLineByClientId.set(line.client_line_id, line)
         })
         const lineIdByLineNo = new Map(latestLines.map((line) => {
           const incomingLine = values.lines.find((valueLine) => latestLineByClientId.get(valueLine.id)?.id === line.id)
@@ -843,7 +883,7 @@ async function updateWeightTicket(
         }))
         const latestLineById = new Map(latestLines.map((line) => [String(line.id), line] as const))
         const mergeLine = (valueLine: (typeof values.lines)[number]) => {
-          if (collaborationChangedLineIds.has(valueLine.id)) return valueLine
+          if (effectiveCollaborationChangedLineIds.has(valueLine.id)) return valueLine
           const latestLine = latestLineById.get(valueLine.id)
           return latestLine ? persistedLineToFormLine(latestLine, lineIdByLineNo) : null
         }
@@ -853,13 +893,22 @@ async function updateWeightTicket(
             .filter((lineId): lineId is bigint => lineId != null),
         )
         const wasInBase = (line: (typeof latestLines)[number]) => collaborationBaseLineIds.has(String(line.id))
-        const submittedLines = values.lines.map(mergeLine).filter((line): line is (typeof values.lines)[number] => line != null)
+        const submittedLines = values.lines
+          .map(mergeLine)
+          .filter((line): line is (typeof values.lines)[number] => line != null && !collaborationDeletedLineIds.has(line.id))
         const persistedLines = latestLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo))
         const remoteOnlyLines = latestLines.filter((line) => !incomingExistingIds.has(line.id) && !wasInBase(line))
         effectiveValues = {
           ...effectiveValues,
           lines: values.saveScope === 'section'
-            ? mergeWeightTicketSectionLines(persistedLines, submittedLines, sectionExistingLineIds)
+            ? mergeWeightTicketSectionLinesByChangeSet(
+                persistedLines,
+                submittedLines,
+                sectionExistingLineIds,
+                collaborationBaseLineIds,
+                effectiveCollaborationChangedLineIds,
+                collaborationDeletedLineIds,
+              )
             : [
                 ...submittedLines,
                 ...remoteOnlyLines.map((line) => persistedLineToFormLine(line, lineIdByLineNo)),
@@ -908,6 +957,7 @@ async function updateWeightTicket(
           saveScope: values.saveScope,
           wasInBase,
         })
+        resolvedDeletedLineIds = removedLineIds.map((lineId) => String(lineId))
         if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
         // Two-phase write: line_no is unique per ticket, so updates that
         // renumber rows (a deletion or reorder shifts every following line)
@@ -922,7 +972,7 @@ async function updateWeightTicket(
                 clientId: valueLine.id,
                 currentLineId: currentLine.id,
                 data,
-                isChanged: collaborationChangedLineIds.has(String(currentLine.id)),
+                isChanged: effectiveCollaborationChangedLineIds.has(String(currentLine.id)),
                 kind: 'update' as const,
               }
             : { clientId: valueLine.id, data, kind: 'create' as const }
@@ -954,11 +1004,20 @@ async function updateWeightTicket(
             })
             persistedLinePairs.push([step.clientId, String(step.currentLineId)])
           } else {
-            const createdLine = await tx.weight_ticket_lines.create({ data: { ...sequencedLineRows[index], line_no: index + 1 } })
+            const createdLine = await tx.weight_ticket_lines.create({
+              data: {
+                ...sequencedLineRows[index],
+                client_line_id: step.clientId,
+                line_no: index + 1,
+              },
+            })
             persistedLinePairs.push([step.clientId, String(createdLine.id)])
           }
         }
-        lineIdMap = Object.fromEntries(persistedLinePairs)
+        lineIdMap = {
+          ...Object.fromEntries(persistedClientLineIdMap),
+          ...Object.fromEntries(persistedLinePairs),
+        }
         createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
       } else if (isDeliveredWtoEdit && !shouldRebuildWtoPendingOut) {
         const existingLineByLineNo = new Map(existing.weight_ticket_lines.map((line) => [line.line_no, line] as const))
@@ -966,6 +1025,7 @@ async function updateWeightTicket(
         const removedLineIds = existing.weight_ticket_lines
           .filter((line) => !retainedLineNos.has(line.line_no))
           .map((line) => line.id)
+        resolvedDeletedLineIds = removedLineIds.map((lineId) => String(lineId))
         if (removedLineIds.length) await tx.weight_ticket_lines.deleteMany({ where: { id: { in: removedLineIds } } })
         // Two-phase write so renumbering cannot violate the (ticket, line_no)
         // unique constraint mid-flight (see the collaboration branch above).
@@ -1008,13 +1068,23 @@ async function updateWeightTicket(
             })
             persistedLinePairs.push([step.clientId, String(step.currentLineId)])
           } else {
-            const createdLine = await tx.weight_ticket_lines.create({ data: { ...sequencedDeliveredLineRows[index], line_no: index + 1 } })
+            const createdLine = await tx.weight_ticket_lines.create({
+              data: {
+                ...sequencedDeliveredLineRows[index],
+                client_line_id: step.clientId,
+                line_no: index + 1,
+              },
+            })
             persistedLinePairs.push([step.clientId, String(createdLine.id)])
           }
         }
-        lineIdMap = Object.fromEntries(persistedLinePairs)
+        lineIdMap = {
+          ...Object.fromEntries(persistedClientLineIdMap),
+          ...Object.fromEntries(persistedLinePairs),
+        }
         createdLines = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
       } else {
+        resolvedDeletedLineIds = [...collaborationDeletedLineIds]
         const existingLineById = new Map(existing.weight_ticket_lines.map((line) => [String(line.id), line] as const))
         const sequencedLineRows = await assignWeightTicketLotSequences(
           tx,
@@ -1022,19 +1092,43 @@ async function updateWeightTicket(
           lineRows.map((data, index) => ({ data, existingLotSeq: existingLineById.get(effectiveValues.lines[index].id)?.lot_seq })),
         )
         await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
-        createdLines = await Promise.all(sequencedLineRows.map((data) => tx.weight_ticket_lines.create({ data })))
-        lineIdMap = Object.fromEntries(effectiveValues.lines.map((line, index) => [line.id, String(createdLines[index].id)]))
+        const rebuildLineRows = sequencedLineRows.map((data, index) => {
+          const line = effectiveValues.lines[index]
+          const existingLine = existingLineById.get(line.id)
+          return {
+            ...data,
+            client_line_id: existingLine?.client_line_id ?? (existingLine ? null : line.id),
+          }
+        })
+        createdLines = await Promise.all(rebuildLineRows.map((data) => tx.weight_ticket_lines.create({ data })))
+        lineIdMap = Object.fromEntries(effectiveValues.lines.flatMap((line, index) => {
+          const newId = String(createdLines[index].id)
+          const existingLine = existingLineById.get(line.id)
+          const durableClientId = existingLine?.client_line_id ?? (existingLine ? null : line.id)
+          return [
+            [line.id, newId] as const,
+            ...(durableClientId && durableClientId !== line.id ? [[durableClientId, newId] as const] : []),
+          ]
+        }))
       }
-      const deletedLineIdsForEvent = new Set(collaborationDeletedLineIds)
-      const unresolvedChangedLineIds = [...collaborationChangedLineIds]
-        .filter((lineId) => !deletedLineIdsForEvent.has(lineId) && !lineIdMap[lineId])
+      // Keep the request's delete set for write-set validation (a line that
+      // was already deleted remotely must not remain as an unresolved local
+      // change), but broadcast only the IDs that this transaction actually
+      // removed.
+      const requestedDeletedLineIds = new Set(collaborationDeletedLineIds)
+      const unresolvedChangedLineIds = selectWeightTicketUnresolvedChangedLineIds(
+        effectiveCollaborationChangedLineIds,
+        requestedDeletedLineIds,
+        collaborationBaseLineIds,
+        lineIdMap,
+      )
       if (unresolvedChangedLineIds.length) {
         throw new WeightTicketDataContractError(`ไม่สามารถระบุรายการที่เปลี่ยนแปลงหลังบันทึก: ${unresolvedChangedLineIds.join(', ')}`)
       }
       const resolvedChangedLineIds = [...new Set(
-        [...collaborationChangedLineIds]
-          .filter((lineId) => !deletedLineIdsForEvent.has(lineId))
-          .map((lineId) => lineIdMap[lineId]),
+        [...effectiveCollaborationChangedLineIds]
+          .filter((lineId) => !requestedDeletedLineIds.has(lineId) && Boolean(lineIdMap[lineId]))
+          .map((lineId) => lineIdMap[lineId] as string),
       )]
       if (effectiveValues.type === 'WTO' && effectiveValues.saveScope !== 'header') {
         await validateWeightTicketStockForWrite(tx, {
@@ -1193,14 +1287,31 @@ async function updateWeightTicket(
         include: ticketInclude,
         where: { id: existing.id },
       })
-      return { beforeSnapshot, eventLineIds: resolvedChangedLineIds, imageChanged, lineIdMap, previousDocumentNo, previousHeader: currentHeader, ticket }
+      return {
+        beforeSnapshot,
+        eventDeletedLineIds: resolvedDeletedLineIds,
+        eventLineIds: resolvedChangedLineIds,
+        ignoredRemoteDeletedLineIds: [...remoteDeletedChangedLineIds],
+        imageChanged,
+        lineIdMap,
+        previousDocumentNo,
+        previousHeader: currentHeader,
+        ticket,
+      }
     })
 
     const updated = updateResult.ticket
     const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
     const beforeSnapshot = updateResult.beforeSnapshot
+    const eventDeletedLineIds = updateResult.eventDeletedLineIds
     const eventLineIds = updateResult.eventLineIds
+    if (updateResult.ignoredRemoteDeletedLineIds.length) {
+      console.info('[weight-ticket-realtime] patch.remote_delete_noop', {
+        documentNo: mapped.documentNo,
+        ignoredLineIds: updateResult.ignoredRemoteDeletedLineIds,
+      })
+    }
     const imageChanged = updateResult.imageChanged
     const eventHeaderFields = (['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'] as const).filter((field) => {
       if (!changedHeaderFields.has(field)) return false
@@ -1242,7 +1353,7 @@ async function updateWeightTicket(
       changeType: 'updated' as const,
       updatedAt: mapped.updatedAt,
       lineIds: eventLineIds,
-      deletedLineIds: [...collaborationDeletedLineIds],
+      deletedLineIds: eventDeletedLineIds,
       changedHeaderFields: eventHeaderFields,
       imageChanged,
     }
@@ -1250,7 +1361,7 @@ async function updateWeightTicket(
       documentNo: mapped.documentNo,
       changedLineIds: [...collaborationChangedLineIds],
       eventLineIds,
-      deletedLineIds: [...collaborationDeletedLineIds],
+      deletedLineIds: eventDeletedLineIds,
       changedHeaderFields: eventHeaderFields,
     })
     const previousBranchId = updateResult.previousHeader.branchId
@@ -1325,31 +1436,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, usage)) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: mutableTicketErrorMessage('edit', usage) }, { status: 400 })
       }
-      const deletedIds = new Set(deleteLines.data.deletedLineIds)
-      const missingBaseLineVersions = [...deletedIds].filter((lineId) => deleteLines.data.collaborationBaseLineVersions[lineId] == null)
+      const missingBaseLineVersions = deleteLines.data.deletedLineIds.filter((lineId) => deleteLines.data.collaborationBaseLineVersions[lineId] == null)
       if (missingBaseLineVersions.length) {
         return NextResponse.json({
           code: 'BAD_REQUEST',
           error: 'ข้อมูล baseline ของเต๋าที่ต้องการลบไม่ครบ กรุณาโหลดข้อมูลล่าสุดก่อนลบ',
         }, { status: 400 })
       }
-      const existingIds = new Set(existing.weight_ticket_lines.map((line) => String(line.id)))
-      const missingIds = [...deletedIds].filter((lineId) => !existingIds.has(lineId))
-      if (missingIds.length) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบเต๋าที่ต้องการลบ' }, { status: 404 })
-      const versionConflicts = [...deletedIds].filter((lineId) => {
-        const line = existing.weight_ticket_lines.find((entry) => String(entry.id) === lineId)
-        const expected = deleteLines.data.collaborationBaseLineVersions[String(line?.id)]
-        return line && expected != null && line.version !== expected
-      })
-      if (versionConflicts.length) throw new WeightTicketCollaborationConflictError(versionConflicts, [], {
-        baseLineVersions: deleteLines.data.collaborationBaseLineVersions,
-        baseUpdatedAt: deleteLines.data.collaborationBaseUpdatedAt,
-        changedLineIds: versionConflicts,
-        currentLineVersions: Object.fromEntries(existing.weight_ticket_lines.map((line) => [String(line.id), line.version])),
-        deletedLineIds: [...deletedIds],
-        operation: 'delete_lines',
-        scope: 'lines',
-      })
       const actor = currentActor(auth)
       const updateResult = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`select pg_advisory_xact_lock(${existing.id})`
@@ -1364,9 +1457,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
         }
         conflictDocumentNo = locked.doc_no
-        if (deleteLines.data.collaborationBaseUpdatedAt !== locked.updated_at.toISOString()) {
+        const persistedClientLineIdMap = new Map(
+          locked.weight_ticket_lines
+            .filter((line) => Boolean(line.client_line_id))
+            .map((line) => [line.client_line_id as string, String(line.id)] as const),
+        )
+        const resolvedDelete = resolveWeightTicketDeleteClientIds(
+          deleteLines.data.deletedLineIds,
+          deleteLines.data.collaborationBaseLineVersions,
+          persistedClientLineIdMap,
+        )
+        const deletedIds = new Set(resolvedDelete.deletedLineIds)
+        const baseLineVersions = resolvedDelete.collaborationBaseLineVersions
+        const isDeliveredWtoDelete = locked.doc_type === 'WTO' && locked.status === 'delivered'
+        if (isDeliveredWtoDelete && deleteLines.data.collaborationBaseUpdatedAt !== locked.updated_at.toISOString()) {
           throw new WeightTicketCollaborationConflictError([...deletedIds], [], {
-            baseLineVersions: deleteLines.data.collaborationBaseLineVersions,
+            baseLineVersions,
             baseUpdatedAt: deleteLines.data.collaborationBaseUpdatedAt,
             changedLineIds: [...deletedIds],
             currentLineVersions: Object.fromEntries(locked.weight_ticket_lines.map((line) => [String(line.id), line.version])),
@@ -1376,43 +1482,57 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           })
         }
         const lockedLines = new Map(locked.weight_ticket_lines.map((line) => [String(line.id), line] as const))
-        const lockedConflicts = [...deletedIds].filter((lineId) => {
-          const line = lockedLines.get(lineId)
-          const expected = deleteLines.data.collaborationBaseLineVersions[lineId]
-          return !line || (expected != null && line.version !== expected)
-        })
-        if (lockedConflicts.length) throw new WeightTicketCollaborationConflictError(lockedConflicts, [], {
-          baseLineVersions: deleteLines.data.collaborationBaseLineVersions,
-          baseUpdatedAt: deleteLines.data.collaborationBaseUpdatedAt,
-          changedLineIds: lockedConflicts,
-          currentLineVersions: Object.fromEntries(locked.weight_ticket_lines.map((line) => [String(line.id), line.version])),
-          deletedLineIds: [...deletedIds],
-          operation: 'delete_lines',
-          scope: 'lines',
-        })
-        await tx.weight_ticket_lines.deleteMany({ where: { id: { in: [...deletedIds].map((lineId) => BigInt(lineId)) }, weight_ticket_id: existing.id } })
-        const remaining = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
-        if (remaining.length) {
-          await tx.weight_ticket_lines.updateMany({ data: { line_no: { increment: 1000000 } }, where: { weight_ticket_id: existing.id } })
-          for (const [index, line] of remaining.entries()) await tx.weight_ticket_lines.update({ data: { line_no: index + 1 }, where: { id: line.id } })
+        if (isDeliveredWtoDelete) {
+          const lockedConflicts = [...deletedIds].filter((lineId) => {
+            const line = lockedLines.get(lineId)
+            const expected = baseLineVersions[lineId]
+            return !line || (expected != null && line.version !== expected)
+          })
+          if (lockedConflicts.length) throw new WeightTicketCollaborationConflictError(lockedConflicts, [], {
+            baseLineVersions,
+            baseUpdatedAt: deleteLines.data.collaborationBaseUpdatedAt,
+            changedLineIds: lockedConflicts,
+            currentLineVersions: Object.fromEntries(locked.weight_ticket_lines.map((line) => [String(line.id), line.version])),
+            deletedLineIds: [...deletedIds],
+            operation: 'delete_lines',
+            scope: 'lines',
+          })
+        }
+        // Draft line deletes are idempotent last-writer-wins operations. A
+        // line removed by another user is already in the requested final
+        // state, while a line that still exists is deleted by this request
+        // regardless of its newer version.
+        const lockedDeletedIds = [...deletedIds].filter((lineId) => lockedLines.has(lineId))
+        if (lockedDeletedIds.length) {
+          await tx.weight_ticket_lines.deleteMany({ where: { id: { in: lockedDeletedIds.map((lineId) => BigInt(lineId)) }, weight_ticket_id: existing.id } })
+          const remaining = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
+          if (remaining.length) {
+            await tx.weight_ticket_lines.updateMany({ data: { line_no: { increment: 1000000 } }, where: { weight_ticket_id: existing.id } })
+            for (const [index, line] of remaining.entries()) await tx.weight_ticket_lines.update({ data: { line_no: index + 1 }, where: { id: line.id } })
+          }
         }
         return {
-          imageChanged: [...deletedIds].some((lineId) => (lockedLines.get(lineId)?.image_names?.length ?? 0) > 0),
-          ticket: await tx.weight_tickets.update({ data: { updated_at: new Date(), updated_by: actor }, include: ticketInclude, where: { id: locked.id } }),
+          deletedLineIds: lockedDeletedIds,
+          imageChanged: lockedDeletedIds.some((lineId) => (lockedLines.get(lineId)?.image_names?.length ?? 0) > 0),
+          ticket: lockedDeletedIds.length
+            ? await tx.weight_tickets.update({ data: { updated_at: new Date(), updated_by: actor }, include: ticketInclude, where: { id: locked.id } })
+            : locked,
         }
       })
       const updated = updateResult.ticket
       const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
       const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
       const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.updatedBy])
-      after(() => publishWeightTicketChange({
-        branchId: mapped.branchId,
-        changeType: 'deleted_lines',
-        documentNo: mapped.documentNo,
-        updatedAt: mapped.updatedAt,
-        deletedLineIds: deleteLines.data.deletedLineIds,
-        imageChanged: updateResult.imageChanged,
-      }))
+      if (updateResult.deletedLineIds.length) {
+        after(() => publishWeightTicketChange({
+          branchId: mapped.branchId,
+          changeType: 'deleted_lines',
+          documentNo: mapped.documentNo,
+          updatedAt: mapped.updatedAt,
+          deletedLineIds: updateResult.deletedLineIds,
+          imageChanged: updateResult.imageChanged,
+        }))
+      }
       return NextResponse.json({ ...mapped, createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames), lineIdMap: {}, serverNow: new Date().toISOString(), updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames) })
     }
 
