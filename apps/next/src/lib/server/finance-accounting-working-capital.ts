@@ -8,6 +8,7 @@ import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 import { calculateWorkingCapitalDays } from './working-capital-formulas'
+import { roundMoney, sumClassifiedAssets } from './finance-accounting-asset-classification'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const DAY_MS = 86_400_000
@@ -260,6 +261,20 @@ async function stockSnapshot(asOf: Date, branchIds?: bigint[] | null) {
   }
 }
 
+async function fixedAssetSnapshot(asOf: Date, branchId?: bigint | null) {
+  const assets = await prisma.assets.findMany({
+    include: { depreciations: { where: { date: { lte: endOfDay(asOf) } } } },
+    orderBy: [{ code: 'asc' }],
+    take: 10000,
+    where: branchWhere(branchId),
+  })
+  return assets.reduce((sum, asset) => {
+    const cost = toNumber(asset.net_asset_cost) || (toNumber(asset.original_cost) - toNumber(asset.vat_amount))
+    const accumulatedDepreciation = asset.depreciations.reduce((depSum, depreciation) => depSum + toNumber(depreciation.amount), 0)
+    return sum + Math.max(toNumber(asset.salvage_value), cost - accumulatedDepreciation)
+  }, 0)
+}
+
 async function workingInputs(filter: PeriodDaysFilter) {
   const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
   const from = addDays(filter.asOf, -filter.periodDays + 1)
@@ -276,6 +291,7 @@ async function workingInputs(filter: PeriodDaysFilter) {
     stockSnapshot(previousTo, branchRef?.id ? [branchRef.id] : null),
     stockSnapshot(addDays(previousFrom, -1), branchRef?.id ? [branchRef.id] : null),
     cashAsOf(filter.asOf, branchRef?.id ?? null),
+    fixedAssetSnapshot(filter.asOf, branchRef?.id ?? null),
     reportProfitCostTotals(from, to, branchRef?.id ?? null),
     reportProfitCostTotals(previousFrom, previousTo, branchRef?.id ?? null),
     listBranches(),
@@ -301,7 +317,7 @@ async function reportProfitCostTotals(from: Date, to: Date, branchId?: bigint | 
 }
 
 export async function buildWorkingCapital(filter: PeriodDaysFilter) {
-  const [salesAsOf, purchasesAsOf, schedules, stock, openingStock, previousStock, previousOpeningStock, cash, totals, previousTotals, branches] = await workingInputs(filter)
+  const [salesAsOf, purchasesAsOf, schedules, stock, openingStock, previousStock, previousOpeningStock, cash, fixedAssets, totals, previousTotals, branches] = await workingInputs(filter)
   type SalesAsOfRow = (typeof salesAsOf)[number]
   type PurchaseAsOfRow = (typeof purchasesAsOf)[number]
   type ScheduleRow = (typeof schedules)[number]
@@ -309,8 +325,16 @@ export async function buildWorkingCapital(filter: PeriodDaysFilter) {
   const ap = purchasesAsOf.reduce((sum: number, bill: PurchaseAsOfRow) => sum + Math.max(0, toNumber(bill.payable_balance) || toNumber(bill.total_amount) - toNumber(bill.paid_amount)), 0)
   const currentLoan = schedules.reduce((sum: number, row: ScheduleRow) => sum + Math.max(0, toNumber(row.principal_amount) - toNumber(row.paid_amount)), 0)
   const { apDays, arDays, averageInventory, ccc, invDays } = calculateWorkingCapitalDays({ ap, ar, beginningInventory: openingStock.totalValue, cogs: totals.cogs, endingInventory: stock.totalValue, periodDays: filter.periodDays, purchases: totals.purchases, revenue: totals.revenue })
-  const currentAssets = cash + ar + stock.totalValue
-  const currentLiab = ap + currentLoan
+  const assetTotals = sumClassifiedAssets([
+    { amount: cash, source: 'cash_bank' },
+    { amount: ar, source: 'accounts_receivable' },
+    { amount: stock.totalValue, source: 'inventory' },
+    { amount: fixedAssets, source: 'fixed_asset' },
+  ])
+  const currentAssets = roundMoney(assetTotals.current)
+  const nonCurrentAssets = roundMoney(assetTotals.non_current)
+  const unclassifiedAssets = roundMoney(assetTotals.unclassified)
+  const currentLiab = roundMoney(ap + currentLoan)
   const currentRatio = currentLiab > 0 ? currentAssets / currentLiab : 0
   const quickRatio = currentLiab > 0 ? (cash + ar) / currentLiab : 0
   const stockTurnover = averageInventory > 0 ? totals.cogs / averageInventory : 0
@@ -331,11 +355,13 @@ export async function buildWorkingCapital(filter: PeriodDaysFilter) {
       { label: 'Cash & Bank', value: cash },
       { label: 'Current Loan (12m)', value: currentLoan },
       { label: 'Current Assets', tone: 'purple', value: currentAssets },
+      ...(nonCurrentAssets > 0 ? [{ label: 'Non-current Assets', tone: 'purple', value: nonCurrentAssets }] : []),
+      ...(unclassifiedAssets > 0 ? [{ label: 'Unclassified Assets', tone: 'amber', value: unclassifiedAssets }] : []),
       { label: 'Current Liabilities', tone: 'purple', value: currentLiab },
     ],
     filters: { asOf: dateOnly(filter.asOf), branchId: filter.branchId ?? 'ALL', from: dateOnly(addDays(filter.asOf, -filter.periodDays + 1)), periodDays: filter.periodDays },
-    sourceState: sourceState(['Working Capital COGS, revenue, and purchases use report_profit_cost_daily; this read model must be backfilled and reconciled before the report is trusted.']),
-    summary: { annualizedTurnover, ap, apDays, ar, arDays, cash, ccc, cogs: totals.cogs, currentAssets, currentLiab, currentLoan, currentRatio, inv: stock.totalValue, invDays, prevCcc, purchases: totals.purchases, quickRatio, revenue: totals.revenue, stockTurnover, trend },
+    sourceState: sourceState(['Working Capital COGS, revenue, and purchases use report_profit_cost_daily; this read model must be backfilled and reconciled before the report is trusted.', 'Asset classification is temporary and derives from operational tables until GL journals and COA are available.']),
+    summary: { annualizedTurnover, ap, apDays, ar, arDays, cash, ccc, cogs: totals.cogs, currentAssets, currentLiab, currentLoan, currentRatio, inv: stock.totalValue, invDays, nonCurrentAssets, prevCcc, purchases: totals.purchases, quickRatio, revenue: totals.revenue, stockTurnover, trend, unclassifiedAssets },
   }
 }
 
