@@ -68,6 +68,7 @@ function line(
     warehouseId: '',
     warehouseName: '',
     warehouseType: '',
+    version: 1,
     ...overrides,
   }
 }

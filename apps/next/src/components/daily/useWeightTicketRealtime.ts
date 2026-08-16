@@ -2,7 +2,13 @@
 
 import { useEffect, useRef } from 'react'
 import { getSupabaseClient } from '@/lib/supabase'
-import { isWeightTicketChangeEvent, weightTicketRealtimeChannel, type WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
+import { isWeightTicketChangeEvent, mergeWeightTicketChangeEvents, weightTicketRealtimeChannel, type WeightTicketChangeEvent } from '@/lib/weight-ticket-realtime'
+
+export function shouldWarnWeightTicketRealtimeStatus(status: string, disposed = false) {
+  // CLOSED is expected only after this hook has explicitly disposed the
+  // channel. A live CLOSED status is a real subscription failure.
+  return !disposed && status !== 'SUBSCRIBED'
+}
 
 export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEvent) => void, enabled = true, branchIds: string[] = []) {
   const onChangeRef = useRef(onChange)
@@ -34,11 +40,7 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
       const key = `${branchId}:${payload.documentNo}`
       const pending = pendingEvents.get(key)
       if (pending) {
-        pending.event = {
-          ...payload,
-          lineIds: Array.from(new Set([...(pending.event.lineIds ?? []), ...(payload.lineIds ?? [])])),
-          imageChanged: pending.event.imageChanged === true || payload.imageChanged === true,
-        }
+        pending.event = mergeWeightTicketChangeEvents(pending.event, payload)
         return
       }
       const timeoutId = setTimeout(() => {
@@ -99,7 +101,7 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
             errorName: error?.name,
             errorMessage: error?.message,
           })
-          if (status !== 'SUBSCRIBED') {
+          if (shouldWarnWeightTicketRealtimeStatus(status, disposed)) {
             console.warn('[weight-ticket-realtime] subscription failed', {
               branchId,
               subscriptionId,

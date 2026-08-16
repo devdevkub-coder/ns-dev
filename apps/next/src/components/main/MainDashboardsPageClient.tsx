@@ -35,7 +35,7 @@ type MainPayload = {
     historical: { cogs: number; expenses: number; revenue: number; rows: number }
     kpi: Record<string, number>
     kpiDelta?: Record<string, { amount: number; pct: number }>
-    monthlyTrend: { expense: number; gp: number; label: string; purchase: number; sales: number }[]
+    monthlyTrend: { cogs: number; expense: number; gp: number; label: string; purchase: number; sales: number }[]
     sections: {
       cash: Record<string, number>
       purchase: Record<string, number>
@@ -663,7 +663,7 @@ function DashboardView(props: {
         </div>
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
           <DashboardChartCard title="รายได้เทียบค่าใช้จ่ายรายเดือน">
-            <BarRows rows={(data?.dashboard.monthlyTrend ?? []).flatMap((row) => [{ label: `${monthLabel(row.label)} รายได้`, value: row.sales }, { label: `${monthLabel(row.label)} ค่าใช้จ่าย`, value: row.expense + Math.max(0, row.sales - row.gp) }])} />
+            <BarRows rows={(data?.dashboard.monthlyTrend ?? []).flatMap((row) => [{ label: `${monthLabel(row.label)} รายได้`, value: row.sales }, { label: `${monthLabel(row.label)} ค่าใช้จ่าย`, value: row.expense + row.cogs }])} />
           </DashboardChartCard>
           <DashboardChartCard title="ภาพรวมกระแสเงินสด">
             <BarRows rows={(data?.dashboard.cashComposition ?? []).map((row) => ({ label: row.label, value: row.value }))} />

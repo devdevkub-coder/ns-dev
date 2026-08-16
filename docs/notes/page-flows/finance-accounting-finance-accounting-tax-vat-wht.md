@@ -97,6 +97,14 @@ P2 proof completed against current Next page/API code. Remaining work is formula
 - ตาราง VAT/WHT ยังคงอ่านข้อมูลเดิม แต่จัดคอลัมน์แรกชิดซ้ายและทุกคอลัมน์ถัดไปชิดขวา พร้อมใช้ชื่อปุ่มคืนค่าคอลัมน์และน้ำหนักตัวอักษรเดียวกับ list baseline
 - เหตุผล: หน้าเป็น read-only report จึงต้องให้ผู้ใช้เห็นตัวกรอง, สรุป, และตารางในลำดับเดียวกับ `/stock/convert` โดยไม่เปลี่ยนสูตรภาษีหรือเงื่อนไข API
 
+## VAT Reconciliation Checkpoint 2026-08-15
+
+- VAT ขายยังใช้ `sales_bills.vat_amount` เป็นยอดจริงจาก transaction และไม่คำนวณทดแทนจากรายได้รวม
+- เอกสาร `vat_type = NONE` หรือไม่มีสถานะ taxable จะไม่เข้า VAT base แต่ยังอยู่ในรายได้ก่อน VAT
+- เอกสารที่เป็น taxable แต่ `vat_amount <= 0` จะยังแสดงในรายการ VAT ขายพร้อมสถานะให้ตรวจสอบ แทนการถูกกรองทิ้งเงียบ ๆ
+- API แยก `salesRevenueBase`, `vatSalesBase`, และ `vatOutputAnomalyCount` เพื่อให้ผู้ใช้ reconcile รายได้กับฐาน VAT ได้
+- เหตุผล: รายได้รวมอาจมีรายการยกเว้น VAT; การคูณรายได้ด้วย 7% โดยอัตโนมัติจะสร้างยอดภาษีที่ไม่ใช่ source-of-truth และเสี่ยงต่อการยื่นภาษีผิด
+
 ## Implementation Checklist
 
 - [x] Verify current API response shape and source tables

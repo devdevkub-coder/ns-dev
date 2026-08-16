@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { SpeedInsights } from '@vercel/speed-insights/next'
 import { AppShell } from '@/components/layout/AppShell'
 import { ThemeProvider } from '@/components/theme-provider'
 import { FormSafetyProvider } from '@/components/ui/FormSafetyProvider'
@@ -33,7 +32,6 @@ export default function RootLayout({
             <AppShell>{children}</AppShell>
           </FormSafetyProvider>
         </ThemeProvider>
-        <SpeedInsights />
       </body>
     </html>
   )

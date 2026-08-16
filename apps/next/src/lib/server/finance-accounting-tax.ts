@@ -20,6 +20,9 @@ type TaxItem = {
   no: string
   party: string
   source: string
+  vatApplicable?: boolean
+  vatAnomaly?: boolean
+  vatType?: string | null
   vat?: number
   wht?: number
 }
@@ -62,6 +65,17 @@ function branchWhere(branchId?: bigint | null) {
 
 function exVat(total: number | { toNumber: () => number } | null | undefined, vat: number | { toNumber: () => number } | null | undefined) {
   return Math.max(0, toNumber(total) - toNumber(vat))
+}
+
+export function isSalesVatApplicable(input: { has_vat?: boolean | null; vat_type?: string | null }) {
+  const vatType = input.vat_type?.trim().toUpperCase()
+  if (vatType === 'NONE') return false
+  if (vatType === 'INCLUDE' || vatType === 'EXCLUDE') return true
+  return input.has_vat === true
+}
+
+function hasText(value: string | null | undefined) {
+  return Boolean(value?.trim())
 }
 
 function dueDate(year: number, month: number, day: number) {
@@ -118,15 +132,19 @@ async function loadPeriod(filter: TaxFilter) {
 function salesVatOutput(rows: SalesBill[]): TaxItem[] {
   return rows.map((bill) => {
     const vat = toNumber(bill.vat_amount)
+    const vatApplicable = isSalesVatApplicable(bill)
     return {
       base: toNumber(bill.subtotal) || exVat(bill.total_amount, bill.vat_amount),
       date: dateOnly(bill.date),
       no: bill.doc_no,
       party: bill.customers?.name ?? bill.contact_name ?? '-',
       source: 'sales_bills',
+      vatApplicable,
+      vatAnomaly: vatApplicable && vat <= 0,
+      vatType: bill.vat_type,
       vat,
     }
-  }).filter((item) => item.vat && item.vat > 0)
+  }).filter((item) => item.vatApplicable)
 }
 
 function purchaseVatInput(rows: PurchaseBill[]): TaxItem[] {
@@ -135,7 +153,7 @@ function purchaseVatInput(rows: PurchaseBill[]): TaxItem[] {
     return {
       base: toNumber(bill.subtotal) || exVat(bill.total_amount, bill.vat_amount),
       date: dateOnly(bill.date),
-      hasDoc: Boolean(bill.vat_invoice_received || bill.vat_invoice_no),
+      hasDoc: Boolean(bill.vat_invoice_received || hasText(bill.vat_invoice_no) || hasText(bill.tax_invoice_no)),
       no: bill.doc_no,
       party: bill.suppliers?.name ?? bill.contact_name ?? '-',
       source: 'purchase_bills',
@@ -246,6 +264,8 @@ export async function buildTaxVatWht(filter: TaxFilter) {
   const whtWithheldItems = receiptWht(receipts)
   const vatOut = sum(vatOutputItems, 'vat')
   const vatIn = sum(vatInputItems, 'vat')
+  const salesRevenueBase = sales.reduce((total, bill) => total + exVat(bill.total_amount, bill.vat_amount), 0)
+  const vatSalesBase = vatOutputItems.reduce((total, item) => total + item.base, 0)
   const months = Array.from({ length: 6 }, (_, index) => {
     const date = new Date(filter.year, filter.month - 1 - (5 - index), 1)
     return { month: date.getMonth() + 1, year: date.getFullYear() }
@@ -265,6 +285,7 @@ export async function buildTaxVatWht(filter: TaxFilter) {
       basis: 'Transaction tax source from transaction tax fields. Not a statutory filing ledger.',
       limitations: [
         'ยังไม่มี normalized tax ledger, PP30/PND filing state, approval/locking, หรือ GL payable posting',
+        'VAT ขายใช้ vat_amount จริง; เอกสาร taxable ที่ VAT เป็นศูนย์จะถูกแสดงเป็นรายการต้องตรวจสอบ ไม่คำนวณแทนจากรายได้',
         'VAT input ใช้ purchase_bills และ expenses ที่มี VAT amount; เอกสารครบอ้างอิง vat_invoice/tax_invoice fields เท่านั้น',
         'WHT ใช้ payments/customer_receipts/expenses withholding fields แบบ transaction-derived; customer receipt ใช้ยอด settlement THB ที่บันทึกแล้ว',
       ],
@@ -272,6 +293,9 @@ export async function buildTaxVatWht(filter: TaxFilter) {
     },
     summary: {
       missingCount: vatInputItems.filter((item) => !item.hasDoc).length,
+      salesRevenueBase,
+      vatSalesBase,
+      vatOutputAnomalyCount: vatOutputItems.filter((item) => item.vatAnomaly).length,
       vatIn,
       vatOut,
       vatPayable: vatOut - vatIn,

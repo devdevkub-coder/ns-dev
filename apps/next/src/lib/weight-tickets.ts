@@ -53,6 +53,7 @@ export type WeightTicketRecordLine = WeightTicketLine & {
   productName: string
   warehouseName: string
   warehouseType: string
+  version: number
 }
 
 export type WeightTicketProductSummary = {
@@ -137,6 +138,7 @@ export type WeightTicketRecord = {
   pendingOutHistory: WeightTicketPendingOutHistory[]
   productSummaries: WeightTicketProductSummary[]
   remark: string
+  serverNow?: string
   status: WeightTicketStatus
   totals: {
     containerDeductionWeight: number
@@ -369,22 +371,59 @@ export function isWeightTicketDraftLotSkeleton(line: Pick<WeightTicketLinePayloa
     && !line.impuritySourceLineId
 }
 
+const weightTicketCollaborationHeaderSchema = z.object({
+  branchId: z.string().trim().min(1).max(80),
+  partyId: z.string().trim().min(1).max(80),
+  remark: z.string().max(500),
+  vehicleImageNames: z.array(attachmentValueSchema),
+  vehicleNo: z.string().max(24),
+  godownName: z.string().max(100),
+})
+
+const weightTicketCollaborationHeaderFieldSchema = z.enum(['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'])
+
+function collaborationBaselineIssues(input: {
+  collaborationBaseLineIds: string[]
+  collaborationBaseLineVersions: Record<string, number>
+  deletedLineIds: string[]
+  deletedLineIdsField: 'deletedLineIds' | 'collaborationDeletedLineIds'
+}) {
+  const issues: Array<{ message: string; path: string }> = []
+  const baselineIds = new Set(input.collaborationBaseLineIds)
+  const versionIds = Object.keys(input.collaborationBaseLineVersions)
+  if (baselineIds.size !== input.collaborationBaseLineIds.length || versionIds.length !== baselineIds.size || versionIds.some((lineId) => !baselineIds.has(lineId))) {
+    issues.push({
+      message: 'baseline ของรายการสินค้าไม่ครบหรือไม่ตรงกัน',
+      path: 'collaborationBaseLineVersions',
+    })
+  }
+  const deletedLineIds = new Set(input.deletedLineIds)
+  if (deletedLineIds.size !== input.deletedLineIds.length) {
+    issues.push({
+      message: 'รายการที่ลบซ้ำกัน',
+      path: input.deletedLineIdsField,
+    })
+  }
+  const deletedLineIdsOutsideBaseline = input.deletedLineIds.filter((lineId) => (
+    !baselineIds.has(lineId) || input.collaborationBaseLineVersions[lineId] == null
+  ))
+  if (deletedLineIdsOutsideBaseline.length) {
+    issues.push({
+      message: 'รายการที่ลบต้องอยู่ใน baseline และมี version ครบ',
+      path: input.deletedLineIdsField,
+    })
+  }
+  return issues
+}
+
 export const weightTicketFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
-  collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
   collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()).optional(),
   collaborationChangedLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   collaborationDeletedLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
-  collaborationBaseHeader: z.object({
-    branchId: z.string().trim().min(1).max(80),
-    partyId: z.string().trim().min(1).max(80),
-    remark: z.string().max(500),
-    vehicleImageNames: z.array(attachmentValueSchema),
-    vehicleNo: z.string().max(24),
-    godownName: z.string().max(100),
-  }).optional(),
-  collaborationChangedHeaderFields: z.array(z.enum(['branchId', 'partyId', 'remark', 'vehicleImageNames', 'vehicleNo', 'godownName'])).optional(),
+  collaborationBaseHeader: weightTicketCollaborationHeaderSchema.optional(),
+  collaborationChangedHeaderFields: z.array(weightTicketCollaborationHeaderFieldSchema).optional(),
   collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
   draftLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
@@ -414,17 +453,19 @@ export const weightTicketFormSchema = z.object({
     if (!value.sectionLineIds?.length) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ไม่พบขอบเขต section ที่ต้องการบันทึก', path: ['sectionLineIds'] })
     }
-    const sectionIds = new Set(value.sectionLineIds ?? [])
-    value.lines.forEach((line, index) => {
-      if (!sectionIds.has(line.id)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'รายการอยู่นอก section ที่กำลังบันทึก', path: ['lines', index, 'id'] })
-      }
-    })
-    ;(value.collaborationDeletedLineIds ?? []).forEach((lineId, index) => {
-      if (!sectionIds.has(lineId)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'รายการที่ลบอยู่นอก section ที่กำลังบันทึก', path: ['collaborationDeletedLineIds', index] })
-      }
-    })
+    if (value.sectionLineIds) {
+      const sectionIds = new Set(value.sectionLineIds)
+      value.lines.forEach((line, index) => {
+        if (!sectionIds.has(line.id)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'รายการอยู่นอก section ที่กำลังบันทึก', path: ['lines', index, 'id'] })
+        }
+      })
+      value.collaborationDeletedLineIds?.forEach((lineId, index) => {
+        if (!sectionIds.has(lineId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'รายการที่ลบอยู่นอก section ที่กำลังบันทึก', path: ['collaborationDeletedLineIds', index] })
+        }
+      })
+    }
   }
   if (value.type === 'WTO' && value.lines.length === 0 && value.saveScope !== 'header' && value.saveScope !== 'section') {
     ctx.addIssue({
@@ -539,6 +580,26 @@ export const weightTicketFormSchema = z.object({
   })
 })
 
+export const weightTicketUpdateSchema = weightTicketFormSchema.and(z.object({
+  collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)),
+  collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()),
+  collaborationChangedLineIds: z.array(z.string().trim().min(1).max(80)),
+  collaborationDeletedLineIds: z.array(z.string().trim().min(1).max(80)),
+  collaborationBaseHeader: weightTicketCollaborationHeaderSchema,
+  collaborationChangedHeaderFields: z.array(weightTicketCollaborationHeaderFieldSchema),
+  collaborationBaseUpdatedAt: z.string().datetime(),
+  draftLineIds: z.array(z.string().trim().min(1).max(80)),
+  sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
+  id: z.string().trim().min(1).max(80),
+})).superRefine((value, ctx) => {
+  collaborationBaselineIssues({
+    collaborationBaseLineIds: value.collaborationBaseLineIds,
+    collaborationBaseLineVersions: value.collaborationBaseLineVersions,
+    deletedLineIds: value.collaborationDeletedLineIds,
+    deletedLineIdsField: 'collaborationDeletedLineIds',
+  }).forEach((issue) => ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: [issue.path] }))
+})
+
 export const weightTicketIncrementalPatchSchema = z.object({
   operation: z.literal('save_changes'),
   scope: z.enum(['header', 'section', 'document']),
@@ -557,16 +618,48 @@ export const weightTicketIncrementalPatchSchema = z.object({
     vehicleImageNames: z.array(attachmentValueSchema).optional(),
     vehicleNo: z.string().trim().min(2).max(24).optional(),
     godownName: z.string().max(100).optional(),
-  }).default({}),
-  lines: z.array(weightTicketLinePayloadSchema).default([]),
-  deletedLineIds: z.array(z.string().trim().min(1).max(80)).default([]),
+  }),
+  lines: z.array(weightTicketLinePayloadSchema),
+  deletedLineIds: z.array(z.string().trim().min(1).max(80)),
   sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
-  collaborationBaseDocumentNo: z.string().trim().max(80).optional(),
-  collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
-  collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()).optional(),
-  collaborationChangedLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
-  collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
-  draftLineIds: z.array(z.string().trim().min(1).max(80)).default([]),
+  collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)),
+  collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()),
+  collaborationChangedLineIds: z.array(z.string().trim().min(1).max(80)),
+  collaborationBaseUpdatedAt: z.string().datetime(),
+  draftLineIds: z.array(z.string().trim().min(1).max(80)),
+}).superRefine((value, ctx) => {
+  collaborationBaselineIssues({
+    collaborationBaseLineIds: value.collaborationBaseLineIds,
+    collaborationBaseLineVersions: value.collaborationBaseLineVersions,
+    deletedLineIds: value.deletedLineIds,
+    deletedLineIdsField: 'deletedLineIds',
+  }).forEach((issue) => ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: [issue.path] }))
+  if (value.scope === 'section' && (!value.sectionLineIds || value.sectionLineIds.length === 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'ต้องระบุรายการของ section ที่กำลังบันทึก',
+      path: ['sectionLineIds'],
+    })
+  }
+  if (value.scope === 'section' && value.sectionLineIds) {
+    const sectionLineIds = new Set(value.sectionLineIds)
+    const submittedLineIds = new Set(value.lines.map((line) => line.id))
+    value.collaborationChangedLineIds.forEach((lineId, index) => {
+      if (!sectionLineIds.has(lineId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'รายการที่เปลี่ยนแปลงอยู่นอก section ที่กำลังบันทึก',
+          path: ['collaborationChangedLineIds', index],
+        })
+      } else if (!submittedLineIds.has(lineId) && !value.deletedLineIds.includes(lineId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'ไม่พบข้อมูลของรายการที่เปลี่ยนแปลง',
+          path: ['collaborationChangedLineIds', index],
+        })
+      }
+    })
+  }
 })
 
 export type WeightTicketIncrementalPatch = z.infer<typeof weightTicketIncrementalPatchSchema>
@@ -575,7 +668,16 @@ export const weightTicketDeleteLinesSchema = z.object({
   operation: z.literal('delete_lines'),
   deletedLineIds: z.array(z.string().trim().min(1).max(80)).min(1),
   collaborationBaseLineVersions: z.record(z.string().trim().min(1).max(80), z.number().int().positive()),
-  collaborationBaseUpdatedAt: z.string().datetime().nullable().optional(),
+  collaborationBaseUpdatedAt: z.string().datetime(),
+}).superRefine((value, ctx) => {
+  const missingLineIds = value.deletedLineIds.filter((lineId) => value.collaborationBaseLineVersions[lineId] == null)
+  if (missingLineIds.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'ไม่มี baseline version ของรายการที่ต้องการลบ',
+      path: ['collaborationBaseLineVersions'],
+    })
+  }
 })
 
 export type WeightTicketDeleteLines = z.infer<typeof weightTicketDeleteLinesSchema>
@@ -606,7 +708,7 @@ const weightTicketRecordLineSchema = z.object({
   warehouseId: z.string(),
   warehouseName: z.string(),
   warehouseType: z.string(),
-  version: z.number().int().positive().default(1),
+  version: z.number().int().positive(),
 })
 
 const weightTicketTimelineSchema = z.object({
@@ -722,6 +824,7 @@ export const weightTicketRecordSchema = z.object({
   pendingOutHistory: z.array(weightTicketPendingOutHistorySchema).default([]),
   productSummaries: z.array(weightTicketProductSummarySchema).default([]),
   remark: z.string(),
+  serverNow: z.string().datetime().optional(),
   status: statusEnum,
   totals: z.object({
     containerDeductionWeight: z.number().default(0),
@@ -794,6 +897,14 @@ export const weightTicketConfirmSchema = z.object({
 })
 
 export type WeightTicketFormValues = z.infer<typeof weightTicketFormSchema>
+export type WeightTicketUpdateValues = z.infer<typeof weightTicketUpdateSchema>
+
+export function selectWeightTicketPatchLines<T extends { id: string }>(
+  lines: readonly T[],
+  changedLineIds: ReadonlySet<string>,
+) {
+  return lines.filter((line) => changedLineIds.has(line.id))
+}
 
 export function createWeightTicketLine(id = createClientUuid()): WeightTicketLine {
   return {
@@ -1374,7 +1485,9 @@ function payloadFromForm(values: WeightTicketFormValues) {
 }
 
 export async function saveWeightTicket(values: WeightTicketFormValues) {
-  const parsed = weightTicketFormSchema.parse(values)
+  const parsed = values.id
+    ? weightTicketUpdateSchema.parse(values)
+    : weightTicketFormSchema.parse(values)
   const method = parsed.id ? 'PUT' : 'POST'
   const path = parsed.id ? `/api/daily/weight-tickets/${encodeURIComponent(parsed.id)}` : '/api/daily/weight-tickets'
   const response = await fetch(path, {
@@ -1393,8 +1506,31 @@ export async function patchWeightTicketChanges(
   id: string,
   values: WeightTicketFormValues,
 ) {
-  const changedLineIds = new Set(values.collaborationChangedLineIds ?? values.lines.map((line) => line.id))
-  const changedHeaderFields = new Set(values.collaborationChangedHeaderFields ?? [])
+  const baseLineIds = values.collaborationBaseLineIds
+  const baseLineVersions = values.collaborationBaseLineVersions
+  if (baseLineIds === undefined || baseLineVersions === undefined) {
+    throw new Error('ไม่สามารถบันทึกการเปลี่ยนแปลงโดยไม่มี baseline ของรายการสินค้า')
+  }
+  if (values.collaborationChangedLineIds === undefined) {
+    throw new Error('ไม่สามารถบันทึกการเปลี่ยนแปลงโดยไม่มีรายการที่เปลี่ยนแปลง')
+  }
+  if (values.collaborationDeletedLineIds === undefined) {
+    throw new Error('ไม่สามารถบันทึกการเปลี่ยนแปลงโดยไม่มีรายการที่ลบ')
+  }
+  if (values.collaborationChangedHeaderFields === undefined) {
+    throw new Error('ไม่สามารถบันทึกการเปลี่ยนแปลงโดยไม่มีรายการส่วนหัวที่เปลี่ยนแปลง')
+  }
+  if (values.collaborationBaseHeader === undefined) {
+    throw new Error('ไม่สามารถบันทึกการเปลี่ยนแปลงโดยไม่มี baseline ส่วนหัวเอกสาร')
+  }
+  if (values.draftLineIds === undefined) {
+    throw new Error('ไม่สามารถบันทึกการเปลี่ยนแปลงโดยไม่มีรายการเต๋าร่าง')
+  }
+  if (!values.collaborationBaseUpdatedAt) {
+    throw new Error('ไม่สามารถบันทึกการเปลี่ยนแปลงโดยไม่มีเวลา baseline ของเอกสาร')
+  }
+  const changedLineIds = new Set(values.collaborationChangedLineIds)
+  const changedHeaderFields = new Set(values.collaborationChangedHeaderFields)
   const parsed = weightTicketIncrementalPatchSchema.parse({
     operation: 'save_changes',
     scope: values.saveScope === 'section' ? 'section' : values.saveScope === 'header' ? 'header' : 'document',
@@ -1407,12 +1543,15 @@ export async function patchWeightTicketChanges(
       ...(changedHeaderFields.has('vehicleNo') ? { vehicleNo: values.vehicleNo } : {}),
       ...(changedHeaderFields.has('godownName') ? { godownName: values.godownName } : {}),
     },
-    lines: values.lines.filter((line) => changedLineIds.has(line.id)),
-    deletedLineIds: values.collaborationDeletedLineIds ?? [],
+    // The form keeps the complete section locally for validation and merge
+    // context, but the network PATCH carries only the changed line records.
+    // The server rebuilds the effective section from its latest locked state,
+    // so unchanged siblings are preserved without being re-sent by the client.
+    lines: selectWeightTicketPatchLines(values.lines, changedLineIds),
+    deletedLineIds: values.collaborationDeletedLineIds,
     sectionLineIds: values.sectionLineIds,
-    collaborationBaseDocumentNo: values.collaborationBaseDocumentNo,
-    collaborationBaseLineIds: values.collaborationBaseLineIds,
-    collaborationBaseLineVersions: values.collaborationBaseLineVersions,
+    collaborationBaseLineIds: baseLineIds,
+    collaborationBaseLineVersions: baseLineVersions,
     collaborationChangedLineIds: values.collaborationChangedLineIds,
     collaborationBaseUpdatedAt: values.collaborationBaseUpdatedAt,
     draftLineIds: values.draftLineIds,
@@ -1429,10 +1568,15 @@ export async function deleteWeightTicketLines(
   id: string,
   values: Pick<WeightTicketFormValues, 'collaborationBaseLineVersions' | 'collaborationBaseUpdatedAt' | 'collaborationDeletedLineIds'>,
 ) {
+  const deletedLineIds = values.collaborationDeletedLineIds
+  const baseLineVersions = values.collaborationBaseLineVersions
+  if (!deletedLineIds?.length) throw new Error('ไม่พบรายการที่ต้องการลบ')
+  if (!baseLineVersions) throw new Error('ไม่สามารถลบรายการโดยไม่มี baseline version')
+  if (!values.collaborationBaseUpdatedAt) throw new Error('ไม่สามารถลบรายการโดยไม่มีเวลา baseline ของเอกสาร')
   const parsed = weightTicketDeleteLinesSchema.parse({
     operation: 'delete_lines',
-    deletedLineIds: values.collaborationDeletedLineIds ?? [],
-    collaborationBaseLineVersions: values.collaborationBaseLineVersions ?? {},
+    deletedLineIds,
+    collaborationBaseLineVersions: baseLineVersions,
     collaborationBaseUpdatedAt: values.collaborationBaseUpdatedAt,
   })
   const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}`, {

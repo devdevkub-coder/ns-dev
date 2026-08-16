@@ -28,14 +28,14 @@ const calendarColumns: Array<ResizableColumnDefinition<CalendarColumnKey>> = [
 ]
 
 type BranchRow = { code: string; id: string; name: string }
-type TaxItem = { base: number; date: string; hasDoc?: boolean; no: string; party: string; source: string; vat?: number; wht?: number }
+type TaxItem = { base: number; date: string; hasDoc?: boolean; no: string; party: string; source: string; vat?: number; vatApplicable?: boolean; vatAnomaly?: boolean; vatType?: string | null; wht?: number }
 type SourceState = { basis: string; limitations: string[]; writeActionsEnabled: false }
 
 type TaxPayload = {
   branches: BranchRow[]
   filters: { branchId: string; month: string; periodEnd: string; periodStart: string; year: string }
   sourceState: SourceState
-  summary: { missingCount: number; vatIn: number; vatOut: number; vatPayable: number; whtChargedNet: number; whtWithheldNet: number }
+  summary: { missingCount: number; salesRevenueBase: number; vatSalesBase: number; vatOutputAnomalyCount: number; vatIn: number; vatOut: number; vatPayable: number; whtChargedNet: number; whtWithheldNet: number }
   taxCalendar: Array<{ periodLabel: string; vIn: number; vOut: number; vatDue: string; vatPayable: number; wC: number; wW: number; whtDue: string }>
   vatInput: { items: TaxItem[] }
   vatOutput: { items: TaxItem[] }
@@ -244,6 +244,10 @@ export function TaxVatWhtPageClient() {
                     <MiniHero label="VAT ซื้อ" tone="blue" value={money(data.summary.vatIn)} />
                     <MiniHero label="VAT สุทธิ" tone={(data.summary.vatPayable ?? 0) >= 0 ? 'rose' : 'emerald'} value={money(data.summary.vatPayable)} />
                   </div>
+                  <div className="mt-4 grid gap-2 border-t border-slate-200 pt-4 text-xs text-slate-500 sm:grid-cols-2">
+                    <div className="flex justify-between gap-3"><span>รายได้ก่อน VAT</span><span className="font-semibold text-slate-700">{money(data.summary.salesRevenueBase)}</span></div>
+                    <div className="flex justify-between gap-3"><span>ฐานรายได้ที่ใช้ VAT</span><span className="font-semibold text-slate-700">{money(data.summary.vatSalesBase)}</span></div>
+                  </div>
                   <div className="mt-4 border-t border-slate-200 pt-4 text-xs leading-relaxed text-slate-500">
                     ช่วงข้อมูล {data.filters.periodStart} ถึง {data.filters.periodEnd}
                   </div>
@@ -257,6 +261,7 @@ export function TaxVatWhtPageClient() {
                 <WhtBox label="เราหักไว้ (ต้องนำส่ง ภงด.)" tone="amber" value={money(data.summary.whtChargedNet)} />
                 <WhtBox label="ลูกค้าหักจากเรา (เครดิตได้)" tone="purple" value={money(data.summary.whtWithheldNet)} />
                 <WhtBox label="เอกสารภาษีไม่ครบ" tone="red" value={`${data.summary.missingCount.toLocaleString('th-TH')} รายการ`} />
+                <WhtBox label="รายการ taxable ที่ VAT เป็นศูนย์" tone="red" value={`${data.summary.vatOutputAnomalyCount.toLocaleString('th-TH')} รายการ`} />
               </div>
             </Panel>
           </div>
@@ -290,7 +295,7 @@ export function TaxVatWhtPageClient() {
         </TabsList>
 
         <TabsContent value="vat-output">
-          <TaxTable isLoading={isLoading} rows={data?.vatOutput.items ?? []} title={`VAT ขาย — ${year}-${month}`} tone="emerald" valueKey="vat" tableKey="finance.tax.vat-output.v5" />
+          <TaxTable isLoading={isLoading} rows={data?.vatOutput.items ?? []} showVatStatus title={`VAT ขาย — ${year}-${month}`} tone="emerald" valueKey="vat" tableKey="finance.tax.vat-output.v6" />
         </TabsContent>
 
         <TabsContent value="vat-input">
@@ -446,7 +451,7 @@ function TaxLoadingState() {
   )
 }
 
-function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tableKey }: { hasDoc?: boolean; isLoading: boolean; rows: TaxItem[]; title: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; valueKey: 'vat' | 'wht'; tableKey: string }) {
+function TaxTable({ hasDoc = false, isLoading, rows, showVatStatus = false, title, tone, valueKey, tableKey }: { hasDoc?: boolean; isLoading: boolean; rows: TaxItem[]; showVatStatus?: boolean; title: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; valueKey: 'vat' | 'wht'; tableKey: string }) {
   const heading = { 
     amber: 'bg-amber-50/50 text-amber-700 border-amber-100', 
     blue: 'bg-blue-50/50 text-blue-700 border-blue-100', 
@@ -530,7 +535,9 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
       <div className="block lg:hidden divide-y divide-slate-100">
         {isLoading ? <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div> : null}
         {!isLoading && sortedRows.length === 0 ? <div className="py-8 text-center text-slate-400 text-xs">ยังไม่มีข้อมูล</div> : null}
-        {!isLoading && sortedRows.map((item) => (
+        {!isLoading && sortedRows.map((item) => {
+          const hasVatWarning = showVatStatus && item.vatAnomaly
+          return (
           <div key={`${item.source}-${item.no}`} className="p-3.5 space-y-2 text-xs">
             <div className="flex justify-between items-center">
               <span className="font-semibold text-slate-900">{item.party}</span>
@@ -546,10 +553,11 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
             </div>
             <div className="flex justify-between items-center pt-1.5 border-t border-slate-100/50">
               <span className="text-slate-400">ฐาน: {money(item.base)}</span>
-              <span className={`font-bold text-sm ${valueColor}`}>{valueKey === 'vat' ? 'VAT: ' : 'WHT: '}{money(item[valueKey])}</span>
+              <span className={`font-bold text-sm ${hasVatWarning ? 'text-rose-700' : valueColor}`} title={hasVatWarning ? 'เอกสารเป็น taxable แต่ VAT เป็นศูนย์ ต้องตรวจสอบข้อมูลต้นทาง' : undefined}>{hasVatWarning ? '⚠ ตรวจ VAT: ' : valueKey === 'vat' ? 'VAT: ' : 'WHT: '}{money(item[valueKey])}</span>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Desktop View */}
@@ -578,7 +586,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
                 <Td align="center"><span className="font-mono text-xs text-slate-600">{item.no}</span></Td>
                 <Td align="left" className="!whitespace-normal break-words max-w-[200px]">{item.party}</Td>
                 <Td align="right">{money(item.base)}</Td>
-                <Td align="right"><span className={`font-bold ${valueColor}`}>{money(item[valueKey])}</span></Td>
+                <Td align="right"><span className={`font-bold ${showVatStatus && item.vatAnomaly ? 'text-rose-700' : valueColor}`} title={showVatStatus && item.vatAnomaly ? 'เอกสารเป็น taxable แต่ VAT เป็นศูนย์ ต้องตรวจสอบข้อมูลต้นทาง' : undefined}>{showVatStatus && item.vatAnomaly ? '⚠ ' : ''}{money(item[valueKey])}</span></Td>
                 {hasDoc ? <Td align="center">{item.hasDoc ? '✓' : '✗ ขาด'}</Td> : null}
               </tr>
             ))}

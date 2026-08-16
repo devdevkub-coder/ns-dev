@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-08-15
 route: /finance-accounting/working-capital
 ---
 
@@ -90,6 +90,12 @@ finance/accounting read model: Working Capital Analysis
 ## Current Gap
 
 P2 proof completed against current Next page/API code. Remaining work is formula/source/cutoff refinement only when the target report definition changes or a page-specific discrepancy is found.
+
+## Formula / Source Contract
+
+- Revenue, COGS, and Purchases are summed from `report_profit_cost_daily` for the selected period and branch. The read model must be backfilled and pass reconciliation before this report is trusted.
+- `DIO = Average Inventory / COGS * Period Days`, where Average Inventory is `(opening inventory + ending inventory) / 2`.
+- `DSO = AR / Revenue * Period Days` and `DPO = AP / Purchases * Period Days`; therefore `CCC = DSO + DIO - DPO`.
 
 ## Implementation Checklist
 

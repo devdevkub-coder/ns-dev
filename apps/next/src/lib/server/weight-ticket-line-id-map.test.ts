@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { assignWeightTicketLotSequences, buildWeightTicketLineIdMap, mergeWeightTicketSectionLines, selectWeightTicketRemovedLineIds } from './weight-tickets'
+import {
+  assignWeightTicketLotSequences,
+  buildWeightTicketLineIdMap,
+  mergeWeightTicketSectionLines,
+  mergeWeightTicketSectionLinesByChangeSet,
+  resolveWeightTicketDeleteClientIds,
+  resolveWeightTicketLineClientIds,
+  selectWeightTicketRemoteDeletedChangedLineIds,
+  selectWeightTicketRemovedLineIds,
+  selectWeightTicketUnresolvedChangedLineIds,
+} from './weight-tickets'
 
 describe('buildWeightTicketLineIdMap', () => {
   it('maps each submitted client ID to the persisted line with the same line number', () => {
@@ -27,6 +37,55 @@ describe('buildWeightTicketLineIdMap', () => {
       ],
       [{ id: 101n, line_no: 1 }],
     )).toThrow('ไม่พบ persisted line สำหรับรายการที่ 2')
+  })
+})
+
+describe('resolveWeightTicketLineClientIds', () => {
+  it('reuses a persisted client identity for a retried new line and its relations', () => {
+    const resolved = resolveWeightTicketLineClientIds([
+      { id: 'client-lot', parentId: 'client-product', impuritySourceLineId: undefined },
+      { id: 'client-product', parentId: undefined, impuritySourceLineId: undefined },
+    ], new Map([
+      ['client-lot', '1002'],
+      ['client-product', '1001'],
+    ]))
+
+    expect(resolved.lines).toEqual([
+      { id: '1002', parentId: '1001', impuritySourceLineId: undefined },
+      { id: '1001', parentId: undefined, impuritySourceLineId: undefined },
+    ])
+    expect(resolved.lineIdMap).toEqual({ 'client-lot': '1002', 'client-product': '1001' })
+  })
+
+  it('leaves lines without a durable client identity unchanged', () => {
+    expect(resolveWeightTicketLineClientIds(
+      [{ id: '1001', parentId: undefined, impuritySourceLineId: undefined }],
+      new Map(),
+    ).lines).toEqual([{ id: '1001', parentId: undefined, impuritySourceLineId: undefined }])
+  })
+})
+
+describe('resolveWeightTicketDeleteClientIds', () => {
+  it('maps a retried delete from a client UUID to the persisted line id', () => {
+    expect(resolveWeightTicketDeleteClientIds(
+      ['client-lot'],
+      { 'client-lot': 3 },
+      new Map([['client-lot', '1002']]),
+    )).toEqual({
+      deletedLineIds: ['1002'],
+      collaborationBaseLineVersions: { '1002': 3 },
+    })
+  })
+
+  it('keeps an already persisted id unchanged when no client mapping exists', () => {
+    expect(resolveWeightTicketDeleteClientIds(
+      ['1002'],
+      { '1002': 3 },
+      new Map(),
+    )).toEqual({
+      deletedLineIds: ['1002'],
+      collaborationBaseLineVersions: { '1002': 3 },
+    })
   })
 })
 
@@ -80,6 +139,117 @@ describe('mergeWeightTicketSectionLines', () => {
       { id: '101', name: 'A lot 1' },
       { id: 'client-b-1', name: 'B lot 1' },
     ])
+  })
+})
+
+describe('mergeWeightTicketSectionLinesByChangeSet', () => {
+  it('keeps a remote lot added after the local baseline while applying the local lot change', () => {
+    expect(mergeWeightTicketSectionLinesByChangeSet(
+      [
+        { id: '101', name: 'A lot 1 current' },
+        { id: '102', name: 'A lot 2 current' },
+        { id: '103', name: 'A lot 3 added by another user' },
+        { id: '201', name: 'B lot 1 current' },
+      ],
+      [
+        { id: '101', name: 'A lot 1 edited locally' },
+        { id: '102', name: 'A lot 2 current from stale form' },
+        { id: 'client-a-3', name: 'A lot 3 added locally' },
+      ],
+      new Set(['101', '102', '103']),
+      new Set(['101', '102']),
+      new Set(['101', 'client-a-3']),
+      new Set(),
+    )).toEqual([
+      { id: '101', name: 'A lot 1 edited locally' },
+      { id: '102', name: 'A lot 2 current' },
+      { id: 'client-a-3', name: 'A lot 3 added locally' },
+      { id: '103', name: 'A lot 3 added by another user' },
+      { id: '201', name: 'B lot 1 current' },
+    ])
+  })
+
+  it('uses the latest request for the same persisted lot and removes only its explicit deletion', () => {
+    expect(mergeWeightTicketSectionLinesByChangeSet(
+      [
+        { id: '101', name: 'A lot 1 current' },
+        { id: '102', name: 'A lot 2 current' },
+        { id: '201', name: 'B lot 1 current' },
+      ],
+      [
+        { id: '101', name: 'A lot 1 latest request' },
+        { id: '102', name: 'A lot 2 stale request' },
+      ],
+      new Set(['101', '102']),
+      new Set(['101', '102']),
+      new Set(['101']),
+      new Set(['102']),
+    )).toEqual([
+      { id: '101', name: 'A lot 1 latest request' },
+      { id: '201', name: 'B lot 1 current' },
+    ])
+  })
+
+  it('does not recreate a baseline lot deleted remotely before the section save', () => {
+    expect(mergeWeightTicketSectionLinesByChangeSet(
+      [
+        { id: '201', name: 'B lot 1 current' },
+      ],
+      [
+        { id: '101', name: 'A lot 1 stale local edit' },
+        { id: '102', name: 'A lot 2 new local lot' },
+      ],
+      new Set(['101', '102']),
+      new Set(['101']),
+      new Set(['101', '102']),
+      new Set(),
+    )).toEqual([
+      { id: '201', name: 'B lot 1 current' },
+      { id: '102', name: 'A lot 2 new local lot' },
+    ])
+  })
+})
+
+describe('selectWeightTicketUnresolvedChangedLineIds', () => {
+  it('treats a baseline line deleted by another user as an LWW no-op', () => {
+    expect(selectWeightTicketUnresolvedChangedLineIds(
+      new Set(['101', 'client-new']),
+      new Set(),
+      new Set(['101']),
+      { 'client-new': '1001' },
+    )).toEqual([])
+  })
+
+  it('fails closed for an unmapped client line that was not in the baseline', () => {
+    expect(selectWeightTicketUnresolvedChangedLineIds(
+      new Set(['client-new']),
+      new Set(),
+      new Set(),
+      {},
+    )).toEqual(['client-new'])
+  })
+})
+
+describe('selectWeightTicketRemoteDeletedChangedLineIds', () => {
+  it('marks a missing persisted baseline line as a remote delete', () => {
+    expect(selectWeightTicketRemoteDeletedChangedLineIds(
+      ['101', 'client-new'],
+      new Set(['101']),
+      new Set(['201']),
+    )).toEqual(new Set(['101']))
+  })
+
+  it('does not treat a new client line or a current line as deleted', () => {
+    expect(selectWeightTicketRemoteDeletedChangedLineIds(
+      ['101', 'client-new'],
+      new Set(['101']),
+      new Set(['101']),
+    )).toEqual(new Set())
+    expect(selectWeightTicketRemoteDeletedChangedLineIds(
+      ['client-new'],
+      new Set(['101']),
+      new Set(['101']),
+    )).toEqual(new Set())
   })
 })
 

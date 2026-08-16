@@ -598,6 +598,7 @@ describe('weight ticket totals', () => {
       warehouseId: '',
       warehouseName: '',
       warehouseType: '',
+      version: 1,
       ...overrides,
     })
     const ticket = {

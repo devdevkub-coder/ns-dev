@@ -598,6 +598,40 @@ export function buildWeightTicketLineRows(
   })
 }
 
+export function resolveWeightTicketLineClientIds<T extends {
+  id: string
+  impuritySourceLineId?: string
+  parentId?: string
+}>(
+  lines: readonly T[],
+  clientLineIdMap: ReadonlyMap<string, string>,
+) {
+  const resolveId = (lineId: string | undefined) => lineId == null ? lineId : clientLineIdMap.get(lineId) ?? lineId
+  return {
+    lineIdMap: Object.fromEntries(clientLineIdMap),
+    lines: lines.map((line) => ({
+      ...line,
+      id: resolveId(line.id) as string,
+      impuritySourceLineId: resolveId(line.impuritySourceLineId),
+      parentId: resolveId(line.parentId),
+    })),
+  }
+}
+
+export function resolveWeightTicketDeleteClientIds(
+  deletedLineIds: readonly string[],
+  collaborationBaseLineVersions: Readonly<Record<string, number>>,
+  clientLineIdMap: ReadonlyMap<string, string>,
+) {
+  const resolveId = (lineId: string) => clientLineIdMap.get(lineId) ?? lineId
+  return {
+    deletedLineIds: deletedLineIds.map(resolveId),
+    collaborationBaseLineVersions: Object.fromEntries(
+      Object.entries(collaborationBaseLineVersions).map(([lineId, version]) => [resolveId(lineId), version]),
+    ),
+  }
+}
+
 /**
  * Assigns the immutable per-ticket lot sequence while the caller holds the
  * ticket advisory lock. `line_no` is presentation order and may be renumbered;
@@ -654,6 +688,102 @@ export function mergeWeightTicketSectionLines<T extends { id: string }>(
 
   if (!insertedSection) mergedLines.push(...submittedSectionLines)
   return mergedLines
+}
+
+/**
+ * Merge an incremental section PATCH against the rows locked by the server.
+ *
+ * The submitted section is a client snapshot, not an instruction to replace
+ * every row currently in that section. Only the changed IDs belong to the
+ * request's write set. This lets a later request win for the same row while
+ * retaining a row another user added after the client's baseline was loaded.
+ */
+export function mergeWeightTicketSectionLinesByChangeSet<T extends { id: string }>(
+  persistedLines: T[],
+  submittedSectionLines: T[],
+  sectionLineIds: ReadonlySet<string>,
+  baselineLineIds: ReadonlySet<string>,
+  changedLineIds: ReadonlySet<string>,
+  deletedLineIds: ReadonlySet<string>,
+) {
+  const persistedById = new Map(persistedLines.map((line) => [line.id, line] as const))
+  const submittedIds = new Set(submittedSectionLines.map((line) => line.id))
+  const resolvedSectionLines: T[] = []
+
+  submittedSectionLines.forEach((line) => {
+    if (deletedLineIds.has(line.id)) return
+    const persistedLine = persistedById.get(line.id)
+    if (!persistedLine && baselineLineIds.has(line.id)) return
+    resolvedSectionLines.push(
+      changedLineIds.has(line.id) || !persistedLine ? line : persistedLine,
+    )
+  })
+
+  // A remote-only row is part of the locked section but not part of the
+  // client's baseline/payload. Keep it instead of treating the stale payload
+  // as a section replacement.
+  persistedLines.forEach((line) => {
+    if (!sectionLineIds.has(line.id) || submittedIds.has(line.id) || deletedLineIds.has(line.id)) return
+    resolvedSectionLines.push(line)
+  })
+
+  const firstSectionIndex = persistedLines.findIndex((line) => sectionLineIds.has(line.id))
+  if (firstSectionIndex === -1) return [...persistedLines, ...resolvedSectionLines]
+
+  const mergedLines: T[] = []
+  let insertedSection = false
+  persistedLines.forEach((line, index) => {
+    if (!sectionLineIds.has(line.id)) {
+      mergedLines.push(line)
+      return
+    }
+    if (index === firstSectionIndex && !insertedSection) {
+      mergedLines.push(...resolvedSectionLines)
+      insertedSection = true
+    }
+  })
+
+  return mergedLines
+}
+
+/**
+ * Return changed client IDs that the locked write could not resolve.
+ *
+ * A baseline line that disappeared before this transaction is an already
+ * committed remote delete, so last-writer-wins treats it as a no-op. A new
+ * client ID that cannot be mapped is still a data-contract error and must not
+ * be silently ignored.
+ */
+export function selectWeightTicketUnresolvedChangedLineIds(
+  changedLineIds: ReadonlySet<string>,
+  requestedDeletedLineIds: ReadonlySet<string>,
+  baselineLineIds: ReadonlySet<string>,
+  lineIdMap: Readonly<Record<string, string>>,
+) {
+  return [...changedLineIds].filter((lineId) => (
+    !requestedDeletedLineIds.has(lineId)
+    && !lineIdMap[lineId]
+    && !baselineLineIds.has(lineId)
+  ))
+}
+
+/**
+ * A persisted line that was in the client's baseline but is absent from the
+ * locked transaction snapshot was deleted by another writer. It must not be
+ * treated as a new line just because the stale client still submits its UUID.
+ * Temporary client IDs are intentionally excluded so a genuinely new line
+ * can still be created by the same PATCH.
+ */
+export function selectWeightTicketRemoteDeletedChangedLineIds(
+  changedLineIds: Iterable<string>,
+  baselineLineIds: ReadonlySet<string>,
+  currentLineIds: ReadonlySet<string>,
+) {
+  return new Set(
+    [...new Set(changedLineIds)].filter((lineId) => (
+      baselineLineIds.has(lineId) && !currentLineIds.has(lineId)
+    )),
+  )
 }
 
 export function selectWeightTicketRemovedLineIds<T extends { id: bigint }>(
@@ -1099,7 +1229,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     // Persisted line identity must survive document renumbering and branch
     // changes. The DB line id is immutable; line_no remains presentation/order.
     id: String(line.id),
-    version: line.version ?? 1,
+    version: line.version,
     imageCount: line.image_count ?? 0,
     imageNames: line.image_names ?? [],
     impurityId: line.impurity_id == null

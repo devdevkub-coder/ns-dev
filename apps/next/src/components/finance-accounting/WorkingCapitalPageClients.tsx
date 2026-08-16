@@ -37,12 +37,14 @@ type WorkingPayload = {
     currentRatio: number
     inv: number
     invDays: number
+    nonCurrentAssets: number
     prevCcc: number
     purchases: number
     quickRatio: number
     revenue: number
     stockTurnover: number
     trend: 'better' | 'same' | 'worse'
+    unclassifiedAssets: number
   }
 }
 type StockProduct = { ageDays: number; code: string; daysSinceSale: number; id: string; metalGroup: string; name: string; qty: number; status: string; value: number; wac: number }
@@ -350,6 +352,7 @@ export function WorkingCapitalPageClient() {
           </div>
         </Panel>
       </div>
+      <AssetClassificationPanel summary={s} />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Insight tone="amber" title="เงินจมในสต็อกกี่วัน" value={`${(s?.invDays ?? 0).toFixed(0)} วัน`} body={`เอามูลค่าสต็อก ${money(s?.inv)} เทียบกับต้นทุนขายเฉลี่ยต่อวัน ${money((s?.cogs ?? 0) / periodDays)}`} />
         <Insight tone="blue" title="ลูกหนี้เก็บเงินกี่วัน" value={`${(s?.arDays ?? 0).toFixed(0)} วัน`} body={`เอายอดลูกหนี้ ${money(s?.ar)} เทียบกับยอดขายเฉลี่ยต่อวัน ${money((s?.revenue ?? 0) / periodDays)}`} />
@@ -737,6 +740,29 @@ function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; on
 
 function Panel({ children, className = '', title }: { children: ReactNode; className?: string; title: string }) {
   return <div className={`rounded-xl border border-slate-100 bg-white p-4 shadow-sm ${className}`}><div className="mb-3 text-xs font-bold text-slate-800">{title}</div>{children}</div>
+}
+
+function AssetClassificationPanel({ summary }: { summary?: WorkingPayload['summary'] }) {
+  const unclassified = summary?.unclassifiedAssets ?? 0
+  return (
+    <Panel title="โครงสร้างสินทรัพย์">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+        <AssetClassificationCard label="Current Assets" description="เงินสด + ลูกหนี้ + สินค้าคงคลัง" tone="blue" value={summary?.currentAssets ?? 0} />
+        <AssetClassificationCard label="Non-current Assets" description="สินทรัพย์ถาวรสุทธิ" tone="purple" value={summary?.nonCurrentAssets ?? 0} />
+        <AssetClassificationCard label="Unclassified Assets" description="รอจัดประเภทจาก COA/GL" tone="amber" value={unclassified} />
+      </div>
+      {unclassified > 0 ? <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">คำเตือน: มีสินทรัพย์ที่ยังไม่จัดประเภท {money(unclassified)} จึงยังไม่ถูกรวมใน Current Assets</div> : null}
+    </Panel>
+  )
+}
+
+function AssetClassificationCard({ description, label, tone, value }: { description: string; label: string; tone: 'amber' | 'blue' | 'purple'; value: number }) {
+  const styles = {
+    amber: 'border-amber-200 bg-amber-50/40 text-amber-800',
+    blue: 'border-blue-200 bg-blue-50/40 text-blue-800',
+    purple: 'border-purple-200 bg-purple-50/40 text-purple-800',
+  }
+  return <div className={`rounded-md border p-3 ${styles[tone]}`}><div className="text-xs font-bold">{label}</div><div className="mt-1 text-xl font-extrabold tracking-tight">{money(value)}</div><div className="mt-1 text-xs text-slate-500">{description}</div></div>
 }
 
 function BreakdownBar({ amount, label, max, tone, value }: { amount: number; label: string; max: number; tone: 'amber' | 'blue' | 'emerald'; value: number }) {

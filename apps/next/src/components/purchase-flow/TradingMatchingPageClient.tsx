@@ -95,6 +95,10 @@ function getRemainingSortValue(row: TradingPurchaseRow, key: RemainingColumnKey)
   return row[key]
 }
 
+function formatGrossProfitPct(row: Pick<TradingDealRow, 'grossProfitPct' | 'matchedSalesAmount'>) {
+  return row.matchedSalesAmount > 0 ? `${row.grossProfitPct.toFixed(2)}%` : '—'
+}
+
 export function TradingMatchingPageClient() {
   const [data, setData] = useState<TradingPayload | null>(null)
   const columnResize = useResizableColumns('trading.matching.allocations.v5', allocationColumns)
@@ -348,7 +352,7 @@ export function TradingMatchingPageClient() {
                       <td className="p-2.5 text-right text-red-700 font-semibold tabular-nums overflow-hidden truncate">{formatMoney(row.matchedPurchaseAmount)}</td>
                       <td className="p-2.5 text-right text-emerald-700 font-semibold tabular-nums overflow-hidden truncate">{formatMoney(row.matchedSalesAmount)}</td>
                       <td className={`p-2.5 text-right font-bold tabular-nums overflow-hidden truncate ${row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</td>
-                      <td className="p-2.5 text-right font-medium text-slate-505 tabular-nums overflow-hidden truncate">{row.grossProfitPct.toFixed(2)}%</td>
+                      <td className="p-2.5 text-right font-medium text-slate-505 tabular-nums overflow-hidden truncate">{formatGrossProfitPct(row)}</td>
                       <td className="whitespace-nowrap p-2.5 text-center overflow-hidden truncate">
                         <TableActionButton label="รายละเอียด" menu={<TableActionMenuItem onSelect={() => setSelectedDeal(row)}>รายละเอียด</TableActionMenuItem>} />
                       </td>
@@ -488,7 +492,7 @@ function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () 
           <div className="grid gap-3 rounded-xl border border-slate-100 bg-white p-5 shadow md:grid-cols-3">
             <Detail label="วันที่" value={deal.date || '-'} />
             <Detail label="จำนวน" value={formatMoney(deal.matchedQty)} />
-            <Detail label="GP %" value={`${formatMoney(deal.grossProfitPct)}%`} />
+            <Detail label="GP %" value={formatGrossProfitPct(deal)} />
             <div className="md:col-span-3">
               <Detail label="บิลซื้อ / ผู้ขาย" value={`${deal.purchaseBillNo || '-'} · ${deal.supplierName}`} />
             </div>
