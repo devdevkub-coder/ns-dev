@@ -241,7 +241,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     const row = daily.get(dayId(bill.date))
     if (!row) return
     const qty = purchaseBillItemQty(bill)
-    const amount = toNumber(bill.total_amount)
+    const amount = toNumber(bill.subtotal)
     row.purchaseAmount += amount
     row.purchaseQty += qty
     row.apIncrease += toNumber(bill.payable_balance) || amount
