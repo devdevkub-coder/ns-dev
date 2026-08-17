@@ -1024,11 +1024,23 @@ function formatInsightBody(value: string) {
     .replaceAll('30d', '30 วัน')
     .replaceAll('Burn rate', 'อัตราใช้เงินสด')
 
-  return localized.replace(/-?\d+(?:\.\d+)?/g, (match, offset) => {
+  return localized.replace(/[+-]?\d+(?:\.\d+)?/g, (match, offset) => {
+    const numericValue = Number(match)
+    const normalizedValue = Number.isFinite(numericValue) && Math.abs(numericValue) < 0.005 ? 0 : numericValue
     const following = localized.slice(offset + match.length).trimStart()
-    if (following.startsWith('วัน') || following.startsWith('d')) return Math.round(Number(match)).toLocaleString('th-TH')
-    if (following.startsWith('%')) return Number(match).toLocaleString('th-TH', { maximumFractionDigits: 1 })
-    return Number(match).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    if (normalizedValue === 0) return '0.00'
+    const explicitPlus = match.startsWith('+')
+    const absoluteValue = Math.abs(normalizedValue)
+    if (following.startsWith('วัน') || following.startsWith('d')) {
+      const formatted = Math.round(absoluteValue).toLocaleString('th-TH')
+      return normalizedValue < 0 ? `-${formatted}` : explicitPlus ? `+${formatted}` : formatted
+    }
+    if (following.startsWith('%')) {
+      const formatted = absoluteValue.toLocaleString('th-TH', { maximumFractionDigits: 1 })
+      return normalizedValue < 0 ? `-${formatted}` : explicitPlus ? `+${formatted}` : formatted
+    }
+    const formatted = absoluteValue.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return normalizedValue < 0 ? `-${formatted}` : explicitPlus ? `+${formatted}` : formatted
   })
 }
 

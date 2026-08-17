@@ -144,7 +144,8 @@ const approvalFilterOptions: Array<{ label: string; values: ApprovalStatus[] }> 
 const defaultApprovalStatusFilter: ApprovalStatus[] = ['pending']
 
 function formatDecimalWithGrouping(value: number) {
-  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const normalizedValue = Number.isFinite(value) && Math.abs(value) < 0.005 ? 0 : value
+  return normalizedValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function normalizeMoneyDraft(value: string) {

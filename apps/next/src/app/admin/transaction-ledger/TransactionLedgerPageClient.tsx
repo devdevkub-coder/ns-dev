@@ -84,7 +84,8 @@ const ledgerColumns: Array<ResizableColumnDefinition<LedgerColumnKey>> = [
 ]
 
 function formatMoney(value: number) {
-  return value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const normalizedValue = Number.isFinite(value) && Math.abs(value) < 0.005 ? 0 : value
+  return normalizedValue.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function accountIcon(type: string) {
