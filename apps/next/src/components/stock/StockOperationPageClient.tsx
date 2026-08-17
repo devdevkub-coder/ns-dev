@@ -13,7 +13,7 @@ import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
-import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
+import { dailyFetchJson, formatMoney, formatSignedMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay, formatThaiDateCE } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -1272,9 +1272,9 @@ function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
     const gainValue = gainRows.reduce((sum, row) => sum + signedAdjustValue(row), 0)
     return (
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4 text-sm">
-        <Metric emoji="📉" iconBg="bg-red-100 text-red-700" label="นับขาด (LOSS)" value={`-${formatMoney(lossQty)} กก.`} valueClassName="text-red-600" />
+        <Metric emoji="📉" iconBg="bg-red-100 text-red-700" label="นับขาด (LOSS)" value={`${formatSignedMoney(lossQty, '-')} กก.`} valueClassName="text-red-600" />
         <Metric emoji="💸" iconBg="bg-red-100 text-red-700" label="มูลค่าขาด (รวม)" value={formatMoney(lossValue)} valueClassName="text-red-600" />
-        <Metric emoji="📈" iconBg="bg-emerald-100 text-emerald-700" label="นับเกิน (GAIN)" value={`+${formatMoney(gainQty)} กก.`} valueClassName="text-emerald-700" />
+        <Metric emoji="📈" iconBg="bg-emerald-100 text-emerald-700" label="นับเกิน (GAIN)" value={`${formatSignedMoney(gainQty, '+')} กก.`} valueClassName="text-emerald-700" />
         <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่าเกิน (รวม)" value={formatMoney(gainValue)} valueClassName="text-emerald-700" />
       </div>
     )

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard, type KpiCardDelta, type KpiCardTone } from '@/components/ui/KpiCard'
-import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { dailyFetchJson, formatMoney, formatSignedMoney } from '@/lib/daily'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
@@ -1014,9 +1014,9 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-slate-800">เกิดขึ้นจริงวันนี้แล้ว</h3>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <Tile tone="emerald" label="รับเงินจริง" value={`+${money(actual?.cashIn)}`} />
-          <Tile tone="red" label="จ่ายผู้ขาย" value={`-${money(actual?.paymentOut)}`} />
-          <Tile tone="orange" label="ค่าใช้จ่าย" value={`-${money(actual?.expenseOut)}`} className="col-span-2 md:col-span-1" />
+          <Tile tone="emerald" label="รับเงินจริง" value={formatSignedMoney(actual?.cashIn, '+')} />
+          <Tile tone="red" label="จ่ายผู้ขาย" value={formatSignedMoney(actual?.paymentOut, '-')} />
+          <Tile tone="orange" label="ค่าใช้จ่าย" value={formatSignedMoney(actual?.expenseOut, '-')} className="col-span-2 md:col-span-1" />
         </div>
       </div>
 

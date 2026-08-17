@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
-import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { dailyFetchJson, formatMoney, formatSignedMoney } from '@/lib/daily'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { formatDateDisplay } from '@/lib/format'
@@ -1849,8 +1849,9 @@ function ImpactCard({ label, tone, value }: { label: string; tone: 'gain' | 'los
   }
 
   const isPositive = tone === 'gain' || tone === 'netGood'
-  const prefix = tone === 'gain' || tone === 'netGood' ? '+' : tone === 'loss' ? '-' : ''
-  return <SharedKpiCard icon={emoji} label={label} tone={isPositive ? 'emerald' : 'red'} value={`${prefix}${formatMoney(Math.abs(value))} ฿`} />
+  const prefix = tone === 'gain' || tone === 'netGood' ? '+' : tone === 'loss' ? '-' : null
+  const displayValue = prefix ? formatSignedMoney(value, prefix) : formatMoney(value)
+  return <SharedKpiCard icon={emoji} label={label} tone={isPositive ? 'emerald' : 'red'} value={`${displayValue} ฿`} />
 }
 
 function DashboardKpi({

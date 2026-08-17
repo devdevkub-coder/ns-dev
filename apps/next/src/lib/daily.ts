@@ -313,7 +313,15 @@ export async function dailyFetchJson<T>(url: string, init?: RequestInit): Promis
 }
 
 export function formatMoney(value: number | null | undefined) {
-  return (value ?? 0).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
+  const numericValue = value ?? 0
+  const normalizedValue = Number.isFinite(numericValue) && Math.abs(numericValue) < 0.005 ? 0 : numericValue
+  return normalizedValue.toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
+}
+
+export function formatSignedMoney(value: number | null | undefined, sign: '+' | '-') {
+  const numericValue = value ?? 0
+  if (Number.isFinite(numericValue) && Math.abs(numericValue) < 0.005) return formatMoney(0)
+  return `${sign}${formatMoney(Math.abs(numericValue))}`
 }
 
 export function todayDateInput() {
