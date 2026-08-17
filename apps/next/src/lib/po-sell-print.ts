@@ -23,6 +23,7 @@ export type PoSellPrintDocument = {
   createdBy: string
   docNo: string
   expectedDelivery: string
+  priceLockDate: string
   id: string
   items: PoSellPrintItem[]
   note: string | null
@@ -67,20 +68,6 @@ function dateDisplay(value: string | null | undefined) {
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleDateString('th-TH', {
     day: '2-digit',
-    month: '2-digit',
-    timeZone: 'Asia/Bangkok',
-    year: 'numeric',
-  })
-}
-
-function dateTimeDisplay(value: string | null | undefined) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
     month: '2-digit',
     timeZone: 'Asia/Bangkok',
     year: 'numeric',
@@ -182,7 +169,7 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
 
       <div class="signature-zone">
         <div class="signatures" data-signatures="final">
-          <div class="sig"><div>ผู้อนุมัติรายการ / Approved By</div><div class="sig-line">${escapeHtml(po.createdBy || '-')}</div><div style="font-size:12px;margin-top:2px">${escapeHtml(dateTimeDisplay(po.createdAt))}</div></div>
+          <div class="sig"><div>ผู้อนุมัติรายการ / Approved By</div><div class="sig-line">${escapeHtml(po.createdBy || '-')}</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
           <div class="sig"><div>ผู้ประสานงานขาย / Sales Coordinator</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
           <div class="sig"><div>ผู้ยืนยันใบสั่งจอง (ลูกค้า) / Confirmed By (Customer)</div><div class="sig-line">&nbsp;</div><div style="font-size:12px;margin-top:2px">วันที่ ______/______/______</div></div>
         </div>
@@ -226,8 +213,8 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
                   <div class="value font-mono">${escapeHtml(po.docNo)}</div>
                 </div>
                 <div class="kv">
-                  <div class="label">วันที่เอกสาร / Date</div>
-                  <div class="value">${escapeHtml(dateDisplay(po.createdAt))}</div>
+                  <div class="label">วันที่ล็อคราคา / Price Lock Date</div>
+                  <div class="value">${escapeHtml(dateDisplay(po.priceLockDate))}</div>
                 </div>
                 <div class="kv">
                   <div class="label">กำหนดส่งมอบ / Delivery Date</div>

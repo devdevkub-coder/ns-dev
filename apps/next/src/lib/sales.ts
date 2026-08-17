@@ -137,6 +137,7 @@ export const poSellFormSchema = z.object({
   branchId: optionalSafeId('สาขา'),
   channelId: optionalSafeId('ช่องทางขาย'),
   customerId: z.string().trim().min(1, 'เลือกลูกค้า').max(80, 'รหัสลูกค้ายาวเกินไป').regex(safeIdPattern, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง'),
+  priceLockDate: requiredDate,
   expectedDelivery: requiredDate,
   hasVat: z.boolean().optional().default(false),
   items: z.array(salesLineItemSchema.omit({ deductWeight: true, discount: true, grossWeight: true, netWeight: true, poSellId: true, salesProductId: true }).extend({ discount: money('ส่วนลด').default(0) })).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ').max(50, 'รายการสินค้ามากเกินไป'),

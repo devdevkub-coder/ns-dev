@@ -1,3 +1,25 @@
+## Active PO Sell price-lock date batch — 2026-08-17
+
+Objective: แยก `priceLockDate` (`po_sells.date`) ออกจาก `createdAt` (`created_at`) โดยให้วันที่ล็อคราคาเป็น business date ที่ผู้ใช้เลือกเองในฟอร์มและใช้ใน list/detail/filter/sort/export/print/เลขเอกสาร/VAT lookup; `created_at` คงเป็น audit เท่านั้น.
+
+Expected write areas: `apps/next/src/lib/sales.ts`, PO Sell API/UI/print modules and focused contracts, the PO Sell system-manual entry, plus `docs/notes/PO Sell Flow.md`. No migration, data backfill, downstream status change, browser UAT, push, or deploy is in scope. Existing unrelated WTI/WTO dirty files remain untouched.
+
+Validation required: focused schema/page/print tests, lint, type-check, production build, `git diff --check`, and final code review. Implementation assumption already approved in the design note: PO Sell document-number month/prefix and VAT effective-rate lookup use the selected price-lock date.
+
+Immediate next: finish implementation, inspect all PO Sell date consumers, run validation, and commit only the intended files when ready; do not push until explicitly requested.
+
+## Active WTI/WTO draft write-set and realtime checkpoint — 2026-08-16
+
+Active objective: ให้ `บันทึกสินค้านี้`, `เพิ่มเต๋าใหม่`, การบันทึกสิ่งเจือปน และการลบรายการใช้ PATCH แบบ targeted write set เดียวกัน โดย draft ใช้นโยบาย last-writer-wins ตาม persisted line ID (`weight_ticket_lines.id`) และไม่แจ้ง conflict ปลอมจากเต๋าอื่น.
+
+ล่าสุด: server merge เฉพาะ `collaborationChangedLineIds`/`collaborationDeletedLineIds`, เก็บ line ที่ผู้ใช้อื่นเพิ่มหลัง baseline, ลบ draft แบบ idempotent และ broadcast เฉพาะ line ที่ transaction เปลี่ยนจริง. เพิ่ม `client_line_id` เป็น identity ถาวรของ line ที่เริ่มจาก UUID ฝั่ง client เพื่อให้ retry หลัง response หาย map กลับไปยัง DB line เดิมได้ทั้ง update และ delete; การลบที่ส่ง UUID เดิมจึงไม่สร้าง line ซ้ำ และถ้าผู้ใช้อื่นลบไปแล้วจะเป็น no-op ที่ปลอดภัย. ถ้า UUID เดิมอยู่ใน baseline แต่หายจาก locked snapshot เพราะผู้ใช้อื่นลบไปแล้ว จะถูกตัดออกจาก effective write set และไม่ถูกสร้างกลับเป็น line ใหม่; client รับ `deletedLineIds` แล้วนำ line เดิมออกจากฟอร์มทันที. ปุ่ม `บันทึกสินค้านี้`/`บันทึกสิ่งเจือปนนี้` ส่ง line payload เฉพาะ write set หลังรวม realtime ล่าสุด; `เพิ่มเต๋าใหม่` ยังใช้เส้นทาง background save เดิมตามที่กำหนดไว้สำหรับ batch นี้. `saveSection` ใช้ interaction dirty set แทนการเทียบ fingerprint ของทั้ง section เพื่อไม่แจ้งเตือนทุกเต๋าเมื่อเพิ่มเพียงเต๋าเดียว. Header ที่ชนกันและ WTO `delivered` ยังคงมี guard; update/delete ต้อง lock transaction.
+
+Validation: focused WTI/WTO regression tests `132/132`, lint, type-check, production build และ `git diff --check` ผ่าน; `client_line_id` และ index ที่เกี่ยวข้องมีอยู่และ fingerprint ตรงกันทั้ง SIT/Production. Migration `add_weight_ticket_line_client_identity` ถูก apply/บันทึกในทั้งสองฐานข้อมูลด้วย migration version `20260816234948`; regenerate Prisma และ restart local port 3000 แล้ว. Browser UAT และ SIT push ยังไม่ได้ทำใน checkpoint นี้.
+
+Remaining risk: ต้อง push/deploy code batch นี้ขึ้น SIT แล้วทดสอบ authenticated two-user flow โดยเฉพาะเพิ่ม/แก้เต๋าเดียวกัน, เพิ่มเต๋าคนละคน, สิ่งเจือปน parent/child และ retry ลบหลังอีกคนลบไปแล้ว. Migration target ถูก apply แล้วทั้ง SIT/Production แต่ migration history ยังมี legacy entry ของ Production ที่ต่างจาก SIT อยู่หนึ่งรายการและยังไม่ได้ reconcile ใน batch นี้.
+
+Immediate next: ตรวจผล validation และ code review รอบสุดท้าย แล้วค่อย commit/push เมื่อผู้ใช้สั่ง.
+
 ## WTI/WTO detail-open latency optimization — 2026-08-14
 
 Active objective: ลดเวลารอเปิดหน้ารายละเอียด WTI/WTO โดยแยก core ticket จาก history และ signed thumbnail preview

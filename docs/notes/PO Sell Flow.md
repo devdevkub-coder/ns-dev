@@ -39,8 +39,8 @@ Legacy behavior to preserve unless a later requirement explicitly changes it:
 
 | Step | Actor | Action | Result |
 |---|---|---|---|
-| 1 | User | Opens `/sales/po-sell` and clicks create | Form opens with empty branch/customer/channel, one item row, and delivery date |
-| 2 | User | Selects branch first, then selects customer from customers mapped to that branch, delivery date, products, quantities, prices, and note | Client keeps Customer disabled until branch is selected, filters customer options by active `customer_branches`, auto-selects sales channel from `Customer.marketScope` (`ในประเทศ`/`ต่างประเทศ`), and validates required branch, customer, delivery date, at least one item, product, qty, and price |
+| 1 | User | Opens `/sales/po-sell` and clicks create | Form opens with empty branch/customer/channel, one item row, current `วันที่ล็อคราคา`, and delivery date |
+| 2 | User | Selects branch first, then selects customer from customers mapped to that branch, price-lock date, delivery date, products, quantities, prices, and note | Client keeps Customer disabled until branch is selected, filters customer options by active `customer_branches`, auto-selects sales channel from `Customer.marketScope` (`ในประเทศ`/`ต่างประเทศ`), and validates required branch, customer, price-lock date, delivery date, at least one item, product, qty, and price |
 | 3 | System | Saves through `POST /api/sales/po-sell` | Creates `po_sells` row with generated `POS...` doc no |
 | 4 | System | Stores item snapshot and totals | `items`, `qty`, `total_amount`, `remaining_qty`, and `remaining_amount` are initialized from submitted lines |
 | 5 | System | Sets initial status | `status = Open`, match status derives as `Not Matched` |
@@ -52,7 +52,7 @@ PO Sell follows the same operational rule as PO Buy: edit/cancel is allowed only
 
 | Action | Allowed When | System Result |
 |---|---|---|
-| Edit | `status = Open`, full quantity/value still remaining, no active downstream Sales Bill / PO Sell allocation, and Customer remains active in the target branch mapping | Updates customer/branch/channel/delivery date/items/totals and `updated_by` / `updated_at`; keeps the original doc no and created date |
+| Edit | `status = Open`, full quantity/value still remaining, no active downstream Sales Bill / PO Sell allocation, and Customer remains active in the target branch mapping | Updates customer/branch/channel/price-lock date/delivery date/items/totals and `updated_by` / `updated_at`; keeps the original doc no and immutable creation audit timestamp |
 | Cancel | `status = Open`, full quantity/value still remaining, and no active downstream Sales Bill / PO Sell allocation | Requires a cancel note, sets `status = Cancelled`, clears remaining quantity/value, keeps the original document for audit |
 
 The list UI keeps `แก้ไข` and `ยกเลิก` buttons visible on every row, but disables them with a reason when the row is no longer eligible.
@@ -74,14 +74,18 @@ The list UI keeps `แก้ไข` and `ยกเลิก` buttons visible on 
 
 ## Date Contract
 
-PO Sell exposes only two user-facing dates:
+PO Sell separates the selected business date from the server audit timestamps:
 
-| User-facing label | Source | Meaning |
-|---|---|---|
-| วันที่สร้างรายการ | `created_at` | system-created timestamp/date for audit, list sorting, and date filtering |
-| วันที่ส่งมอบ | `expected_delivery` | business delivery date selected by the user |
+| User-facing label | Source | Meaning | Where it is used |
+|---|---|---|---|
+| วันที่ล็อคราคา | `po_sells.date` (`priceLockDate`) | วันที่ผู้ใช้เลือกเพื่อกำหนดราคาของเอกสาร | ฟอร์ม, list, mobile card, detail, filter, sort, export, print, document number, และ business-date readers |
+| วันที่ส่งมอบ | `expected_delivery` | วันที่กำหนดส่งมอบที่ผู้ใช้เลือก | ฟอร์ม, list/detail, และเอกสารพิมพ์ |
+| สร้างเอกสารเมื่อ | `created_at` (`createdAt`) | วันเวลา server ที่บันทึกเอกสารครั้งแรก | audit/detail เท่านั้น ไม่ใช้เป็นวันที่เอกสารหรือ business filter |
+| แก้ไขล่าสุด | `updated_at` / `updated_by` | audit การแก้ไขล่าสุด | audit/detail/list audit เท่านั้น |
 
-The legacy `date` / document date column is not a separate user-facing field for PO Sell. Current writes may keep it populated from `created_at` for compatibility and document-number generation, but list/detail/export should not present it as another date.
+`priceLockDate` ต้องเป็นวันที่ `YYYY-MM-DD` ที่ผ่าน schema เดียวกันทั้ง client และ server รองรับวันที่ย้อนหลัง/อนาคตที่ถูกต้องได้โดยไม่ fallback ไป `created_at`. `created_at` ไม่ถูกแก้เมื่อแก้ไข PO Sell และ cancel/short-close ต้องคงทั้งสองบริบทไว้แยกกัน.
+
+`po_sells.date` เดิมที่เคยถูกเติมจาก `created_at` ให้ถือค่าเดิมเป็น legacy price-lock date; batch นี้ไม่ backfill หรือ mutate ข้อมูลเดิม. เลข PO Sell และ VAT effective-rate lookup ใช้ `priceLockDate` เป็น date context เดียวกับเอกสาร.
 
 ## Where The Created Row Must Appear
 
@@ -140,7 +144,7 @@ PO Outstanding should show remaining sell commitment while `remainingQty > 0`, e
 
 ### Document Aging
 
-PO Sell aging follows [[Document Aging Policy]] as `operational_pending_aging`: active PO Sell rows with remaining quantity/amount should expose age from delivery/expected date when available, otherwise from document date. Short-close, cancel, or fully billed status stops the active aging clock.
+PO Sell aging follows [[Document Aging Policy]] as `operational_pending_aging`: active PO Sell rows with remaining quantity/amount should expose age from delivery/expected date when available, otherwise from `priceLockDate` (`po_sells.date`). Short-close, cancel, or fully billed status stops the active aging clock.
 
 ### Sales Bill / WTO Pending Out
 

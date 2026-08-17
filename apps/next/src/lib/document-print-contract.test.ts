@@ -232,6 +232,7 @@ function makePoSell(itemCount: number): PoSellPrintDocument {
     docNo: 'POS-001',
     documentStatus: 'open',
     expectedDelivery: '2026-08-14',
+    priceLockDate: '2026-08-10',
     hasVat: true,
     id: 'po-sell-1',
     items: Array.from({ length: itemCount }, (_, index) => ({
@@ -357,6 +358,15 @@ describe.each([
 })
 
 describe('document-specific print preservation', () => {
+  it('uses price-lock date for PO Sell document metadata instead of creation audit time', () => {
+    const html = buildPoSellPrintHtml(makePoSell(1), profile)
+    const documentDateBlock = html.match(/<div class="label">วันที่ล็อคราคา \/ Price Lock Date<\/div>[\s\S]*?<\/div>/)?.[0] ?? ''
+
+    expect(documentDateBlock).toContain('10/08/2569')
+    expect(documentDateBlock).not.toContain('07/08/2569')
+    expect(html).not.toContain('dateTimeDisplay(po.createdAt)')
+  })
+
   it('uses bundled Thai fonts for PMA without an external network dependency', () => {
     const html = buildPmaSummaryPrintHtml(makePmaRows(1), profile, 'เจ้าหนี้การค้า')
 

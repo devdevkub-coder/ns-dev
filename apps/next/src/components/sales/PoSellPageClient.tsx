@@ -15,7 +15,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select as UiSelect } from '@/components/ui/Select'
-import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay, formatThaiDateCE } from '@/lib/format'
 import { poSellPageFormSchema, type PoSellPageFormValues as PoSellFormValues } from '@/lib/sales'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -55,6 +55,7 @@ type PoSellRow = {
   docNo: string
   editDisabledReason: string
   expectedDelivery: string
+  priceLockDate: string
   id: string
   items: Array<{
     discount: number
@@ -164,6 +165,7 @@ const initialPoSellForm = (): PoSellFormValues => ({
   branchId: '',
   channelId: null,
   customerId: '',
+  priceLockDate: todayDateInput(),
   expectedDelivery: '',
   hasVat: false,
   items: [blankPoSellItem()],
@@ -175,7 +177,7 @@ const SALES_PLAN_DEFAULT_BRANCH_NAME = 'สมุทรสาคร'
 
 const poSellColumns: ResizableColumnDefinition<string>[] = [
   { key: 'docNo', minWidth: 120, defaultWidth: 140 },
-  { key: 'createdAt', minWidth: 100, defaultWidth: 110 },
+  { key: 'priceLockDate', minWidth: 100, defaultWidth: 110 },
   { key: 'expectedDelivery', minWidth: 100, defaultWidth: 110 },
   { key: 'customerName', minWidth: 120, defaultWidth: 260 },
   { key: 'productName', minWidth: 100, defaultWidth: 180 },
@@ -255,7 +257,7 @@ export function PoSellPageClient() {
     }
   }
 
-  const columnResize = useResizableColumns('sales.po-sell.v5', poSellColumns)
+  const columnResize = useResizableColumns('sales.po-sell.v6', poSellColumns)
 
   const dateQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -440,6 +442,7 @@ export function PoSellPageClient() {
       branchId: row.branchId ?? '',
       channelId: row.channelId ?? null,
       customerId: row.customerId ?? '',
+      priceLockDate: row.priceLockDate,
       expectedDelivery: row.expectedDelivery,
       hasVat: row.hasVat,
       items: row.items.length ? row.items.map((item) => ({
@@ -487,7 +490,7 @@ export function PoSellPageClient() {
       return
     }
     let cancelled = false
-    const today = new Date().toISOString().slice(0, 10)
+    const today = todayDateInput()
     setError(null)
     dailyFetchJson<{ planRow: Record<string, string | number | null> }>(`/api/sales-plan?planId=${encodeURIComponent(salesPlanIdFromQuery)}`)
       .then(({ planRow }) => {
@@ -498,6 +501,7 @@ export function PoSellPageClient() {
           branchId: salesPlanDefaultBranchId ?? '',
           channelId: String(planRow.channelId ?? planRow.channel ?? '') || null,
           customerId: String(planRow.customerId ?? ''),
+          priceLockDate: today,
           expectedDelivery: today,
           hasVat: false,
           items: [{
@@ -772,10 +776,10 @@ export function PoSellPageClient() {
             value={branchFilter}
             onChange={(value) => setBranchFilter(value ?? '')}
           />
-          <label className="text-sm text-slate-500">วันที่สร้างรายการ:</label>
-          <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
+          <label className="text-sm text-slate-500">วันที่ล็อคราคา:</label>
+          <DatePickerInput ariaLabel="วันที่ล็อคราคาตั้งแต่" className="h-9 w-[130px]" title="วันที่ล็อคราคาตั้งแต่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
+          <DatePickerInput ariaLabel="วันที่ล็อคราคาถึง" className="h-9 w-[130px]" title="วันที่ล็อคราคาถึง" value={toDate} onChange={setToDate} />
           {hasFilters ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={resetFilters}>✕ ล้าง</button> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -852,11 +856,11 @@ export function PoSellPageClient() {
               </div>
 
               <div>
-                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่ล็อคราคา</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="h-9 flex-1" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput ariaLabel="วันที่ล็อคราคาตั้งแต่" className="h-9 flex-1" value={fromDate} onChange={setFromDate} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="h-9 flex-1" value={toDate} onChange={setToDate} />
+                  <DatePickerInput ariaLabel="วันที่ล็อคราคาถึง" className="h-9 flex-1" value={toDate} onChange={setToDate} />
                 </div>
               </div>
 
@@ -900,7 +904,7 @@ export function PoSellPageClient() {
           >
             <div className="flex justify-between items-start mb-2">
               <span className="whitespace-nowrap text-sm font-bold text-slate-800">{row.docNo}</span>
-              <span className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.createdAt)}</span>
+              <span className="whitespace-nowrap text-xs text-slate-500">ล็อคราคา {formatDateDisplay(row.priceLockDate)}</span>
             </div>
 
             <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -966,7 +970,7 @@ export function PoSellPageClient() {
         <TableHeader>
           <tr>
             <ResizableTableHead align="center" label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
-            <ResizableTableHead align="center" label="วันที่สร้าง" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} />
+            <ResizableTableHead align="center" label="วันที่ล็อคราคา" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="priceLockDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('priceLockDate', 'วันที่ล็อคราคา')} />
             <ResizableTableHead align="center" label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
             <ResizableTableHead className="ns-table-textual-column" label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
             <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
@@ -988,7 +992,7 @@ export function PoSellPageClient() {
           {!isLoading && pageRows.map((row) => (
             <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
               <TableCell className="whitespace-nowrap text-center font-mono">{row.docNo}</TableCell>
-              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.createdAt)}</TableCell>
+              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.priceLockDate)}</TableCell>
               <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.expectedDelivery)}</TableCell>
               <TableCell className="ns-table-textual-column truncate">{row.customerName}</TableCell>
               <TableCell className="text-xs font-semibold text-slate-700">
@@ -1411,6 +1415,11 @@ function PoSellFormModal({
                 {fieldError('customerId')}
               </div>
               <div className="col-span-1">
+                <label className="mb-1 block text-xs font-medium text-slate-600">วันที่ล็อคราคา <span className="text-red-600">*</span></label>
+                <DatePickerInput ariaInvalid={Boolean(errors.priceLockDate)} className="!h-10 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.priceLockDate} onChange={(value) => onUpdate('priceLockDate', value)} />
+                {fieldError('priceLockDate')}
+              </div>
+              <div className="col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-600">วันส่งมอบ <span className="text-red-600">*</span></label>
                 <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-10 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
                 {fieldError('expectedDelivery')}
@@ -1685,11 +1694,20 @@ function PoSellDetailModal({
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลเอกสาร</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
-              <DetailItem label="วันที่สร้างรายการ" value={formatDateDisplay(row.createdAt)} />
+              <DetailItem label="วันที่ล็อคราคา" value={formatDateDisplay(row.priceLockDate)} />
               <DetailItem label="วันที่ส่งมอบ" value={formatDateDisplay(row.expectedDelivery)} />
-              <DetailItem label="อัพเดตล่าสุด" value={`${row.updatedBy || '-'} · ${formatTimestampDisplay(row.updatedAt)}`} />
               <DetailItem label="สาขา/คลัง" value={row.branchName || '-'} />
               <DetailItem label="ช่องทางขาย" value={row.channelName || '-'} />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ประวัติการทำรายการ</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-5">
+              <DetailItem label="สร้างโดย" value={row.createdBy || '-'} />
+              <DetailItem label="สร้างเอกสารเมื่อ" value={formatTimestampDisplay(row.createdAt)} />
+              <DetailItem label="แก้ไขล่าสุดโดย" value={row.updatedBy || '-'} />
+              <DetailItem label="แก้ไขล่าสุดเมื่อ" value={formatTimestampDisplay(row.updatedAt)} />
             </div>
           </div>
 

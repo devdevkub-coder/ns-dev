@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { calculateSalesNetWeight, normalizeSalesBillWeights, salesBillFormSchema, type SalesBillFormValues } from './sales'
+import { calculateSalesNetWeight, normalizeSalesBillWeights, poSellFormSchema, salesBillFormSchema, type SalesBillFormValues } from './sales'
 
 const stockSalesBill = (item: Record<string, unknown>) => ({
   branchId: 'BR01',
@@ -41,5 +41,28 @@ describe('sales net weight', () => {
     expect(normalized.items[0]?.netWeight).toBe(400)
     expect(normalized.items[0]?.qty).toBe(400)
     expect(salesBillFormSchema.safeParse(normalized).success).toBe(true)
+  })
+})
+
+describe('PO Sell price-lock date contract', () => {
+  const validPoSell = {
+    branchId: 'BR01',
+    channelId: null,
+    customerId: 'CUS01',
+    priceLockDate: '2026-08-10',
+    expectedDelivery: '2026-08-14',
+    hasVat: false,
+    items: [{ discount: 0, price: 10, productId: 'SKU001', qty: 10 }],
+    note: null,
+    salesPlanId: null,
+  }
+
+  it('accepts a valid user-selected price-lock date', () => {
+    expect(poSellFormSchema.safeParse(validPoSell).success).toBe(true)
+  })
+
+  it('rejects a missing or malformed price-lock date', () => {
+    expect(poSellFormSchema.safeParse({ ...validPoSell, priceLockDate: '' }).success).toBe(false)
+    expect(poSellFormSchema.safeParse({ ...validPoSell, priceLockDate: '10/08/2026' }).success).toBe(false)
   })
 })

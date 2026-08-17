@@ -134,6 +134,7 @@ describe('manual-entry field highlighting contract', () => {
 
     expect(poSell).toMatch(/<UiSelect[\s\S]*?required[\s\S]*?value=\{form\.branchId/)
     expect(poSell).toContain('label="Customer *"')
+    expect(poSell).toMatch(/<DatePickerInput[\s\S]*?required[\s\S]*?value=\{form\.priceLockDate\}/)
     expect(poSell).toMatch(/<DatePickerInput[\s\S]*?required[\s\S]*?value=\{form\.expectedDelivery\}/)
     expect(poSell).toContain('label="สินค้า *"')
     expect(poSell).toMatch(/<DecimalPatternInput[\s\S]*?required[\s\S]*?value=\{item\.qty\}/)
@@ -148,6 +149,7 @@ describe('manual-entry field highlighting contract', () => {
       branchId: '01',
       channelId: null,
       customerId: 'CUS01',
+      priceLockDate: '2026-07-18',
       expectedDelivery: '2026-07-19',
       hasVat: false,
       items: [{ discount: 0, price: 1, productId: 'P001', qty: 1 }],

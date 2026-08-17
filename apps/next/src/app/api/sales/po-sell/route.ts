@@ -10,7 +10,7 @@ import { formatThaiDateCE } from '@/lib/format'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { bangkokDateRange, currentActor, documentBranchCode, normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveBranchesByCodes, listActiveCustomerBranchOptions, listActiveSalesChannels, listBranchMasterRecords, listProductReferences, type BranchReferenceRecord, type CustomerBranchOptionRecord } from '@/lib/server/reference-master-cache'
@@ -136,6 +136,7 @@ type PoSellResponseRow = {
   matchedPct: number
   matchedQty: number
   note: string | null
+  priceLockDate: string
   productName: string
   qty: number
   remainingAmount: number
@@ -204,9 +205,12 @@ function scopedBranchWhere(allowedBranchIds: bigint[] | null): Prisma.po_sellsWh
   return allowedBranchIds === null ? {} : { branch_id: { in: allowedBranchIds } }
 }
 
-function createdAtDateRange(from: string | null, to: string | null): Prisma.DateTimeNullableFilter | undefined {
+function priceLockDateRange(from: string | null, to: string | null): Prisma.DateTimeFilter | undefined {
   if (!from && !to) return undefined
-  return bangkokDateRange(from, to)
+  return {
+    ...(from ? { gte: normalizeDate(from) } : {}),
+    ...(to ? { lte: normalizeDate(to) } : {}),
+  }
 }
 
 function jsonNumber(value: unknown) {
@@ -708,10 +712,10 @@ export async function GET(request: Request) {
     const activeStatusFilter = statusFilter && statusFilter !== 'all' ? statusFilter : null
     const activeMatchStatusFilter = matchStatusFilter && matchStatusFilter !== 'all' ? matchStatusFilter : null
     const branchScope = await salesBranchScope(context, branchId)
-    const createdAtWhere = createdAtDateRange(from, to)
+    const priceLockDateWhere = priceLockDateRange(from, to)
     const poSellWhere: Prisma.po_sellsWhereInput = {
       ...scopedBranchWhere(branchScope.ids),
-      ...(createdAtWhere ? { created_at: createdAtWhere } : {}),
+      ...(priceLockDateWhere ? { date: priceLockDateWhere } : {}),
     }
 
     const [poSells, branches, channels, products, salesBills, tradingDeals]: [
@@ -724,7 +728,7 @@ export async function GET(request: Request) {
     ] = await Promise.all([
       prisma.po_sells.findMany({
         include: { customers: true },
-        orderBy: [{ created_at: 'desc' }, { doc_no: 'desc' }],
+        orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
         where: poSellWhere,
       }),
@@ -829,10 +833,11 @@ export async function GET(request: Request) {
         customerAddress: po.customers?.address ?? '',
         customerTaxId: po.customers?.tax_id ?? '',
         customerPhone: po.customers?.phone ?? '',
-        createdAt: toBangkokDateOnly(po.created_at ?? po.date),
+        createdAt: po.created_at?.toISOString() ?? '',
         docNo: po.doc_no,
         editDisabledReason: canWrite ? '' : lockedByDownstream ? 'มีรายการนำไปเปิดบิล/จัดสรรต้นทุนแล้ว' : 'แก้ไขได้เฉพาะรายการที่เปิดอยู่',
         expectedDelivery: toDateOnly(po.expected_delivery),
+        priceLockDate: toDateOnly(po.date),
         id: po.doc_no,
         items: items.map((item) => ({
           discount: item.discount,
@@ -865,7 +870,7 @@ export async function GET(request: Request) {
         status,
         totalAmount,
         unitPrice: qty > 0 ? totalAmount / qty : toNumber(po.unit_price),
-        updatedAt: po.updated_at?.toISOString() ?? po.created_at?.toISOString() ?? po.date.toISOString(),
+        updatedAt: po.updated_at?.toISOString() ?? po.created_at?.toISOString() ?? '',
         updatedBy: po.updated_by ?? po.created_by ?? '',
         createdBy: po.created_by ?? '',
         hasVat: Boolean(po.has_vat),
@@ -884,7 +889,7 @@ export async function GET(request: Request) {
         Branch: row.branchName,
         Channel: row.channelName,
         Customer: stringifyBusinessValue(row.customerName),
-        CreatedAt: row.createdAt,
+        PriceLockDate: row.priceLockDate,
         DocNo: row.docNo,
         ExpectedDelivery: row.expectedDelivery,
         Margin: row.margin,
@@ -943,6 +948,7 @@ export async function POST(request: Request) {
     const values = poSellFormSchema.parse(await request.json())
     const actor = currentActor(context)
     const createdAt = new Date()
+    const priceLockDate = normalizeDate(values.priceLockDate)
     const expectedDelivery = normalizeDate(values.expectedDelivery)
     const requestedProductCodes = values.items.map((item) => item.productId?.trim() ?? '')
     const invalidProductIndex = requestedProductCodes.findIndex((productCode) => !productCode)
@@ -991,7 +997,7 @@ export async function POST(request: Request) {
     const items = poSellItems(values, parsedProductIds as bigint[], productById)
     const qty = items.reduce((sum, item) => sum + item.qty, 0)
     const subtotal = items.reduce((sum, item) => sum + item.totalRevenue, 0)
-    const vatRatePercent = await activeVatRatePercent(createdAt)
+    const vatRatePercent = await activeVatRatePercent(priceLockDate)
     const vatAmount = values.hasVat ? Math.round((subtotal * vatRatePercent / 100 + Number.EPSILON) * 100) / 100 : 0
     const totalAmount = subtotal + vatAmount
     const salesPlanId = values.salesPlanId?.trim() || null
@@ -1016,7 +1022,7 @@ export async function POST(request: Request) {
       if (Math.abs((items[0]?.unitPrice ?? 0) - toNumber(linkedPlan.sell_price)) > 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ราคาขายใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
     }
     const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const docNo = await nextPoSellDocNo(tx, createdAt, branch.code)
+      const docNo = await nextPoSellDocNo(tx, priceLockDate, branch.code)
       const poSell = await tx.po_sells.create({
         data: {
           branch_id: branch.id,
@@ -1024,7 +1030,7 @@ export async function POST(request: Request) {
           created_at: createdAt,
           created_by: actor,
           customer_id: customer.id,
-          date: createdAt,
+          date: priceLockDate,
           delivery_date: expectedDelivery,
           doc_no: docNo,
           expected_delivery: expectedDelivery,
@@ -1178,6 +1184,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ code: 'CONFLICT', error: 'PO Sell นี้ถูกนำไปเปิดบิลหรือจัดสรรต้นทุนแล้ว ต้องยกเลิกรายการปลายทางก่อน' }, { status: 409 })
     }
 
+    const priceLockDate = normalizeDate(values.priceLockDate)
     const expectedDelivery = normalizeDate(values.expectedDelivery)
     const requestedProductCodes = values.items.map((item) => item.productId?.trim() ?? '')
     const invalidProductIndex = requestedProductCodes.findIndex((productCode) => !productCode)
@@ -1226,7 +1233,7 @@ export async function PATCH(request: Request) {
     const items = poSellItems(values, parsedProductIds as bigint[], productById)
     const qty = items.reduce((sum, item) => sum + item.qty, 0)
     const subtotal = items.reduce((sum, item) => sum + item.totalRevenue, 0)
-    const vatRatePercent = await activeVatRatePercent(updatedAt)
+    const vatRatePercent = await activeVatRatePercent(priceLockDate)
     const vatAmount = values.hasVat ? Math.round((subtotal * vatRatePercent / 100 + Number.EPSILON) * 100) / 100 : 0
     const totalAmount = subtotal + vatAmount
 
@@ -1235,6 +1242,7 @@ export async function PATCH(request: Request) {
         branch_id: branch.id,
         channel_id: channel?.id ?? null,
         customer_id: customer.id,
+        date: priceLockDate,
         delivery_date: expectedDelivery,
         expected_delivery: expectedDelivery,
         items: items as Prisma.InputJsonValue,
