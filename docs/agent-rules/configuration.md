@@ -22,6 +22,8 @@ Project-level MCP entries in `.mcp.json`:
 - `obsidian`: Obsidian vault scoped to this repository path
 - `playwright`: Playwright MCP for browser QA
 
+The configured `supabase` MCP entry currently points to Production (`fhglqymcdmrgbsbadnwr`), not SIT. Do not use it for SIT work by name alone. SIT operations must verify project `vbjlkxbytccklhqvxjuu` through the explicit env/CLI/approved connector path described in `docs/agent-rules/sit-delivery.md`. Production mutation remains owner-controlled under `docs/agent-rules/production-delivery.md`.
+
 Project-level skills live in `.agents/skills/`. Project-specific shortcut skills must point back to `AGENTS.md` and the canonical docs instead of duplicating project rules.
 
 ## Current Project-Level Skills

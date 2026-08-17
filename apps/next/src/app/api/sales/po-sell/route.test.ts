@@ -10,6 +10,7 @@ describe('PO Sell price-lock date API contract', () => {
     expect(routeSource).toContain('...(priceLockDateWhere ? { date: priceLockDateWhere } : {}),')
     expect(routeSource).toContain("orderBy: [{ date: 'desc' }, { doc_no: 'desc' }]")
     expect(routeSource).toContain('priceLockDate: toDateOnly(po.date)')
+    expect(routeSource).toContain('CreatedAt: row.createdAt')
     expect(routeSource).toContain('PriceLockDate: row.priceLockDate')
     expect(routeSource).toContain("updatedAt: po.updated_at?.toISOString() ?? po.created_at?.toISOString() ?? ''")
     expect(routeSource).not.toContain('updatedAt: po.updated_at?.toISOString() ?? po.created_at?.toISOString() ?? po.date.toISOString()')

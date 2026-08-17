@@ -18,3 +18,5 @@ Read `AGENTS.md` first. Then open the relevant rule file for the active task:
 | `sub-agents.md` | when to use/close sub agents |
 | `session-handoff.md` | doc updates and resumable checkpoints |
 | `git-communication.md` | git and communication rules |
+| `sit-delivery.md` | SIT push/promote, env mapping, CLI/MCP connection, account/project verification, and exact-SHA delivery |
+| `production-delivery.md` | Production owner-only mutation boundary, read-only audit, connection verification, and exact-SHA promotion |

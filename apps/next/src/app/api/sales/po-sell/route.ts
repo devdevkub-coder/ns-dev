@@ -889,6 +889,7 @@ export async function GET(request: Request) {
         Branch: row.branchName,
         Channel: row.channelName,
         Customer: stringifyBusinessValue(row.customerName),
+        CreatedAt: row.createdAt,
         PriceLockDate: row.priceLockDate,
         DocNo: row.docNo,
         ExpectedDelivery: row.expectedDelivery,

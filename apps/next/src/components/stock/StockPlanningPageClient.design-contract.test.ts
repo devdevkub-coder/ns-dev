@@ -33,8 +33,8 @@ describe('Stock Planning design contract', () => {
     )
 
     expect(client).toContain("type PlanningView = 'overview' | 'purchase' | 'calendar'")
-    expect(client).toContain('<TabsTrigger value="overview" variant="line">ภาพรวมสต๊อก</TabsTrigger>')
-    expect(client).toContain('<TabsTrigger value="purchase" variant="line">ต้องซื้อเพิ่ม</TabsTrigger>')
+    expect(client).toContain('<TabsTrigger className="flex-1 sm:flex-none" value="overview" variant="line">ภาพรวมสต๊อก</TabsTrigger>')
+    expect(client).toContain('<TabsTrigger className="flex-1 sm:flex-none" value="purchase" variant="line">ต้องซื้อเพิ่ม</TabsTrigger>')
     expect(client).toContain('value="calendar"')
     expect(client).not.toContain('value="table"')
     expect(client).not.toContain('!initialLoading && shortagePlans.length')
@@ -49,6 +49,18 @@ describe('Stock Planning design contract', () => {
     expect(urgentSurface).not.toContain('Stock ตอนนี้')
     expect(urgentSurface).not.toContain('กำไรที่จะได้')
     expect(urgentSurface.match(/<ResizableTableHead\b/g) ?? []).toHaveLength(6)
+  })
+
+  it('uses delivery date as the only PO planning timeline date', async () => {
+    const client = await readFile(clientPath, 'utf8')
+
+    expect(client).toContain("date: row.expectedDelivery, type: 'buy' as const")
+    expect(client).toContain("date: row.expectedDelivery, type: 'sell' as const")
+    expect(client).not.toContain('expectedDelivery || row.date')
+    expect(client).toContain('const daysUntil = event.date ? dayDiff(event.date, today) : null')
+    expect(client).toContain("row.daysUntil === null ? 'ไม่มีวันส่งมอบ'")
+    expect(client).not.toContain("event.date || '9999-12-31'")
+    expect(client).not.toContain("left.date || '9999'")
   })
 
   it('keeps filter ownership explicit and removes decorative status styling', async () => {

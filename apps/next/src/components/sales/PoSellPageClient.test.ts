@@ -47,10 +47,14 @@ describe('PO Sell desktop table layout', () => {
     expect(updatedCell).toContain('title={formatTimestampDisplay(row.updatedAt)}')
   })
 
-  it('uses the selected price-lock date for business surfaces and keeps creation time in audit detail', async () => {
+  it('keeps the created-date audit column separate from the selected price-lock date', async () => {
     const source = await readFile(pageSourcePath, 'utf8')
 
     expect(source).toMatch(/<DatePickerInput[\s\S]*?required[\s\S]*?value=\{form\.priceLockDate\}/)
+    expect(source).toContain("{ key: 'createdAt', minWidth: 100, defaultWidth: 110 }")
+    expect(source).toContain('sortKey="createdAt"')
+    expect(source).toContain('label="วันที่สร้างรายการ"')
+    expect(source).toContain('formatDateDisplay(row.createdAt)')
     expect(source).toContain("sortKey=\"priceLockDate\"")
     expect(source).toContain('label="วันที่ล็อคราคา"')
     expect(source).toContain('>ประวัติการทำรายการ</h4>')
@@ -58,7 +62,5 @@ describe('PO Sell desktop table layout', () => {
     expect(source).toContain('label="สร้างเอกสารเมื่อ"')
     expect(source).toContain('label="แก้ไขล่าสุดโดย"')
     expect(source).toContain('label="แก้ไขล่าสุดเมื่อ"')
-    expect(source).not.toContain('label="วันที่สร้าง" activeSortKey')
-    expect(source).not.toContain('label="วันที่สร้างรายการ" value={formatDateDisplay(row.createdAt)}')
   })
 })

@@ -177,6 +177,7 @@ const SALES_PLAN_DEFAULT_BRANCH_NAME = 'สมุทรสาคร'
 
 const poSellColumns: ResizableColumnDefinition<string>[] = [
   { key: 'docNo', minWidth: 120, defaultWidth: 140 },
+  { key: 'createdAt', minWidth: 100, defaultWidth: 110 },
   { key: 'priceLockDate', minWidth: 100, defaultWidth: 110 },
   { key: 'expectedDelivery', minWidth: 100, defaultWidth: 110 },
   { key: 'customerName', minWidth: 120, defaultWidth: 260 },
@@ -257,7 +258,7 @@ export function PoSellPageClient() {
     }
   }
 
-  const columnResize = useResizableColumns('sales.po-sell.v6', poSellColumns)
+  const columnResize = useResizableColumns('sales.po-sell.v7', poSellColumns)
 
   const dateQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -904,7 +905,10 @@ export function PoSellPageClient() {
           >
             <div className="flex justify-between items-start mb-2">
               <span className="whitespace-nowrap text-sm font-bold text-slate-800">{row.docNo}</span>
-              <span className="whitespace-nowrap text-xs text-slate-500">ล็อคราคา {formatDateDisplay(row.priceLockDate)}</span>
+              <div className="flex flex-col items-end text-xs text-slate-500">
+                <span className="whitespace-nowrap">สร้าง {formatDateDisplay(row.createdAt)}</span>
+                <span className="whitespace-nowrap">ล็อคราคา {formatDateDisplay(row.priceLockDate)}</span>
+              </div>
             </div>
 
             <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -970,6 +974,7 @@ export function PoSellPageClient() {
         <TableHeader>
           <tr>
             <ResizableTableHead align="center" label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
+            <ResizableTableHead align="center" label="วันที่สร้างรายการ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้างรายการ')} />
             <ResizableTableHead align="center" label="วันที่ล็อคราคา" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="priceLockDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('priceLockDate', 'วันที่ล็อคราคา')} />
             <ResizableTableHead align="center" label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
             <ResizableTableHead className="ns-table-textual-column" label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
@@ -992,6 +997,7 @@ export function PoSellPageClient() {
           {!isLoading && pageRows.map((row) => (
             <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
               <TableCell className="whitespace-nowrap text-center font-mono">{row.docNo}</TableCell>
+              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.createdAt)}</TableCell>
               <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.priceLockDate)}</TableCell>
               <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.expectedDelivery)}</TableCell>
               <TableCell className="ns-table-textual-column truncate">{row.customerName}</TableCell>

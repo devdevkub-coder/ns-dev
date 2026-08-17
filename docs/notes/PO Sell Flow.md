@@ -78,9 +78,9 @@ PO Sell separates the selected business date from the server audit timestamps:
 
 | User-facing label | Source | Meaning | Where it is used |
 |---|---|---|---|
+| วันที่สร้างรายการ | `created_at` (`createdAt`) | วันเวลา server ที่บันทึกเอกสารครั้งแรก ใช้แสดงเป็นวันที่สร้างใน list/mobile card, audit/detail และ export | list, mobile card, audit/detail และ export เท่านั้น ไม่ใช้เป็นวันที่เอกสารหรือ business filter |
 | วันที่ล็อคราคา | `po_sells.date` (`priceLockDate`) | วันที่ผู้ใช้เลือกเพื่อกำหนดราคาของเอกสาร | ฟอร์ม, list, mobile card, detail, filter, sort, export, print, document number, และ business-date readers |
 | วันที่ส่งมอบ | `expected_delivery` | วันที่กำหนดส่งมอบที่ผู้ใช้เลือก | ฟอร์ม, list/detail, และเอกสารพิมพ์ |
-| สร้างเอกสารเมื่อ | `created_at` (`createdAt`) | วันเวลา server ที่บันทึกเอกสารครั้งแรก | audit/detail เท่านั้น ไม่ใช้เป็นวันที่เอกสารหรือ business filter |
 | แก้ไขล่าสุด | `updated_at` / `updated_by` | audit การแก้ไขล่าสุด | audit/detail/list audit เท่านั้น |
 
 `priceLockDate` ต้องเป็นวันที่ `YYYY-MM-DD` ที่ผ่าน schema เดียวกันทั้ง client และ server รองรับวันที่ย้อนหลัง/อนาคตที่ถูกต้องได้โดยไม่ fallback ไป `created_at`. `created_at` ไม่ถูกแก้เมื่อแก้ไข PO Sell และ cancel/short-close ต้องคงทั้งสองบริบทไว้แยกกัน.
@@ -144,7 +144,7 @@ PO Outstanding should show remaining sell commitment while `remainingQty > 0`, e
 
 ### Document Aging
 
-PO Sell aging follows [[Document Aging Policy]] as `operational_pending_aging`: active PO Sell rows with remaining quantity/amount should expose age from delivery/expected date when available, otherwise from `priceLockDate` (`po_sells.date`). Short-close, cancel, or fully billed status stops the active aging clock.
+PO Sell aging follows [[Document Aging Policy]] as `operational_pending_aging`: active PO Sell rows with remaining quantity/amount must expose age from `expected_delivery` only. A missing delivery date remains undated; `priceLockDate` (`po_sells.date`) and `created_at` must not substitute for it. The source record must be corrected before date-based aging or planning can be trusted. Short-close, cancel, or fully billed status stops the active aging clock.
 
 ### Sales Bill / WTO Pending Out
 

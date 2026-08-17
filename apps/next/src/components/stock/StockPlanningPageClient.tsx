@@ -44,13 +44,13 @@ type PlanRow = Row & {
   after: number
   before: number
   buyBefore: number
-  daysUntil: number
+  daysUntil: number | null
   enough: boolean
   group: string
   productCode: string
   shortage: number
   stockNow: number
-  urgency: 'overdue' | 'critical' | 'warning' | 'planning' | 'ok'
+  urgency: 'overdue' | 'critical' | 'warning' | 'planning' | 'ok' | 'undated'
 }
 
 type ProductPlan = {
@@ -124,11 +124,19 @@ const calendarDayColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'urgency', defaultWidth: 120, minWidth: 105 },
 ]
 const urgencyRank: Record<PlanRow['urgency'], number> = {
-  overdue: 0,
-  critical: 1,
-  warning: 2,
-  planning: 3,
-  ok: 4,
+  undated: 0,
+  overdue: 1,
+  critical: 2,
+  warning: 3,
+  planning: 4,
+  ok: 5,
+}
+
+function comparePlanningDates(left: string, right: string) {
+  if (!left && !right) return 0
+  if (!left) return 1
+  if (!right) return -1
+  return left.localeCompare(right)
 }
 
 function overviewSortValue(plan: ProductPlan, key: OverviewSortKey) {
@@ -143,7 +151,7 @@ function purchaseSortValue(plan: ProductPlan, key: PurchaseSortKey) {
   if (key === 'product') return `${plan.productCode} ${plan.productName}`
   if (key === 'firstShortage') {
     const firstShortage = plan.rows.find((row) => !row.enough)
-    return `${firstShortage?.date ?? '9999-12-31'} ${firstShortage?.docNo ?? ''}`
+    return `${firstShortage?.date ?? ''} ${firstShortage?.docNo ?? ''}`
   }
   return plan[key]
 }
@@ -166,7 +174,9 @@ function statusLabel(value: PlanRow['urgency']) {
         ? 'เตือน'
         : value === 'planning'
           ? 'วางแผน'
-          : 'พอ'
+          : value === 'undated'
+            ? 'ไม่มีวันส่งมอบ'
+            : 'พอ'
 }
 
 function statusTextClass(value: PlanRow['urgency']) {
@@ -176,7 +186,9 @@ function statusTextClass(value: PlanRow['urgency']) {
       ? 'text-amber-700'
       : value === 'planning'
         ? 'text-blue-700'
-        : 'text-emerald-700'
+        : value === 'undated'
+          ? 'text-slate-500'
+          : 'text-emerald-700'
 }
 
 function statusDotClass(value: PlanRow['urgency']) {
@@ -186,7 +198,9 @@ function statusDotClass(value: PlanRow['urgency']) {
       ? 'bg-amber-500'
       : value === 'planning'
         ? 'bg-blue-500'
-        : 'bg-emerald-500'
+        : value === 'undated'
+          ? 'bg-slate-400'
+          : 'bg-emerald-500'
 }
 
 function StatusIndicator({ value }: { value: PlanRow['urgency'] }) {
@@ -327,12 +341,12 @@ export function StockPlanningPageClient() {
       const events = [
         ...buyRows
           .filter((row) => row.productId === id && row.remainingQty > 0.01)
-          .map((row) => ({ ...row, date: row.expectedDelivery || row.date, type: 'buy' as const })),
+          .map((row) => ({ ...row, date: row.expectedDelivery, type: 'buy' as const })),
         ...sellRows
           .filter((row) => row.productId === id && row.remainingQty > 0.01)
-          .map((row) => ({ ...row, date: row.expectedDelivery || row.date, type: 'sell' as const })),
+          .map((row) => ({ ...row, date: row.expectedDelivery, type: 'sell' as const })),
       ].sort((left, right) => (
-        (left.date || '9999').localeCompare(right.date || '9999')
+        comparePlanningDates(left.date, right.date)
         || (left.type === 'buy' ? -1 : 1)
       ))
 
@@ -349,16 +363,18 @@ export function StockPlanningPageClient() {
         }
         const before = balance
         const shortage = Math.max(0, event.remainingQty - before)
-        const daysUntil = dayDiff(event.date || '9999-12-31', today)
-        const urgency = shortage <= 0.01
-          ? 'ok'
-          : daysUntil < 0
-            ? 'overdue'
-            : daysUntil <= 7
-              ? 'critical'
-              : daysUntil <= 30
-                ? 'warning'
-                : 'planning'
+        const daysUntil = event.date ? dayDiff(event.date, today) : null
+        const urgency: PlanRow['urgency'] = !event.date
+          ? 'undated'
+          : shortage <= 0.01
+            ? 'ok'
+            : daysUntil !== null && daysUntil < 0
+              ? 'overdue'
+              : daysUntil !== null && daysUntil <= 7
+                ? 'critical'
+                : daysUntil !== null && daysUntil <= 30
+                  ? 'warning'
+                  : 'planning'
         maxShortage = Math.max(maxShortage, shortage)
         rows.push({
           ...event,
@@ -419,14 +435,14 @@ export function StockPlanningPageClient() {
 
     return result.sort((left, right) => (
       urgencyRank[left.urgency] - urgencyRank[right.urgency]
-      || (left.rows[0]?.date ?? '9999').localeCompare(right.rows[0]?.date ?? '9999')
+      || comparePlanningDates(left.rows[0]?.date ?? '', right.rows[0]?.date ?? '')
     ))
   }, [data, group, includeEmpty, product, productMeta, stockByProduct, today])
 
   const allRows = useMemo(() => plans.flatMap((plan) => plan.rows), [plans])
   const shortagePlans = useMemo(() => plans.filter((plan) => plan.shortage > 0.01), [plans])
   const kpi = useMemo(() => planningKpi(plans), [plans])
-  const calendarRows = allRows.filter((row) => row.date.startsWith(month))
+  const calendarRows = allRows.filter((row) => row.date.length > 0 && row.date.startsWith(month))
   const sortedActivePlans = useMemo(
     () => view === 'purchase'
       ? sortRows(shortagePlans, purchaseSort, purchaseSortValue)
@@ -1244,7 +1260,7 @@ function PlanDetailDesktopTable({
                 <td className="overflow-hidden p-3 text-left"><div className="truncate" title={row.partnerName}>{row.partnerName}</div></td>
                 <td className="whitespace-nowrap p-3 text-center font-mono">{row.date || '-'}</td>
                 <td className="whitespace-nowrap p-3 text-center">
-                  {row.daysUntil < 0 ? `เลย ${Math.abs(row.daysUntil)} วัน` : row.daysUntil === 0 ? 'วันนี้' : `อีก ${row.daysUntil} วัน`}
+                  {row.daysUntil === null ? 'ไม่มีวันส่งมอบ' : row.daysUntil < 0 ? `เลย ${Math.abs(row.daysUntil)} วัน` : row.daysUntil === 0 ? 'วันนี้' : `อีก ${row.daysUntil} วัน`}
                 </td>
                 <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-700">{formatMoney(row.remainingQty)}</td>
                 <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${row.before < row.remainingQty ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.before)}</td>
@@ -1276,7 +1292,7 @@ function PlanDetailMobileCards({ rows }: { rows: PlanRow[] }) {
             <StatusIndicator value={row.urgency} />
           </div>
           <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2 text-xs text-slate-600">
-            <span>{row.date || '-'} · {row.daysUntil < 0 ? `เลย ${Math.abs(row.daysUntil)} วัน` : row.daysUntil === 0 ? 'วันนี้' : `อีก ${row.daysUntil} วัน`}</span>
+            <span>{row.date || '-'} · {row.daysUntil === null ? 'ไม่มีวันส่งมอบ' : row.daysUntil < 0 ? `เลย ${Math.abs(row.daysUntil)} วัน` : row.daysUntil === 0 ? 'วันนี้' : `อีก ${row.daysUntil} วัน`}</span>
             <span className="font-semibold tabular-nums">{formatMoney(row.remainingQty)} กก.</span>
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2 rounded-md bg-slate-50 p-2 text-xs">

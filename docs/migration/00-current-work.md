@@ -1,12 +1,14 @@
 ## Active PO Sell price-lock date batch — 2026-08-17
 
-Objective: แยก `priceLockDate` (`po_sells.date`) ออกจาก `createdAt` (`created_at`) โดยให้วันที่ล็อคราคาเป็น business date ที่ผู้ใช้เลือกเองในฟอร์มและใช้ใน list/detail/filter/sort/export/print/เลขเอกสาร/VAT lookup; `created_at` คงเป็น audit เท่านั้น.
+Objective: แยก `priceLockDate` (`po_sells.date`) ออกจาก `createdAt` (`created_at`) โดยให้วันที่ล็อคราคาเป็น business date ที่ผู้ใช้เลือกเองในฟอร์มและใช้ใน list/detail/filter/sort/export/print/เลขเอกสาร/VAT lookup; ตารางคงคอลัมน์วันที่สร้างรายการแยกจากวันที่ล็อคราคา และ `created_at` คงเป็น audit เท่านั้น.
 
-Expected write areas: `apps/next/src/lib/sales.ts`, PO Sell API/UI/print modules and focused contracts, the PO Sell system-manual entry, plus `docs/notes/PO Sell Flow.md`. No migration, data backfill, downstream status change, browser UAT, push, or deploy is in scope. Existing unrelated WTI/WTO dirty files remain untouched.
+Follow-up: Stock Planning ต้องใช้ `expectedDelivery` เป็นวันที่ใน timeline เท่านั้น; ห้าม fallback ไป `po_sells.date` หรือ `created_at` เมื่อไม่มีวันส่งมอบ.
 
-Validation: focused schema/API/UI/print regression `86/86`, lint, type-check, production build (`338` static pages), `git diff --check`, and final code review all pass. Implementation assumption already approved in the design note: PO Sell document-number month/prefix and VAT effective-rate lookup use the selected price-lock date.
+Expected write areas: `apps/next/src/lib/sales.ts`, PO Sell API/UI/print modules and focused contracts, `apps/next/src/components/stock/StockPlanningPageClient.tsx` and its contract test, the PO Sell system-manual entry, plus the related flow notes. No migration, data backfill, downstream status change, browser UAT, or deploy is in scope. The user-requested SIT push is limited to this PO Sell/Stock Planning batch and related delivery-rule docs; existing unrelated WTI/WTO dirty files remain untouched.
 
-Completed commit: `66504152 feat(po-sell): add selectable price-lock date`. No migration, data backfill, push, deploy, or browser UAT was performed. Immediate next: wait for an explicit release request; before any SIT/Production mutation, re-read the target delivery rules and verify remote/account/SHA.
+Validation: focused schema/API/UI/print regression `86/86`, Stock Planning design-contract `10/10`, lint, type-check, production build (`338` static pages), and `git diff --check` pass. Independent code review found `0` issues (code lane recommendation `COMMENT` only because LSP diagnostics are unavailable; architecture status `CLEAR`). Stock Planning keeps missing `expectedDelivery` explicitly undated; it never substitutes `po_sells.date` or a sentinel date. Implementation assumption already approved in the design note: PO Sell document-number month/prefix and VAT effective-rate lookup use the selected price-lock date.
+
+Completed commits: `20ad4ec0`, `66504152`, and `62a9b805`; the scoped follow-up changes are validated and queued for the requested SIT push. No migration, data backfill, deploy, or browser UAT is part of this delivery. Immediate next: push only the scoped commits after verifying the SIT remote SHA; do not include unrelated WTI/WTO dirty files.
 
 ## Active WTI/WTO draft write-set and realtime checkpoint — 2026-08-16
 

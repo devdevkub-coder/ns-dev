@@ -110,7 +110,7 @@ Response:
 ## Aging Rules
 
 - PO operational aging should use `expected_delivery` when present.
-- If expected delivery is missing, fallback to document date for operational pending aging.
+- If expected delivery is missing, keep the row undated; do not substitute the PO document/price-lock date. The source record must be corrected before date-based aging or planning can be trusted.
 - Created date must remain visible separately where UI supports it.
 - Stop counting when PO line remaining is zero or PO is closed/cancelled/received/completed according to side-specific status.
 

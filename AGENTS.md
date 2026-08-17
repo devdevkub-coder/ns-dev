@@ -21,6 +21,8 @@ This project is an existing NS Scrap ERP system that must be rehabilitated and r
   - never push, force-push, create branches, delete branches, open PRs, write tags, or otherwise mutate `origin` / `https://github.com/sirimasth/ns-scrap-erp.git`
   - use `origin` only for read operations such as fetch, log, diff, show, and checkout-to-inspect
   - if both remotes exist, verify the destination remote before push, branch deletion, or PR creation
+- Before any SIT push, deploy, migration, Supabase CLI, Vercel CLI, or MCP action, read `docs/agent-rules/sit-delivery.md` and verify the target, account, project ref, connection scope, and exact commit SHA.
+- Before any Production push, promote, deploy, migration, Supabase CLI, Vercel CLI, or MCP action, read `docs/agent-rules/production-delivery.md`. Production is owner-controlled and read-only for agents by default; do not infer Production authorization from a generic delivery request.
 - Update docs at every meaningful checkpoint as if the session can close at any time. Every time development or browser/UAT testing of a business flow is completed, you MUST write or update a flow summary (e.g. in the walkthrough or a design note) explaining "what is what" (the business entities and states) and "why it has to be like this" (the rationale behind the design and logic).
 - Keep `docs/migration/00-current-work.md` short and operational. It is the active handoff file, not a long changelog. Leave there only the current objective, active batch, blockers, latest still-active decisions, expected write areas, required validation, and immediate next tasks. Move completed checkpoints, long validation logs, deploy logs, and old batch summaries into archive/tracker documents instead of letting `00-current-work.md` grow indefinitely.
 - Keep document roles separated:
@@ -154,6 +156,9 @@ For database, migration, or environment work, read the relevant DB/env documents
 ## Detailed Rule Files
 
 Read only the rule files relevant to the task. Use `docs/agent-rules/README.md` as the router for detailed rule files.
+
+- For SIT delivery or any SIT Git/CLI/MCP connection work, read `docs/agent-rules/sit-delivery.md`.
+- For Production delivery, promotion, or any Production Git/CLI/MCP connection work, read `docs/agent-rules/production-delivery.md`.
 
 Only open root `Peach.md` when the user explicitly asks for old Peach history, or when investigating why a legacy Peach rule existed.
 
