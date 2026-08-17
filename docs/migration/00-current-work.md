@@ -4,9 +4,9 @@ Objective: แยก `priceLockDate` (`po_sells.date`) ออกจาก `creat
 
 Expected write areas: `apps/next/src/lib/sales.ts`, PO Sell API/UI/print modules and focused contracts, the PO Sell system-manual entry, plus `docs/notes/PO Sell Flow.md`. No migration, data backfill, downstream status change, browser UAT, push, or deploy is in scope. Existing unrelated WTI/WTO dirty files remain untouched.
 
-Validation required: focused schema/page/print tests, lint, type-check, production build, `git diff --check`, and final code review. Implementation assumption already approved in the design note: PO Sell document-number month/prefix and VAT effective-rate lookup use the selected price-lock date.
+Validation: focused schema/API/UI/print regression `86/86`, lint, type-check, production build (`338` static pages), `git diff --check`, and final code review all pass. Implementation assumption already approved in the design note: PO Sell document-number month/prefix and VAT effective-rate lookup use the selected price-lock date.
 
-Immediate next: finish implementation, inspect all PO Sell date consumers, run validation, and commit only the intended files when ready; do not push until explicitly requested.
+Completed commit: `66504152 feat(po-sell): add selectable price-lock date`. No migration, data backfill, push, deploy, or browser UAT was performed. Immediate next: wait for an explicit release request; before any SIT/Production mutation, re-read the target delivery rules and verify remote/account/SHA.
 
 ## Active WTI/WTO draft write-set and realtime checkpoint — 2026-08-16
 
