@@ -49,6 +49,10 @@ const AUTH_ME_CACHE_TTL_MS = 60_000
 type AuthMeCacheEntry = { at: number; summary: AuthContextSummary | null }
 let cachedAuthMe: AuthMeCacheEntry | null = null
 
+function invalidateAuthMeCache() {
+  cachedAuthMe = null
+}
+
 // BUG #51: รวม activity log เป็น batch — กัน request พุ่งเมื่อ navigate เร็วติดกัน
 let activityQueue: string[] = []
 let activityFlushTimer: ReturnType<typeof setTimeout> | null = null
@@ -203,6 +207,11 @@ export function AppShell({ children }: AppShellProps) {
     if (isAuthPage) return
 
     let mounted = true
+    const handleAuthIdentityChanged = () => {
+      invalidateAuthMeCache()
+      setAuthContext(null)
+    }
+    window.addEventListener('ns-scrap-erp:auth-identity-changed', handleAuthIdentityChanged)
 
     async function loadAuthContext() {
       const cached = cachedAuthMe
@@ -228,7 +237,7 @@ export function AppShell({ children }: AppShellProps) {
           setAuthLoadError(null)
           setAuthContext(summary)
         } else if (mounted && response.status === 401) {
-          cachedAuthMe = null
+          invalidateAuthMeCache()
           const redirect = `${window.location.pathname}${window.location.search}`
           router.replace(`/login?redirect=${encodeURIComponent(redirect)}`)
         } else if (mounted) {
@@ -253,6 +262,7 @@ export function AppShell({ children }: AppShellProps) {
 
     return () => {
       mounted = false
+      window.removeEventListener('ns-scrap-erp:auth-identity-changed', handleAuthIdentityChanged)
     }
   }, [isAuthPage, pathname, router])
 

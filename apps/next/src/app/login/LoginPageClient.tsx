@@ -79,6 +79,8 @@ export function LoginPageClient() {
         return
       }
 
+      window.dispatchEvent(new Event('ns-scrap-erp:auth-identity-changed'))
+
       const redirectParam = searchParams.get('redirect')
       const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()
       window.location.replace(redirectPath)
@@ -145,6 +147,8 @@ export function LoginPageClient() {
           setError(completion.message)
           return
         }
+
+        window.dispatchEvent(new Event('ns-scrap-erp:auth-identity-changed'))
 
         await supabase.auth.getSession().catch(() => undefined)
         setIdentifier('')

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { ChevronDown, LogOut, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -37,6 +37,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const currentAuthUserIdRef = useRef<string | null>(null)
   const supabase = getSupabaseClient()
   const { requestNavigation } = useActionConfirmation()
 
@@ -89,6 +90,11 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
     })()
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const nextAuthUserId = nextSession?.user.id ?? null
+      if (currentAuthUserIdRef.current !== nextAuthUserId) {
+        currentAuthUserIdRef.current = nextAuthUserId
+        window.dispatchEvent(new Event('ns-scrap-erp:auth-identity-changed'))
+      }
       setSession(nextSession)
       void loadProfile(nextSession)
       setIsLoading(false)
@@ -107,6 +113,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
         // Sign out only this browser session; keep other devices signed in.
         await supabase.auth.signOut({ scope: 'local' })
       } finally {
+        window.dispatchEvent(new Event('ns-scrap-erp:auth-identity-changed'))
         setSession(null)
         setProfile({ roles: [], userEmail: '' })
         window.location.replace('/login')

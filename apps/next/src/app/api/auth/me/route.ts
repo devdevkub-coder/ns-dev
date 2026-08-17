@@ -4,10 +4,11 @@ import { authJson, withAuthNoStore } from '@/lib/server/auth-response'
 export const runtime = 'nodejs'
 
 export async function GET() {
+  const requestId = crypto.randomUUID()
   try {
     const context = await getCurrentAuthContext()
     return authJson(serializeAuthContext(context))
   } catch (caught) {
-    return withAuthNoStore(authContextErrorResponse(caught))
+    return withAuthNoStore(authContextErrorResponse(caught, requestId))
   }
 }

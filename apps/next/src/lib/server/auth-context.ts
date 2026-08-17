@@ -310,11 +310,16 @@ export function getBranchCodeIntersection(
 }
 
 
-export function authContextErrorResponse(caught: unknown) {
+export function authContextErrorResponse(caught: unknown, requestId = crypto.randomUUID()) {
   if (caught instanceof AuthContextError) {
-    return apiErrorResponse(caught, caught.message, caught.status)
+    const response = apiErrorResponse(caught, caught.message, caught.status)
+    response.headers.set('x-request-id', requestId)
+    return response
   }
-  return apiErrorResponse(caught, 'ตรวจสอบสิทธิ์ไม่สำเร็จ', 500)
+  console.error(`[auth-context:${requestId}] unexpected auth context failure`, caught)
+  const response = apiErrorResponse(caught, 'ตรวจสอบสิทธิ์ไม่สำเร็จ', 500)
+  response.headers.set('x-request-id', requestId)
+  return response
 }
 
 export function serializeAuthContext(context: AppAuthContext) {
