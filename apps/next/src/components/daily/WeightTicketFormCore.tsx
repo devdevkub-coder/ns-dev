@@ -3935,6 +3935,8 @@ export function WeightTicketFormCore({
       return
     }
     const currentForm = formRef.current
+    const mobileLotDetailIdAtSave = isMobileLotDetailMode ? mobileLotDetailId : null
+    const shouldCollapseMobileLotAfterSave = isEmbeddedModal && !isDesktopViewport && Boolean(mobileLotDetailIdAtSave)
     const targetLineIdSet = targetLineIds ? new Set(targetLineIds) : null
     const sectionRootId = getWeightTicketRootLineId(currentForm.lines, sectionId)
     const sectionLineIdSet = new Set(getWeightTicketSectionLineIds(currentForm.lines, sectionRootId))
@@ -4065,6 +4067,9 @@ export function WeightTicketFormCore({
       }
       const returnedForm = mergeFormAttachmentPreviewUrls(currentFormForPreview, ticketToFormState(ticketWithPreviews))
       const persistedRootId = targetLineIds ? null : requirePersistedWeightTicketLineId(ticket.lineIdMap, sectionRootId)
+      const persistedMobileLotDetailId = mobileLotDetailIdAtSave
+        ? ticket.lineIdMap[mobileLotDetailIdAtSave] ?? mobileLotDetailIdAtSave
+        : null
       const remappedTargetIds = new Set(Array.from(savedTargetLineIdSet, (lineId) => ticket.lineIdMap[lineId] ?? lineId))
       const latestForm = formRef.current
       const dirtyLineIdsSinceSave = getWeightTicketDirtyLineIdsSinceSave({
@@ -4117,8 +4122,13 @@ export function WeightTicketFormCore({
       setRemoteChangedLineIds(new Set())
       invalidatePurchaseBillOptionsCache()
       setLoadError('')
-      if (isEmbeddedModal && !sectionWasChangedDuringSave && persistedRootId) {
-        closeMobileProductEditor(persistedRootId)
+      if (isEmbeddedModal && !sectionWasChangedDuringSave) {
+        if (shouldCollapseMobileLotAfterSave && persistedMobileLotDetailId) {
+          setCollapsedLotIds((current) => ({ ...current, [persistedMobileLotDetailId]: true }))
+          setMobileLotDetailId(null)
+        } else if (persistedRootId) {
+          closeMobileProductEditor(persistedRootId)
+        }
       }
     } catch (caught) {
       const isCollaborationConflict = caught instanceof ApiError && caught.status === 409

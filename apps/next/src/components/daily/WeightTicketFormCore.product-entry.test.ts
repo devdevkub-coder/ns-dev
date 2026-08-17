@@ -549,6 +549,13 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('border-slate-300 bg-white p-3 shadow-sm')
   })
 
+  it('collapses the active mobile lot after a successful product-section save', () => {
+    expect(formSource).toContain('const mobileLotDetailIdAtSave = isMobileLotDetailMode ? mobileLotDetailId : null')
+    expect(formSource).toContain('const shouldCollapseMobileLotAfterSave = isEmbeddedModal && !isDesktopViewport && Boolean(mobileLotDetailIdAtSave)')
+    expect(formSource).toContain('const persistedMobileLotDetailId = mobileLotDetailIdAtSave')
+    expect(formSource).toMatch(/if \(shouldCollapseMobileLotAfterSave && persistedMobileLotDetailId\) \{[\s\S]*?setCollapsedLotIds\([\s\S]*?setMobileLotDetailId\(null\)[\s\S]*?\} else if \(persistedRootId\)/)
+  })
+
   it('hides the lot summary while expanded for both WTI and WTO', () => {
     expect(formSource).toContain('const showLotSummary = isCollapsed')
     expect(formSource).not.toContain("const showLotSummary = form.type !== 'WTI' || isCollapsed")
