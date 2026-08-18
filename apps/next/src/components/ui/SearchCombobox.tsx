@@ -50,6 +50,7 @@ export function SearchCombobox({
   openOnFocus = true,
   pickerMode = 'dropdown',
   placeholder,
+  required = false,
   readOnly = false,
   value,
   onChange,
@@ -67,6 +68,7 @@ export function SearchCombobox({
   openOnFocus?: boolean
   pickerMode?: OptionPickerMode
   placeholder?: string
+  required?: boolean
   readOnly?: boolean
   value: string
   onChange: (optionId: string) => void
@@ -317,7 +319,7 @@ export function SearchCombobox({
         placeholder={placeholder}
         readOnly={readOnly}
         role="combobox"
-        required={hasInlineRequired}
+        required={required || hasInlineRequired}
         type="search"
         value={query}
         onClick={() => {

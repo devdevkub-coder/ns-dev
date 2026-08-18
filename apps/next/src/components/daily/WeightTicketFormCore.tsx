@@ -22,6 +22,7 @@ import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/compon
 import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 import { cn } from '@/lib/utils'
+import { readCompanyWarehouseNames } from '@/lib/company-warehouse-names'
 import { cachedWeightTicketReferences, fetchFreshWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import { mergeWeightTicketCollaborationBaseline } from '@/lib/weight-ticket-collaboration'
@@ -1499,6 +1500,7 @@ export function WeightTicketFormCore({
   const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(initialForm(initialType)))
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [isLoadingBranches, setIsLoadingBranches] = useState(true)
+  const [warehouses] = useState<OptionItem[]>(() => readCompanyWarehouseNames().map((name) => ({ id: name, label: name })))
   const [suppliers, setSuppliers] = useState<OptionItem[]>([])
   const [customers, setCustomers] = useState<OptionItem[]>([])
   const [products, setProducts] = useState<OptionItem[]>([])
@@ -2376,7 +2378,7 @@ export function WeightTicketFormCore({
     if (!form.branchId) next.branchId = 'เลือกสาขา'
     if (!form.partyId) next.partyId = form.type === 'WTI' ? 'เลือกผู้ขาย' : 'เลือกลูกค้า'
     if (form.vehicleNo.trim().length < 2) next.vehicleNo = 'กรอกทะเบียนรถ'
-    if (form.type === 'WTO' && !form.godownName.trim()) next.godownName = 'กรอกโกดัง'
+    if (!form.godownName.trim()) next.godownName = 'เลือกโกดัง'
 
     const parentLines = getMainParentLines(form.lines)
     if (form.type === 'WTO' && parentLines.length === 0) next.lines = 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'
@@ -4367,15 +4369,20 @@ export function WeightTicketFormCore({
                   onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
                 />
               </FieldBlock>
-	              <FieldBlock error={showError('godownName')} label={form.type === 'WTO' ? 'โกดัง*' : 'โกดัง'}>
-	                <Input
-	                  placeholder="เช่น โกดัง A"
-                  id="weight-ticket-godownName"
-                  value={form.godownName}
-	                  onBlur={() => markTouched('godownName')}
-	                  onChange={(event) => updateForm('godownName', event.target.value)}
-	                />
-              </FieldBlock>
+              <SearchCombobox
+                error={showError('godownName')}
+                inputId="weight-ticket-godownName"
+                label="โกดัง*"
+                options={warehouses}
+                pickerMode="auto"
+                placeholder="เลือกโกดังจากข้อมูลโกดัง"
+                required
+                value={form.godownName}
+                onChange={(value) => {
+                  markTouched('godownName')
+                  updateForm('godownName', value)
+                }}
+              />
               </div>
               <FieldBlock label="รูปภาพรถส่งของ">
                 <AttachmentProfileGrid
