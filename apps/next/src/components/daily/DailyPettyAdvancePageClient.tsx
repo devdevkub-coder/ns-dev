@@ -407,7 +407,7 @@ export function DailyPettyAdvancePageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4 text-sm">
-        <SummaryCard label="ค้างคืน" tone="amber" value={String(summary.active)} />
+        <SummaryCard label="จำนวนรอคืน" tone="amber" value={`${summary.active} รายการ`} />
         <SummaryCard label="ยอดยืมทั้งหมด" tone="blue" value={formatMoney(summary.total)} />
         <SummaryCard label="ใช้จ่าย/คืนแล้ว" tone="emerald" value={formatMoney(summary.spent + summary.returned)} />
         <SummaryCard label="ยอดคงค้าง" tone="red" value={formatMoney(summary.remaining)} />
