@@ -5,10 +5,12 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
+import { isTradingMatchingAllocationFact } from '@/lib/server/trading-matching'
 
 export const runtime = 'nodejs'
 
 type DealMarginRow = {
+  allocationNo: string
   avgCost: number
   channel: string
   customer: string
@@ -96,6 +98,7 @@ export async function GET(request: Request) {
     })
 
     const rows: DealMarginRow[] = allocations
+      .filter(isTradingMatchingAllocationFact)
       .filter((allocation) => isDualCostingGroup(
         allocation.products?.metal_group
         ?? allocation.product_name_snapshot
@@ -113,6 +116,7 @@ export async function GET(request: Request) {
         const docNo = allocation.sales_doc_no ?? allocation.sales_bills?.doc_no ?? allocation.allocation_no
         const rowStatusMatch = statusMatch(matchedQty, matchedQty, allocation.status)
         return {
+          allocationNo: allocation.allocation_no,
           avgCost: matchedQty > 0 ? matchedCost / matchedQty : 0,
           channel: 'Trading Deal',
           customer,

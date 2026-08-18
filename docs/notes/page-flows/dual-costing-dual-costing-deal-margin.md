@@ -91,11 +91,18 @@ Current query params:
 
 Current source:
 
-- `trading_deals`
+- `trading_allocation_facts` where `status = active`, `sales_bill_id` is present,
+  and `cost_pool_entry_id` is null — the same Trading Matching allocation scope
 - relations to `customers`, `products`, `sales_bills`
+
+Cost Pool allocations are excluded because they belong to Cost Allocator /
+Allocation Ledger, not the Trading Matching deal surface. Top Deal labels include
+the allocation number, Sales Bill, customer, and product so separate allocation
+rows cannot appear as indistinguishable duplicate deals.
 
 Required row fields:
 
+- `allocationNo`
 - `docNo`
 - `date`
 - `customer`
