@@ -23,6 +23,8 @@ begin
   ), candidates as (
     select
       self_reference.id,
+      self_reference.weight_ticket_id,
+      self_reference.line_no,
       (
         select parent.line_no
         from public.weight_ticket_lines as parent
@@ -63,6 +65,8 @@ begin
   ), candidates as (
     select
       self_reference.id,
+      self_reference.weight_ticket_id,
+      self_reference.line_no,
       (
         select parent.line_no
         from public.weight_ticket_lines as parent
@@ -83,6 +87,10 @@ begin
   where line.id = candidates.id;
 end;
 $$;
+
+commit;
+
+begin;
 
 do $$
 begin
