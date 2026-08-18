@@ -3,7 +3,8 @@ begin;
 /*
  * A parent relation groups lines; it is not a permanent, undeletable root.
  * Repair only the invalid self-reference that can be derived from persisted
- * data.  If the source does not contain an unambiguous preceding real lot,
+ * data.  The preceding line must be the immediately previous real lot in the
+ * same product/warehouse section. If that evidence is missing,
  * stop the migration instead of inventing a parent or silently clearing it.
  */
 do $$
@@ -26,14 +27,12 @@ begin
         select parent.line_no
         from public.weight_ticket_lines as parent
         where parent.weight_ticket_id = self_reference.weight_ticket_id
-          and parent.line_no < self_reference.line_no
+          and parent.line_no = self_reference.line_no - 1
           and parent.product_id = self_reference.product_id
           and parent.warehouse_id is not distinct from self_reference.warehouse_id
           and parent.deduction_mode = 'none'
           and parent.impurity_source_line_no is null
           and parent.parent_line_no is distinct from parent.line_no
-        order by parent.line_no desc
-        limit 1
       ) as replacement_parent_line_no
     from self_references as self_reference
   )
@@ -68,14 +67,12 @@ begin
         select parent.line_no
         from public.weight_ticket_lines as parent
         where parent.weight_ticket_id = self_reference.weight_ticket_id
-          and parent.line_no < self_reference.line_no
+          and parent.line_no = self_reference.line_no - 1
           and parent.product_id = self_reference.product_id
           and parent.warehouse_id is not distinct from self_reference.warehouse_id
           and parent.deduction_mode = 'none'
           and parent.impurity_source_line_no is null
           and parent.parent_line_no is distinct from parent.line_no
-        order by parent.line_no desc
-        limit 1
       ) as replacement_parent_line_no
     from self_references as self_reference
   )
