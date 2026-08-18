@@ -3663,7 +3663,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button className="h-9 rounded-md border border-emerald-600 bg-emerald-600 px-5 text-sm font-normal text-white outline-none hover:border-emerald-700 hover:bg-emerald-700 focus:outline-none disabled:opacity-60" disabled={isSaving || !stockReceiptSelected} type="button" onClick={() => void savePurchaseBill()}>{isSaving ? 'กำลังบันทึก...' : supplierSwapMode ? 'บันทึกและสร้าง PB ใหม่' : editingBillId ? 'บันทึกการแก้ไข' : 'บันทึก'}</button>
+                <button className="h-9 rounded-md border border-emerald-600 bg-emerald-600 px-5 text-sm font-normal text-white outline-none hover:border-emerald-700 hover:bg-emerald-700 focus:outline-none disabled:opacity-60" disabled={isSaving || !stockReceiptSelected} type="button" onClick={() => void savePurchaseBill()}>{isSaving ? 'กำลังบันทึก...' : supplierSwapMode ? 'บันทึกการเปลี่ยน Supplier' : editingBillId ? 'บันทึกการแก้ไข' : 'บันทึก'}</button>
                 <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white outline-none hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={requestClosePurchaseForm}>ยกเลิก</button>
               </div>
             </div>

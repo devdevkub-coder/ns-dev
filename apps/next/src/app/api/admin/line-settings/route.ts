@@ -26,6 +26,8 @@ const settingsSchema = z.object({
   lineAlbumShowBadges: z.boolean().default(true),
   lineAlbumShowTimestamps: z.boolean().default(true),
   lineAlbumQuality: z.number().int().min(10).max(100).default(90),
+  dailyReportAutoSend: z.boolean().default(true),
+  dailyReportScheduleTime: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'รูปแบบเวลาไม่ถูกต้อง (HH:mm)').default('18:00'),
   confirmBotChange: z.boolean().default(false),
 })
 
@@ -64,6 +66,8 @@ export async function GET() {
             'LINE_ALBUM_SHOW_BADGES',
             'LINE_ALBUM_SHOW_TIMESTAMPS',
             'LINE_ALBUM_QUALITY',
+            'DAILY_REPORT_AUTO_SEND',
+            'DAILY_REPORT_SCHEDULE_TIME',
           ],
         },
       },
@@ -79,6 +83,8 @@ export async function GET() {
     const lineAlbumShowBadges = configMap.LINE_ALBUM_SHOW_BADGES !== 'false'
     const lineAlbumShowTimestamps = configMap.LINE_ALBUM_SHOW_TIMESTAMPS !== 'false'
     const lineAlbumQuality = configMap.LINE_ALBUM_QUALITY ? parseInt(configMap.LINE_ALBUM_QUALITY, 10) : 90
+    const dailyReportAutoSend = configMap.DAILY_REPORT_AUTO_SEND !== 'false'
+    const dailyReportScheduleTime = configMap.DAILY_REPORT_SCHEDULE_TIME || '18:00'
 
     const maskSecret = (val: string | null | undefined) => {
       if (!val) return ''
@@ -100,6 +106,8 @@ export async function GET() {
       lineAlbumShowBadges,
       lineAlbumShowTimestamps,
       lineAlbumQuality,
+      dailyReportAutoSend,
+      dailyReportScheduleTime,
     }, { headers: PRIVATE_NO_STORE_HEADERS })
   } catch (caught) {
     if (caught instanceof AuthContextError) return privateAuthErrorResponse(caught)
@@ -172,6 +180,8 @@ export async function POST(request: Request) {
       { key: 'LINE_ALBUM_SHOW_BADGES', value: values.lineAlbumShowBadges ? 'true' : 'false' },
       { key: 'LINE_ALBUM_SHOW_TIMESTAMPS', value: values.lineAlbumShowTimestamps ? 'true' : 'false' },
       { key: 'LINE_ALBUM_QUALITY', value: String(values.lineAlbumQuality) },
+      { key: 'DAILY_REPORT_AUTO_SEND', value: values.dailyReportAutoSend ? 'true' : 'false' },
+      { key: 'DAILY_REPORT_SCHEDULE_TIME', value: values.dailyReportScheduleTime || '18:00' },
     ]
 
     if (!isMasked(values.lineChannelAccessToken)) {

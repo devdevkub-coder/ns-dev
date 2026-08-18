@@ -17,14 +17,23 @@ function mapWarehouse(row: WarehouseMasterRecord | WarehouseRow) {
   const branchCode = cachedRecord ? row.branchCode : row.branches?.code ?? null
   const branchName = cachedRecord ? row.branchName : row.branches?.name ?? null
   const createdAt = cachedRecord ? row.createdAt : toIso(row.created_at)
-  const updatedAt = cachedRecord ? row.updatedAt : null
+  const updatedAt = cachedRecord ? row.updatedAt : toIso(row.updated_at)
   return {
     id: outwardId,
     code: outwardId,
     name: row.name,
     active: row.active === true,
     type: row.type ?? null,
-    phone: null,
+    inCharge: cachedRecord ? row.inCharge : row.in_charge ?? null,
+    phone: cachedRecord ? row.phone : row.phone ?? null,
+    supportedProcesses: cachedRecord ? row.supportedProcesses : row.supported_processes ?? [],
+    targetSortKg: cachedRecord
+      ? (row.targetSortKg == null ? null : Number(row.targetSortKg))
+      : (row.target_sort_kg == null ? null : Number(row.target_sort_kg)),
+    targetBaleCount: cachedRecord ? row.targetBaleCount : row.target_bale_count ?? null,
+    maxCapacityKg: cachedRecord
+      ? (row.maxCapacityKg == null ? null : Number(row.maxCapacityKg))
+      : (row.max_capacity_kg == null ? null : Number(row.max_capacity_kg)),
     email: null,
     note: null,
     symbol: null,
@@ -45,13 +54,21 @@ function mapWarehouse(row: WarehouseMasterRecord | WarehouseRow) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
+    const url = new URL(request.url)
+    const kind = url.searchParams.get('kind')
     const rows = await listWarehouseMasterRecords()
-    return masterDataListJson(rows.map(mapWarehouse))
+    const isWhCode = (code: string) => /^WH-\d+$/i.test(code)
+    const filtered = kind === 'godown'
+      ? rows.filter((row) => isWhCode(row.code))
+      : kind === 'stock'
+        ? rows.filter((row) => row.type != null) // คลังเดิม (มี type) ซึ่งตอนนี้คือ WH-01..04
+        : rows
+    return masterDataListJson(filtered.map(mapWarehouse))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'โหลดข้อมูลคลังไม่ได้', 500)
@@ -64,10 +81,12 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
-    if (!values.branchId) return errorJson(new Error('กรอกสาขา'), 'กรอกสาขา')
-    if (!values.type || !warehouseTypes.has(values.type)) return errorJson(new Error('เลือกประเภทคลัง'), 'เลือกประเภทคลัง')
-    const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
-    if (!branch) return errorJson(new Error('เลือกสาขา'), 'สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    if (values.branchId) {
+      const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
+      if (!branch) return errorJson(new Error('เลือกสาขา'), 'สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    }
+    if (values.type && !warehouseTypes.has(values.type)) return errorJson(new Error('เลือกประเภทคลัง'), 'เลือกประเภทคลัง')
+    const branch = values.branchId ? await findActiveBranchReferenceByCodeOrId(values.branchId) : null
     const existing = values.id
       ? await prisma.warehouses.findFirst({
         select: { branches: { select: { code: true } }, id: true },
@@ -84,21 +103,34 @@ export async function POST(request: Request) {
       where: existing ? { id: existing.id } : { code },
       create: {
         active: values.active,
-        branch_id: branch.id,
+        branch_id: branch?.id ?? null,
         code,
+        in_charge: values.inCharge,
+        max_capacity_kg: values.maxCapacityKg,
         name: values.name,
+        phone: values.phone,
+        supported_processes: values.supportedProcesses,
+        target_bale_count: values.targetBaleCount,
+        target_sort_kg: values.targetSortKg,
         type: values.type,
       },
       update: {
         active: values.active,
-        branch_id: branch.id,
+        branch_id: branch?.id ?? null,
         code,
+        in_charge: values.inCharge,
+        max_capacity_kg: values.maxCapacityKg,
         name: values.name,
+        phone: values.phone,
+        supported_processes: values.supportedProcesses,
+        target_bale_count: values.targetBaleCount,
+        target_sort_kg: values.targetSortKg,
         type: values.type,
+        updated_at: new Date(),
       },
       include: { branches: true },
     })
-    await invalidateWarehouseReferenceCache([branch.code, existing?.branches?.code ?? ''])
+    await invalidateWarehouseReferenceCache([branch?.code ?? '', existing?.branches?.code ?? ''])
     return masterDataJson(mapWarehouse(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

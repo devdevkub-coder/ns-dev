@@ -131,6 +131,11 @@ export const masterDataRecordSchema = z.object({
   swift: nullableString,
   taxId: nullableString,
   unit: nullableString,
+  inCharge: nullableString,
+  supportedProcesses: z.array(z.string()).default([]),
+  targetSortKg: nullableNumber,
+  targetBaleCount: nullableNumber,
+  maxCapacityKg: nullableNumber,
   createdAt: nullableString,
   updatedAt: nullableString,
 })
@@ -196,6 +201,11 @@ export const masterDataFormSchema = masterDataRecordSchema
     swift: true,
     taxId: true,
     unit: true,
+    inCharge: true,
+    supportedProcesses: true,
+    targetSortKg: true,
+    targetBaleCount: true,
+    maxCapacityKg: true,
   })
   .extend({
     id: z.string().trim().optional(),
@@ -246,6 +256,11 @@ export const masterDataFormSchema = masterDataRecordSchema
     swift: z.preprocess(blankToNull, z.string().trim().toUpperCase().regex(/^[A-Z0-9]{8}([A-Z0-9]{3})?$/, 'SWIFT ต้องเป็นตัวอักษร/ตัวเลข 8 หรือ 11 ตัว').nullable().default(null)),
     taxId: z.preprocess(blankToNull, z.string().trim().regex(/^\d{10,13}$/, 'เลขผู้เสียภาษีต้องเป็นตัวเลข 10-13 หลัก').nullable().default(null)),
     unit: optionalBusinessText('หน่วย', 40),
+    inCharge: optionalBusinessText('ผู้รับผิดชอบ', 160),
+    supportedProcesses: z.array(z.enum(['RECEIVE', 'SORT', 'BALE', 'LOAD', 'CRUSH'])).default([]),
+    targetSortKg: nonNegativeNumber('เป้าน้ำหนักคัดแยก'),
+    targetBaleCount: nonNegativeNumber('เป้าจำนวนก้อนอัด'),
+    maxCapacityKg: nonNegativeNumber('ความจุสูงสุด'),
   })
 
 export const accountMasterDataFormSchema = masterDataFormSchema
@@ -355,6 +370,11 @@ export const emptyMasterDataForm: MasterDataFormValues = {
   swift: null,
   taxId: null,
   unit: null,
+  inCharge: null,
+  supportedProcesses: [],
+  targetSortKg: null,
+  targetBaleCount: null,
+  maxCapacityKg: null,
 }
 
 async function readJson<TSchema extends z.ZodTypeAny>(response: Response, schema: TSchema): Promise<z.output<TSchema>> {

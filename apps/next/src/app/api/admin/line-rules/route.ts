@@ -10,9 +10,9 @@ import { findScopedWeightTicket, getWeightTicketUsageCounts, mapWeightTicketRow,
 
 export const runtime = 'nodejs'
 
-const lineDocumentTypeSchema = z.enum(['WTI', 'WTO', 'PB', 'SB', 'PMT', 'RCP'])
+const lineDocumentTypeSchema = z.enum(['WTI', 'WTO', 'PB', 'SB', 'PMT', 'RCP', 'DAILY'])
 const lineRuleConditionsSchema = z.object({
-  documentTypes: z.array(lineDocumentTypeSchema).min(1, 'เลือกเอกสารอย่างน้อย 1 ประเภท').max(6),
+  documentTypes: z.array(lineDocumentTypeSchema).min(1, 'เลือกเอกสารอย่างน้อย 1 ประเภท').max(7),
   branchCodes: z.array(z.string().trim().min(1)).max(100).optional(),
   minNetWeight: z.number().finite().nonnegative().nullable().optional(),
   maxNetWeight: z.number().finite().nonnegative().nullable().optional(),

@@ -6,15 +6,18 @@ import { describe, expect, it } from 'vitest'
 const source = (relativePath: string) => readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
 
 describe('weight ticket warehouse selection contract', () => {
-  it('uses the company warehouse names source for the required header selection', () => {
+  it('uses the company warehouse source for the required header selection', () => {
     const form = source('./WeightTicketFormCore.tsx')
-    const sourceModule = source('../../lib/company-warehouse-names.ts')
+    const sourceModule = source('../../lib/company-warehouses.ts')
 
-    expect(form).toContain('readCompanyWarehouseNames')
-    expect(form).toContain('options={warehouses}')
-    expect(form).toContain('required\n                value={form.godownName}')
+    expect(form).toContain('readCompanyWarehouses')
+    expect(form).toContain('branches={warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.label }))}')
+    expect(form).toContain('weight-ticket-godownName')
+    expect(form).toContain('required')
+    expect(form).toContain('value={form.godownName || null}')
     expect(form).not.toContain('placeholder="เช่น โกดัง A"')
-    expect(sourceModule).toContain("ns-erp-company-warehouse-names")
-    expect(sourceModule).not.toContain('โกดัง 1')
+    expect(form).toContain('/api/daily/weight-tickets/options')
+    expect(sourceModule).toContain('ns-erp-company-warehouse-names')
+    expect(sourceModule).toContain('ns-erp-company-warehouses')
   })
 })

@@ -514,6 +514,168 @@ describe('weight ticket print HTML', () => {
     expect(countPdfPages(Buffer.from(pdf))).toBe(pages.length)
   }, 30_000)
 
+  it('keeps all product ranks sequential and present without skipping items when middle products have multiple lots and impurity details', async () => {
+    await ensurePdfFontsRegistered()
+    const ticketWith20: WeightTicketRecord = {
+      ...ticket,
+      documentNo: 'WTI012608-0327',
+      lines: [],
+      productSummaries: [],
+      totals: {
+        containerDeductionWeight: 100,
+        deductionWeight: 50,
+        grossWeight: 10000,
+        netWeight: 9850,
+      },
+      type: 'WTI',
+    }
+
+    for (let i = 1; i <= 20; i++) {
+      const prodId = `prod-${i}`
+      let name = `สินค้า ${i}`
+      if (i === 13) name = 'อลูมิเนียมบาง (มู่ลี่)'
+      if (i === 14) name = 'อลูมิเนียมบาง'
+      if (i === 15) name = 'ทองแดงเบอร์ 3'
+      if (i === 16) name = 'ทองแดงเบอร์ 2'
+      if (i === 20) name = 'ทองแดงเบอร์ 5'
+
+      ticketWith20.productSummaries.push({
+        billedWeight: 0,
+        categoryName: 'หมวดโลหะ',
+        containerDeductionWeight: 5,
+        costSnapshotStatus: 'none',
+        deductWeight: i === 14 ? 3 : 0,
+        grossWeight: 100,
+        hasMixedDeductionProfiles: false,
+        id: `summary-${i}`,
+        lineCount: i === 15 ? 4 : i === 14 ? 2 : 1,
+        netWeight: 95,
+        pendingOutQty: 0,
+        pendingOutValue: 0,
+        productId: prodId,
+        productName: name,
+        remainingWeight: 95,
+        unitCostSnapshot: null,
+      })
+
+      if (i === 14) {
+        ticketWith20.lines.push(line({
+          containerDeductionWeight: '13.5',
+          containerDeductionWeightValue: 13.5,
+          deductionWeight: 3,
+          grossWeight: '2600',
+          grossWeightValue: 2600,
+          id: 'line-14-1',
+          lineNo: 140,
+          netWeight: 2583.5,
+          note: 'ติดเหล็ก 3 กก.',
+          productId: prodId,
+          productName: name,
+        }))
+        ticketWith20.lines.push(line({
+          containerDeductionWeight: '0',
+          containerDeductionWeightValue: 0,
+          deductionWeight: 3,
+          grossWeight: '0',
+          grossWeightValue: 0,
+          id: 'line-14-2',
+          impurityId: '1',
+          impurityName: 'ติดเหล็ก',
+          lineNo: 141,
+          netWeight: -3,
+          note: '',
+          productId: prodId,
+          productName: name,
+        }))
+      } else if (i === 15) {
+        ticketWith20.lines.push(line({
+          containerDeductionWeight: '3',
+          containerDeductionWeightValue: 3,
+          deductionWeight: 0,
+          grossWeight: '287.5',
+          grossWeightValue: 287.5,
+          id: 'line-15-1',
+          lineNo: 151,
+          netWeight: 284.5,
+          note: '',
+          productId: prodId,
+          productName: name,
+        }))
+        ticketWith20.lines.push(line({
+          containerDeductionWeight: '3',
+          containerDeductionWeightValue: 3,
+          deductionWeight: 0,
+          grossWeight: '244',
+          grossWeightValue: 244,
+          id: 'line-15-2',
+          lineNo: 152,
+          netWeight: 241,
+          note: '',
+          productId: prodId,
+          productName: name,
+        }))
+        ticketWith20.lines.push(line({
+          containerDeductionWeight: '0',
+          containerDeductionWeightValue: 0,
+          deductionWeight: 4.5,
+          grossWeight: '0',
+          grossWeightValue: 0,
+          id: 'line-15-3',
+          impurityId: '2',
+          impurityName: 'ฝุ่น',
+          lineNo: 153,
+          netWeight: -4.5,
+          note: '',
+          productId: prodId,
+          productName: name,
+        }))
+        ticketWith20.lines.push(line({
+          containerDeductionWeight: '0',
+          containerDeductionWeightValue: 0,
+          deductionWeight: 0,
+          grossWeight: '4.5',
+          grossWeightValue: 4.5,
+          id: 'line-15-4',
+          impuritySourceLineNo: 153,
+          lineNo: 154,
+          netWeight: 4.5,
+          note: 'มาจากสิ่งเจือปน (ฝุ่น) ของรายการที่ 1: SKU114 - ทองแดงเบอร์ 3 Candy',
+          productId: prodId,
+          productName: name,
+        }))
+      } else {
+        ticketWith20.lines.push(line({
+          containerDeductionWeight: '5',
+          containerDeductionWeightValue: 5,
+          deductionWeight: 0,
+          grossWeight: '100',
+          grossWeightValue: 100,
+          id: `line-${i}`,
+          lineNo: i * 10,
+          netWeight: 95,
+          note: '',
+          productId: prodId,
+          productName: name,
+        }))
+      }
+    }
+
+    const rows = buildPrintWeightRows(ticketWith20, true)
+    const pages = paginatePrintWeightRows(rows, true)
+    const allRanks = pages.flatMap((p) => p.items).map((r) => r.rank).filter(Boolean)
+    const expectedRanks = Array.from({ length: 20 }, (_, i) => String(i + 1))
+
+    expect(allRanks).toEqual(expectedRanks)
+
+    const html = buildReceiptPrintHtml(ticketWith20, profile)
+    for (let i = 1; i <= 20; i++) {
+      expect(html).toContain(`>${i}<`)
+    }
+
+    const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWith20 }))
+    expect(countPdfPages(Buffer.from(pdf))).toBe(pages.length)
+  }, 30_000)
+
   it('uses the corporate preview contrast and keeps the legal company name on one line', () => {
     const companyName = 'บริษัท นิวโซลูชั่นส์ (ไทยแลนด์) จำกัด (สำนักงานใหญ่)'
     const html = buildReceiptPrintHtml(ticket, {

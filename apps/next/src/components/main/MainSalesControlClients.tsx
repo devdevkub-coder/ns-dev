@@ -1257,54 +1257,52 @@ export function SalesPlanPageClient() {
         <PendingStatCard label="สต๊อกว่างขาย" sublabel="หลังหักแผนที่ล็อก" value={`${money(data?.summary.stockRemainingKg)} กก.`} />
       </div>
       <div data-sales-plan-filter-toolbar="desktop" className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:block">
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex shrink-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-month">
-            <span>เดือน:</span>
-            <input className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/25" id="sales-plan-filter-month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-          </label>
-          <div className="min-w-[240px] max-w-sm flex-1">
-            <SearchCombobox
-              hideLabel
-              inputClassName="h-9 text-sm font-normal text-slate-700 dark:text-slate-100"
-              inputId="sales-plan-filter-product"
-              label="สินค้า"
-              openOnFocus={false}
-              options={filterProductOptions}
-              placeholder="ค้นหาสินค้า"
-              value={planFilterProductCode}
-              onChange={setPlanFilterProductCode}
-            />
-          </div>
-          {hasActivePlanFilters ? (
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" onClick={clearPlanFilters} type="button">ล้างตัวกรอง</button>
-          ) : null}
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
-            <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-group">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex shrink-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-month">
+              <span>เดือน:</span>
+              <input className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/25" id="sales-plan-filter-month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+            </label>
+            <div className="min-w-[160px] flex-1">
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 text-sm font-normal text-slate-700 dark:text-slate-100"
+                inputId="sales-plan-filter-product"
+                label="สินค้า"
+                openOnFocus={false}
+                options={filterProductOptions}
+                placeholder="ค้นหาสินค้า"
+                value={planFilterProductCode}
+                onChange={setPlanFilterProductCode}
+              />
+            </div>
+            <label className="flex shrink-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-group">
               <span>ประเภทโลหะ:</span>
-              <Select className="h-9 w-full text-sm font-normal" id="sales-plan-filter-group" value={planFilterGroup} onChange={(event) => setPlanFilterGroup(event.target.value)}>
+              <Select className="h-9 w-[240px] text-sm font-normal" id="sales-plan-filter-group" value={planFilterGroup} onChange={(event) => setPlanFilterGroup(event.target.value)}>
                 <option value="">ทุกหมวด (ทองแดง+ทองเหลือง)</option>
                 <option value="ทองแดง">ทองแดงเท่านั้น</option>
                 <option value="ทองเหลือง">ทองเหลืองเท่านั้น</option>
               </Select>
             </label>
-            <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-channel">
+            <label className="flex shrink-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-channel">
               <span>ช่องทาง:</span>
-              <Select className="h-9 w-full text-sm font-normal" id="sales-plan-filter-channel" value={planFilterChannel} onChange={(event) => setPlanFilterChannel(event.target.value)}>
+              <Select className="h-9 w-[130px] text-sm font-normal" id="sales-plan-filter-channel" value={planFilterChannel} onChange={(event) => setPlanFilterChannel(event.target.value)}>
                 <option value="">ทุกช่องทาง</option>
                 {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
               </Select>
             </label>
-            <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-branch">
+            <label className="flex shrink-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-branch">
               <span>สาขา:</span>
-              <BranchSelectCombobox branches={(data?.filters.branches ?? []).map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="w-[12rem]" controlSize="filter" inputId="sales-plan-filter-branch" label="" placeholder="ทุกสาขา" value={planBranchCode || null} onChange={(value) => { const nextValue = value ?? ''; setPlanBranchCode(nextValue); setPlanPage(1); void loadSalesPlan(undefined, nextValue) }} />
+              <BranchSelectCombobox branches={(data?.filters.branches ?? []).map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="w-[140px]" controlSize="filter" inputId="sales-plan-filter-branch" label="" placeholder="ทุกสาขา" value={planBranchCode || null} onChange={(value) => { const nextValue = value ?? ''; setPlanBranchCode(nextValue); setPlanPage(1); void loadSalesPlan(undefined, nextValue) }} />
             </label>
+            {hasActivePlanFilters ? (
+              <button className="h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" onClick={clearPlanFilters} type="button">ล้างตัวกรอง</button>
+            ) : null}
           </div>
-          <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center lg:justify-end">
+          <div className="flex items-center justify-end gap-2">
             {pendingPlanCount > 0 ? (
               <button
-                className="col-span-2 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50 lg:col-span-1"
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
                 disabled={isClearingPendingPlans || isSavingPlan}
                 onClick={() => handleClearPendingPlans()}
                 type="button"
@@ -2878,8 +2876,8 @@ function LmeEditableCard({ autoFilled = false, error, errorKey, label, manualOnl
     <label className="block" data-manual-required={manualRequired ? 'true' : undefined}>
       <div className="mb-2 flex items-center justify-between gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
         <span>{label}{manualRequired ? <span className="ml-1 text-red-600">*</span> : null}</span>
-        {readOnly ? <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[11px] font-extrabold text-slate-700 dark:bg-slate-700 dark:text-slate-200">ดึงจาก API</span> : null}
-        {!readOnly && manualOnly ? <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-extrabold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">กรอกเอง</span> : null}
+        {readOnly ? <span className="rounded-md border border-blue-200/60 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/50 dark:text-blue-300">ดึงจาก API</span> : null}
+        {!readOnly && manualOnly ? <span className="rounded-md border border-amber-200/60 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300">กรอกเอง</span> : null}
       </div>
       <input
         aria-invalid={Boolean(error)}

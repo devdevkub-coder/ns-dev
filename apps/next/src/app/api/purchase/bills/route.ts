@@ -2984,271 +2984,164 @@ export async function PATCH(request: Request) {
       const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
       if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
       const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
-      const reason = `เปลี่ยน Supplier: void ${existingBill.doc_no} และสร้างบิลใหม่แทน`
+      const reason = `เปลี่ยน Supplier: ${existingBill.doc_no} (เป็น ${supplier.name})`
       const originalPoBuyIds = extractReferencedPoBuyIdsFromBillItems(existingBillItems)
 
-      let replacementBill: { doc_no: string; id: bigint } | null = null
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          const docNo = await nextPurchaseBillDocNo(billDate, effectiveBranchCode)
-          replacementBill = await prisma.$transaction(async (tx) => {
-            await lockPurchaseBillWriteSources(tx, {
-              purchaseBillIds: [existingBillRef.id],
-              poBuyIds: originalPoBuyIds,
-              weightTicketIds: originalReceiptTicketIds,
-            })
-            const lockedPoBuyById = createPoBuyRefMap(await resolvePoBuysByDocNo(poBuyRefs, tx))
-            const lockedReceiptValidation = await validateStockReceiptSelection(
-              tx,
-              values,
-              branch.id,
-              supplier.id,
-              lockedPoBuyById,
-              productByRef,
-              existingBillRef.id,
-              { mode: 'allow-linked-ticket-ids', ticketIds: new Set(originalReceiptTicketIds) },
-            )
-            if ('error' in lockedReceiptValidation) throw new Error(lockedReceiptValidation.error)
-            if (!originalReceiptTicketIds.some((ticketId) => ticketId === lockedReceiptValidation.ticket.id)) {
-              throw new Error('เปลี่ยน Supplier ต้องใช้ใบรับของเดิมของบิลนี้เท่านั้น')
-            }
-            receiptSummarySourceMap = lockedReceiptValidation.receiptSummarySourceMap
-            receiptTicketIdsToRefresh = [lockedReceiptValidation.ticket.id]
-            items = buildBillItems(values, productByRef, lockedPoBuyById, receiptSummarySourceMap)
-            const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
-            const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)
-            await tx.purchase_bills.update({
-              data: {
-                cancel_note: reason,
-                cancelled_at: createdAt,
-                cancelled_by: actor,
-                payable_balance: 0,
-                status: PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS,
-                updated_at: createdAt,
-                updated_by: actor,
-              },
-              where: { id: existingBillRef.id },
-            })
-            await appendPurchaseBillStockReversal(tx, {
-              actor,
-              billDocNo: existingBill.doc_no,
-              date: normalizeDate(billDate),
-              movementType: 'รับซื้อเข้า-ยกเลิก',
-              note: reason,
-              notes: reason,
-              reason: 'purchase_bill_supplier_swap',
-              reversalRefType: 'PB-CANCEL',
-            })
-            await syncPurchaseBillCostPoolEntries(tx, {
-              actor,
-              billId: existingBillRef.id,
-              branchId: existingBill.branch_id,
-              date: normalizeDate(billDate),
-              notes: reason,
-              transactionMode: String(existingBill.transaction_mode ?? 'STOCK'),
-              warehouseId: existingBill.warehouse_id,
-            })
-            await appendPoBuyAllocationLogSources(tx, existingPoAllocationSources, {
-              action: PO_BUY_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL,
+      const updatedBill = await prisma.$transaction(async (tx) => {
+        await lockPurchaseBillWriteSources(tx, {
+          purchaseBillIds: [existingBillRef.id],
+          poBuyIds: originalPoBuyIds,
+          weightTicketIds: originalReceiptTicketIds,
+        })
+        const lockedPoBuyById = createPoBuyRefMap(await resolvePoBuysByDocNo(poBuyRefs, tx))
+        const lockedReceiptValidation = await validateStockReceiptSelection(
+          tx,
+          values,
+          branch.id,
+          supplier.id,
+          lockedPoBuyById,
+          productByRef,
+          existingBillRef.id,
+          { mode: 'allow-linked-ticket-ids', ticketIds: new Set(originalReceiptTicketIds) },
+        )
+        if ('error' in lockedReceiptValidation) throw new Error(lockedReceiptValidation.error)
+        if (!originalReceiptTicketIds.some((ticketId) => ticketId === lockedReceiptValidation.ticket.id)) {
+          throw new Error('เปลี่ยน Supplier ต้องใช้ใบรับของเดิมของบิลนี้เท่านั้น')
+        }
+        receiptSummarySourceMap = lockedReceiptValidation.receiptSummarySourceMap
+        receiptTicketIdsToRefresh = [lockedReceiptValidation.ticket.id]
+        items = buildBillItems(values, productByRef, lockedPoBuyById, receiptSummarySourceMap)
+        const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
+        const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)
+
+        await tx.purchase_bills.update({
+          data: {
+            discount: values.discountTotal,
+            discount_total: values.discountTotal,
+            has_vat: values.hasVat,
+            license_plate: null,
+            note: values.note ?? values.notes,
+            notes: values.notes,
+            paid_amount: toNumber(existingBill.paid_amount),
+            payable_balance: totals.totalAmount,
+            po_buy_id: poBuyById.get(values.poBuyId ?? '')?.id ?? null,
+            purchase_channel_id: purchaseChannel.id,
+            purchase_source: purchaseSource,
+            ref_no: values.refNo,
+            sales_id: supplierSalesId,
+            status: existingBill.status,
+            subtotal: totals.subtotal,
+            supplier_id: supplier.id,
+            ...supplierSnapshotFields(supplier),
+            total_amount: totals.totalAmount,
+            transaction_mode: values.transactionMode,
+            updated_at: createdAt,
+            updated_by: actor,
+            vat_amount: totals.vatAmount,
+            vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
+            vat_invoice_no: values.vatInvoiceNo,
+            vat_invoice_received: values.vatInvoiceReceived,
+            vat_invoice_received_at: values.vatInvoiceReceived ? new Date() : null,
+            vat_rate_percent: vatRatePercent,
+            vat_type: values.vatType,
+            warehouse_id: purchaseWarehouseId,
+          },
+          where: { id: existingBillRef.id },
+        })
+
+        await releasePurchaseBillAllocations(tx, existingBillRef.id, {
+          actor,
+          reason: 'purchase_bill_supplier_swap',
+          releasedAt: createdAt,
+        })
+        await supersedePurchaseBillItems(tx, existingBillRef.id, {
+          actor,
+          reason: 'purchase_bill_supplier_swap',
+          supersededAt: createdAt,
+        })
+        const itemRows = await createPurchaseBillItems(tx, existingBillRef.id, items, await nextPurchaseBillItemVersion(tx, existingBillRef.id))
+        const receiptAllocationRows = buildPurchaseBillReceiptAllocationRows(existingBillRef.id, itemRows, receiptSummarySourceMap, actor)
+        if (receiptAllocationRows.length > 0) {
+          await tx.purchase_bill_receipt_allocations.createMany({ data: receiptAllocationRows })
+          await appendWeightTicketUsageLogSourceChanges(
+            tx,
+            buildWeightTicketUsageLogSourcesFromRows(existingBill.doc_no, receiptAllocationRows, itemRows).map((source) => ({
+              action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_PURCHASE_BILL,
               actor,
               meta: { reason: 'purchase_bill_supplier_swap' },
-              note: reason,
-            })
-            await appendWeightTicketUsageLogSourceChanges(
-              tx,
-              existingWeightTicketUsageSources.map((source) => ({
-                action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_PURCHASE_BILL,
-                actor,
-                meta: { reason: 'purchase_bill_supplier_swap' },
-                note: reason,
-                source,
-              })),
-            )
-            await releasePurchaseBillAllocations(tx, existingBillRef.id, {
-              actor,
-              reason: 'purchase_bill_supplier_swap',
-              releasedAt: createdAt,
-            })
-            await resetPurchaseBillAdvanceAllocation(tx, existingBillRef.id, actor, reason)
-
-            const createdBill = await tx.purchase_bills.create({
-              data: {
-                branch_id: branch.id,
-                date: createdAt,
-                created_by: actor,
-                discount: values.discountTotal,
-                discount_total: values.discountTotal,
-                doc_no: docNo,
-                has_vat: values.hasVat,
-                license_plate: null,
-                note: values.note ?? values.notes,
-                notes: values.notes,
-                paid_amount: 0,
-                payable_balance: totals.totalAmount,
-                po_buy_id: poBuyById.get(values.poBuyId ?? '')?.id ?? null,
-                purchase_channel_id: purchaseChannel.id,
-                purchase_source: purchaseSource,
-                ref_no: values.refNo,
-                sales_id: supplierSalesId,
-                status: PURCHASE_BILL_STATUS.UNPAID,
-                subtotal: totals.subtotal,
-                supplier_id: supplier.id,
-                ...supplierSnapshotFields(supplier),
-                total_amount: totals.totalAmount,
-                transaction_mode: values.transactionMode,
-                updated_at: createdAt,
-                updated_by: actor,
-                vat_amount: totals.vatAmount,
-                vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
-                vat_invoice_no: values.vatInvoiceNo,
-                vat_invoice_received: values.vatInvoiceReceived,
-                vat_invoice_received_at: values.vatInvoiceReceived ? new Date() : null,
-                vat_rate_percent: vatRatePercent,
-                vat_type: values.vatType,
-                warehouse_id: purchaseWarehouseId,
-              },
-              select: { doc_no: true, id: true },
-            })
-
-            const itemRows = await createPurchaseBillItems(tx, createdBill.id, items)
-            const receiptAllocationRows = buildPurchaseBillReceiptAllocationRows(createdBill.id, itemRows, receiptSummarySourceMap, actor)
-            if (receiptAllocationRows.length > 0) {
-              await tx.purchase_bill_receipt_allocations.createMany({ data: receiptAllocationRows })
-              await appendWeightTicketUsageLogSourceChanges(
-                tx,
-                buildWeightTicketUsageLogSourcesFromRows(createdBill.doc_no, receiptAllocationRows, itemRows).map((source) => ({
-                  action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_PURCHASE_BILL,
-                  actor,
-                  meta: { reason: 'purchase_bill_supplier_swap' },
-                  source,
-                })),
-              )
-            }
-            const poAllocationRows = buildPurchaseBillPoAllocationRows(createdBill.id, itemRows, actor)
-            if (poAllocationRows.length > 0) {
-              await tx.purchase_bill_po_allocations.createMany({ data: poAllocationRows })
-              await appendPoBuyAllocationLogSources(
-                tx,
-                buildPoBuyAllocationLogSourcesFromRows(createdBill.doc_no, poAllocationRows, itemRows),
-                {
-                  action: PO_BUY_ALLOCATION_ACTION.ALLOCATED_TO_PURCHASE_BILL,
-                  actor,
-                  meta: { reason: 'purchase_bill_supplier_swap' },
-                },
-              )
-            }
-
-            await reconcilePoBuys(tx, [
-              ...extractReferencedPoBuyIdsFromBuiltItems(items),
-              ...extractReferencedPoBuyIdsFromBillItems(existingBillItems),
-            ], { actor })
-            if (values.transactionMode === 'STOCK') {
-              await tx.stock_ledger.createMany({
-                data: items.map((item) => ({
-                  branch_id: branch.id,
-                  created_by: actor,
-                  date: normalizeDate(billDate),
-                  lot_no: item.lotNo,
-                  movement_type: 'รับซื้อเข้า',
-                  note: item.note,
-                  notes: values.note ?? values.notes,
-                  not_available_for_sale: false,
-                  output_category: item.itemStatus,
-                  product_id: item.productIdInternal,
-                  purchase_channel_id: purchaseChannel.id,
-                  qty_in: item.qty,
-                  qty_out: 0,
-                  ref_id: createdBill.doc_no,
-                  ref_no: createdBill.doc_no,
-                  ref_type: 'PB',
-                  unit_cost: item.price,
-                  value_in: item.amount,
-                  value_out: 0,
-                  warehouse_id: purchaseWarehouseId,
-                })),
-              })
-              await syncPurchaseBillCostPoolEntries(tx, {
-                actor,
-                billId: createdBill.id,
-                branchId: branch.id,
-                date: normalizeDate(billDate),
-                notes: values.note ?? values.notes,
-                transactionMode: values.transactionMode,
-                warehouseId: purchaseWarehouseId,
-              })
-            }
-
-            await refreshWeightTicketStatuses(tx, [
-              ...receiptTicketIdsToRefresh,
-              ...await resolveReferencedReceiptTicketIdsFromBillItems(tx, existingBillItems),
-            ], {
-              actor,
-              createdAt,
-              note: reason,
-              reason: 'purchase_bill_supplier_swap',
-            })
-            await appendPurchaseBillStatusLog(tx, {
-              action: PURCHASE_BILL_STATUS_ACTION.SUPPLIER_SWAP_CANCELLED,
-              actor,
-              createdAt,
-              fromStatus: existingBill.status,
-              meta: {
-                replacementPurchaseBillDocNo: createdBill.doc_no,
-                reason: 'supplier_swap',
-              },
-              note: reason,
-              purchaseBillDocNo: existingBill.doc_no,
-              purchaseBillId: existingBillRef.id,
-              toStatus: PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS,
-            })
-            const settlement = await refreshPurchaseBillSettlement(tx, createdBill.id, actor)
-            await createInitialPurchaseBillStatusLog(tx, {
-              actor,
-              createdAt,
-              meta: {
-                sourcePurchaseBillDocNo: existingBill.doc_no,
-                supplierSwap: true,
-                totalAmount: totals.totalAmount,
-                transactionMode: values.transactionMode,
-              },
-              purchaseBillDocNo: createdBill.doc_no,
-              purchaseBillId: createdBill.id,
-              toStatus: settlement.status,
-            })
-            await tx.bill_swap_history.createMany({
-              data: Array.from({ length: Math.max(existingBillItems.length, itemRows.length) }).map((_, index) => {
-                const beforeItem = existingBillItems[index]
-                const afterItem = itemRows[index]
-                return {
-                  after_amount: afterItem ? toNumber(afterItem.amount) : 0,
-                  after_price: afterItem ? toNumber(afterItem.price) : 0,
-                  after_supplier_id: supplier.id,
-                  before_amount: beforeItem ? toNumber(beforeItem.amount) : 0,
-                  before_price: beforeItem ? toNumber(beforeItem.price) : 0,
-                  before_supplier_id: existingBill.supplier_id,
-                  bill_id: existingBillRef.id,
-                  changed_by: actor,
-                  item_index: index,
-                  reason: `${reason}: ${createdBill.doc_no}`,
-                  swap_date: createdAt,
-                }
-              }),
-            })
-            return createdBill
-          }, { timeout: PURCHASE_BILL_WRITE_TRANSACTION_TIMEOUT_MS })
-          break
-        } catch (caught) {
-          if (!isDocNoConflict(caught) || attempt === 2) throw caught
+              source,
+            })),
+          )
         }
-      }
+        const poAllocationRows = buildPurchaseBillPoAllocationRows(existingBillRef.id, itemRows, actor)
+        if (poAllocationRows.length > 0) {
+          await tx.purchase_bill_po_allocations.createMany({ data: poAllocationRows })
+          await appendPoBuyAllocationLogSources(
+            tx,
+            buildPoBuyAllocationLogSourcesFromRows(existingBill.doc_no, poAllocationRows, itemRows),
+            {
+              action: PO_BUY_ALLOCATION_ACTION.ALLOCATED_TO_PURCHASE_BILL,
+              actor,
+              meta: { reason: 'purchase_bill_supplier_swap' },
+            },
+          )
+        }
 
-      if (!replacementBill) throw new Error('สร้างบิลใหม่แทนไม่สำเร็จ')
+        await reconcilePoBuys(tx, [
+          ...extractReferencedPoBuyIdsFromBuiltItems(items),
+          ...extractReferencedPoBuyIdsFromBillItems(existingBillItems),
+        ], { actor })
+
+        await refreshWeightTicketStatuses(tx, [
+          ...receiptTicketIdsToRefresh,
+          ...await resolveReferencedReceiptTicketIdsFromBillItems(tx, existingBillItems),
+        ], {
+          actor,
+          createdAt,
+          note: reason,
+          reason: 'purchase_bill_supplier_swap',
+        })
+        await appendPurchaseBillStatusLog(tx, {
+          action: 'SUPPLIER_SWAP',
+          actor,
+          createdAt,
+          fromStatus: existingBill.status ?? PURCHASE_BILL_STATUS.UNPAID,
+          meta: {
+            reason: 'supplier_swap',
+            newSupplierId: String(supplier.id),
+            newSupplierName: supplier.name,
+          },
+          note: reason,
+          purchaseBillDocNo: existingBill.doc_no,
+          purchaseBillId: existingBillRef.id,
+          toStatus: existingBill.status ?? PURCHASE_BILL_STATUS.UNPAID,
+        })
+        await tx.bill_swap_history.createMany({
+          data: Array.from({ length: Math.max(existingBillItems.length, itemRows.length) }).map((_, index) => {
+            const beforeItem = existingBillItems[index]
+            const afterItem = itemRows[index]
+            return {
+              after_amount: afterItem ? toNumber(afterItem.amount) : 0,
+              after_price: afterItem ? toNumber(afterItem.price) : 0,
+              after_supplier_id: supplier.id,
+              before_amount: beforeItem ? toNumber(beforeItem.amount) : 0,
+              before_price: beforeItem ? toNumber(beforeItem.price) : 0,
+              before_supplier_id: existingBill.supplier_id,
+              bill_id: existingBillRef.id,
+              changed_by: actor,
+              item_index: index,
+              reason,
+              swap_date: createdAt,
+            }
+          }),
+        })
+        return existingBill
+      }, { timeout: PURCHASE_BILL_WRITE_TRANSACTION_TIMEOUT_MS })
+
       schedulePurchaseBillProfitCostProjection(existingBillRef.id)
-      schedulePurchaseBillProfitCostProjection(replacementBill.id)
       return NextResponse.json({
-        docNo: replacementBill.doc_no,
-        id: replacementBill.doc_no,
-        replacedDocNo: existingBill.doc_no,
+        docNo: updatedBill.doc_no,
+        id: updatedBill.doc_no,
         status: 'supplier_swapped',
       })
     }

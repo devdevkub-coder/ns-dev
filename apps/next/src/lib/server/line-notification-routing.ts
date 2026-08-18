@@ -17,9 +17,14 @@ export function lineRuleConditionsValidationError(conditions: Record<string, unk
     : []
   const hasWeightTicket = documentTypes.some((type) => type === 'WTI' || type === 'WTO')
   const hasFinancialDocument = documentTypes.some((type) => type === 'PB' || type === 'SB' || type === 'PMT' || type === 'RCP')
+  const hasDailyReport = documentTypes.includes('DAILY')
 
   if (hasWeightTicket && hasFinancialDocument) {
     return 'กรุณาแยกใบรับ-ส่งของกับเอกสารการเงินเป็นคนละกฎ'
+  }
+
+  if (hasDailyReport && (hasWeightTicket || hasFinancialDocument)) {
+    return 'กรุณาแยกสรุปประจำวัน (DAILY) เป็นกฎของตัวเอง'
   }
 
   const hasWeightOrPhotoCondition = [
@@ -29,6 +34,10 @@ export function lineRuleConditionsValidationError(conditions: Record<string, unk
   ].some((value) => value !== undefined && value !== null && value !== '')
     || conditions.requiresImages === true
     || conditions.requiresScalePhoto === true
+
+  if (hasDailyReport && hasWeightOrPhotoCondition) {
+    return 'เงื่อนไขน้ำหนักและรูปภาพใช้ได้เฉพาะใบรับ-ส่งของ WTI/WTO'
+  }
 
   if (hasFinancialDocument && hasWeightOrPhotoCondition) {
     return 'เงื่อนไขน้ำหนักและรูปภาพใช้ได้เฉพาะใบรับ-ส่งของ WTI/WTO'

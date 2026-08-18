@@ -22,7 +22,7 @@ import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/compon
 import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 import { cn } from '@/lib/utils'
-import { readCompanyWarehouseNames } from '@/lib/company-warehouse-names'
+import { readCompanyWarehouses } from '@/lib/company-warehouses'
 import { cachedWeightTicketReferences, fetchFreshWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import { mergeWeightTicketCollaborationBaseline } from '@/lib/weight-ticket-collaboration'
@@ -1500,7 +1500,7 @@ export function WeightTicketFormCore({
   const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(initialForm(initialType)))
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [isLoadingBranches, setIsLoadingBranches] = useState(true)
-  const [warehouses] = useState<OptionItem[]>(() => readCompanyWarehouseNames().map((name) => ({ id: name, label: name })))
+  const [warehouses, setWarehouses] = useState<OptionItem[]>(() => readCompanyWarehouses().map((warehouse) => ({ id: String(warehouse.code), label: `${warehouse.code} — ${warehouse.name}` })))
   const [suppliers, setSuppliers] = useState<OptionItem[]>([])
   const [customers, setCustomers] = useState<OptionItem[]>([])
   const [products, setProducts] = useState<OptionItem[]>([])
@@ -1984,6 +1984,28 @@ export function WeightTicketFormCore({
       })
       .finally(() => {
         if (!cancelled) setIsLoadingBranches(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    cachedWeightTicketReferences<{ warehouses?: Array<{ code?: string | null; id: string; name: string }> }>('/api/daily/weight-tickets/options')
+      .then((data) => {
+        if (cancelled) return
+        const rows = data.warehouses ?? []
+        if (rows.length === 0) return
+        setWarehouses(rows.map((warehouse) => ({
+          id: warehouse.id,
+          label: `${warehouse.code ?? warehouse.id} — ${warehouse.name}`,
+        })))
+      })
+      .catch(() => {
+        // Offline / permission failure: keep the localStorage fallback.
       })
 
     return () => {
@@ -4369,18 +4391,16 @@ export function WeightTicketFormCore({
                   onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
                 />
               </FieldBlock>
-              <SearchCombobox
+              <BranchSelectCombobox
+                branches={warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.label }))}
                 error={showError('godownName')}
                 inputId="weight-ticket-godownName"
                 label="โกดัง*"
-                options={warehouses}
-                pickerMode="auto"
                 placeholder="เลือกโกดังจากข้อมูลโกดัง"
-                required
-                value={form.godownName}
-                onChange={(value) => {
+                value={form.godownName || null}
+                onChange={(godownId) => {
                   markTouched('godownName')
-                  updateForm('godownName', value)
+                  updateForm('godownName', godownId ?? '')
                 }}
               />
               </div>

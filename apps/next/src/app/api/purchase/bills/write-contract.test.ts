@@ -48,12 +48,12 @@ describe('purchase bill write contract', () => {
 
   it('revalidates and rebuilds supplier-swap sources after locking', () => {
     const supplierSwapStart = routeSource.indexOf("if (raw?.action === 'supplier_swap')")
-    const transactionStart = routeSource.indexOf('replacementBill = await prisma.$transaction', supplierSwapStart)
+    const transactionStart = routeSource.indexOf('updatedBill = await prisma.$transaction', supplierSwapStart)
     const transactionSource = routeSource.slice(transactionStart, routeSource.indexOf('}, { timeout:', transactionStart))
     const lockStart = transactionSource.indexOf('await lockPurchaseBillWriteSources(tx')
     const lockedValidationStart = transactionSource.indexOf('const lockedReceiptValidation = await validateStockReceiptSelection(', lockStart)
     const rebuildStart = transactionSource.indexOf('items = buildBillItems(values, productByRef, lockedPoBuyById, receiptSummarySourceMap)', lockedValidationStart)
-    const createItemsStart = transactionSource.indexOf('const itemRows = await createPurchaseBillItems(tx, createdBill.id, items)', rebuildStart)
+    const createItemsStart = transactionSource.indexOf('const itemRows = await createPurchaseBillItems(tx, existingBillRef.id, items', rebuildStart)
 
     expect(supplierSwapStart).toBeGreaterThanOrEqual(0)
     expect(transactionStart).toBeGreaterThan(supplierSwapStart)

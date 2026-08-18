@@ -45,6 +45,8 @@ const credentialsSchema = z.object({
   appUrl: z.string().trim().url('รูปแบบ URL ไม่ถูกต้อง').or(z.literal('')),
   lineAutoSendWti: z.boolean().default(false),
   lineAutoSendWto: z.boolean().default(false),
+  dailyReportAutoSend: z.boolean().default(true),
+  dailyReportScheduleTime: z.string().trim().default('18:00'),
 })
 
 type CredentialsFormValues = z.infer<typeof credentialsSchema>
@@ -64,7 +66,7 @@ type Target = {
   last_event_type: string | null
 }
 
-type LineDocumentType = 'WTI' | 'WTO' | 'PB' | 'SB' | 'PMT' | 'RCP'
+type LineDocumentType = 'WTI' | 'WTO' | 'PB' | 'SB' | 'PMT' | 'RCP' | 'DAILY'
 
 type RoutingRuleConditions = {
   documentTypes?: LineDocumentType[]
@@ -77,6 +79,7 @@ type RoutingRuleConditions = {
   minImpurityWeight?: number | null
   requiresImages?: boolean
   requiresScalePhoto?: boolean
+  scheduleTime?: string
   timeWindows?: unknown[]
 }
 
@@ -99,6 +102,7 @@ const lineDocumentTypeOptions: Array<{ type: LineDocumentType; label: string }> 
   { type: 'SB', label: 'บิลขาย' },
   { type: 'PMT', label: 'ใบจ่ายเงิน Supplier' },
   { type: 'RCP', label: 'ใบรับเงิน Customer' },
+  { type: 'DAILY', label: '📊 สรุปประจำวัน (Daily Report)' },
 ]
 
 type MessageTemplate = {
@@ -368,6 +372,8 @@ export function LineSettingsPageClient() {
     appUrl: '',
     lineAutoSendWti: false,
     lineAutoSendWto: false,
+    dailyReportAutoSend: true,
+    dailyReportScheduleTime: '18:00',
   })
   const [credentialsBaseline, setCredentialsBaseline] = useState<string | null>(null)
 
@@ -420,6 +426,31 @@ export function LineSettingsPageClient() {
   const [editingRule, setEditingRule] = useState<Partial<RoutingRule> | null>(null)
   const [ruleFieldErrors, setRuleFieldErrors] = useState<{ documentTypes?: string; targetId?: string }>({})
   const [ruleFormBaseline, setRuleFormBaseline] = useState<string | null>(null)
+
+  // Manual Send Modal / Form state
+  const [isManualSendModalOpen, setIsManualSendModalOpen] = useState(false)
+  const [manualSendType, setManualSendType] = useState<LineDocumentType>('DAILY')
+  const [manualSendDocumentNo, setManualSendDocumentNo] = useState('')
+  const [manualSendDate, setManualSendDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [manualSendTargetId, setManualSendTargetId] = useState('')
+  const [isManualSending, setIsManualSending] = useState(false)
+  const [manualSendError, setManualSendError] = useState<string | null>(null)
+  const [manualSendMessage, setManualSendMessage] = useState<string | null>(null)
+
+  const openManualSendModal = useCallback(() => {
+    setManualSendType('DAILY')
+    setManualSendDocumentNo('')
+    setManualSendDate(new Date().toISOString().slice(0, 10))
+    setManualSendTargetId('')
+    setManualSendError(null)
+    setManualSendMessage(null)
+    setIsManualSendModalOpen(true)
+  }, [])
+  const closeManualSendModal = useCallback(() => {
+    setIsManualSendModalOpen(false)
+    setManualSendError(null)
+    setManualSendMessage(null)
+  }, [])
 
   // Template Modals / Forms state
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -1152,7 +1183,18 @@ export function LineSettingsPageClient() {
         body: JSON.stringify(payload)
       })
       const body = await res.json()
-      if (!res.ok) throw new Error(body.error || 'บันทึกกฎแจ้งเตือนไม่สำเร็จ')
+      if (documentTypes.includes('DAILY')) {
+        // Sync schedule time to system_settings in background
+        void fetch('/api/admin/line-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...form,
+            dailyReportAutoSend: true,
+            dailyReportScheduleTime: form.dailyReportScheduleTime || '18:00',
+          }),
+        }).catch(() => undefined)
+      }
 
       setMessage(isEdit ? 'แก้ไขกฎกระจายการแจ้งเตือนสำเร็จ' : 'เพิ่มกฎกระจายการแจ้งเตือนสำเร็จ')
       closeRuleForm()
@@ -1206,6 +1248,38 @@ export function LineSettingsPageClient() {
       setError(getErrorMessage(caught, 'จำลองกฎขัดข้อง'))
     } finally {
       setIsSimulating(false)
+    }
+  }
+
+  // MANUAL SEND Handler (ส่งเอกสาร/สรุปประจำวันเข้า LINE ทันที)
+  const handleManualSend = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setManualSendError(null)
+    setManualSendMessage(null)
+    if (manualSendType !== 'DAILY' && !manualSendDocumentNo.trim()) {
+      setManualSendError('กรุณาระบุเลขที่เอกสารที่ต้องการส่ง')
+      return
+    }
+
+    setIsManualSending(true)
+    try {
+      const res = await fetch('/api/line/manual-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: manualSendType,
+          documentNo: manualSendType === 'DAILY' ? undefined : manualSendDocumentNo.trim(),
+          date: manualSendType === 'DAILY' ? manualSendDate : undefined,
+          targetId: manualSendTargetId || undefined,
+        })
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'ส่ง LINE ไม่สำเร็จ')
+      setManualSendMessage(body.message || 'ส่ง LINE เรียบร้อย')
+    } catch (caught) {
+      setManualSendError(getErrorMessage(caught, 'ส่ง LINE ขัดข้อง'))
+    } finally {
+      setIsManualSending(false)
     }
   }
 
@@ -1800,6 +1874,86 @@ export function LineSettingsPageClient() {
                   <span>ส่งข้อความแจ้งเตือน WTO (บิลส่งสินค้า) ไปไลน์กลุ่มอัตโนมัติเมื่อสร้างบิล</span>
                 </label>
               </div>
+
+              {/* Daily Report Auto-Schedule Card */}
+              <div data-line-daily-schedule className="md:col-span-2 rounded-lg border border-emerald-200/90 bg-gradient-to-br from-emerald-50/70 to-white p-4 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                      <Clock3 className="size-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">ตั้งเวลาส่งสรุปรายงานการผลิตประจำวัน (Daily Report Schedule)</h4>
+                      <p className="text-xs text-slate-500">
+                        ระบบจะรวบรวมยอดใบชั่งและผลผลิตทุกโกดัง (WH-01 ถึง WH-05) ส่งเป็นการ์ด Carousel อัตโนมัติ
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-xs transition hover:bg-emerald-50"
+                    onClick={() => {
+                      setManualSendType('DAILY')
+                      setManualSendDate(new Date().toISOString().slice(0, 10))
+                      setIsManualSendModalOpen(true)
+                    }}
+                  >
+                    <Send className="size-3.5 text-emerald-600" />
+                    📤 ส่งทดสอบตอนนี้
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3.5">
+                  <div className="space-y-2">
+                    <label className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 bg-white p-3 shadow-2xs transition hover:border-slate-300">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 size-5 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-0 focus:outline-none"
+                        checked={form.dailyReportAutoSend}
+                        onChange={(e) => setForm({ ...form, dailyReportAutoSend: e.target.checked })}
+                      />
+                      <div>
+                        <span className="text-sm font-bold text-slate-900">เปิดใช้งานการส่งรายงานประจำวันอัตโนมัติ</span>
+                        <p className="text-xs text-slate-500 mt-0.5">เมื่อถึงเวลาที่กำหนด ระบบจะยิงสรุปยอดเข้ากลุ่ม LINE ตามกฎ DAILY ทันที</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700" htmlFor="daily-report-schedule-time">
+                      เวลาที่ต้องการให้ส่งอัตโนมัติ (เวลาไทย GMT+7)
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        id="daily-report-schedule-time"
+                        type="time"
+                        className="h-10 w-32 rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-1.5 font-mono text-sm font-semibold text-slate-900 focus:border-emerald-500 focus:outline-none dark:bg-amber-200/15"
+                        value={form.dailyReportScheduleTime || '18:00'}
+                        onChange={(e) => setForm({ ...form, dailyReportScheduleTime: e.target.value })}
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {['17:30', '18:00', '18:30', '19:00', '20:00'].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            className={`rounded border px-2 py-1 text-xs font-mono transition ${
+                              form.dailyReportScheduleTime === preset
+                                ? 'border-emerald-600 bg-emerald-600 text-white font-bold'
+                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                            onClick={() => setForm({ ...form, dailyReportScheduleTime: preset })}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      กลุ่มเป้าหมาย: กำหนดได้ที่แท็บ <strong>"กฎการส่งแจ้งเตือน"</strong> (เลือกประเภท <strong>DAILY</strong>)
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div data-line-google-sheets-disclosure className="rounded-md border border-slate-200 bg-slate-50 p-4">
@@ -2249,23 +2403,31 @@ export function LineSettingsPageClient() {
                   <h3 className="text-base font-bold text-slate-900">กฎการส่งแจ้งเตือน</h3>
                   <p className="mt-1 text-sm text-slate-500">กำหนดเงื่อนไขเพื่อส่งเอกสารไปยังกลุ่มที่ต้องการ</p>
                 </div>
-                <button
-                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8"
-                  onClick={() => {
-                    setRuleFieldErrors({})
-                    openRuleForm({
-                      name: '',
-                      priority: 100,
-                      is_active: true,
-                      target_id: '',
-                      template_id: null,
-                      stop_after_match: true,
-                      conditions: { documentTypes: [] }
-                    })
-                  }}
-                >
-                  ➕ เพิ่มกฎใหม่
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-md transition focus:outline-none h-8"
+                    onClick={openManualSendModal}
+                  >
+                    📤 ส่งแจ้งเตือนด้วยตนเอง
+                  </button>
+                  <button
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8"
+                    onClick={() => {
+                      setRuleFieldErrors({})
+                      openRuleForm({
+                        name: '',
+                        priority: 100,
+                        is_active: true,
+                        target_id: '',
+                        template_id: null,
+                        stop_after_match: true,
+                        conditions: { documentTypes: [] }
+                      })
+                    }}
+                  >
+                    ➕ เพิ่มกฎใหม่
+                  </button>
+                </div>
               </div>
 
               {/* Lined table view with resize headers (Desktop) */}
@@ -2334,7 +2496,14 @@ export function LineSettingsPageClient() {
                             <td className="px-3 py-3">
                               <div>
                                 <span className="font-bold text-slate-800">{r.name}</span>
-                                {r.description && <p className="text-xs text-slate-400 mt-0.5">{r.description}</p>}
+                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  {r.conditions?.documentTypes?.includes('DAILY') && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                      ⏰ ส่งอัตโนมัติ {r.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'} น.
+                                    </span>
+                                  )}
+                                  {r.description && <span className="text-xs text-slate-400">{r.description}</span>}
+                                </div>
                               </div>
                             </td>
                             <td className="px-3 py-3 text-slate-600">
@@ -2987,14 +3156,18 @@ export function LineSettingsPageClient() {
                           const current = new Set<LineDocumentType>(editingRule.conditions?.documentTypes ?? [])
                           if (selected) current.delete(option.type)
                           else {
-                            if (option.type === 'WTI' || option.type === 'WTO') {
+                            if (option.type === 'DAILY') {
+                              current.clear()
+                            } else if (option.type === 'WTI' || option.type === 'WTO') {
                               current.delete('PB')
                               current.delete('SB')
                               current.delete('PMT')
                               current.delete('RCP')
+                              current.delete('DAILY')
                             } else {
                               current.delete('WTI')
                               current.delete('WTO')
+                              current.delete('DAILY')
                             }
                             current.add(option.type)
                           }
@@ -3019,6 +3192,56 @@ export function LineSettingsPageClient() {
                 </div>
                 {ruleFieldErrors.documentTypes ? <p className="text-xs font-medium text-rose-600">{ruleFieldErrors.documentTypes}</p> : null}
               </section>
+
+              {/* Daily Report Scheduled Time Configuration inside Modal */}
+              {editingRule.conditions?.documentTypes?.includes('DAILY') && (
+                <section className="space-y-3 rounded-xl border border-emerald-300 bg-gradient-to-br from-emerald-50/90 to-white p-4 shadow-2xs animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex size-7 items-center justify-center rounded-md bg-emerald-600 text-white">
+                        <Clock3 className="size-4" />
+                      </div>
+                      <h4 className="font-bold text-slate-900">⏰ ตั้งเวลาส่งรายงานอัตโนมัติประจำวัน</h4>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                      Auto Daily Cron
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      เลือกเวลาที่ต้องการส่งสรุปยอดเข้ากลุ่มนี้ (เวลาไทย GMT+7):
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="time"
+                        className="h-10 w-32 rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-1.5 font-mono text-sm font-bold text-slate-900 focus:border-emerald-500 focus:outline-none dark:bg-amber-200/15"
+                        value={form.dailyReportScheduleTime || '18:00'}
+                        onChange={(e) => setForm({ ...form, dailyReportScheduleTime: e.target.value })}
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {['17:00', '17:30', '18:00', '18:30', '19:00', '20:00'].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            className={`rounded border px-2.5 py-1 text-xs font-mono transition ${
+                              form.dailyReportScheduleTime === preset
+                                ? 'border-emerald-600 bg-emerald-600 text-white font-bold shadow-xs'
+                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                            onClick={() => setForm({ ...form, dailyReportScheduleTime: preset })}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      ระบบจะรวบรวมยอดชั่งและผลผลิตของทุกโกดัง (WH-01 ถึง WH-05) ส่งเป็นการ์ด Carousel เข้ากลุ่มที่เลือกตามเวลานี้ทุกวัน
+                    </p>
+                  </div>
+                </section>
+              )}
 
               <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
                 <label className="block font-bold text-slate-800" htmlFor="line-rule-target">2. เลือกกลุ่ม LINE ที่จะส่ง <span className="text-rose-600">*</span></label>
@@ -3228,6 +3451,137 @@ export function LineSettingsPageClient() {
                     className="h-9 rounded-md bg-slate-900 px-5 text-sm font-normal text-white transition hover:bg-slate-800 focus:outline-none"
                   >
                     บันทึก
+                  </button>
+                </div>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Manual Send Modal (ส่งเอกสาร/สรุปประจำวันเข้า LINE ทันที) */}
+      {isManualSendModalOpen && (
+        <Dialog
+          open={isManualSendModalOpen}
+          onOpenChange={(open) => {
+            if (!open) closeManualSendModal()
+          }}
+        >
+          <DialogContent
+            className="max-h-[90vh] max-w-xl [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-blue-500 [&_button:focus-visible]:ring-offset-2 [&_input:focus-visible]:ring-2 [&_input:focus-visible]:ring-blue-500 [&_input:focus-visible]:ring-offset-2 [&_select:focus-visible]:ring-2 [&_select:focus-visible]:ring-blue-500 [&_select:focus-visible]:ring-offset-2"
+            fallbackTitle="📤 ส่งแจ้งเตือนด้วยตนเอง"
+            hideClose
+            mobileAppShell={false}
+          >
+            <form className="flex min-h-0 flex-1 flex-col overflow-hidden" onSubmit={handleManualSend}>
+              <DialogHeader className="shrink-0 px-5 py-4">
+                <h3 className="text-base font-bold text-white">📤 ส่งแจ้งเตือน LINE ด้วยตนเอง</h3>
+              </DialogHeader>
+
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4 text-sm">
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                  <label className="block font-bold text-slate-800" htmlFor="manual-send-type">1. เลือกประเภทที่ต้องการส่ง <span className="text-rose-600">*</span></label>
+                  <Select
+                    id="manual-send-type"
+                    className="h-10 w-full px-3 text-sm border-slate-300"
+                    value={manualSendType}
+                    onChange={(event) => {
+                      const next = event.target.value as LineDocumentType
+                      setManualSendType(next)
+                      setManualSendError(null)
+                      if (next !== 'DAILY') setManualSendDocumentNo('')
+                    }}
+                  >
+                    {lineDocumentTypeOptions.map((option) => (
+                      <option key={option.type} value={option.type}>{option.label}</option>
+                    ))}
+                  </Select>
+                </div>
+
+                {manualSendType === 'DAILY' ? (
+                  <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                    <label className="block font-bold text-slate-800" htmlFor="manual-send-date">2. เลือกวันที่สรุปประจำวัน</label>
+                    <input
+                      id="manual-send-date"
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+                      max={new Date().toISOString().slice(0, 10)}
+                      type="date"
+                      value={manualSendDate}
+                      onChange={(event) => setManualSendDate(event.target.value)}
+                    />
+                    <p className="text-xs text-slate-500">สรุปจะแสดงเฉพาะการ์ดโกดังที่มีงานในวันนั้น (โกดังที่ไม่มีงานจะไม่ถูกส่ง)</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                    <label className="block font-bold text-slate-800" htmlFor="manual-send-docno">2. เลขที่เอกสาร <span className="text-rose-600">*</span></label>
+                    {manualSendType === 'WTI' || manualSendType === 'WTO' ? (
+                      <>
+                        <Select
+                          className="h-10 w-full px-3 text-sm border-slate-300"
+                          value={manualSendDocumentNo}
+                          onChange={(event) => setManualSendDocumentNo(event.target.value)}
+                        >
+                          <option value="">— เลือกจากใบชั่งล่าสุด —</option>
+                          {recentTickets
+                            .filter((ticket) => ticket.docType === manualSendType)
+                            .map((ticket) => (
+                              <option key={ticket.id} value={ticket.docNo}>
+                                {ticket.docNo} · {ticket.supplierName || ticket.customerName || '-'} · {ticket.netWeight.toLocaleString('th-TH')} กก.
+                              </option>
+                            ))}
+                        </Select>
+                        <p className="text-xs text-slate-500">หรือพิมพ์เลขที่ใบชั่งเองด้านล่าง</p>
+                      </>
+                    ) : null}
+                    <input
+                      id="manual-send-docno"
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+                      placeholder={manualSendType === 'WTI' || manualSendType === 'WTO' ? 'เช่น WT-2026-08-001' : 'พิมพ์เลขที่เอกสาร'}
+                      value={manualSendDocumentNo}
+                      onChange={(event) => setManualSendDocumentNo(event.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                  <label className="block font-bold text-slate-800" htmlFor="manual-send-target">3. กลุ่ม LINE ปลายทาง <span className="text-xs font-medium text-slate-400">(ไม่เลือก = ใช้กฎการส่ง / กลุ่มดีฟอลต์)</span></label>
+                  <Select
+                    id="manual-send-target"
+                    className="h-10 w-full px-3 text-sm border-slate-300"
+                    value={manualSendTargetId}
+                    onChange={(event) => setManualSendTargetId(event.target.value)}
+                  >
+                    <option value="">ใช้กฎการส่งอัตโนมัติ</option>
+                    {targets.filter((target) => target.is_active && target.target_type === 'group').map((target) => (
+                      <option key={target.id} value={target.target_id}>{target.display_name}</option>
+                    ))}
+                  </Select>
+                </div>
+
+                {manualSendError ? (
+                  <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">{manualSendError}</div>
+                ) : null}
+                {manualSendMessage ? (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">{manualSendMessage}</div>
+                ) : null}
+              </div>
+
+              <DialogFooter className="shrink-0 flex-col items-stretch gap-3 border-slate-200 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs text-slate-500">การส่งนี้จะไม่สร้างคิว (ส่งทันที)</span>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50 focus:outline-none"
+                    onClick={closeManualSendModal}
+                  >
+                    ปิด
+                  </button>
+                  <button
+                    disabled={isManualSending}
+                    type="submit"
+                    className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-bold text-white transition hover:bg-emerald-700 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isManualSending ? 'กำลังส่ง...' : '📤 ส่งเลย'}
                   </button>
                 </div>
               </DialogFooter>

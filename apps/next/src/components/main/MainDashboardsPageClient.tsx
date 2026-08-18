@@ -1050,6 +1050,8 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
 
 function DailyReportView({ data, date, setDate }: { data: MainPayload | null; date: string; setDate: (value: string) => void }) {
   const [expandedGroup, setExpandedGroup] = useState('')
+  const [isSendingLine, setIsSendingLine] = useState(false)
+  const [lineMessage, setLineMessage] = useState<{ error?: string; text?: string } | null>(null)
   const summary = data?.dailyReport.summary ?? {}
   const purchaseCount = safeNumber(summary.purchaseCount)
   const salesCount = safeNumber(summary.salesCount)
@@ -1060,9 +1062,56 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
   const salesQty = safeNumber(summary.salesQty)
   const gpAmount = salesAmount - safeNumber(analytics?.rangeKpi.cogs)
   const gpPct = safeNumber(analytics?.rangeKpi.gpPct)
+
+  async function sendDailyReportToLine() {
+    setIsSendingLine(true)
+    setLineMessage(null)
+    try {
+      const response = await fetch('/api/line/daily-report/send', {
+        body: JSON.stringify({ date }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      const payload = await response.json().catch(() => ({})) as { error?: string; message?: string }
+      if (!response.ok) {
+        setLineMessage({ error: payload.error ?? 'ส่ง LINE สรุปประจำวันไม่สำเร็จ' })
+        return
+      }
+      setLineMessage({ text: payload.message ?? 'ส่งสรุปประจำวันเข้า LINE เรียบร้อย' })
+    } catch (caught) {
+      setLineMessage({ error: caught instanceof Error ? caught.message : 'ส่ง LINE สรุปประจำวันไม่สำเร็จ' })
+    } finally {
+      setIsSendingLine(false)
+    }
+  }
+
   return (
     <>
       <DateNavBar date={date} reportHref={`/owner-daily?date=${date}`} reportLabel="ดูยอดคาดรับวันนี้ (Owner Daily) →" setDate={setDate} />
+      <div className="rounded-xl border border-emerald-200/70 bg-white p-3 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-2 sm:p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-800">📲 ส่งสรุปรายงานการผลิตประจำวันเข้า LINE OA</p>
+          <p className="mt-0.5 text-xs text-slate-500">ส่ง Flex Message สรุปยอดรับเข้า/ส่งออก/คัดแยก/อัดก้อน แยกรายโกดัง ไปยังกลุ่ม LINE ที่ตั้งค่าไว้</p>
+        </div>
+        <button
+          className="mt-2 inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-0"
+          disabled={isSendingLine}
+          type="button"
+          onClick={() => void sendDailyReportToLine()}
+        >
+          {isSendingLine ? 'กำลังส่ง...' : '📲 ส่งสรุปเข้า LINE'}
+        </button>
+      </div>
+      {lineMessage?.error ? (
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          ❌ {lineMessage.error}
+        </div>
+      ) : null}
+      {lineMessage?.text ? (
+        <div role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          ✅ {lineMessage.text}
+        </div>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2">
         <DailyBigCard icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money(purchaseAmount / Math.max(1, purchaseQty))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(purchaseAmount)} weight={money(purchaseQty)} />
         <DailyBigCard icon="📤" label="ยอดขาย" sub={`กำไรขั้นต้น ${money(gpAmount)} (${money(gpPct)}%)`} tone="from-emerald-600 to-teal-700" value={money(salesAmount)} weight={money(salesQty)} />

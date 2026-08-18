@@ -381,7 +381,13 @@ type CachedWarehouseRecord = {
   code: string
   createdAt: string | null
   id: string
+  inCharge: string | null
+  maxCapacityKg: string | null
   name: string
+  phone: string | null
+  supportedProcesses: string[]
+  targetBaleCount: number | null
+  targetSortKg: string | null
   type: string | null
   updatedAt: string | null
 }
@@ -681,7 +687,13 @@ export type WarehouseMasterRecord = {
   code: string
   createdAt: string | null
   id: bigint
+  inCharge: string | null
+  maxCapacityKg: string | null
   name: string
+  phone: string | null
+  supportedProcesses: string[]
+  targetBaleCount: number | null
+  targetSortKg: string | null
   type: string | null
   updatedAt: string | null
 }
@@ -1419,7 +1431,13 @@ function hydrateWarehouseMasterRecord(row: CachedWarehouseRecord): WarehouseMast
     code: row.code,
     createdAt: row.createdAt,
     id: BigInt(row.id),
+    inCharge: row.inCharge ?? null,
+    maxCapacityKg: row.maxCapacityKg ?? null,
     name: row.name,
+    phone: row.phone ?? null,
+    supportedProcesses: row.supportedProcesses ?? [],
+    targetBaleCount: row.targetBaleCount ?? null,
+    targetSortKg: row.targetSortKg ?? null,
     type: row.type ?? null,
     updatedAt: row.updatedAt,
   }
@@ -1433,7 +1451,13 @@ function dehydrateWarehouseRecord(row: WarehouseReferenceRecord): CachedWarehous
     code: row.code,
     createdAt: null,
     id: row.id.toString(),
+    inCharge: null,
+    maxCapacityKg: null,
     name: row.name,
+    phone: null,
+    supportedProcesses: [],
+    targetBaleCount: null,
+    targetSortKg: null,
     type: row.type ?? null,
     updatedAt: null,
   }
@@ -1447,7 +1471,13 @@ function dehydrateWarehouseMasterRecord(row: WarehouseMasterRecord): CachedWareh
     code: row.code,
     createdAt: row.createdAt,
     id: row.id.toString(),
+    inCharge: row.inCharge ?? null,
+    maxCapacityKg: row.maxCapacityKg ?? null,
     name: row.name,
+    phone: row.phone ?? null,
+    supportedProcesses: row.supportedProcesses ?? [],
+    targetBaleCount: row.targetBaleCount ?? null,
+    targetSortKg: row.targetSortKg ?? null,
     type: row.type ?? null,
     updatedAt: row.updatedAt,
   }
@@ -2423,8 +2453,15 @@ export async function listWarehouseMasterRecords() {
           code: true,
           created_at: true,
           id: true,
+          in_charge: true,
+          max_capacity_kg: true,
           name: true,
+          phone: true,
+          supported_processes: true,
+          target_bale_count: true,
+          target_sort_kg: true,
           type: true,
+          updated_at: true,
         },
       })
       return rows.map((row: (typeof rows)[number]) => ({
@@ -2434,9 +2471,15 @@ export async function listWarehouseMasterRecords() {
         code: row.code,
         createdAt: row.created_at?.toISOString() ?? null,
         id: row.id,
+        inCharge: row.in_charge ?? null,
+        maxCapacityKg: row.max_capacity_kg == null ? null : row.max_capacity_kg.toString(),
         name: row.name,
+        phone: row.phone ?? null,
+        supportedProcesses: row.supported_processes ?? [],
+        targetBaleCount: row.target_bale_count ?? null,
+        targetSortKg: row.target_sort_kg == null ? null : row.target_sort_kg.toString(),
         type: row.type ?? null,
-        updatedAt: null,
+        updatedAt: row.updated_at?.toISOString() ?? null,
       }))
     },
   })

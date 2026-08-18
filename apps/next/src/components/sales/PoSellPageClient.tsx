@@ -717,8 +717,8 @@ export function PoSellPageClient() {
   }
 
   const listControls = (
-    <>
-      <div className="w-full sm:w-auto">พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+    <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 dark:text-slate-400">
+      <div>พบทั้งหมด <span className="font-semibold text-slate-900 dark:text-slate-100">{totalRows}</span> รายการ</div>
       <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
         <div className="flex items-center gap-2">
           {columnResize.hasCustomWidths ? (
@@ -739,7 +739,7 @@ export function PoSellPageClient() {
           <UiButton disabled={currentPage >= totalPages} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton>
         </div>
       </div>
-    </>
+    </div>
   )
 
   return (
@@ -764,9 +764,9 @@ export function PoSellPageClient() {
       </div>
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="mb-4 hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
+      <div className="mb-4 hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:block">
         <div className="flex flex-wrap items-center gap-2">
-          <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <BranchSelectCombobox
             branches={activeBranches}
             className="w-full sm:w-auto"
@@ -777,39 +777,39 @@ export function PoSellPageClient() {
             value={branchFilter}
             onChange={(value) => setBranchFilter(value ?? '')}
           />
-          <label className="text-sm text-slate-500">วันที่ล็อคราคา:</label>
+          <label className="text-sm text-slate-500 dark:text-slate-400">วันที่ล็อคราคา:</label>
           <DatePickerInput ariaLabel="วันที่ล็อคราคาตั้งแต่" className="h-9 w-[130px]" title="วันที่ล็อคราคาตั้งแต่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
           <DatePickerInput ariaLabel="วันที่ล็อคราคาถึง" className="h-9 w-[130px]" title="วันที่ล็อคราคาถึง" value={toDate} onChange={setToDate} />
-          {hasFilters ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={resetFilters}>✕ ล้าง</button> : null}
+          {hasFilters ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" type="button" onClick={resetFilters}>✕ ล้าง</button> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-slate-500">สถานะเอกสาร:</span>
+          <span className="text-sm text-slate-500 dark:text-slate-400">สถานะเอกสาร:</span>
           <MatchButton active={documentStatus === 'all'} label="ทั้งหมด" onClick={() => setDocumentStatus('all')} />
           {(data?.filters.statuses ?? []).map((item) => (
             <MatchButton key={item.value} active={documentStatus === item.value} label={item.label} tone={documentStatusTone(item.value)} onClick={() => setDocumentStatus(item.value)} />
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-slate-500 dark:text-slate-400">สถานะ Match:</span>
+          <MatchButton active={matchStatus === 'all'} label="ทั้งหมด" onClick={() => setMatchStatus('all')} />
+          {(data?.filters.matchStatuses ?? []).map((item) => (
+            <MatchButton key={item.value} active={matchStatus === item.value} label={item.label} onClick={() => setMatchStatus(item.value)} />
           ))}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <a className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
             {data?.capabilities.create ? <button className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}><Plus aria-hidden="true" className="size-4" />PO Sell ใหม่</button> : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-slate-500">สถานะ Match:</span>
-          <MatchButton active={matchStatus === 'all'} label="ทั้งหมด" onClick={() => setMatchStatus('all')} />
-          {(data?.filters.matchStatuses ?? []).map((item) => (
-            <MatchButton key={item.value} active={matchStatus === item.value} label={item.label} onClick={() => setMatchStatus(item.value)} />
-          ))}
-        </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:hidden">
         <div className="flex gap-2 items-center">
-          <input autoComplete="off" className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm h-9" placeholder="ค้นหาเลข PO / Customer / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input autoComplete="off" className="min-w-[200px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 h-9" placeholder="ค้นหาเลข PO / Customer / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {hasFilters ? '(มี)' : ''}
@@ -887,59 +887,60 @@ export function PoSellPageClient() {
         </MobileFilterSheet>
       ) : null}
 
-      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+      {/* Pagination & Summary (Flat bar above cards/table) */}
+      <div className="mb-3 px-1">
         {listControls}
       </div>
 
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">กำลังโหลดข้อมูล</div>
         ) : null}
 
         {!isLoading && pageRows.map((row) => (
           <div
             key={row.id}
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors dark:border-slate-800 dark:bg-slate-900 dark:active:bg-slate-800"
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
-              <span className="whitespace-nowrap text-sm font-bold text-slate-800">{row.docNo}</span>
-              <div className="flex flex-col items-end text-xs text-slate-500">
+              <span className="whitespace-nowrap text-sm font-bold text-slate-800 dark:text-slate-100">{row.docNo}</span>
+              <div className="flex flex-col items-end text-xs text-slate-500 dark:text-slate-400">
                 <span className="whitespace-nowrap">สร้าง {formatDateDisplay(row.createdAt)}</span>
                 <span className="whitespace-nowrap">ล็อคราคา {formatDateDisplay(row.priceLockDate)}</span>
               </div>
             </div>
 
-            <div className="text-xs text-slate-600 mb-3 space-y-1">
+            <div className="text-xs text-slate-600 dark:text-slate-400 mb-3 space-y-1">
               <div>
-                <span className="font-semibold text-slate-500">ลูกค้า: </span>
-                <span className="text-slate-800">{row.customerName}</span>
+                <span className="font-semibold text-slate-500 dark:text-slate-400">ลูกค้า: </span>
+                <span className="text-slate-800 dark:text-slate-200">{row.customerName}</span>
               </div>
               <div>
-                <span className="font-semibold text-slate-500">สินค้า: </span>
-                <span className="text-slate-800">{row.productName || '-'}</span>
+                <span className="font-semibold text-slate-500 dark:text-slate-400">สินค้า: </span>
+                <span className="text-slate-800 dark:text-slate-200">{row.productName || '-'}</span>
               </div>
               <div>
-                <span className="font-semibold text-slate-500">วันที่ส่งมอบ: </span>
-                <span className="whitespace-nowrap text-slate-800">{formatDateDisplay(row.expectedDelivery)}</span>
+                <span className="font-semibold text-slate-500 dark:text-slate-400">วันที่ส่งมอบ: </span>
+                <span className="whitespace-nowrap text-slate-800 dark:text-slate-200">{formatDateDisplay(row.expectedDelivery)}</span>
               </div>
             </div>
 
-            <div className="flex justify-between items-end pt-2 border-t border-slate-100">
+            <div className="flex justify-between items-end pt-2 border-t border-slate-100 dark:border-slate-800">
               <div className="flex flex-wrap gap-1">
                 <StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} />
                 <StatusPill label={row.matchStatusLabel} tone="match" />
               </div>
               <div className="text-right">
-                <span className="text-xs text-slate-400 block">จำนวนรวม / รายได้รวม</span>
-                <span className="font-bold text-slate-900 text-sm tabular-nums">
-                  {formatMoney(row.qty)} กก. / <span className="text-emerald-700">{formatMoney(row.totalAmount)}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 block">จำนวนรวม / รายได้รวม</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm tabular-nums">
+                  {formatMoney(row.qty)} กก. / <span className="text-emerald-700 dark:text-emerald-400">{formatMoney(row.totalAmount)}</span>
                 </span>
               </div>
             </div>
             {isCancelledPoSell(row) ? null : (
-              <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+              <div className="mt-3 flex justify-end border-t border-slate-100 dark:border-slate-800 pt-2" onClick={(event) => event.stopPropagation()}>
                 <TableActionButton mobileLabel menu={(
                   <>
                     {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
@@ -954,18 +955,15 @@ export function PoSellPageClient() {
         ))}
 
         {!isLoading && totalRows === 0 ? (
-          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200 dark:border-slate-800 dark:bg-slate-900">
             ยังไม่มี PO Sell
           </div>
         ) : null}
       </div>
 
       {/* Desktop Table (Hidden on Mobile) */}
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-          {listControls}
-        </div>
-        <Table className="min-w-full divide-y divide-slate-200" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <Table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
         <colgroup>
           {poSellColumns.map((column) => (
             <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -992,16 +990,16 @@ export function PoSellPageClient() {
           </tr>
         </TableHeader>
         <TableBody>
-          {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={poSellColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
+          {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500 dark:text-slate-400" colSpan={poSellColumns.length}><div className="flex items-center justify-center gap-3 py-1"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-28" /><span className="sr-only">กำลังโหลดข้อมูล</span></div></TableCell></TableRow> : null}
           {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={poSellColumns.length}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
           {!isLoading && pageRows.map((row) => (
-            <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
-              <TableCell className="whitespace-nowrap text-center font-mono">{row.docNo}</TableCell>
-              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.createdAt)}</TableCell>
-              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.priceLockDate)}</TableCell>
-              <TableCell className="whitespace-nowrap text-center">{formatDateDisplay(row.expectedDelivery)}</TableCell>
-              <TableCell className="ns-table-textual-column truncate">{row.customerName}</TableCell>
-              <TableCell className="text-xs font-semibold text-slate-700">
+            <TableRow key={row.id} className="border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => setSelectedRow(row)}>
+              <TableCell className="whitespace-nowrap text-center font-mono text-slate-900 dark:text-slate-100">{row.docNo}</TableCell>
+              <TableCell className="whitespace-nowrap text-center text-slate-700 dark:text-slate-300">{formatDateDisplay(row.createdAt)}</TableCell>
+              <TableCell className="whitespace-nowrap text-center text-slate-700 dark:text-slate-300">{formatDateDisplay(row.priceLockDate)}</TableCell>
+              <TableCell className="whitespace-nowrap text-center text-slate-700 dark:text-slate-300">{formatDateDisplay(row.expectedDelivery)}</TableCell>
+              <TableCell className="ns-table-textual-column truncate text-slate-800 dark:text-slate-200">{row.customerName}</TableCell>
+              <TableCell className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <CollapsedList
                   inline
                   items={row.productName ? row.productName.split(',').map((item) => item.trim()).filter(Boolean) : []}
@@ -1009,16 +1007,16 @@ export function PoSellPageClient() {
                 />
               </TableCell>
               <TableNumberCell value={formatMoney(row.qty)} />
-              <TableCell className="whitespace-nowrap text-right pr-4 font-semibold text-emerald-700 tabular-nums">{formatMoney(row.totalAmount)}</TableCell>
-              <TableCell className="whitespace-nowrap text-right pr-4 text-blue-700 tabular-nums">{formatMoney(row.matchedQty)}</TableCell>
+              <TableCell className="whitespace-nowrap text-right pr-4 font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">{formatMoney(row.totalAmount)}</TableCell>
+              <TableCell className="whitespace-nowrap text-right pr-4 text-blue-700 dark:text-blue-400 tabular-nums">{formatMoney(row.matchedQty)}</TableCell>
               <TableNumberCell tone="amber" value={formatMoney(row.remainingQty)} />
-              <TableCell className={`text-right pr-4 font-bold tabular-nums ${row.margin < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(row.margin)}</TableCell>
-              <TableCell className={`text-right pr-4 tabular-nums ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</TableCell>
+              <TableCell className={`text-right pr-4 font-bold tabular-nums ${row.margin < 0 ? 'text-red-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{formatMoney(row.margin)}</TableCell>
+              <TableCell className={`text-right pr-4 tabular-nums ${row.marginPct < 0 ? 'text-red-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{formatPercent(row.marginPct)}</TableCell>
               <TableCell className="whitespace-nowrap text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></TableCell>
               <TableCell className="whitespace-nowrap text-center"><StatusPill label={row.matchStatusLabel} tone="match" /></TableCell>
-              <TableCell className="overflow-hidden whitespace-nowrap text-center text-xs text-slate-600">
-                <div className="truncate font-semibold text-slate-700" title={row.updatedBy || '-'}>{row.updatedBy || '-'}</div>
-                <div className="truncate font-mono text-xs text-slate-400" title={formatTimestampDisplay(row.updatedAt)}>{formatTimestampDisplay(row.updatedAt)}</div>
+              <TableCell className="overflow-hidden whitespace-nowrap text-center text-xs text-slate-600 dark:text-slate-400">
+                <div className="truncate font-semibold text-slate-700 dark:text-slate-300" title={row.updatedBy || '-'}>{row.updatedBy || '-'}</div>
+                <div className="truncate font-mono text-xs text-slate-400 dark:text-slate-500" title={formatTimestampDisplay(row.updatedAt)}>{formatTimestampDisplay(row.updatedAt)}</div>
               </TableCell>
               <TableCell className="whitespace-nowrap text-center">
                 {isCancelledPoSell(row) ? null : <TableActionButton menu={(
@@ -1380,7 +1378,7 @@ function PoSellFormModal({
     label: optionLabel(product),
     searchText: searchableText(product),
   })), [products])
-  const fieldError = (name: string) => errors[name] ? <div className="mt-1 text-xs text-red-600">{errors[name]}</div> : null
+  const fieldError = (name: string) => errors[name] ? <div className="mt-1 text-xs text-red-600 dark:text-rose-400">{errors[name]}</div> : null
 
   return (
     <Dialog open onOpenChange={(open) => {
@@ -1391,18 +1389,18 @@ function PoSellFormModal({
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
             <DialogTitle id="po-sell-form-title" className="truncate text-white">{title}</DialogTitle>
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
-              <UiButton className="h-9 border-emerald-600 bg-emerald-600 px-4 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white disabled:opacity-60" disabled={isSaving} type="button" variant="outline" onClick={() => void onSubmit()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</UiButton>
-              <UiButton className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ยกเลิก</UiButton>
+              <UiButton className="h-9 bg-blue-600 px-4 font-medium text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={() => void onSubmit()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</UiButton>
+              <UiButton className="h-9 border-slate-600 bg-transparent font-normal text-slate-200 hover:bg-slate-800 hover:text-white" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ยกเลิก</UiButton>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-5 text-sm space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow">
-            <div className="mb-3 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
+        <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-5 text-sm space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">ข้อมูลเอกสาร</div>
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
               <div className="col-span-1" data-field-invalid={errors.branchId ? 'true' : undefined}>
-                <label className="mb-1 block text-xs font-medium text-slate-600">สาขา/คลัง <span className="text-red-600">*</span></label>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">สาขา/คลัง <span className="text-red-600">*</span></label>
                 <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-10 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                   <option disabled value="">เลือกสาขา/คลัง</option>
                   {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
@@ -1421,20 +1419,20 @@ function PoSellFormModal({
                 {fieldError('customerId')}
               </div>
               <div className="col-span-1">
-                <label className="mb-1 block text-xs font-medium text-slate-600">วันที่ล็อคราคา <span className="text-red-600">*</span></label>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">วันที่ล็อคราคา <span className="text-red-600">*</span></label>
                 <DatePickerInput ariaInvalid={Boolean(errors.priceLockDate)} className="!h-10 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.priceLockDate} onChange={(value) => onUpdate('priceLockDate', value)} />
                 {fieldError('priceLockDate')}
               </div>
               <div className="col-span-1">
-                <label className="mb-1 block text-xs font-medium text-slate-600">วันส่งมอบ <span className="text-red-600">*</span></label>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">วันส่งมอบ <span className="text-red-600">*</span></label>
                 <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-10 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
                 {fieldError('expectedDelivery')}
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-slate-600">ช่องทางขาย</label>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">ช่องทางขาย</label>
                 <UiInput
                   readOnly
-                  className={`!h-9 w-full rounded-md px-2 py-1.5 text-sm outline-none focus:ring-0 ${errors.channelId ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
+                  className={`!h-9 w-full rounded-md px-2 py-1.5 text-sm outline-none focus:ring-0 ${errors.channelId ? 'border-red-400 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800' : 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}
                   value={selectedChannelLabel}
                 />
                 {fieldError('channelId')}
@@ -1442,25 +1440,25 @@ function PoSellFormModal({
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <label className="font-medium text-slate-800">📋 รายการสินค้า ({form.items.length})</label>
+              <label className="font-medium text-slate-800 dark:text-slate-100">📋 รายการสินค้า ({form.items.length})</label>
               <UiButton className="h-9 rounded-md bg-emerald-600 font-normal hover:bg-emerald-700 text-white transition-colors outline-none focus:ring-0" size="xs" type="button" variant="default" onClick={onAddItem}>+ เพิ่มรายการ</UiButton>
             </div>
-            <div className="overflow-x-auto rounded-md border border-slate-100">
+            <div className="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-800">
               <Table className="min-w-[820px] border-0">
                 <TableHeader>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <TableHead className="text-slate-700">สินค้า / Grade <span className="text-red-600">*</span></TableHead>
-                    <TableHead className="w-36 text-right text-slate-700">จำนวน (กก.) <span className="text-red-600">*</span></TableHead>
-                    <TableHead className="w-36 text-right text-slate-700">ราคา/หน่วย <span className="text-red-600">*</span></TableHead>
-                    <TableHead className="w-36 text-right text-slate-700">มูลค่ารวม</TableHead>
+                  <tr className="border-b border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/60">
+                    <TableHead className="text-slate-700 dark:text-slate-300">สินค้า / Grade <span className="text-red-600">*</span></TableHead>
+                    <TableHead className="w-36 text-right text-slate-700 dark:text-slate-300">จำนวน (กก.) <span className="text-red-600">*</span></TableHead>
+                    <TableHead className="w-36 text-right text-slate-700 dark:text-slate-300">ราคา/หน่วย <span className="text-red-600">*</span></TableHead>
+                    <TableHead className="w-36 text-right text-slate-700 dark:text-slate-300">มูลค่ารวม</TableHead>
                     <TableHead className="w-10" />
                   </tr>
                 </TableHeader>
                 <TableBody>
                   {form.items.map((item, index) => (
-                    <TableRow key={index} className="border-b border-slate-100/60">
+                    <TableRow key={index} className="border-b border-slate-100 dark:border-slate-800">
                       <TableCell className="p-1.5 align-top">
                          <ProductSearchCombobox
                            error={errors[`items.${index}.productId`]}
@@ -1479,37 +1477,37 @@ function PoSellFormModal({
                          <DecimalPatternInput error={Boolean(errors[`items.${index}.price`])} formatOnBlur required value={item.price} onChange={(value) => onUpdateItem(index, 'price', value)} />
                          {fieldError(`items.${index}.price`)}
                        </TableCell>
-                       <TableCell className="whitespace-nowrap bg-blue-50/50 p-1.5 px-2 text-right font-bold tabular-nums text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
-                       <TableCell className="p-1.5 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors outline-none focus:ring-0" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
+                       <TableCell className="whitespace-nowrap bg-blue-50/50 dark:bg-blue-950/40 p-1.5 px-2 text-right font-bold tabular-nums text-blue-700 dark:text-blue-300">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
+                       <TableCell className="p-1.5 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 rounded-md transition-colors outline-none focus:ring-0" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
                      </TableRow>
                    ))}
                  </TableBody>
-                 <tfoot className="bg-slate-50 font-bold border-t border-slate-100 text-slate-800">
-                   <tr><td className="p-3 text-right">รวม {form.items.length} รายการ</td><td className="whitespace-nowrap p-3 text-right tabular-nums">{formatMoney(totalQty)}</td><td /><td className="whitespace-nowrap p-3 text-right text-base tabular-nums text-blue-700">{formatMoney(subtotal)}</td><td /></tr>
+                 <tfoot className="bg-slate-50 dark:bg-slate-800/80 font-bold border-t border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                   <tr><td className="p-3 text-right">รวม {form.items.length} รายการ</td><td className="whitespace-nowrap p-3 text-right tabular-nums">{formatMoney(totalQty)}</td><td /><td className="whitespace-nowrap p-3 text-right text-base tabular-nums text-blue-700 dark:text-blue-400">{formatMoney(subtotal)}</td><td /></tr>
                  </tfoot>
                </Table>
              </div>
              {fieldError('items')}
            </div>
- 
+
            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
               <div className="flex flex-col gap-3">
-                <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-2 px-3 py-2.5 select-none transition-colors ${form.hasVat ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-2 px-3 py-2.5 select-none transition-colors ${form.hasVat ? 'border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 text-slate-700 dark:text-slate-300'}`}>
                   <input
                     checked={form.hasVat}
                     className="size-5"
                     type="checkbox"
                     onChange={(event) => onUpdate('hasVat', event.target.checked)}
                   />
-                  <span className="font-semibold text-slate-700">คิด VAT {formatMoney(vatRatePercent)}%</span>
+                  <span className="font-semibold">คิด VAT {formatMoney(vatRatePercent)}%</span>
                 </label>
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow flex-1 flex flex-col">
-                  <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
-                  <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus:border-slate-400 focus:ring-0 outline-none transition-colors flex-1" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex-1 flex flex-col">
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">หมายเหตุ</label>
+                  <textarea className="min-h-16 w-full rounded-md border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 px-3 py-2 text-sm focus-visible:outline-none focus:border-slate-400 focus:ring-0 outline-none transition-colors flex-1" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
                   {fieldError('note')}
                 </div>
               </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-4 shadow-sm">
                 <SummaryLine label="จำนวนรวม" value={`${formatMoney(totalQty)} กก.`} />
                 <SummaryLine label="ยอดก่อน VAT" value={formatMoney(subtotal)} />
                 <SummaryLine label={`VAT ${formatMoney(vatRatePercent)}%`} value={formatMoney(vatAmount)} />
@@ -1517,7 +1515,7 @@ function PoSellFormModal({
               </div>
             </div>
          </div>
- 
+
        </DialogContent>
      </Dialog>
   )
@@ -1556,21 +1554,21 @@ function PoSellCancelModal({
             <DialogDescription className="text-slate-300">{row.customerName}</DialogDescription>
           </div>
         </DialogHeader>
-        <div className="space-y-2 bg-slate-50 p-5 text-sm">
-          <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-cancel-note">หมายเหตุการยกเลิก <span className="text-red-600">*</span></label>
+        <div className="space-y-2 bg-slate-50 dark:bg-slate-950 p-5 text-sm">
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300" htmlFor="po-sell-cancel-note">หมายเหตุการยกเลิก <span className="text-red-600">*</span></label>
           <textarea
             aria-invalid={Boolean(error)}
             id="po-sell-cancel-note"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
+            className="w-full rounded-md border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
             maxLength={500}
             required
             rows={3}
             value={note}
             onChange={(event) => onChangeNote(event.target.value)}
           />
-          {error ? <div className="text-xs text-red-600">{error}</div> : null}
+          {error ? <div className="text-xs text-red-600 dark:text-rose-400">{error}</div> : null}
         </div>
-        <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2 shrink-0 md:rounded-b-md">
+        <DialogFooter className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-2 shrink-0 md:rounded-b-md">
           <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
@@ -1612,21 +1610,21 @@ function PoSellShortCloseModal({
             <DialogDescription className="text-slate-300">{row.customerName} · คงเหลือ {formatMoney(row.remainingQty)} กก.</DialogDescription>
           </div>
         </DialogHeader>
-        <div className="space-y-2 bg-slate-50 p-5 text-sm">
-          <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-short-close-note">เหตุผลการปิดส่งไม่ครบ <span className="text-red-600">*</span></label>
+        <div className="space-y-2 bg-slate-50 dark:bg-slate-950 p-5 text-sm">
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300" htmlFor="po-sell-short-close-note">เหตุผลการปิดส่งไม่ครบ <span className="text-red-600">*</span></label>
           <textarea
             aria-invalid={Boolean(error)}
             id="po-sell-short-close-note"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
+            className="w-full rounded-md border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
             maxLength={500}
             required
             rows={3}
             value={note}
             onChange={(event) => onChangeNote(event.target.value)}
           />
-          {error ? <div className="text-xs text-red-600">{error}</div> : null}
+          {error ? <div className="text-xs text-red-600 dark:text-rose-400">{error}</div> : null}
         </div>
-        <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2 shrink-0 md:rounded-b-md">
+        <DialogFooter className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-2 shrink-0 md:rounded-b-md">
           <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="rounded-md bg-amber-600 hover:bg-amber-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยันปิดส่งไม่ครบ'}</UiButton>
         </DialogFooter>
@@ -1690,15 +1688,15 @@ function PoSellDetailModal({
               <Printer className="size-4" />
               {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
             </UiButton>
-            <UiButton className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+            <UiButton className="h-9 border-slate-600 bg-transparent font-normal text-slate-200 hover:bg-slate-800 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
           </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4 text-sm">
+        <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 space-y-4 text-sm">
           {/* ข้อมูลเอกสาร */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
-            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลเอกสาร</h4>
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4 dark:text-slate-100 dark:border-slate-800">ข้อมูลเอกสาร</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="วันที่ล็อคราคา" value={formatDateDisplay(row.priceLockDate)} />
               <DetailItem label="วันที่ส่งมอบ" value={formatDateDisplay(row.expectedDelivery)} />
@@ -1707,9 +1705,9 @@ function PoSellDetailModal({
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
-            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ประวัติการทำรายการ</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4 dark:text-slate-100 dark:border-slate-800">ประวัติการทำรายการ</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-5">
               <DetailItem label="สร้างโดย" value={row.createdBy || '-'} />
               <DetailItem label="สร้างเอกสารเมื่อ" value={formatTimestampDisplay(row.createdAt)} />
               <DetailItem label="แก้ไขล่าสุดโดย" value={row.updatedBy || '-'} />
@@ -1718,23 +1716,23 @@ function PoSellDetailModal({
           </div>
 
           {/* สถานะรายการ */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
-            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">สถานะรายการ</h4>
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4 dark:text-slate-100 dark:border-slate-800">สถานะรายการ</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <div>
-                <div className="text-xs font-medium text-slate-500 mb-0.5">เอกสาร</div>
+                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">เอกสาร</div>
                 <div className="mt-1"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></div>
               </div>
               <div>
-                <div className="text-xs font-medium text-slate-500 mb-0.5">Match Cost</div>
+                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">Match Cost</div>
                 <div className="mt-1"><StatusPill label={row.matchStatusLabel} tone="match" /></div>
               </div>
             </div>
           </div>
 
           {/* จำนวนและรายได้ */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
-            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">จำนวนและรายได้</h4>
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4 dark:text-slate-100 dark:border-slate-800">จำนวนและรายได้</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="จำนวนจองรวม" value={`${formatMoney(row.qty)} กก.`} />
               <DetailItem label="จำนวน Matched" value={`${formatMoney(row.matchedQty)} กก.`} />
@@ -1742,15 +1740,15 @@ function PoSellDetailModal({
               <DetailItem label="ยอดก่อน VAT" value={`${formatMoney(row.subtotal)} บาท`} />
               <DetailItem label={`VAT ${formatMoney(row.vatRatePercent)}%`} value={`${formatMoney(row.vatAmount)} บาท`} />
               <div>
-                <div className="text-xs font-medium text-slate-500 mb-0.5">ยอดรวมสุทธิ</div>
-                <div className="text-sm font-bold text-blue-700">{formatMoney(row.totalAmount)} บาท</div>
+                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">ยอดรวมสุทธิ</div>
+                <div className="text-sm font-bold text-blue-700 dark:text-blue-400">{formatMoney(row.totalAmount)} บาท</div>
               </div>
             </div>
           </div>
 
           {/* Deal Margin */}
-          <div className="rounded-md border border-slate-200 bg-emerald-50/10 p-5 shadow">
-            <h4 className="text-sm font-bold text-emerald-800 border-b border-emerald-100 pb-2 mb-4">Deal Margin</h4>
+          <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/20 p-5 shadow-sm dark:border-emerald-800/50 dark:bg-emerald-950/20">
+            <h4 className="text-sm font-bold text-emerald-800 border-b border-emerald-100 pb-2 mb-4 dark:text-emerald-300 dark:border-emerald-900/50">Deal Margin</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="Deal Margin" value={`${formatMoney(row.margin)} บาท`} />
               <DetailItem label="Margin %" value={formatPercent(row.marginPct)} />
@@ -1758,9 +1756,9 @@ function PoSellDetailModal({
           </div>
 
           {/* รายการสินค้า */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
-            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">รายการสินค้า</h4>
-            <div className="text-sm font-semibold text-slate-900 mt-1">{row.productName || '-'}</div>
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4 dark:text-slate-100 dark:border-slate-800">รายการสินค้า</h4>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">{row.productName || '-'}</div>
           </div>
         </div>
       </DialogContent>
@@ -1770,16 +1768,16 @@ function PoSellDetailModal({
 
 function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
   return (
-    <div className={className}>
-      <div className="text-xs font-medium text-slate-500 mb-0.5">{label}</div>
-      <div className="text-sm font-semibold text-slate-900">{value}</div>
+    <div className={`min-w-0 ${className}`}>
+      <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">{label}</div>
+      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 break-words" title={value}>{value}</div>
     </div>
   )
 }
 
 function SummaryLine({ label, strong = false, value }: { label: string; strong?: boolean; value: string }) {
   return (
-    <div className={`flex items-center justify-between gap-3 py-1 text-sm ${strong ? 'border-t border-slate-200 pt-2 font-bold text-blue-700' : 'text-slate-700'}`}>
+    <div className={`flex items-center justify-between gap-3 py-1 text-sm ${strong ? 'border-t border-slate-200 dark:border-slate-800 pt-2 font-bold text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
       <span>{label}</span>
       <span className="font-mono">{value}</span>
     </div>

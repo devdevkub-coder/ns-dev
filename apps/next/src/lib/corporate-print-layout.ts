@@ -54,15 +54,28 @@ export function paginateMeasuredCorporateRows<T>(
           })
           return pages
         }
-        const continuationCount = remaining - finalCount
-        if (!fitsContinuationPage(rows.slice(cursor, cursor + continuationCount))) {
-          throw new Error(`Corporate print row ${cursor + 1} is taller than the available A4 page area`)
+        const continuationRemaining = rows.slice(cursor, rows.length - finalCount)
+        if (continuationRemaining.length > 0) {
+          let contCursor = 0
+          while (contCursor < continuationRemaining.length) {
+            let contCount = Math.min(continuationRemaining.length - contCursor, maxRowsPerPage)
+            while (
+              contCount > 0
+              && !fitsContinuationPage(continuationRemaining.slice(contCursor, contCursor + contCount))
+            ) {
+              contCount -= 1
+            }
+            if (contCount === 0) {
+              throw new Error(`Corporate print row ${cursor + contCursor + 1} is taller than the available A4 page area`)
+            }
+            pages.push({
+              isFinalPage: false,
+              items: [...continuationRemaining.slice(contCursor, contCursor + contCount)],
+              pageNo: pages.length + 1,
+            })
+            contCursor += contCount
+          }
         }
-        pages.push({
-          isFinalPage: false,
-          items: [...rows.slice(cursor, cursor + continuationCount)],
-          pageNo: pages.length + 1,
-        })
         pages.push({
           isFinalPage: true,
           items: [...rows.slice(rows.length - finalCount)],
