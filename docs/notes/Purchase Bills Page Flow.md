@@ -236,7 +236,7 @@ Contract สำหรับ ADV ที่มี VAT:
 - ไม่มี active `payment_approvals.status in ('approved', 'paid')`
 - ไม่มี `payments.status != 'cancelled'`
 
-การแก้ไขปกติเป็นการ update `PB` เดิม โดย refresh allocation facts, ADV allocation, PO reconciliation, WTI billed/remaining, และ status logs ใน transaction เดียว แต่ต้องไม่ refresh supplier printable snapshot ถ้า Supplier ไม่เปลี่ยน เพื่อไม่ให้เอกสารเก่าเปลี่ยนตาม master data ภายหลัง
+การแก้ไขปกติเป็นการ update `PB` เดิม โดย refresh allocation facts, ADV allocation, PO reconciliation, WTI billed/remaining, และ status logs ใน transaction เดียว แต่ต้องไม่ refresh supplier printable snapshot ถ้า Supplier ไม่เปลี่ยน เพื่อไม่ให้เอกสารเก่าเปลี่ยนตาม master data ภายหลัง; ถ้าเปลี่ยน Supplier ภายหลังการสร้าง PB ระบบยอมให้ Supplier ของ PB ต่างจาก Supplier บน WTI เดิมได้ โดยยังคง WTI เดิมเป็น source และ update snapshot ของ PB เฉพาะเมื่อ Supplier ของ PB เปลี่ยน
 
 ## Cancel PB
 
