@@ -12,6 +12,7 @@ import {
   parseImpurityProductMeta,
   roundWeight,
   type WeightTicketFormValues,
+  type DeductionMode,
   type WeightTicketStatus,
   type WeightTicketType,
 } from '@/lib/weight-tickets'
@@ -558,6 +559,12 @@ export function buildWeightTicketLineRows(
   const lineNoById = new Map(values.lines.map((line, index) => [line.id, index + 1] as const))
 
   return values.lines.map((line, index) => {
+    if (line.parentId === line.id) {
+      throw new WeightTicketDataContractError(`รายการที่ ${index + 1} ไม่สามารถอ้างตัวเองเป็นรายการหลักได้`)
+    }
+    if (line.impuritySourceLineId === line.id) {
+      throw new WeightTicketDataContractError(`รายการที่ ${index + 1} ไม่สามารถอ้างตัวเองเป็นแหล่งสิ่งเจือปนได้`)
+    }
     const lineTotals = totalsById.get(line.id)!
     const productCode = line.productId.trim().toUpperCase()
     const product = productByCode.get(productCode)
@@ -882,6 +889,148 @@ export function buildWeightTicketProductSummaryRows(
     }
   })
   return { summaryRows }
+}
+
+export type WeightTicketDerivedLine = {
+  container_deduction_weight: number | Prisma.Decimal
+  deduct_weight: number | Prisma.Decimal
+  deduction_mode: string
+  deduction_value: number | Prisma.Decimal | null
+  gross_weight: number | Prisma.Decimal
+  id: bigint
+  image_count: number
+  impurity_id: bigint | null
+  impurity_source_line_no: number | null
+  line_no: number
+  net_weight: number | Prisma.Decimal
+  parent_line_no: number | null
+  product_id: bigint
+  product_name: string
+  weight_ticket_id: bigint
+  warehouse_id: bigint | null
+}
+
+type WeightTicketLineRelationship = Pick<
+  WeightTicketDerivedLine,
+  'id' | 'line_no' | 'parent_line_no' | 'impurity_source_line_no'
+>
+
+export function buildWeightTicketRenumberedLineReferences(lines: WeightTicketLineRelationship[]) {
+  const newLineNoByOldLineNo = new Map(lines.map((line, index) => [line.line_no, index + 1] as const))
+  const remapLineNo = (line: WeightTicketLineRelationship, field: 'parent_line_no' | 'impurity_source_line_no') => {
+    const oldLineNo = line[field]
+    if (oldLineNo == null) return null
+    const newLineNo = newLineNoByOldLineNo.get(oldLineNo)
+    if (newLineNo == null) {
+      throw new WeightTicketDataContractError(`รายการ ${line.id.toString()} อ้างถึงเต๋าที่ไม่พบหลังลบข้อมูล`)
+    }
+    return newLineNo
+  }
+
+  return lines.map((line, index) => ({
+    id: line.id,
+    impurity_source_line_no: remapLineNo(line, 'impurity_source_line_no'),
+    line_no: index + 1,
+    parent_line_no: remapLineNo(line, 'parent_line_no'),
+  }))
+}
+
+export function buildWeightTicketDerivedFacts(
+  ticketId: bigint,
+  vehicleImageCount: number,
+  lineRows: WeightTicketDerivedLine[],
+) {
+  const lineIdByLineNo = new Map(lineRows.map((line) => [line.line_no, String(line.id)] as const))
+  const resolveLineIdByLineNo = (lineNo: number | null) => {
+    if (lineNo == null) return undefined
+    const lineId = lineIdByLineNo.get(lineNo)
+    if (lineId == null) throw new WeightTicketDataContractError(`ไม่พบเต๋าที่ ${lineNo} ในความสัมพันธ์ของใบรับ-ส่งของ`)
+    return lineId
+  }
+  const calculationLines = lineRows.map((line) => ({
+    containerDeductionWeight: toNumber(line.container_deduction_weight),
+    deductionMode: line.deduction_mode as DeductionMode,
+    deductionValue: toNumber(line.deduction_value ?? 0),
+    grossWeight: toNumber(line.gross_weight),
+    id: String(line.id),
+    impurityId: line.impurity_id == null ? undefined : String(line.impurity_id),
+    impuritySourceLineId: resolveLineIdByLineNo(line.impurity_source_line_no),
+    parentId: resolveLineIdByLineNo(line.parent_line_no),
+    productId: String(line.product_id),
+  }))
+  const { lineTotalsById, totals } = calculateWeightTicketLineTotals(calculationLines)
+  const derivedLineRows = lineRows.map((line) => {
+    const lineTotals = lineTotalsById.get(String(line.id))
+    if (!lineTotals) {
+      throw new WeightTicketDataContractError(`ไม่พบผลคำนวณของรายการ ${line.id.toString()}`)
+    }
+    return {
+      ...line,
+      container_deduction_weight: lineTotals.containerDeductionWeight,
+      deduct_weight: lineTotals.deductionWeight,
+      gross_weight: lineTotals.grossWeight,
+      net_weight: lineTotals.netWeight,
+    }
+  })
+  const { summaryRows } = buildWeightTicketProductSummaryRows(ticketId, derivedLineRows)
+  return {
+    derivedLineRows,
+    imageCount: vehicleImageCount + lineRows.reduce((sum, line) => sum + line.image_count, 0),
+    lineTotalsById,
+    summaryRows,
+    totals,
+  }
+}
+
+export async function rebuildWeightTicketProductSummaries(
+  tx: Prisma.TransactionClient,
+  ticketId: bigint,
+  summaryRows: ReturnType<typeof buildWeightTicketProductSummaryRows>['summaryRows'],
+) {
+  await tx.weight_ticket_product_summary_lines.deleteMany({
+    where: {
+      weight_ticket_product_summaries: {
+        weight_ticket_id: ticketId,
+      },
+    },
+  })
+  const summaryProductIds = summaryRows.map(({ product_id }) => product_id)
+  if (summaryProductIds.length) {
+    await tx.weight_ticket_product_summaries.deleteMany({
+      where: {
+        product_id: { notIn: summaryProductIds },
+        weight_ticket_id: ticketId,
+      },
+    })
+  } else {
+    await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: ticketId } })
+  }
+  const persistedSummaries = await Promise.all(summaryRows.map(async ({ lineIds: _lineIds, ...data }) => {
+    const { created_at: _createdAt, ...upsertData } = data
+    return tx.weight_ticket_product_summaries.upsert({
+      create: data,
+      update: { ...upsertData, updated_at: new Date() },
+      where: {
+        weight_ticket_id_product_id: {
+          product_id: data.product_id,
+          weight_ticket_id: data.weight_ticket_id,
+        },
+      },
+    })
+  }))
+  const summaryIdByProductId = new Map(persistedSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
+  const bridgeRows = summaryRows.flatMap(({ lineIds, product_id }) => {
+    const summaryId = summaryIdByProductId.get(String(product_id))
+    if (summaryId == null) return []
+    return lineIds.map((lineId) => ({
+      created_at: new Date(),
+      summary_id: summaryId,
+      weight_ticket_line_id: lineId,
+    }))
+  })
+  if (bridgeRows.length) {
+    await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
+  }
 }
 
 function emptyWeightTicketUsage(): WeightTicketUsage {

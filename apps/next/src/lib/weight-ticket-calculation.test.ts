@@ -10,8 +10,11 @@ import {
   weightTicketFormSchema,
 } from './weight-tickets'
 import {
+  buildWeightTicketRenumberedLineReferences,
   buildWeightTicketLineRows,
+  buildWeightTicketDerivedFacts,
   buildWeightTicketProductSummaryRows,
+  WeightTicketDataContractError,
 } from './server/weight-tickets'
 
 const validWtiLine = (id: string, parentId?: string) => ({
@@ -44,6 +47,104 @@ const validWtiPayload = (lines: TestWeightTicketLine[]) => ({
 })
 
 describe('weight ticket totals', () => {
+  it('rebuilds ticket totals, image count, and summaries from the remaining persisted lines after delete-only writes', () => {
+    const remainingLines = [
+      {
+        container_deduction_weight: 1,
+        deduct_weight: 0,
+        deduction_mode: 'none',
+        deduction_value: 0,
+        gross_weight: 10,
+        id: 101n,
+        image_count: 1,
+        impurity_id: null,
+        impurity_source_line_no: null,
+        line_no: 1,
+        net_weight: 9,
+        parent_line_no: null,
+        product_id: 10n,
+        product_name: 'สินค้า A',
+        weight_ticket_id: 100n,
+        warehouse_id: null,
+      },
+      {
+        container_deduction_weight: 0,
+        deduct_weight: 0,
+        deduction_mode: 'none',
+        deduction_value: 0,
+        gross_weight: 50,
+        id: 103n,
+        image_count: 2,
+        impurity_id: null,
+        impurity_source_line_no: null,
+        line_no: 2,
+        net_weight: 50,
+        parent_line_no: null,
+        product_id: 11n,
+        product_name: 'สินค้า B',
+        weight_ticket_id: 100n,
+        warehouse_id: null,
+      },
+    ]
+
+    const facts = buildWeightTicketDerivedFacts(100n, 3, remainingLines)
+
+    expect(facts).toMatchObject({
+      imageCount: 6,
+      totals: {
+        containerDeductionWeight: 1,
+        deductionWeight: 0,
+        grossWeight: 60,
+        netWeight: 59,
+      },
+    })
+    expect(facts.summaryRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ lineIds: [101n], line_count: 1, product_id: 10n, net_weight: 9 }),
+      expect.objectContaining({ lineIds: [103n], line_count: 1, product_id: 11n, net_weight: 50 }),
+    ]))
+    expect(facts.summaryRows).toHaveLength(2)
+  })
+
+  it('recalculates persisted line net weight before rebuilding summaries after a child deletion', () => {
+    const remainingLines = [{
+      container_deduction_weight: 0,
+      deduct_weight: 0,
+      deduction_mode: 'none',
+      deduction_value: 0,
+      gross_weight: 100,
+      id: 201n,
+      image_count: 0,
+      impurity_id: null,
+      impurity_source_line_no: null,
+      line_no: 1,
+      net_weight: 90,
+      parent_line_no: null,
+      product_id: 20n,
+      product_name: 'สินค้า A',
+      weight_ticket_id: 200n,
+      warehouse_id: null,
+    }]
+
+    const facts = buildWeightTicketDerivedFacts(200n, 0, remainingLines)
+
+    expect(facts.derivedLineRows[0]?.net_weight).toBe(100)
+    expect(facts.summaryRows[0]?.net_weight).toBe(100)
+    expect(facts.totals.netWeight).toBe(100)
+  })
+
+  it('remaps line-number relationships from stable line ids after compaction', () => {
+    expect(buildWeightTicketRenumberedLineReferences([
+      { id: 301n, line_no: 2, parent_line_no: null, impurity_source_line_no: null },
+      { id: 302n, line_no: 4, parent_line_no: 2, impurity_source_line_no: 2 },
+    ])).toEqual([
+      { id: 301n, line_no: 1, parent_line_no: null, impurity_source_line_no: null },
+      { id: 302n, line_no: 2, parent_line_no: 1, impurity_source_line_no: 1 },
+    ])
+    expect(() => buildWeightTicketRenumberedLineReferences([
+      { id: 303n, line_no: 2, parent_line_no: 9, impurity_source_line_no: null },
+    ])).toThrow('อ้างถึงเต๋าที่ไม่พบ')
+  })
+
   it('recognizes the blank child lot shape used by incremental add drafts', () => {
     const blankChildLot = {
       ...validWtiLine('draft-lot', 'source-lot'),
@@ -477,6 +578,19 @@ describe('weight ticket totals', () => {
     expect(result.error.issues).toContainEqual(expect.objectContaining({
       path: ['lines', 0, 'parentId'],
     }))
+  })
+
+  it('rejects a self-parent relationship before serializing rows for persistence', () => {
+    const values = validWtiPayload([
+      validWtiLine('self-parent', 'self-parent'),
+    ]) as unknown as WeightTicketFormValues
+
+    expect(() => buildWeightTicketLineRows(
+      100n,
+      values,
+      new Map([['PROD-A', { code: 'PROD-A', id: 1n, name: 'สินค้า A' }]]),
+      new Map(),
+    )).toThrowError(new WeightTicketDataContractError('รายการที่ 1 ไม่สามารถอ้างตัวเองเป็นรายการหลักได้'))
   })
 
   it('rejects a parent cycle that has no root line', () => {

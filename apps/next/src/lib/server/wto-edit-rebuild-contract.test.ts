@@ -25,6 +25,11 @@ const handlersSource = readFileSync(
   'utf8',
 )
 
+const weightTicketsServerSource = readFileSync(
+  resolve(process.cwd(), 'src/lib/server/weight-tickets.ts'),
+  'utf8',
+)
+
 describe('WTO delivered edit release/rebuild contract', () => {
   it('advances untouched remote lines without changing the local dirty-line baseline', () => {
     const baseline = {
@@ -180,6 +185,31 @@ describe('WTO delivered edit release/rebuild contract', () => {
     expect(editRouteSource).toContain('const isDeliveredWtoDelete = locked.doc_type === \'WTO\' && locked.status === \'delivered\'')
     expect(editRouteSource).toContain('if (isDeliveredWtoDelete && deleteLines.data.collaborationBaseUpdatedAt !== locked.updated_at.toISOString())')
     expect(editRouteSource).toContain("operation: 'delete_lines'")
+  })
+
+  it('rebuilds header totals, image count, and product bridges after delete-only writes', () => {
+    const deleteStart = editRouteSource.indexOf('const lockedDeletedIds =')
+    const deleteEnd = editRouteSource.indexOf('return {', deleteStart)
+    const deleteSource = editRouteSource.slice(deleteStart, deleteEnd)
+
+    expect(deleteSource).toContain('buildWeightTicketDerivedFacts(locked.id, locked.vehicle_image_count ?? 0, remaining)')
+    expect(deleteSource).toContain('buildWeightTicketRenumberedLineReferences(remaining)')
+    expect(deleteSource).toContain('const danglingReferences = remainingBeforeDelete.filter')
+    expect(deleteSource).toContain('container_deduction_weight: derivedLine.container_deduction_weight')
+    expect(deleteSource).toContain('deduct_weight: derivedLine.deduct_weight')
+    expect(deleteSource).toContain('parent_line_no: reference.parent_line_no')
+    expect(deleteSource).toContain('impurity_source_line_no: reference.impurity_source_line_no')
+    expect(deleteSource).toContain('await rebuildWeightTicketProductSummaries(tx, locked.id, derivedFacts.summaryRows)')
+    expect(deleteSource).toContain('container_deduction_weight: derivedFacts.totals.containerDeductionWeight')
+    expect(deleteSource).toContain('image_count: derivedFacts.imageCount')
+    expect(deleteSource).toContain('net_weight: derivedFacts.totals.netWeight')
+    expect(deleteSource).toContain("reason: 'weight_ticket_delete_lines'")
+    expect(deleteSource).toContain('const statusLogEventKey = await appendWeightTicketStatusLog(tx, {')
+    expect(deleteSource).toContain('statusLogEventKey,')
+    expect(deleteSource).toContain('await releaseActiveWtoPendingOut(tx, {')
+    expect(deleteSource).toContain('await applyWeightTicketEditSideEffects(tx, {')
+    expect(weightTicketsServerSource).toContain('weight_ticket_product_summary_lines.deleteMany')
+    expect(weightTicketsServerSource).toContain('weight_ticket_product_summary_lines.createMany')
   })
 
   it('rechecks branch scope and derives audit/realtime previous values from the locked row', () => {
