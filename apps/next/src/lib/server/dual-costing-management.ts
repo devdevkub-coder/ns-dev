@@ -461,7 +461,7 @@ export async function buildDualCostingManagement() {
             productId: resolvedCode,
             productName: name,
             qty: jsonNumber(item.remainingQty ?? item.remaining_qty ?? item.qty),
-            unitPrice: jsonNumber(item.unitPrice ?? po.unit_price),
+            unitPrice: jsonNumber(item.unitPrice ?? item.price ?? item.unit_price ?? po.unit_price),
             metalGroup: product?.metal_group ?? fallbackProduct?.metal_group ?? '',
           }
         })

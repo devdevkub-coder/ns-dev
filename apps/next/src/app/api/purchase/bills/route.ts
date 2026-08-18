@@ -48,6 +48,7 @@ import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION, type WeightTicketUsageAction } from '@/lib/server/weight-ticket-usage-history'
 import { requiresWeightTicketOpenBillPermission, WEIGHT_TICKET_OPEN_BILL_PERMISSION } from '@/lib/server/weight-ticket-open-bill-permissions'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
+import { isPurchaseBillReceiptSupplierAllowed, type PurchaseBillReceiptSupplierMatchPolicy } from '@/lib/purchase-bill-receipt-supplier-policy'
 import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -405,7 +406,7 @@ function billItemJson(row: PurchaseBillRow['purchase_bill_items'][number]) {
     receiptTicketDocNo: typeof snapshot.receiptTicketDocNo === 'string' ? snapshot.receiptTicketDocNo : null,
     receiptTicketId: typeof snapshot.receiptTicketId === 'string' ? snapshot.receiptTicketId : null,
     salesPrice: toNumber(row.sales_price),
-    unit: row.unit ?? 'กก.',
+    unit: row.unit,
   }
 }
 
@@ -528,7 +529,7 @@ function buildBillItems(
       receiptTicketDocNo: item.receiptTicketDocNo,
       receiptTicketId: item.receiptTicketId,
       salesPrice: item.salesPrice,
-      unit: product?.unit ?? 'กก.',
+      unit: product?.unit,
     }
   })
 }
@@ -1435,6 +1436,39 @@ function extractReferencedPoBuyIdsFromBuiltItems(items: ReturnType<typeof buildB
   return [...new Set(items.map((item) => item.poBuyIdInternal).filter((value): value is bigint => value != null))]
 }
 
+function validateSupplierChangeSourceItems(
+  values: PurchaseBillFormValues,
+  existingBillItems: Array<{ qty: Prisma.Decimal; source_snapshot: Prisma.JsonValue | null }>,
+) {
+  if (values.items.length !== existingBillItems.length) {
+    return 'เปลี่ยน Supplier ต้องคงรายการจากใบรับของเดิม ห้ามเพิ่มหรือลบแถว'
+  }
+
+  for (const [index, item] of values.items.entries()) {
+    const originalItem = existingBillItems[index]
+    const originalSnapshot = originalItem?.source_snapshot
+    const snapshot = originalSnapshot && typeof originalSnapshot === 'object' && !Array.isArray(originalSnapshot)
+      ? originalSnapshot as Record<string, unknown>
+      : null
+    const originalReceiptTicketId = typeof snapshot?.receiptTicketId === 'string' ? snapshot.receiptTicketId : null
+    const originalReceiptSummaryId = typeof snapshot?.receiptSummaryId === 'string' ? snapshot.receiptSummaryId : null
+    const originalProductId = typeof snapshot?.productId === 'string' ? snapshot.productId : null
+
+    if (
+      (item.receiptTicketId ?? null) !== originalReceiptTicketId
+      || (item.receiptSummaryId ?? null) !== originalReceiptSummaryId
+      || item.productId !== originalProductId
+    ) {
+      return 'เปลี่ยน Supplier ต้องคงสินค้า/ใบรับของเดิม ห้ามเปลี่ยน source รายการ'
+    }
+    if (!originalItem || Math.abs(item.qty - toNumber(originalItem.qty)) > 0.0001) {
+      return 'เปลี่ยน Supplier ต้องคงน้ำหนักเดิม แก้ได้เฉพาะราคา'
+    }
+  }
+
+  return null
+}
+
 async function validateStockReceiptSelection(
   reader: ReceiptAvailabilityReader,
   values: PurchaseBillFormValues,
@@ -1442,8 +1476,8 @@ async function validateStockReceiptSelection(
   resolvedSupplierId: bigint,
   poBuyById: Map<string, PoBuyRefRow>,
   productByRef: Map<string, ProductRefRow>,
-  excludeBillId?: bigint,
-  allowSupplierMismatchTicketIds: Set<bigint> = new Set(),
+  excludeBillId: bigint | undefined,
+  supplierMatchPolicy: PurchaseBillReceiptSupplierMatchPolicy,
 ) {
   const receiptTicketId = values.receiptTicketId?.trim()
   if (!receiptTicketId) {
@@ -1457,7 +1491,12 @@ async function validateStockReceiptSelection(
   if (ticket.branch_id !== resolvedBranchId) {
     return { error: 'ใบรับของต้องอยู่สาขาเดียวกับบิลรับซื้อ' as const }
   }
-  if (ticket.supplier_id !== resolvedSupplierId && !allowSupplierMismatchTicketIds.has(ticket.id)) {
+  if (!isPurchaseBillReceiptSupplierAllowed({
+    policy: supplierMatchPolicy,
+    resolvedSupplierId,
+    ticketId: ticket.id,
+    ticketSupplierId: ticket.supplier_id,
+  })) {
     return { error: 'ใบรับของต้องเป็นผู้ขายเดียวกับบิลรับซื้อ' as const }
   }
 
@@ -2459,7 +2498,16 @@ export async function POST(request: Request) {
     let receiptSummarySourceMap = new Map<string, ReceiptSummarySource>()
     let receiptTicketIdsToRefresh: bigint[] = []
     if (values.transactionMode === 'STOCK') {
-      const receiptValidation = await validateStockReceiptSelection(prisma, values, effectiveBranch.id, supplier.id, poBuyById, productByRef)
+      const receiptValidation = await validateStockReceiptSelection(
+        prisma,
+        values,
+        effectiveBranch.id,
+        supplier.id,
+        poBuyById,
+        productByRef,
+        undefined,
+        { mode: 'required' },
+      )
       if ('error' in receiptValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
       }
@@ -2471,7 +2519,7 @@ export async function POST(request: Request) {
     const vatRatePercent = await activeVatRatePercent(normalizeDate(billDate))
     const totals = calculateTotals(values, vatRatePercent)
 
-    const items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
+    let items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
     const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
     const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
     if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
@@ -2496,8 +2544,12 @@ export async function POST(request: Request) {
               supplier.id,
               lockedPoBuyById,
               productByRef,
+              undefined,
+              { mode: 'required' },
             )
             if ('error' in receiptValidation) throw new Error(receiptValidation.error)
+            receiptSummarySourceMap = receiptValidation.receiptSummarySourceMap
+            items = buildBillItems(values, productByRef, lockedPoBuyById, receiptSummarySourceMap)
           }
           const createdBill = await tx.purchase_bills.create({
             data: {
@@ -2898,22 +2950,8 @@ export async function PATCH(request: Request) {
       if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
       const originalReceiptTicketIds = await resolveReferencedReceiptTicketIdsFromBillItemsRead(existingBillItems)
-      if (values.items.length !== existingBillItems.length) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'เปลี่ยน Supplier ต้องคงรายการจากใบรับของเดิม ห้ามเพิ่มหรือลบแถว' }, { status: 400 })
-      }
-      for (const [index, item] of values.items.entries()) {
-        const originalItem = existingBillItems[index]
-        const originalSnapshot = originalItem?.source_snapshot && typeof originalItem.source_snapshot === 'object'
-          ? originalItem.source_snapshot as Record<string, unknown>
-          : {}
-        const originalReceiptSummaryId = typeof originalSnapshot.receiptSummaryId === 'string' ? originalSnapshot.receiptSummaryId : null
-        if ((item.receiptSummaryId ?? null) !== originalReceiptSummaryId) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: 'เปลี่ยน Supplier ต้องคงสินค้า/ใบรับของเดิม ห้ามเปลี่ยน source รายการ' }, { status: 400 })
-        }
-        if (Math.abs(item.qty - toNumber(originalItem.qty)) > 0.0001) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: 'เปลี่ยน Supplier ต้องคงน้ำหนักเดิม แก้ได้เฉพาะราคา' }, { status: 400 })
-        }
-      }
+      const sourceChangeError = validateSupplierChangeSourceItems(values, existingBillItems)
+      if (sourceChangeError) return NextResponse.json({ code: 'BAD_REQUEST', error: sourceChangeError }, { status: 400 })
       let receiptSummarySourceMap = new Map<string, ReceiptSummarySource>()
       let receiptTicketIdsToRefresh: bigint[] = []
       if (values.transactionMode === 'STOCK') {
@@ -2925,7 +2963,7 @@ export async function PATCH(request: Request) {
           poBuyById,
           productByRef,
           existingBillRef.id,
-          new Set(originalReceiptTicketIds),
+          { mode: 'allow-linked-ticket-ids', ticketIds: new Set(originalReceiptTicketIds) },
         )
         if ('error' in receiptValidation) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
@@ -2941,7 +2979,7 @@ export async function PATCH(request: Request) {
       const createdAt = new Date()
       const vatRatePercent = toNumber(existingBill.vat_rate_percent) ?? (await activeVatRatePercent(normalizeDate(billDate)))
       const totals = calculateTotals(values, vatRatePercent)
-      const items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
+      let items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
       const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
       const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
       if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
@@ -2959,6 +2997,24 @@ export async function PATCH(request: Request) {
               poBuyIds: originalPoBuyIds,
               weightTicketIds: originalReceiptTicketIds,
             })
+            const lockedPoBuyById = createPoBuyRefMap(await resolvePoBuysByDocNo(poBuyRefs, tx))
+            const lockedReceiptValidation = await validateStockReceiptSelection(
+              tx,
+              values,
+              branch.id,
+              supplier.id,
+              lockedPoBuyById,
+              productByRef,
+              existingBillRef.id,
+              { mode: 'allow-linked-ticket-ids', ticketIds: new Set(originalReceiptTicketIds) },
+            )
+            if ('error' in lockedReceiptValidation) throw new Error(lockedReceiptValidation.error)
+            if (!originalReceiptTicketIds.some((ticketId) => ticketId === lockedReceiptValidation.ticket.id)) {
+              throw new Error('เปลี่ยน Supplier ต้องใช้ใบรับของเดิมของบิลนี้เท่านั้น')
+            }
+            receiptSummarySourceMap = lockedReceiptValidation.receiptSummarySourceMap
+            receiptTicketIdsToRefresh = [lockedReceiptValidation.ticket.id]
+            items = buildBillItems(values, productByRef, lockedPoBuyById, receiptSummarySourceMap)
             const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
             const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)
             await tx.purchase_bills.update({
@@ -3213,7 +3269,8 @@ export async function PATCH(request: Request) {
         where: { bill_id: existingBillRef.id, NOT: { status: 'cancelled' } },
       }),
       prisma.purchase_bill_items.findMany({
-        select: { po_buy_id: true, source_snapshot: true },
+        orderBy: { line_no: 'asc' },
+        select: { line_no: true, po_buy_id: true, qty: true, source_snapshot: true },
         where: {
           item_status: PURCHASE_BILL_ACTIVE_ITEM_STATUS,
           purchase_bill_id: existingBillRef.id,
@@ -3251,6 +3308,13 @@ export async function PATCH(request: Request) {
     const totals = calculateTotals(values, vatRatePercent)
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (!(await isSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id }))) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+        fieldErrors: { supplierId: ['ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+      }, { status: 400 })
+    }
     if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
       return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขาปลายทางที่เลือก' }, { status: 403 })
     }
@@ -3266,6 +3330,11 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลรับซื้อ Stock ต้องใช้คลัง RM ของสาขาเท่านั้น' }, { status: 400 })
     }
 
+    if (existingBill.supplier_id !== supplier.id) {
+      const sourceChangeError = validateSupplierChangeSourceItems(values, existingBillItems)
+      if (sourceChangeError) return NextResponse.json({ code: 'BAD_REQUEST', error: sourceChangeError }, { status: 400 })
+    }
+
     const poBuyById = createPoBuyRefMap(poBuys)
     const missingPoBuy = poBuyRefs.find((poBuyId) => !poBuyById.has(poBuyId))
     if (missingPoBuy) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy ที่เลือกไม่ถูกต้อง' }, { status: 400 })
@@ -3274,10 +3343,21 @@ export async function PATCH(request: Request) {
     const missingProduct = values.items.find((item) => !productByRef.has(item.productId))
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
+    const existingReceiptTicketIds = await resolveReferencedReceiptTicketIdsFromBillItemsRead(existingBillItems)
+    const existingReceiptTicketIdSet = new Set(existingReceiptTicketIds)
     let receiptSummarySourceMap = new Map<string, ReceiptSummarySource>()
     let receiptTicketIdsToRefresh: bigint[] = []
     if (values.transactionMode === 'STOCK') {
-      const receiptValidation = await validateStockReceiptSelection(prisma, values, effectiveBranch.id, supplier.id, poBuyById, productByRef, existingBillRef.id)
+      const receiptValidation = await validateStockReceiptSelection(
+        prisma,
+        values,
+        effectiveBranch.id,
+        supplier.id,
+        poBuyById,
+        productByRef,
+        existingBillRef.id,
+        { mode: 'allow-linked-ticket-ids', ticketIds: existingReceiptTicketIdSet },
+      )
       if ('error' in receiptValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
       }
@@ -3285,13 +3365,12 @@ export async function PATCH(request: Request) {
       receiptTicketIdsToRefresh = [receiptValidation.ticket.id]
     }
 
-    const items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
+    let items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
     const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
     const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
     if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
     const poBuyIds = extractReferencedPoBuyIdsFromBuiltItems(items)
     const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
-    const existingReceiptTicketIds = await resolveReferencedReceiptTicketIdsFromBillItemsRead(existingBillItems)
     const existingPoBuyIds = extractReferencedPoBuyIdsFromBillItems(existingBillItems)
 
     const updatedBill = await prisma.$transaction(async (tx) => {
@@ -3310,8 +3389,11 @@ export async function PATCH(request: Request) {
           lockedPoBuyById,
           productByRef,
           existingBillRef.id,
+          { mode: 'allow-linked-ticket-ids', ticketIds: existingReceiptTicketIdSet },
         )
         if ('error' in receiptValidation) throw new Error(receiptValidation.error)
+        receiptSummarySourceMap = receiptValidation.receiptSummarySourceMap
+        items = buildBillItems(values, productByRef, lockedPoBuyById, receiptSummarySourceMap)
       }
       const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
       const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)

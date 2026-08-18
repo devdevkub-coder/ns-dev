@@ -24,8 +24,11 @@ import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/
 import {
   branchScopeIds,
   assignWeightTicketLotSequences,
+  buildWeightTicketDerivedFacts,
   buildWeightTicketLineRows,
   buildWeightTicketProductSummaryRows,
+  buildWeightTicketRenumberedLineReferences,
+  rebuildWeightTicketProductSummaries,
   canEditWeightTicket,
   canMutateWeightTicket,
   getWeightTicketTimeline,
@@ -742,13 +745,6 @@ async function updateWeightTicket(
       // every actor. A same-user tab or background request is still a separate
       // write and must not bypass stale-baseline detection.
       const hasStaleCollaborationBaseline = collaborationBaseUpdatedAt !== collaborationCurrentUpdatedAt.toISOString()
-      await tx.weight_ticket_product_summary_lines.deleteMany({
-        where: {
-          weight_ticket_product_summaries: {
-            weight_ticket_id: existing.id,
-          },
-        },
-      })
       let createdLines: Awaited<ReturnType<typeof prisma.weight_ticket_lines.findMany>>
       let lineIdMap: Record<string, string> = {}
       let resolvedDeletedLineIds: string[] = []
@@ -1196,47 +1192,7 @@ async function updateWeightTicket(
           weightTicketId: existing.id,
         })
         : []
-      const { summaryRows } = buildWeightTicketProductSummaryRows(existing.id, createdLines)
-      // Preserve summary IDs for incremental edits. Downstream allocations and
-      // usage logs reference these rows, and recreating them adds avoidable DB
-      // work even when only one lot or impurity weight changed.
-      const summaryProductIds = summaryRows.map(({ product_id }) => product_id)
-      if (summaryProductIds.length) {
-        await tx.weight_ticket_product_summaries.deleteMany({
-          where: {
-            product_id: { notIn: summaryProductIds },
-            weight_ticket_id: existing.id,
-          },
-        })
-      } else {
-        await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
-      }
-      const persistedSummaries = await Promise.all(summaryRows.map(async ({ lineIds: _lineIds, ...data }) => {
-        const { created_at: _createdAt, ...upsertData } = data
-        return tx.weight_ticket_product_summaries.upsert({
-          create: data,
-          update: { ...upsertData, updated_at: new Date() },
-          where: {
-            weight_ticket_id_product_id: {
-              product_id: data.product_id,
-              weight_ticket_id: data.weight_ticket_id,
-            },
-          },
-        })
-      }))
-      const summaryIdByProductId = new Map(persistedSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
-      const bridgeRows = summaryRows.flatMap(({ lineIds, product_id }) => {
-        const summaryId = summaryIdByProductId.get(String(product_id))
-        if (summaryId == null) return []
-        return lineIds.map((lineId) => ({
-          created_at: new Date(),
-          summary_id: summaryId,
-          weight_ticket_line_id: lineId,
-        }))
-      })
-      if (bridgeRows.length) {
-        await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
-      }
+      await rebuildWeightTicketProductSummaries(tx, existing.id, buildWeightTicketProductSummaryRows(existing.id, createdLines).summaryRows)
       const hasPendingOutTimelineChanges = shouldRebuildWtoPendingOut
         && (createdPendingOutHoldIds.length || releasedPendingOutHolds.length) > 0
       const statusLogEventKey = shouldAppendWeightTicketEditTimeline(editChanges, hasPendingOutTimelineChanges)
@@ -1503,20 +1459,153 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         // state, while a line that still exists is deleted by this request
         // regardless of its newer version.
         const lockedDeletedIds = [...deletedIds].filter((lineId) => lockedLines.has(lineId))
+        const remainingBeforeDelete = locked.weight_ticket_lines.filter((line) => !deletedIds.has(String(line.id)))
+        const deletedLineNumbers = new Set(
+          lockedDeletedIds
+            .map((lineId) => lockedLines.get(lineId)?.line_no)
+            .filter((lineNo): lineNo is number => lineNo != null),
+        )
+        const danglingReferences = remainingBeforeDelete.filter((line) => (
+          (line.parent_line_no != null && deletedLineNumbers.has(line.parent_line_no))
+          || (line.impurity_source_line_no != null && deletedLineNumbers.has(line.impurity_source_line_no))
+        ))
+        if (danglingReferences.length) {
+          throw new WeightTicketWriteValidationError(
+            'ไม่สามารถลบรายการที่มีรายการย่อยหรือสิ่งเจือปนอ้างถึงอยู่ กรุณาลบรายการที่เกี่ยวข้องทั้งหมดก่อน',
+            { lines: danglingReferences.map((line) => `รายการที่ ${line.line_no}`) },
+          )
+        }
+        const shouldRebuildWtoPendingOut = isDeliveredWtoDelete && lockedDeletedIds.length > 0
+        const releasedPendingOutHolds = shouldRebuildWtoPendingOut
+          ? await tx.stock_holds.findMany({
+            select: { id: true, qty: true },
+            where: { status: 'active', weight_ticket_id: locked.id },
+          })
+          : []
+        if (shouldRebuildWtoPendingOut) {
+          await releaseActiveWtoPendingOut(tx, {
+            actor,
+            reason: 'edit',
+            weightTicketId: locked.id,
+          })
+        }
+        let ticket = locked
         if (lockedDeletedIds.length) {
           await tx.weight_ticket_lines.deleteMany({ where: { id: { in: lockedDeletedIds.map((lineId) => BigInt(lineId)) }, weight_ticket_id: existing.id } })
           const remaining = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
+          const derivedFacts = buildWeightTicketDerivedFacts(locked.id, locked.vehicle_image_count ?? 0, remaining)
+          const renumberedReferences = buildWeightTicketRenumberedLineReferences(remaining)
+          const derivedLineById = new Map(derivedFacts.derivedLineRows.map((line) => [String(line.id), line] as const))
+          const remainingById = new Map(remaining.map((line) => [line.id, line] as const))
+          const updatedAt = new Date()
           if (remaining.length) {
             await tx.weight_ticket_lines.updateMany({ data: { line_no: { increment: 1000000 } }, where: { weight_ticket_id: existing.id } })
-            for (const [index, line] of remaining.entries()) await tx.weight_ticket_lines.update({ data: { line_no: index + 1 }, where: { id: line.id } })
+            for (const reference of renumberedReferences) {
+              const line = remainingById.get(reference.id)
+              const derivedLine = derivedLineById.get(String(reference.id))
+              if (!line || !derivedLine) {
+                throw new WeightTicketDataContractError(`ไม่พบข้อมูลเต๋า ${reference.id.toString()} หลังลบข้อมูล`)
+              }
+              const changed = line.line_no !== reference.line_no
+                || line.parent_line_no !== reference.parent_line_no
+                || line.impurity_source_line_no !== reference.impurity_source_line_no
+                || Number(line.container_deduction_weight) !== Number(derivedLine.container_deduction_weight)
+                || Number(line.deduct_weight) !== Number(derivedLine.deduct_weight)
+                || Number(line.net_weight) !== Number(derivedLine.net_weight)
+              await tx.weight_ticket_lines.update({
+                data: {
+                  container_deduction_weight: derivedLine.container_deduction_weight,
+                  deduct_weight: derivedLine.deduct_weight,
+                  impurity_source_line_no: reference.impurity_source_line_no,
+                  line_no: reference.line_no,
+                  net_weight: derivedLine.net_weight,
+                  parent_line_no: reference.parent_line_no,
+                  ...(changed ? { updated_at: updatedAt, updated_by: actor, version: { increment: 1 } } : {}),
+                },
+                where: { id: reference.id },
+              })
+            }
           }
+          const persistedRemaining = await tx.weight_ticket_lines.findMany({ orderBy: { line_no: 'asc' }, where: { weight_ticket_id: existing.id } })
+          if (isDeliveredWtoDelete) {
+            await validateWeightTicketStockForWrite(tx, {
+              branchId: locked.branch_id,
+              excludeWeightTicketId: locked.id,
+              lineRows: derivedFacts.derivedLineRows,
+              type: 'WTO',
+            })
+          }
+          await rebuildWeightTicketProductSummaries(tx, locked.id, derivedFacts.summaryRows)
+          await tx.weight_tickets.update({
+            data: {
+              container_deduction_weight: derivedFacts.totals.containerDeductionWeight,
+              deduct_weight: derivedFacts.totals.deductionWeight,
+              gross_weight: derivedFacts.totals.grossWeight,
+              image_count: derivedFacts.imageCount,
+              net_weight: derivedFacts.totals.netWeight,
+              updated_at: updatedAt,
+              updated_by: actor,
+            },
+            where: { id: locked.id },
+          })
+          const statusLogEventKey = await appendWeightTicketStatusLog(tx, {
+            action: WEIGHT_TICKET_STATUS_ACTION.EDITED,
+            actor,
+            createdAt: updatedAt,
+            fromStatus: locked.status,
+            meta: {
+              deletedLineIds: lockedDeletedIds,
+              previousDocumentNo: locked.doc_no,
+              reason: 'weight_ticket_delete_lines',
+              type: locked.doc_type,
+            },
+            note: `ลบรายการ ${lockedDeletedIds.length.toLocaleString('th-TH')} รายการ`,
+            toStatus: locked.status,
+            weightTicketId: locked.id,
+          })
+          if (shouldRebuildWtoPendingOut) {
+            const createdPendingOutHoldIds = await applyWeightTicketEditSideEffects(tx, {
+              actor,
+              branchId: locked.branch_id,
+              createdLines: persistedRemaining,
+              documentNo: locked.doc_no,
+              preservedCostSnapshots: [],
+              shouldSnapshotCost: true,
+              type: 'WTO',
+              weightTicketId: locked.id,
+            })
+            const releaseOccurredAt = new Date(updatedAt.getTime() + 1)
+            if (releasedPendingOutHolds.length) await appendWtoPendingOutEventsFromHolds(tx, {
+              actor,
+              eventTypeForHold: () => 'edit_release',
+              holdIds: releasedPendingOutHolds.map((hold) => hold.id),
+              occurredAt: releaseOccurredAt,
+              qtyAfterForHold: () => 0,
+              qtyBeforeForHold: (hold) => {
+                const released = releasedPendingOutHolds.find((item) => item.id === hold.id)
+                return released == null ? null : Number(released.qty)
+              },
+              statusLogEventKey,
+              weightTicketId: locked.id,
+            })
+            if (createdPendingOutHoldIds.length) await appendWtoPendingOutEventsFromHolds(tx, {
+              actor,
+              eventTypeForHold: () => 'edit_rebuild',
+              holdIds: createdPendingOutHoldIds,
+              occurredAt: new Date(releaseOccurredAt.getTime() + 1),
+              statusLogEventKey,
+              weightTicketId: locked.id,
+            })
+          }
+          ticket = await tx.weight_tickets.findUniqueOrThrow({
+            include: ticketInclude,
+            where: { id: locked.id },
+          })
         }
         return {
           deletedLineIds: lockedDeletedIds,
           imageChanged: lockedDeletedIds.some((lineId) => (lockedLines.get(lineId)?.image_names?.length ?? 0) > 0),
-          ticket: lockedDeletedIds.length
-            ? await tx.weight_tickets.update({ data: { updated_at: new Date(), updated_by: actor }, include: ticketInclude, where: { id: locked.id } })
-            : locked,
+          ticket,
         }
       })
       const updated = updateResult.ticket

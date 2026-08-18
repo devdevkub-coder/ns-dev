@@ -126,6 +126,17 @@ beforeEach(() => {
       remaining_qty: 6,
       unit_price: 103,
     },
+    {
+      customers: { name: 'ลูกค้า จ' },
+      date: new Date('2026-07-05T00:00:00.000Z'),
+      doc_no: 'POS-LEGACY-PRICE',
+      id: 203n,
+      items: [{ productCode: product.code, productName: product.name, qty: 4, price: 104 }],
+      product_id: null,
+      qty: null,
+      remaining_qty: null,
+      unit_price: 1,
+    },
   ])
   mocks.productionOrderFindMany.mockResolvedValue([{
     date: new Date('2026-07-05T00:00:00.000Z'),
@@ -172,6 +183,7 @@ describe('dual-costing product presentation', () => {
     expect(waitingProductLabels).toEqual({
       'POS-HEADER': product.name,
       'POS-JSON': product.name,
+      'POS-LEGACY-PRICE': product.name,
       'PROD-001': product.name,
       'SB-LEGACY-JSON': product.name,
       'SB-NORMALIZED': product.name,
@@ -179,6 +191,11 @@ describe('dual-costing product presentation', () => {
     expect(payload.ledgerRows.map((row) => ({ productId: row.productId, productName: row.productName }))).toEqual([
       { productId: product.code, productName: product.name },
     ])
+
+    expect(payload.waitingPoSellRows.find((row) => row.docNo === 'POS-LEGACY-PRICE')).toMatchObject({
+      unitPrice: 104,
+      revenuePending: 416,
+    })
 
     const response = await exportLedger(new Request('http://localhost/api/dual-costing/cost-allocation-ledger?format=xlsx'))
     const workbook = await XLSX.read(Buffer.from(await response.arrayBuffer()))
