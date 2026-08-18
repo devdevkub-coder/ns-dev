@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { STOCK_FINANCE_HISTORY_DAYS } from '@/lib/stock-finance'
+import { buildProfitLeakDonutSegments, formatProfitLeakCount } from './profit-leak-display'
 
 type BranchRow = { code: string; id: string; name: string }
 type SourceState = { basis: string; limitations: string[]; writeActionsEnabled: false }
@@ -556,7 +557,7 @@ export function ProfitLeakPageClient() {
   const [branchId, setBranchId] = useState('')
   const url = useMemo(() => `/api/finance-accounting/profit-leak?from=${from}&to=${to}&targetMargin=${targetMargin}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, from, targetMargin, to])
   const { data, error } = useApi<ProfitPayload>(url)
-  const totalLeak = Math.max(data?.summary.totalLeak ?? 0, 1)
+  const totalLeak = data?.summary.totalLeak
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   return (
@@ -671,15 +672,15 @@ export function ProfitLeakPageClient() {
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
         <Kpi label=" ขายต่ำกว่า WAC" value={money(data?.summary.negTotal)} tone="red" />
-        <Kpi label=" GP ต่ำกว่าเป้า" value={String(data?.lowMarginBills.length ?? 0)} tone="amber" />
-        <Kpi label=" ค่าใช้จ่ายผิดปกติ" value={String(data?.summary.outlierCount ?? 0)} tone="orange" />
+        <Kpi label=" GP ต่ำกว่าเป้า" value={formatProfitLeakCount(data?.lowMarginBills.length ?? 0)} tone="amber" />
+        <Kpi label=" ค่าใช้จ่ายผิดปกติ" value={formatProfitLeakCount(data?.summary.outlierCount ?? 0)} tone="orange" />
         <Kpi label=" ดอกเบี้ย" value={money(data?.summary.interestExpense)} tone="purple" />
         <Kpi label="ขาดทุนสต็อก" value={money(data?.summary.stockLoss)} tone="red" />
         <Kpi label="ขาดทุนผลิต" value={money(data?.summary.productionLoss)} tone="rose" />
         <Kpi label="ขาดทุน FX" value={money(data?.summary.fxLoss)} tone="cyan" />
         <Kpi label="ค่าธรรมเนียมธนาคาร" value={money(data?.summary.bankFee)} tone="slate" />
-        <Kpi label=" ลูกค้ากำไรต่ำ" value={String(data?.lowCustomers.length ?? 0)} tone="yellow" />
-        <Kpi label="ผู้ขายราคาสูง" value={String(data?.highSuppliers.length ?? 0)} tone="emerald" />
+        <Kpi label=" ลูกค้ากำไรต่ำ" value={formatProfitLeakCount(data?.lowCustomers.length ?? 0)} tone="yellow" />
+        <Kpi label="ผู้ขายต้นทุนสูง" value={formatProfitLeakCount(data?.highSuppliers.length ?? 0)} tone="emerald" />
       </div>
       <NegativeMarginTable rows={data?.negMarginItems ?? []} total={data?.summary.negTotal ?? 0} />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3"><LowMarginTable rows={data?.lowMarginBills ?? []} targetMargin={targetMargin} /><LowCustomerTable rows={data?.lowCustomers ?? []} /><HighSupplierTable rows={data?.highSuppliers ?? []} /></div>
@@ -954,14 +955,10 @@ function Mini({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Donut({ colors, displayTotal, total, values }: { colors: string[]; displayTotal?: number; total: number; values: number[] }) {
+function Donut({ colors, displayTotal, total, values }: { colors: string[]; displayTotal?: number; total?: number; values: number[] }) {
   const centerTotal = displayTotal ?? total
-  const segments = values.reduce<{ dash: number; offset: number; value: number }[]>((acc, value) => {
-    const dash = value / Math.max(1, total) * 440
-    const offset = acc.reduce((sum, row) => sum + row.dash, 0)
-    return [...acc, { dash, offset, value }]
-  }, [])
-  return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="12" fill="#64748b">รวม</text><text className="fill-slate-800" x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold">{money(centerTotal)}</text></svg>
+  const segments = buildProfitLeakDonutSegments(values, total)
+  return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="12" fill="#64748b">รวม</text><text className="fill-slate-800" x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold">{centerTotal === undefined ? '-' : money(centerTotal)}</text></svg>
 }
 
 function StockFinanceHistoryPanel({ isLoading, points }: { isLoading: boolean; points: StockHistoryPoint[] }) {
