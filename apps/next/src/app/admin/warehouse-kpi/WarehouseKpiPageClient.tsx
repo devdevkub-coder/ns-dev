@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { KpiCard, KpiCardGrid } from '@/components/ui/KpiCard'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 
 type Warehouse = {
   id: number
@@ -65,14 +66,6 @@ const CRITERIA_CONFIG = [
   },
 ] as const
 
-const WH_THEMES: Record<string, { badgeBg: string; badgeText: string; gradient: string; border: string }> = {
-  'WH-01': { badgeBg: 'bg-emerald-100', badgeText: 'text-emerald-800', gradient: 'from-emerald-600 to-teal-700', border: 'border-emerald-200' },
-  'WH-02': { badgeBg: 'bg-sky-100', badgeText: 'text-sky-800', gradient: 'from-sky-600 to-blue-700', border: 'border-sky-200' },
-  'WH-03': { badgeBg: 'bg-purple-100', badgeText: 'text-purple-800', gradient: 'from-purple-600 to-indigo-700', border: 'border-purple-200' },
-  'WH-04': { badgeBg: 'bg-amber-100', badgeText: 'text-amber-800', gradient: 'from-amber-600 to-orange-700', border: 'border-amber-200' },
-  'WH-05': { badgeBg: 'bg-rose-100', badgeText: 'text-rose-800', gradient: 'from-rose-600 to-red-700', border: 'border-rose-200' },
-}
-
 const StarRatingControl = memo(function StarRatingControl({
   value,
   onChange,
@@ -86,7 +79,7 @@ const StarRatingControl = memo(function StarRatingControl({
   const activeRating = hovered ?? value
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((star) => {
         const isFilled = activeRating >= star
         return (
@@ -101,16 +94,16 @@ const StarRatingControl = memo(function StarRatingControl({
             title={`${star} ดาว`}
           >
             <Star
-              className={`size-6 transition-colors ${
+              className={`size-5 transition-colors ${
                 isFilled
-                  ? 'fill-amber-400 text-amber-400 drop-shadow-xs'
+                  ? 'fill-amber-400 text-amber-500 drop-shadow-2xs'
                   : 'fill-slate-100 text-slate-300 group-hover:text-amber-200 dark:fill-slate-800 dark:text-slate-600'
               }`}
             />
           </button>
         )
       })}
-      <span className="ml-2 font-mono text-sm font-bold text-slate-700 dark:text-slate-200">{value}/5</span>
+      <span className="ml-1.5 font-mono text-xs font-bold text-slate-700 dark:text-slate-200">{value}/5</span>
     </div>
   )
 })
@@ -123,58 +116,41 @@ const WarehouseCard = memo(function WarehouseCard({
   onUpdate: (warehouseId: number, field: keyof Evaluation, value: string | number) => void
 }) {
   const avgScore = Number(((ev.accuracy + ev.speed + ev.target_hit) / 3).toFixed(1))
-  const theme = WH_THEMES[ev.warehouse_code] ?? {
-    badgeBg: 'bg-slate-100',
-    badgeText: 'text-slate-800',
-    gradient: 'from-slate-700 to-slate-900',
-    border: 'border-slate-200',
-  }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-      {/* Card Header */}
-      <div className={`bg-gradient-to-r ${theme.gradient} px-5 py-4 text-white shadow-xs`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-white/20 text-xs font-black backdrop-blur-xs">
-              {ev.warehouse_code.replace('WH-', '')}
-            </span>
-            <div>
-              <h2 className="text-base font-black tracking-tight">{ev.warehouse_name}</h2>
-              <p className="text-[11px] font-medium text-white/80">{ev.warehouse_code} · สายงานคลังและคัดแยก</p>
-            </div>
+    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xs transition-shadow duration-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+      {/* Card Header (Corporate ERP Baseline) */}
+      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/40">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-6 items-center rounded-md bg-emerald-100 px-2 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+            {ev.warehouse_code}
+          </span>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{ev.warehouse_name}</h2>
           </div>
+        </div>
 
-          <div className="flex flex-col items-end">
-            <div className="flex items-baseline gap-1 rounded-xl bg-white/20 px-2.5 py-1 backdrop-blur-xs">
-              <Star className="size-3.5 fill-amber-300 text-amber-300" />
-              <span className="font-mono text-base font-black">{avgScore.toFixed(1)}</span>
-              <span className="text-[10px] text-white/80">/5</span>
-            </div>
-          </div>
+        <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs dark:border-slate-700 dark:bg-slate-800">
+          <Star className="size-3.5 fill-amber-400 text-amber-500" />
+          <span className="font-mono text-sm font-black text-slate-900 dark:text-white">{avgScore.toFixed(1)}</span>
+          <span className="text-[10px] font-semibold text-slate-400">/ 5</span>
         </div>
       </div>
 
       {/* Criteria Rating Controls */}
-      <div className="flex flex-1 flex-col gap-4 p-5">
-        <div className="space-y-3">
+      <div className="flex flex-1 flex-col gap-3.5 p-4">
+        <div className="space-y-2">
           {CRITERIA_CONFIG.map((crit) => {
-            const Icon = crit.icon
             const val = ev[crit.key]
 
             return (
               <div
                 key={crit.key}
-                className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-800/40 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-1.5 rounded-lg border border-slate-100 bg-slate-50/50 p-2.5 dark:border-slate-800/80 dark:bg-slate-800/30 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex items-start gap-2.5">
-                  <div className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${crit.bg}`}>
-                    <Icon className={`size-4 ${crit.color}`} />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{crit.label}</div>
-                    <div className="text-[10px] text-slate-400 dark:text-slate-500">{crit.sub}</div>
-                  </div>
+                <div>
+                  <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">{crit.label}</div>
+                  <div className="text-[11px] text-slate-400 dark:text-slate-500">{crit.sub}</div>
                 </div>
 
                 <div className="flex justify-end">
@@ -189,43 +165,33 @@ const WarehouseCard = memo(function WarehouseCard({
         </div>
 
         {/* Problem & Solution Commentary Section */}
-        <div className="mt-2 space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <div className="mt-1 space-y-2.5 border-t border-slate-100 pt-3 dark:border-slate-800">
           <div>
-            <label className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+            <label className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
               <AlertTriangle className="size-3.5 text-amber-500" />
-              ปัญหาที่เจอวันนี้ (Issues Encountered)
+              ปัญหาที่พบในวันนี้ (ถ้ามี)
             </label>
             <textarea
               value={ev.problems}
               onChange={(e) => onUpdate(ev.warehouse_id, 'problems', e.target.value)}
               rows={2}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:placeholder:text-slate-500"
-              placeholder="ระบุปัญหาที่พบ (เช่น ลูกค้าปฏิเสธเกรด, น้ำยาเทสไม่พอ)..."
+              className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs font-normal text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              placeholder="ระบุปัญหาหน้างาน เช่น น้ำยาเทสไม่พอ, ลูกค้าปฏิเสธเกรด..."
             />
           </div>
 
           <div>
-            <label className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+            <label className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
               <Wrench className="size-3.5 text-sky-500" />
-              วิธีแก้ไข / แนวทางปรับปรุง (Solutions)
+              แนวทางแก้ไข / แนะนำ
             </label>
             <textarea
               value={ev.solutions}
               onChange={(e) => onUpdate(ev.warehouse_id, 'solutions', e.target.value)}
               rows={2}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:placeholder:text-slate-500"
-              placeholder="ระบุแนวทางแก้ไขหรือข้อแนะนำ..."
+              className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs font-normal text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              placeholder="ระบุวิธีแก้ไขหน้างาน..."
             />
-          </div>
-
-          {/* Clean compact evaluator footer badge */}
-          <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            <span className="flex items-center gap-1">
-              <User className="size-3 text-slate-400" />
-              <span>ผู้ประเมิน:</span>
-              <strong className="font-bold text-slate-700 dark:text-slate-200">{ev.evaluated_by || 'MAY'}</strong>
-            </span>
-            <span className="text-[10px] text-slate-400">กำหนดจากส่วนกลาง</span>
           </div>
         </div>
       </div>
@@ -248,26 +214,20 @@ const LeaderboardCard = memo(function LeaderboardCard({
   }, [evaluations])
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-indigo-200/90 bg-white shadow-xs transition-all duration-200 hover:shadow-md dark:border-indigo-900/50 dark:bg-slate-900">
-      <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 px-5 py-4 text-white shadow-xs">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-white/20 text-xs font-black backdrop-blur-xs">
-              <Trophy className="size-4 text-amber-300" />
-            </div>
-            <div>
-              <h2 className="text-base font-black tracking-tight">สรุปอันดับผลงานวันนี้</h2>
-              <p className="text-[11px] font-medium text-white/80">ตารางจัดอันดับโกดังประจำวัน (Leaderboard)</p>
-            </div>
-          </div>
-          <span className="rounded-full bg-indigo-500/30 px-2.5 py-0.5 text-[10px] font-bold text-indigo-200">
-            REALTIME
-          </span>
+    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xs transition-shadow duration-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+      {/* Card Header */}
+      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/40">
+        <div className="flex items-center gap-2">
+          <Trophy className="size-4 text-amber-500" />
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">สรุปอันดับผลงานประจำวัน</h2>
         </div>
+        <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          Leaderboard
+        </span>
       </div>
 
-      <div className="flex flex-1 flex-col justify-between p-5">
-        <div className="space-y-2.5">
+      <div className="flex flex-1 flex-col justify-between p-4">
+        <div className="space-y-2">
           {ranked.map((wh, idx) => {
             const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`
             const pct = Math.min(100, Math.round((wh.score / 5) * 100))
@@ -275,10 +235,10 @@ const LeaderboardCard = memo(function LeaderboardCard({
             return (
               <div
                 key={wh.warehouse_id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 transition-colors hover:bg-slate-100/80 dark:border-slate-800 dark:bg-slate-800/40"
+                className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/60 p-2 dark:border-slate-800 dark:bg-slate-800/30"
               >
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="flex size-6 shrink-0 items-center justify-center text-xs font-black">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex size-5 shrink-0 items-center justify-center text-xs font-bold">
                     {medal}
                   </span>
                   <div className="min-w-0 truncate">
@@ -311,14 +271,8 @@ const LeaderboardCard = memo(function LeaderboardCard({
           })}
         </div>
 
-        <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-950 dark:bg-indigo-950/30">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-indigo-900 dark:text-indigo-200">ประเมินแล้ว:</span>
-            <span className="font-bold text-indigo-700 dark:text-indigo-300">{evaluations.length} / 5 โกดัง</span>
-          </div>
-          <div className="mt-1 text-[11px] text-indigo-700/80 dark:text-indigo-400">
-            💡 คลิกปุ่ม <strong>"ทดสอบยิง"</strong> ด้านล่างเพื่อส่งผลอันดับเข้า LINE Group ทันที
-          </div>
+        <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/70 p-2.5 text-center text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+          ประเมินแล้ว <strong className="font-mono text-slate-900 dark:text-slate-100">{evaluations.length}/5</strong> โกดัง ครบถ้วนตามมาตรฐาน
         </div>
       </div>
     </div>
@@ -499,61 +453,54 @@ export function WarehouseKpiPageClient() {
         </div>
       )}
 
-      {/* Page Header (Design System Compliant) */}
-      <div className="border-b border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
-                PRODUCTION KPI
-              </span>
-              <span className="text-xs text-slate-400">·</span>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">ประเมินผลการปฏิบัติงานโกดัง</span>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        {/* Executive Page Header Card (Unified Rounded Card Design) */}
+        <div className="mb-6 rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3.5">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-600 shadow-2xs dark:border-emerald-900/60 dark:bg-emerald-950/60 dark:text-emerald-400">
+                <Building2 className="size-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    PRODUCTION KPI
+                  </span>
+                  <span className="text-xs text-slate-300 dark:text-slate-700">·</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">ระบบประเมินผลการปฏิบัติงานโกดังประจำวัน</span>
+                </div>
+                <h1 className="mt-1 text-xl font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
+                  ประเมิน KPI โกดังรายวัน
+                </h1>
+              </div>
             </div>
-            <h1 className="mt-1 flex items-center gap-2 text-xl font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
-              <Building2 className="size-6 text-emerald-600" />
-              ประเมิน KPI โกดังรายวัน
-            </h1>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Global Evaluator (Default: MAY) */}
-            <div className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 shadow-xs dark:border-slate-700 dark:bg-slate-800">
-              <User className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">ผู้ประเมิน:</span>
-              <input
-                type="text"
-                value={globalEvaluator}
-                onChange={(e) => handleGlobalEvaluatorChange(e.target.value)}
-                className="w-16 bg-transparent text-xs font-bold text-slate-800 focus:outline-none dark:text-slate-100"
-                placeholder="MAY"
-                title="แก้ไขชื่อผู้ประเมินส่วนกลาง (มีผลกับทุกโกดัง)"
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Global Evaluator Input */}
+              <InputGroup className="w-36 sm:w-40">
+                <InputGroupAddon align="inline-start" className="left-2.5">
+                  <User className="size-4 text-emerald-600 dark:text-emerald-400" />
+                </InputGroupAddon>
+                <InputGroupInput
+                  value={globalEvaluator}
+                  onChange={(e) => handleGlobalEvaluatorChange(e.target.value)}
+                  placeholder="ผู้ประเมิน"
+                  title="ชื่อผู้ประเมินส่วนกลาง (มีผลกับทุกโกดัง)"
+                  className="pl-9 pr-3 font-bold text-slate-800 placeholder:text-slate-400 dark:text-slate-100"
+                />
+              </InputGroup>
+
+              {/* Thai Date Picker */}
+              <DatePickerInput
+                value={date}
+                onChange={(newDate) => setDate(newDate || new Date().toISOString().split('T')[0])}
+                className="w-36 sm:w-40"
+                placeholder="วว/ดด/ปปปป"
+                showTodayButton
               />
             </div>
-
-            <DatePickerInput
-              value={date}
-              onChange={(newDate) => setDate(newDate || new Date().toISOString().split('T')[0])}
-              className="w-36 sm:w-40"
-              placeholder="วว/ดด/ปปปป"
-              showTodayButton
-            />
-
-            <button
-              onClick={() => void loadData()}
-              disabled={isLoading}
-              className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              title="รีเฟรชข้อมูล"
-              type="button"
-            >
-              <RefreshCw className={`size-4 ${isLoading ? 'animate-spin text-emerald-600' : ''}`} />
-              <span className="hidden sm:inline">รีเฟรช</span>
-            </button>
           </div>
         </div>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         {/* KPI Executive Summary Grid (Stretches across all 4 columns cleanly) */}
         <KpiCardGrid className="mb-6 grid-cols-2 md:grid-cols-4 xl:grid-cols-4">
           <KpiCard
