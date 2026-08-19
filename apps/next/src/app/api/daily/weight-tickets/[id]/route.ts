@@ -1106,7 +1106,10 @@ async function updateWeightTicket(
             client_line_id: existingLine?.client_line_id ?? (existingLine ? null : line.id),
           }
         })
-        createdLines = await Promise.all(rebuildLineRows.map((data) => tx.weight_ticket_lines.create({ data })))
+        createdLines = []
+        for (const data of rebuildLineRows) {
+          createdLines.push(await tx.weight_ticket_lines.create({ data }))
+        }
         lineIdMap = Object.fromEntries(effectiveValues.lines.flatMap((line, index) => {
           const newId = String(createdLines[index].id)
           const existingLine = existingLineById.get(line.id)

@@ -1070,31 +1070,29 @@ export async function getWeightTicketUsageCountsByTicketIds(
   const usageMap = new Map<string, WeightTicketUsage>()
   if (uniqueTicketIds.length === 0) return usageMap
 
-  const [purchaseRows, salesRows] = await Promise.all([
-    tx.$queryRaw<WeightTicketUsageCountRow[]>`
-      select count(distinct pb.id)::int as bill_count
-           , array_remove(array_agg(distinct pb.doc_no), null) as doc_nos
-           , pbra.weight_ticket_id
-      from public.purchase_bill_receipt_allocations pbra
-      join public.purchase_bills pb on pb.id = pbra.purchase_bill_id
-      where pb.status in (${Prisma.join(PURCHASE_BILL_ACTIVE_STATUSES)})
-        and pbra.allocation_status = 'active'
-        and pbra.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
-      group by pbra.weight_ticket_id
-    `,
-    tx.$queryRaw<WeightTicketUsageCountRow[]>`
-      select count(distinct sb.id)::int as bill_count
-           , array_remove(array_agg(distinct sb.doc_no), null) as doc_nos
-           , sba.weight_ticket_id
-      from public.sales_bill_source_allocations sba
-      join public.sales_bills sb on sb.id = sba.sales_bill_id
-      where sb.status in (${Prisma.join([SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED])})
-        and sba.status = 'active'
-        and sba.source_type = 'WTO'
-        and sba.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
-      group by sba.weight_ticket_id
-    `,
-  ])
+  const purchaseRows = await tx.$queryRaw<WeightTicketUsageCountRow[]>`
+    select count(distinct pb.id)::int as bill_count
+         , array_remove(array_agg(distinct pb.doc_no), null) as doc_nos
+         , pbra.weight_ticket_id
+    from public.purchase_bill_receipt_allocations pbra
+    join public.purchase_bills pb on pb.id = pbra.purchase_bill_id
+    where pb.status in (${Prisma.join(PURCHASE_BILL_ACTIVE_STATUSES)})
+      and pbra.allocation_status = 'active'
+      and pbra.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
+    group by pbra.weight_ticket_id
+  `
+  const salesRows = await tx.$queryRaw<WeightTicketUsageCountRow[]>`
+    select count(distinct sb.id)::int as bill_count
+         , array_remove(array_agg(distinct sb.doc_no), null) as doc_nos
+         , sba.weight_ticket_id
+    from public.sales_bill_source_allocations sba
+    join public.sales_bills sb on sb.id = sba.sales_bill_id
+    where sb.status in (${Prisma.join([SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED])})
+      and sba.status = 'active'
+      and sba.source_type = 'WTO'
+      and sba.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
+    group by sba.weight_ticket_id
+  `
 
   const purchaseMap = normalizeUsageCountRows(purchaseRows, 'purchase')
   const salesMap = normalizeUsageCountRows(salesRows, 'sales')
