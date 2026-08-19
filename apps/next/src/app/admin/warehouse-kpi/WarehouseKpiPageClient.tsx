@@ -132,8 +132,8 @@ const WarehouseCard = memo(function WarehouseCard({
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{ev.warehouse_name}</h2>
               {ev.branch_name ? (
-                <span className="inline-flex items-center rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                  {ev.branch_name}
+                <span className="inline-flex items-center gap-1 rounded-md border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/70 dark:text-sky-300">
+                  🏢 {ev.branch_name}
                 </span>
               ) : null}
             </div>
