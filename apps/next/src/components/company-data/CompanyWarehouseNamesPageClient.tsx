@@ -9,6 +9,7 @@ import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
+import { Button } from '@/components/ui/Button'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import {
@@ -19,7 +20,7 @@ import {
 import { emptyMasterDataForm, listMasterDataRecords, saveMasterDataRecord, setMasterDataRecordActive, type MasterDataRecord } from '@/lib/master-data'
 
 type StatusFilter = 'all' | 'active' | 'inactive'
-type SortKey = 'code' | 'name' | 'branchName' | 'inCharge' | 'targetSortKg' | 'targetBaleCount' | 'active'
+type SortKey = 'code' | 'name' | 'branchName' | 'inCharge' | 'active'
 type TableColumnKey = SortKey | '__action'
 
 const pageSizeOptions = [10, 25, 50, 100]
@@ -33,13 +34,25 @@ const EMPTY_FORM: WarehouseItem = {
   name: '',
 }
 
-function nextWarehouseCode(items: WarehouseItem[]): string {
+function getBranchDigits(branchCode?: string): string {
+  if (!branchCode) return ''
+  const digits = branchCode.replace(/\D/g, '')
+  if (digits) {
+    return digits.padStart(2, '0')
+  }
+  return branchCode.trim()
+}
+
+export function nextWarehouseCode(items: WarehouseItem[], branchCode?: string): string {
+  if (!branchCode) return ''
+  const branchDigits = getBranchDigits(branchCode)
+  const regex = new RegExp(`^KD-${branchDigits}(\\d{2})$`, 'i')
   const nums = items
-    .map((item) => item.code.match(/WH-(\d+)/i))
+    .map((item) => item.code.match(regex))
     .filter((match): match is RegExpMatchArray => Boolean(match))
     .map((match) => parseInt(match[1], 10))
   const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
-  return `WH-${String(next).padStart(2, '0')}`
+  return `KD-${branchDigits}${String(next).padStart(2, '0')}`
 }
 
 function recordToItem(record: MasterDataRecord): WarehouseItem {
@@ -58,24 +71,10 @@ function recordToItem(record: MasterDataRecord): WarehouseItem {
   }
 }
 
-function formatNumber(value: number | null | undefined) {
-  if (value == null) return '—'
-  return value.toLocaleString('th-TH')
-}
-
-function alignClass(align: 'center' | 'left' | 'right') {
-  if (align === 'right') return 'text-right'
-  if (align === 'center') return 'text-center'
-  return 'text-left'
-}
-
 function compareItems(left: WarehouseItem, right: WarehouseItem, key: SortKey, direction: 'asc' | 'desc') {
   const multiplier = direction === 'asc' ? 1 : -1
   const leftValue = left[key]
   const rightValue = right[key]
-  if (typeof leftValue === 'number' || typeof rightValue === 'number') {
-    return (((leftValue as number | null) ?? -Infinity) - ((rightValue as number | null) ?? -Infinity)) * multiplier
-  }
   if (typeof leftValue === 'boolean' || typeof rightValue === 'boolean') {
     return (Number(leftValue ?? false) - Number(rightValue ?? false)) * multiplier
   }
@@ -116,14 +115,12 @@ export function CompanyWarehouseNamesPageClient() {
   const [sortKey, setSortKey] = useState<SortKey>('code')
 
   const resizableColumns = useMemo<Array<ResizableColumnDefinition<TableColumnKey>>>(() => ([
-    { defaultWidth: 100, key: 'code', minWidth: 80, maxWidth: 150 },
-    { defaultWidth: 180, key: 'name', minWidth: 130, maxWidth: 300 },
-    { defaultWidth: 140, key: 'branchName', minWidth: 100, maxWidth: 220 },
-    { defaultWidth: 150, key: 'inCharge', minWidth: 100, maxWidth: 240 },
-    { defaultWidth: 110, key: 'targetSortKg', minWidth: 90, maxWidth: 170 },
-    { defaultWidth: 110, key: 'targetBaleCount', minWidth: 90, maxWidth: 170 },
-    { defaultWidth: 90, key: 'active', minWidth: 70, maxWidth: 130 },
-    { defaultWidth: 72, key: '__action', minWidth: 64, maxWidth: 88 },
+    { defaultWidth: 120, key: 'code', minWidth: 90, maxWidth: 160 },
+    { defaultWidth: 220, key: 'name', minWidth: 150, maxWidth: 360 },
+    { defaultWidth: 180, key: 'branchName', minWidth: 120, maxWidth: 260 },
+    { defaultWidth: 180, key: 'inCharge', minWidth: 120, maxWidth: 260 },
+    { defaultWidth: 100, key: 'active', minWidth: 80, maxWidth: 140 },
+    { defaultWidth: 80, key: '__action', minWidth: 64, maxWidth: 96 },
   ]), [])
   const columnResize = useResizableColumns<TableColumnKey>('company-data.warehouse-names', resizableColumns)
 
@@ -204,7 +201,15 @@ export function CompanyWarehouseNamesPageClient() {
   }
 
   function openCreate() {
-    setFormItem({ ...EMPTY_FORM, code: nextWarehouseCode(items) })
+    const defaultBranch = branches[0]
+    const defaultBranchCode = defaultBranch?.code || ''
+    const initialCode = defaultBranchCode ? nextWarehouseCode(items, defaultBranchCode) : ''
+    setFormItem({
+      ...EMPTY_FORM,
+      branchId: defaultBranchCode || undefined,
+      branchName: defaultBranch?.name,
+      code: initialCode,
+    })
     setIsEditing(false)
     setError(null)
     setMessage(null)
@@ -227,12 +232,16 @@ export function CompanyWarehouseNamesPageClient() {
   }
 
   async function handleSave() {
+    if (!formItem.branchId) {
+      setError('กรุณาเลือกสาขา')
+      return
+    }
     if (!formItem.name.trim()) {
       setError('กรุณากรอกชื่อโกดัง')
       return
     }
     if (!formItem.code.trim()) {
-      setError('กรุณากรอกรหัสโกดัง')
+      setError('กรุณาเลือกสาขาเพื่อสร้างรหัสโกดัง')
       return
     }
     if (items.some((item) => item.code.toUpperCase() === formItem.code.trim().toUpperCase() && String(item.id) !== String(formItem.id))) {
@@ -251,8 +260,6 @@ export function CompanyWarehouseNamesPageClient() {
         id: formItem.id ? String(formItem.id) : undefined,
         inCharge: formItem.inCharge?.trim() || null,
         name: formItem.name,
-        targetBaleCount: formItem.targetBaleCount ?? null,
-        targetSortKg: formItem.targetSortKg ?? null,
       })
       const savedItem = recordToItem(saved)
       const nextItems = isEditing
@@ -473,13 +480,9 @@ export function CompanyWarehouseNamesPageClient() {
             </div>
             <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
               {columnResize.hasCustomWidths ? (
-                <button
-                  className="hidden h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 lg:inline-flex dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                  type="button"
-                  onClick={columnResize.resetColumnWidths}
-                >
+                <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
                   คืนค่าเดิมตาราง
-                </button>
+                </Button>
               ) : null}
               <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={(size) => {
                 setPageSize(size)
@@ -506,8 +509,6 @@ export function CompanyWarehouseNamesPageClient() {
                     <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="ชื่อโกดัง" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อโกดัง')} sortKey="name" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} sortKey="branchName" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="หัวหน้าโกดัง" resizeProps={columnResize.getResizeHandleProps('inCharge', 'หัวหน้าโกดัง')} sortKey="inCharge" onSort={setSort} />
-                    <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เป้าคัดแยก" resizeProps={columnResize.getResizeHandleProps('targetSortKg', 'เป้าคัดแยก')} sortKey="targetSortKg" onSort={setSort} />
-                    <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เป้าอัดก้อน" resizeProps={columnResize.getResizeHandleProps('targetBaleCount', 'เป้าอัดก้อน')} sortKey="targetBaleCount" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={setSort} />
                     <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('__action', 'จัดการ')} />
                   </tr>
@@ -527,12 +528,6 @@ export function CompanyWarehouseNamesPageClient() {
                         )}
                       </TableCell>
                       <TableCell className="p-3 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{item.inCharge || '—'}</TableCell>
-                      <TableCell className="p-3 text-xs font-semibold text-slate-700 dark:text-slate-200 pr-4 tabular-nums whitespace-nowrap text-right">
-                        {item.targetSortKg == null ? '—' : `${formatNumber(item.targetSortKg)} กก.`}
-                      </TableCell>
-                      <TableCell className="p-3 text-xs font-semibold text-slate-700 dark:text-slate-200 pr-4 tabular-nums whitespace-nowrap text-right">
-                        {item.targetBaleCount == null ? '—' : `${formatNumber(item.targetBaleCount)} ก้อน`}
-                      </TableCell>
                       <TableCell className="p-3 text-center">
                         <ActiveToggle
                           checked={item.active}
@@ -556,7 +551,7 @@ export function CompanyWarehouseNamesPageClient() {
                   ))}
                   {sortedItems.length === 0 ? (
                     <TableRow>
-                      <TableCell className="p-8 text-center text-sm text-slate-500" colSpan={8}>ไม่พบข้อมูลโกดัง</TableCell>
+                      <TableCell className="p-8 text-center text-sm text-slate-500" colSpan={6}>ไม่พบข้อมูลโกดัง</TableCell>
                     </TableRow>
                   ) : null}
                 </TableBody>
@@ -568,7 +563,7 @@ export function CompanyWarehouseNamesPageClient() {
           <div className="block space-y-3 lg:hidden">
             {paginatedItems.map((item) => (
               <div key={`mobile-warehouse-${item.id}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       {item.code ? (
@@ -591,20 +586,6 @@ export function CompanyWarehouseNamesPageClient() {
                       label={item.active ? 'ใช้งาน' : 'ปิด'}
                       onChange={() => void handleToggleActive(item)}
                     />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-2.5 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300">
-                  <div>
-                    <span className="block font-medium text-slate-400 dark:text-slate-500">เป้าคัดแยก</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">
-                      {item.targetSortKg == null ? '—' : `${formatNumber(item.targetSortKg)} กก.`}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block font-medium text-slate-400 dark:text-slate-500">เป้าอัดก้อน</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">
-                      {item.targetBaleCount == null ? '—' : `${formatNumber(item.targetBaleCount)} ก้อน`}
-                    </span>
                   </div>
                 </div>
                 <div className="mt-3 flex justify-end border-t border-slate-100 pt-2 dark:border-slate-800">
@@ -639,17 +620,53 @@ export function CompanyWarehouseNamesPageClient() {
           <div className="max-h-[70vh] space-y-4 overflow-y-auto bg-white px-5 py-4 dark:bg-slate-900">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">รหัส <span className="text-red-600">*</span></span>
-                <Input
-                  aria-label="รหัสโกดัง"
-                  className="h-10"
-                  placeholder="เช่น WH-06"
-                  value={formItem.code}
-                  onChange={(event) => setFormItem((current) => ({ ...current, code: event.target.value }))}
-                />
+                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  สาขา <span className="text-red-600">*</span>
+                </span>
+                <select
+                  aria-label="สาขา"
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
+                  disabled={isEditing}
+                  value={formItem.branchId ?? ''}
+                  onChange={(event) => {
+                    const code = event.target.value
+                    const matched = branches.find((b) => b.code === code)
+                    const nextCode = code ? nextWarehouseCode(items, code) : ''
+                    setFormItem((current) => ({
+                      ...current,
+                      branchId: code || undefined,
+                      branchName: matched ? matched.name : undefined,
+                      code: isEditing ? current.code : nextCode,
+                    }))
+                  }}
+                >
+                  <option value="">— เลือกสาขา —</option>
+                  {branches.map((b) => (
+                    <option key={b.code} value={b.code}>
+                      {b.code} - {b.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">ชื่อโกดัง <span className="text-red-600">*</span></span>
+                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  รหัสโกดัง (Auto) <span className="text-red-600">*</span>
+                </span>
+                <Input
+                  aria-label="รหัสโกดัง"
+                  className="h-10 cursor-not-allowed bg-slate-100 font-mono font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  disabled
+                  placeholder="เช่น KD-0101"
+                  readOnly
+                  value={formItem.code || '(เลือกสาขาก่อน)'}
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  ชื่อโกดัง <span className="text-red-600">*</span>
+                </span>
                 <Input
                   aria-label="ชื่อโกดัง"
                   autoFocus
@@ -659,34 +676,10 @@ export function CompanyWarehouseNamesPageClient() {
                   onChange={(event) => setFormItem((current) => ({ ...current, name: event.target.value }))}
                 />
               </label>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">สาขา</span>
-                <select
-                  aria-label="สาขา"
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  value={formItem.branchId ?? ''}
-                  onChange={(event) => {
-                    const code = event.target.value
-                    const matched = branches.find((b) => b.code === code)
-                    setFormItem((current) => ({
-                      ...current,
-                      branchId: code || undefined,
-                      branchName: matched ? matched.name : undefined,
-                    }))
-                  }}
-                >
-                  <option value="">— ไม่ระบุ (ใช้ทุกสาขา) —</option>
-                  {branches.map((b) => (
-                    <option key={b.code} value={b.code}>
-                      {b.code} - {b.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">หัวหน้าโกดัง</span>
+                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  หัวหน้าโกดัง
+                </span>
                 <Input
                   aria-label="หัวหน้าโกดัง"
                   className="h-10"
@@ -695,39 +688,6 @@ export function CompanyWarehouseNamesPageClient() {
                   onChange={(event) => setFormItem((current) => ({ ...current, inCharge: event.target.value }))}
                 />
               </label>
-            </div>
-
-            <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-950/30">
-              <div className="text-sm font-black text-amber-700 dark:text-amber-300">🎯 เป้าน้ำหนัก/ก้อน /วัน</div>
-              <div className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">เฉพาะคัดแยก + อัดก้อน (รับ/ขึ้น เทียบเฉพาะเวลา)</div>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-amber-700 dark:text-amber-300">🔀 คัดแยก (กก.)</span>
-                  <Input
-                    aria-label="เป้าคัดแยก"
-                    className="h-10 border-amber-300 bg-white dark:border-amber-700 dark:bg-slate-900"
-                    inputMode="numeric"
-                    min={0}
-                    placeholder="เช่น 5000"
-                    type="number"
-                    value={formItem.targetSortKg ?? ''}
-                    onChange={(event) => setFormItem((current) => ({ ...current, targetSortKg: event.target.value === '' ? undefined : Number(event.target.value) }))}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-amber-700 dark:text-amber-300">📦 อัดก้อน (ก้อน)</span>
-                  <Input
-                    aria-label="เป้าอัดก้อน"
-                    className="h-10 border-amber-300 bg-white dark:border-amber-700 dark:bg-slate-900"
-                    inputMode="numeric"
-                    min={0}
-                    placeholder="เช่น 20"
-                    type="number"
-                    value={formItem.targetBaleCount ?? ''}
-                    onChange={(event) => setFormItem((current) => ({ ...current, targetBaleCount: event.target.value === '' ? undefined : Number(event.target.value) }))}
-                  />
-                </label>
-              </div>
             </div>
           </div>
           <DialogFooter>
