@@ -362,33 +362,31 @@ async function loadSaleableBuckets(tx: TxClient, input: {
 }) {
   if (!input.productIds.length || !input.warehouseIds.length) return [] as WtoStockBucket[]
 
-  const [ledgerSums, holdSums] = await Promise.all([
-    tx.stock_ledger.groupBy({
-      _sum: { qty_in: true, qty_out: true },
-      by: ['product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
-      where: {
-        branch_id: input.branchId,
-        OR: [
-          { not_available_for_sale: false },
-          { not_available_for_sale: null },
-        ],
-        product_id: { in: input.productIds },
-        warehouse_id: { in: input.warehouseIds },
-      },
-    }),
-    tx.stock_holds.groupBy({
-      _sum: { qty: true },
-      by: ['product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
-      where: {
-        branch_id: input.branchId,
-        not_available_for_sale: false,
-        product_id: { in: input.productIds },
-        status: 'active',
-        ...(input.excludeWeightTicketId == null ? {} : { weight_ticket_id: { not: input.excludeWeightTicketId } }),
-        warehouse_id: { in: input.warehouseIds },
-      },
-    }),
-  ])
+  const ledgerSums = await tx.stock_ledger.groupBy({
+    _sum: { qty_in: true, qty_out: true },
+    by: ['product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
+    where: {
+      branch_id: input.branchId,
+      OR: [
+        { not_available_for_sale: false },
+        { not_available_for_sale: null },
+      ],
+      product_id: { in: input.productIds },
+      warehouse_id: { in: input.warehouseIds },
+    },
+  })
+  const holdSums = await tx.stock_holds.groupBy({
+    _sum: { qty: true },
+    by: ['product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
+    where: {
+      branch_id: input.branchId,
+      not_available_for_sale: false,
+      product_id: { in: input.productIds },
+      status: 'active',
+      ...(input.excludeWeightTicketId == null ? {} : { weight_ticket_id: { not: input.excludeWeightTicketId } }),
+      warehouse_id: { in: input.warehouseIds },
+    },
+  })
 
   const onHoldByBucket = new Map<string, number>()
   holdSums.forEach((row: Awaited<typeof holdSums>[number]) => {
@@ -566,15 +564,13 @@ export async function validateWtoStockAvailability(tx: TxClient, input: {
 
   const productIds = [...new Set([...required.values()].map((row) => row.productId))]
   const warehouseIds = [...new Set([...required.values()].map((row) => row.warehouseId))]
-  const [warehouses, buckets] = await Promise.all([
-    tx.warehouses.findMany({ select: { id: true, type: true }, where: { id: { in: warehouseIds } } }),
-    loadSaleableBuckets(tx, {
-      branchId: input.branchId,
-      excludeWeightTicketId: input.excludeWeightTicketId,
-      productIds,
-      warehouseIds,
-    }),
-  ])
+  const warehouses = await tx.warehouses.findMany({ select: { id: true, type: true }, where: { id: { in: warehouseIds } } })
+  const buckets = await loadSaleableBuckets(tx, {
+    branchId: input.branchId,
+    excludeWeightTicketId: input.excludeWeightTicketId,
+    productIds,
+    warehouseIds,
+  })
   const warehouseTypeById = new Map(warehouses.map((warehouse: Awaited<typeof warehouses>[number]) => [warehouse.id, warehouse.type] as const))
   const availableByKey = new Map<string, number>()
   for (const bucket of buckets) {

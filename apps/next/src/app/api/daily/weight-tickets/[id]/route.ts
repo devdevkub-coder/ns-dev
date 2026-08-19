@@ -35,6 +35,7 @@ import {
   getWeightTicketDownstreamAllocations,
   getWeightTicketUsageTimeline,
   getWeightTicketUsageCounts,
+  getWeightTicketUsageCountsInTransaction,
   mapWeightTicketRow,
   mergeWeightTicketSectionLinesByChangeSet,
   resolveWeightTicketActorDisplayNames,
@@ -668,7 +669,7 @@ async function updateWeightTicket(
       const collaborationBaseLineVersions = values.collaborationBaseLineVersions
       const collaborationChangedLineIds = new Set(values.collaborationChangedLineIds)
       const collaborationDeletedLineIds = new Set(values.collaborationDeletedLineIds)
-      const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
+      const lockedUsage = await getWeightTicketUsageCountsInTransaction(tx, existing.id)
       if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, lockedUsage)) {
         throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
       }
@@ -1421,7 +1422,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         if (scopedBranchIds !== null && !scopedBranchIds.includes(lockedBranchId)) {
           throw new WeightTicketWriteValidationError('ไม่มีสิทธิ์แก้ไขใบรับ-ส่งของสาขานี้', { branchId: ['ไม่มีสิทธิ์แก้ไขใบรับ-ส่งของสาขานี้'] })
         }
-        const lockedUsage = await getWeightTicketUsageCounts(tx, locked.id)
+        const lockedUsage = await getWeightTicketUsageCountsInTransaction(tx, locked.id)
         if (!canEditWeightTicket({ docType: locked.doc_type, status: locked.status }, lockedUsage)) {
           throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
         }
@@ -1681,7 +1682,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const updated = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`select pg_advisory_xact_lock(${ticketId})`
         const existing = await tx.weight_tickets.findUniqueOrThrow({ include: ticketInclude, where: { id: ticketId } })
-        const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
+        const lockedUsage = await getWeightTicketUsageCountsInTransaction(tx, existing.id)
         if (existing.status !== 'draft' || !canMutateWeightTicket(existing, lockedUsage)) {
           throw new WeightTicketWriteValidationError('เอกสารถูกเปลี่ยนสถานะหรือถูกใช้งานแล้ว กรุณาโหลดข้อมูลล่าสุด', {})
         }
@@ -1820,7 +1821,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const updated = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`select pg_advisory_xact_lock(${ticketId})`
       const existing = await tx.weight_tickets.findUniqueOrThrow({ include: ticketInclude, where: { id: ticketId } })
-      const lockedUsage = await getWeightTicketUsageCounts(tx, existing.id)
+      const lockedUsage = await getWeightTicketUsageCountsInTransaction(tx, existing.id)
       if (!canMutateWeightTicket(existing, lockedUsage)) {
         throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('cancel', lockedUsage), {})
       }

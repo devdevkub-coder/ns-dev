@@ -1,4 +1,4 @@
-import { Prisma } from '../../../generated/prisma/client'
+import { Prisma, type PrismaClient } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
 import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
@@ -1061,16 +1061,12 @@ function normalizeUsageCountRows(rows: WeightTicketUsageCountRow[], field: 'purc
   return usageMap
 }
 
-export async function getWeightTicketUsageCountsByTicketIds(
-  tx: Prisma.TransactionClient | PrismaClientLike,
-  ticketIds: bigint[],
-) {
-  const uniqueTicketIds = [...new Set(ticketIds.map((ticketId) => ticketId.toString()))]
-    .map((ticketId) => BigInt(ticketId))
-  const usageMap = new Map<string, WeightTicketUsage>()
-  if (uniqueTicketIds.length === 0) return usageMap
+type WeightTicketQueryClient = {
+  $queryRaw<T = unknown>(query: TemplateStringsArray | Prisma.Sql, ...values: unknown[]): Promise<T>
+}
 
-  const purchaseRows = await tx.$queryRaw<WeightTicketUsageCountRow[]>`
+async function readPurchaseWeightTicketUsageRows(client: WeightTicketQueryClient, ticketIds: bigint[]) {
+  return client.$queryRaw<WeightTicketUsageCountRow[]>`
     select count(distinct pb.id)::int as bill_count
          , array_remove(array_agg(distinct pb.doc_no), null) as doc_nos
          , pbra.weight_ticket_id
@@ -1078,10 +1074,13 @@ export async function getWeightTicketUsageCountsByTicketIds(
     join public.purchase_bills pb on pb.id = pbra.purchase_bill_id
     where pb.status in (${Prisma.join(PURCHASE_BILL_ACTIVE_STATUSES)})
       and pbra.allocation_status = 'active'
-      and pbra.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
+      and pbra.weight_ticket_id in (${Prisma.join(ticketIds)})
     group by pbra.weight_ticket_id
   `
-  const salesRows = await tx.$queryRaw<WeightTicketUsageCountRow[]>`
+}
+
+async function readSalesWeightTicketUsageRows(client: WeightTicketQueryClient, ticketIds: bigint[]) {
+  return client.$queryRaw<WeightTicketUsageCountRow[]>`
     select count(distinct sb.id)::int as bill_count
          , array_remove(array_agg(distinct sb.doc_no), null) as doc_nos
          , sba.weight_ticket_id
@@ -1090,10 +1089,17 @@ export async function getWeightTicketUsageCountsByTicketIds(
     where sb.status in (${Prisma.join([SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED])})
       and sba.status = 'active'
       and sba.source_type = 'WTO'
-      and sba.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
+      and sba.weight_ticket_id in (${Prisma.join(ticketIds)})
     group by sba.weight_ticket_id
   `
+}
 
+function buildWeightTicketUsageMap(
+  uniqueTicketIds: bigint[],
+  purchaseRows: WeightTicketUsageCountRow[],
+  salesRows: WeightTicketUsageCountRow[],
+) {
+  const usageMap = new Map<string, WeightTicketUsage>()
   const purchaseMap = normalizeUsageCountRows(purchaseRows, 'purchase')
   const salesMap = normalizeUsageCountRows(salesRows, 'sales')
   uniqueTicketIds.forEach((ticketId) => {
@@ -1107,14 +1113,50 @@ export async function getWeightTicketUsageCountsByTicketIds(
   return usageMap
 }
 
-export async function getWeightTicketUsageCounts(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
-  const usageMap = await getWeightTicketUsageCountsByTicketIds(tx, [ticketId])
+function uniqueWeightTicketIds(ticketIds: bigint[]) {
+  return [...new Set(ticketIds.map((ticketId) => ticketId.toString()))]
+    .map((ticketId) => BigInt(ticketId))
+}
+
+export async function getWeightTicketUsageCountsByTicketIds(
+  prismaClient: PrismaClient,
+  ticketIds: bigint[],
+) {
+  const uniqueTicketIds = uniqueWeightTicketIds(ticketIds)
+  if (uniqueTicketIds.length === 0) return new Map<string, WeightTicketUsage>()
+
+  const [purchaseRows, salesRows] = await Promise.all([
+    readPurchaseWeightTicketUsageRows(prismaClient, uniqueTicketIds),
+    readSalesWeightTicketUsageRows(prismaClient, uniqueTicketIds),
+  ])
+  return buildWeightTicketUsageMap(uniqueTicketIds, purchaseRows, salesRows)
+}
+
+export async function getWeightTicketUsageCountsByTicketIdsInTransaction(
+  tx: Prisma.TransactionClient,
+  ticketIds: bigint[],
+) {
+  const uniqueTicketIds = uniqueWeightTicketIds(ticketIds)
+  if (uniqueTicketIds.length === 0) return new Map<string, WeightTicketUsage>()
+
+  const purchaseRows = await readPurchaseWeightTicketUsageRows(tx, uniqueTicketIds)
+  const salesRows = await readSalesWeightTicketUsageRows(tx, uniqueTicketIds)
+  return buildWeightTicketUsageMap(uniqueTicketIds, purchaseRows, salesRows)
+}
+
+export async function getWeightTicketUsageCounts(prismaClient: PrismaClient, ticketId: bigint) {
+  const usageMap = await getWeightTicketUsageCountsByTicketIds(prismaClient, [ticketId])
   return usageMap.get(ticketId.toString()) ?? emptyWeightTicketUsage()
 }
 
-export async function getWeightTicketDownstreamAllocations(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
+export async function getWeightTicketUsageCountsInTransaction(tx: Prisma.TransactionClient, ticketId: bigint) {
+  const usageMap = await getWeightTicketUsageCountsByTicketIdsInTransaction(tx, [ticketId])
+  return usageMap.get(ticketId.toString()) ?? emptyWeightTicketUsage()
+}
+
+export async function getWeightTicketDownstreamAllocations(prismaClient: PrismaClient, ticketId: bigint) {
   const [purchaseRows, salesRows] = await Promise.all([
-    tx.$queryRaw<WeightTicketDownstreamAllocationRow[]>`
+    prismaClient.$queryRaw<WeightTicketDownstreamAllocationRow[]>`
       select
         'PURCHASE_BILL'::text as target_type,
         pb.doc_no as target_doc_no,
@@ -1144,7 +1186,7 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
         and pbra.weight_ticket_id = ${ticketId}
       order by pbra.created_at desc, pb.doc_no desc, pbi.line_no asc
     `,
-    tx.$queryRaw<WeightTicketDownstreamAllocationRow[]>`
+    prismaClient.$queryRaw<WeightTicketDownstreamAllocationRow[]>`
       select
         'SALES_BILL'::text as target_type,
         sb.doc_no as target_doc_no,
@@ -1200,9 +1242,9 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
   })
 }
 
-export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
+export async function getWeightTicketTimeline(prismaClient: PrismaClient, ticketId: bigint) {
   const [statusRows, usageRows] = await Promise.all([
-    tx.$queryRaw<WeightTicketStatusTimelineRow[]>`
+    prismaClient.$queryRaw<WeightTicketStatusTimelineRow[]>`
     select
       l.id::text as id,
       l.event_key,
@@ -1218,7 +1260,7 @@ export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | Pri
     where l.weight_ticket_id = ${ticketId}
     order by l.created_at desc, l.id desc
   `,
-    tx.$queryRaw<WeightTicketUsageDocumentTimelineRow[]>`
+    prismaClient.$queryRaw<WeightTicketUsageDocumentTimelineRow[]>`
     select
       l.id::text as id,
       l.event_key,
@@ -1284,8 +1326,8 @@ export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | Pri
   })
 }
 
-export async function getWeightTicketUsageTimeline(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
-  const rows = await tx.$queryRaw<WeightTicketUsageTimelineRow[]>`
+export async function getWeightTicketUsageTimeline(prismaClient: PrismaClient, ticketId: bigint) {
+  const rows = await prismaClient.$queryRaw<WeightTicketUsageTimelineRow[]>`
     select
       l.id::text as id,
       l.event_key,
@@ -1330,10 +1372,6 @@ export async function getWeightTicketUsageTimeline(tx: Prisma.TransactionClient 
     targetType: row.target_type,
     toRemainingWeight: row.to_remaining_weight == null ? null : toNumber(row.to_remaining_weight),
   }))
-}
-
-type PrismaClientLike = {
-  $queryRaw<T = unknown>(query: TemplateStringsArray | Prisma.Sql, ...values: unknown[]): Promise<T>
 }
 
 export function canMutateWeightTicket(row: { status: string | null }, usage: WeightTicketUsage) {
