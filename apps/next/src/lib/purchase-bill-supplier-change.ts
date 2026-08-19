@@ -1,101 +1,81 @@
 import type { PurchaseBillFormValues } from '@/lib/purchase-bill'
 
-type ExistingPurchaseBillItem = {
-  qty: unknown
-  source_snapshot: unknown
-}
-
-type SupplierChangeSourceSnapshot = {
+export type PurchaseBillSupplierChangeSourceFact = {
   deductWeight: number
   grossWeight: number
-  productId: string | null
+  lineNo: number
+  productId: string
+  qty: number
   receiptLineId: string | null
   receiptLineIds: string[]
   receiptSummaryId: string | null
   receiptTicketId: string | null
-  qty: number
 }
 
-const SOURCE_FIELDS: Array<keyof SupplierChangeSourceSnapshot> = [
-  'deductWeight',
-  'grossWeight',
-  'receiptTicketId',
-  'receiptSummaryId',
-  'receiptLineId',
-  'receiptLineIds',
-  'productId',
-  'qty',
-]
-
-function parseNullableString(value: unknown) {
-  if (value === null) return null
-  if (typeof value === 'string') return value
-  return undefined
+function numbersMatch(left: number, right: number) {
+  return Math.abs(left - right) <= 0.0001
 }
 
-function parseFiniteNumber(value: unknown) {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return undefined
+function sortedStrings(values: string[]) {
+  return [...values].sort()
 }
 
-function parseSourceSnapshot(value: unknown): SupplierChangeSourceSnapshot | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  const snapshot = value as Record<string, unknown>
-  const parsedValues = Object.fromEntries(SOURCE_FIELDS
-    .filter((field) => field !== 'receiptLineIds' && field !== 'deductWeight' && field !== 'grossWeight' && field !== 'qty')
-    .map((field) => [field, parseNullableString(snapshot[field])]))
-  const deductWeight = parseFiniteNumber(snapshot.deductWeight)
-  const grossWeight = parseFiniteNumber(snapshot.grossWeight)
-  const qty = parseFiniteNumber(snapshot.qty)
-  if (Object.values(parsedValues).some((field) => field === undefined) || deductWeight === undefined || grossWeight === undefined || qty === undefined) return null
-  if (!Array.isArray(snapshot.receiptLineIds) || snapshot.receiptLineIds.some((id) => typeof id !== 'string')) return null
-  if (snapshot.receiptTicketId !== null && snapshot.receiptLineIds.length === 0) return null
-
-  return {
-    ...(parsedValues as Omit<SupplierChangeSourceSnapshot, 'receiptLineIds' | 'deductWeight' | 'grossWeight' | 'qty'>),
-    deductWeight,
-    grossWeight,
-    receiptLineIds: [...snapshot.receiptLineIds].sort(),
-    qty,
-  }
-}
-
-function sourceValuesMatch(values: PurchaseBillFormValues['items'][number], snapshot: SupplierChangeSourceSnapshot) {
-  return values.receiptTicketId === snapshot.receiptTicketId
-    && values.receiptSummaryId === snapshot.receiptSummaryId
-    && values.receiptLineId === snapshot.receiptLineId
-    && JSON.stringify([...values.receiptLineIds].sort()) === JSON.stringify(snapshot.receiptLineIds)
-    && values.productId === snapshot.productId
-    && Math.abs(values.deductWeight - snapshot.deductWeight) <= 0.0001
-    && Math.abs(values.grossWeight - snapshot.grossWeight) <= 0.0001
+function sourceReferencesMatch(
+  values: PurchaseBillFormValues['items'][number],
+  source: PurchaseBillSupplierChangeSourceFact,
+) {
+  return values.receiptTicketId === source.receiptTicketId
+    && values.receiptSummaryId === source.receiptSummaryId
+    && values.receiptLineId === source.receiptLineId
+    && JSON.stringify(sortedStrings(values.receiptLineIds)) === JSON.stringify(sortedStrings(source.receiptLineIds))
+    && values.productId === source.productId
+    && numbersMatch(values.deductWeight, source.deductWeight)
+    && numbersMatch(values.grossWeight, source.grossWeight)
 }
 
 export function validateSupplierChangeSourceItems(
   values: PurchaseBillFormValues,
-  existingBillItems: ExistingPurchaseBillItem[],
+  existingSourceFacts: PurchaseBillSupplierChangeSourceFact[],
 ) {
-  if (values.items.length !== existingBillItems.length) {
+  if (values.items.length !== existingSourceFacts.length) {
     return 'เปลี่ยน Supplier ต้องคงรายการจากใบรับของเดิม ห้ามเพิ่มหรือลบแถว'
   }
 
-  for (const [index, item] of values.items.entries()) {
-    const originalItem = existingBillItems[index]
-    const snapshot = parseSourceSnapshot(originalItem?.source_snapshot)
-    if (!originalItem || !snapshot) {
+  const sourceByLineNo = new Map<number, PurchaseBillSupplierChangeSourceFact>()
+  for (const source of existingSourceFacts) {
+    if (!Number.isInteger(source.lineNo) || source.lineNo <= 0 || sourceByLineNo.has(source.lineNo)) {
       return 'ข้อมูล source รายการเดิมไม่ครบ จึงเปลี่ยน Supplier ไม่ได้'
     }
-    if (!sourceValuesMatch(item, snapshot)) {
+    sourceByLineNo.set(source.lineNo, source)
+  }
+
+  const submittedLineNos = new Set<number>()
+  for (const item of values.items) {
+    const lineNo = item.lineNo
+    if (lineNo == null || !Number.isInteger(lineNo) || lineNo <= 0 || submittedLineNos.has(lineNo)) {
+      return 'เปลี่ยน Supplier ต้องคงรายการเดิมของบิลรับซื้อ'
+    }
+    submittedLineNos.add(lineNo)
+
+    const source = sourceByLineNo.get(lineNo)
+    if (!source || !source.productId || (source.receiptTicketId != null && (
+      source.receiptSummaryId == null
+      || source.receiptLineId == null
+      || source.receiptLineIds.length === 0
+      || !source.receiptLineIds.every((lineId) => Boolean(lineId))
+    ))) {
+      return 'ข้อมูล source รายการเดิมไม่ครบ จึงเปลี่ยน Supplier ไม่ได้'
+    }
+    if (!sourceReferencesMatch(item, source)) {
       return 'เปลี่ยน Supplier ต้องคงสินค้า/ใบรับของเดิม ห้ามเปลี่ยน source รายการ'
     }
-
-    const originalQty = Number(String(originalItem.qty))
-    if (!Number.isFinite(originalQty) || Math.abs(item.qty - snapshot.qty) > 0.0001 || Math.abs(item.qty - originalQty) > 0.0001) {
+    if (!numbersMatch(item.qty, source.qty)) {
       return 'เปลี่ยน Supplier ต้องคงน้ำหนักเดิม แก้ได้เฉพาะราคา'
     }
+  }
+
+  if (submittedLineNos.size !== sourceByLineNo.size) {
+    return 'เปลี่ยน Supplier ต้องคงรายการเดิมของบิลรับซื้อ'
   }
 
   return null

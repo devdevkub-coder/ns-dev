@@ -1266,7 +1266,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         deductWeight: item.deductWeight,
         grossWeight: item.grossWeight,
         id: item.receiptLineId ?? item.receiptSummaryId ?? `${index + 1}`,
-        lineNo: index + 1,
+        lineNo: item.lineNo ?? index + 1,
         netWeight: item.qty,
         note: item.note ?? '',
         productId: item.productId,
@@ -2186,7 +2186,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     const fallbackSummaries = new Map<string, ReceiptOption['productSummaries'][number]>()
     sourceForm.items.forEach((item, index) => {
       const summaryId = item.receiptSummaryId ?? item.receiptLineId ?? `${index + 1}`
-      const detailItem = detail.allocationRows.find((allocation) => allocation.lineNo === index + 1)
+      const detailItem = detail.allocationRows.find((allocation) => allocation.lineNo === (item.lineNo ?? index + 1))
       const productName = item.displayName
         ?? detailItem?.productName
         ?? item.productId
@@ -2224,12 +2224,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         deductWeight: item.deductWeight,
         grossWeight: item.grossWeight,
         id: item.receiptLineId ?? item.receiptSummaryId ?? `${index + 1}`,
-        lineNo: index + 1,
+        lineNo: item.lineNo ?? index + 1,
         netWeight: item.qty,
         note: item.note ?? '',
         productId: item.productId,
         productName: item.displayName
-          ?? detail.allocationRows.find((allocation) => allocation.lineNo === index + 1)?.productName
+          ?? detail.allocationRows.find((allocation) => allocation.lineNo === (item.lineNo ?? index + 1))?.productName
           ?? item.productId,
         remainingQty: item.qty,
         usedQty: 0,
@@ -2531,6 +2531,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       ), index) + 1
       const nextItem: PurchaseBillFormValues['items'][number] = {
         ...source,
+        lineNo: undefined,
         note: null,
         poBuyId: null,
         price: 0,

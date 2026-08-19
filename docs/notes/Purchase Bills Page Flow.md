@@ -263,7 +263,7 @@ Contract สำหรับ ADV ที่มี VAT:
 - ปุ่ม `เปลี่ยน Supplier` อยู่ใน modal แก้ไขบิล ข้างช่อง Supplier
 - ปุ่มนี้เข้าโหมดแก้ Supplier ใน form เดิมเท่านั้น; ยังไม่ยกเลิกและไม่สร้างเอกสารใหม่
 - ระบบแสดง Supplier เดิมเป็นข้อมูลอ้างอิงและให้เลือก Supplier ใหม่เป็น draft จนกว่าจะกดบันทึก
-- สาขา, คลัง, ประเภทบิล, ใบรับของ WTI, source ของรายการ, จำนวนแถว, และน้ำหนักเดิมยังล็อกตามข้อจำกัดของการแก้ไข source
+- สาขา, คลัง, ประเภทบิล, ใบรับของ WTI, source ของรายการ, จำนวนแถว, และน้ำหนักเดิมยังล็อกตามข้อจำกัดของการแก้ไข source; รายการเดิมยึด `purchase_bill_items.line_no` ไม่ใช่ตำแหน่งใน array
 - เมื่อกดบันทึกให้ส่ง `PATCH /api/purchase/bills` พร้อม `id` ของ PB เดิม โดยไม่ส่ง action ที่เปลี่ยนเป็น flow สร้างบิลทดแทน
 - ปุ่มบันทึกต้องสื่อว่าเป็น `บันทึกการเปลี่ยน Supplier` และหลังสำเร็จให้ใช้เลข PB เดิม
 - การสร้าง PB ใหม่ยังคงตรวจ Supplier ให้ตรงกับ WTI ผ่าน policy `required`; ความต่างระหว่าง Supplier ของ PB กับ WTI เปิดเฉพาะการแก้ไข PB ที่มี WTI เดิมผูกอยู่แล้ว
@@ -274,7 +274,7 @@ Contract สำหรับ ADV ที่มี VAT:
 
 1. validate ว่า PB เดิมยัง active และไม่มี active `PMA` หรือ `PMT`
 2. validate Supplier ใหม่จาก master และ branch eligibility
-3. ถ้าเป็นการเปลี่ยน Supplier ให้คงจำนวนแถว, source WTI/สินค้า, `receiptLineId`, `receiptLineIds`, และน้ำหนักของรายการเดิม; ระบบอ่าน metadata จาก `purchase_bill_items.source_snapshot` ที่บันทึกไว้เท่านั้น และ reject snapshot ที่ไม่ครบ แทนการเติมค่า `null` หรือเดาค่า. เลขเอกสาร WTI (`receiptTicketDocNo`) ต้องมาจาก WTI ที่ server validate และ lock แล้วเท่านั้น ห้ามใช้ค่าจาก client หรือ fallback ไปอ่าน snapshot เพื่อแสดงผล
+3. ถ้าเป็นการเปลี่ยน Supplier ให้คงจำนวนแถว, source WTI/สินค้า, `receiptLineId`, `receiptLineIds`, และน้ำหนักของรายการเดิม; ระบบอ่าน source ปัจจุบันจาก `purchase_bill_items` + active `purchase_bill_receipt_allocations` + WTI summary/line relation โดยจับคู่ด้วย `line_no` ไม่ใช่ตำแหน่งใน array. ถ้า allocation, summary, product หรือ line identity ไม่ครบให้ reject แบบ fail-closed แทนการเติมค่า `null`, เดาค่า หรืออ่าน WTI identity จาก `source_snapshot`. เลขเอกสาร WTI (`receiptTicketDocNo`) ต้องมาจาก WTI ที่ server validate และ lock แล้วเท่านั้น ห้ามใช้ค่าจาก client
 4. ใช้ `allow-linked-ticket-ids` เฉพาะ WTI ที่มี allocation อยู่กับ PB เดิม; การสร้างใหม่ใช้ `required` และต้อง Supplier ตรงกับ WTI
 5. update `purchase_bills` row เดิมด้วย `supplier_id` และ `supplier_*_snapshot` ของ Supplier ใหม่ โดยคง `id`, `doc_no`, และสถานะเอกสารเดิม
 6. supersede item version เดิมและสร้าง active item/allocation/ledger facts ชุดใหม่ภายใต้ PB เดิม โดยใช้ `doc_no` เดิมเป็น reference
@@ -284,7 +284,11 @@ Contract สำหรับ ADV ที่มี VAT:
 10. ห้ามตั้ง `cancelled_supplier_swap`, ห้ามสร้าง PB ใหม่, ห้ามสร้าง watermark จากการเปลี่ยน Supplier สำเร็จ
 
 11. การแก้ PB ต้องส่ง `expectedUpdatedAt` จากรายละเอียดล่าสุดและตรวจซ้ำหลัง lock PB; ถ้าเอกสารถูกแก้ก่อนหน้าให้ตอบ conflict และไม่เขียนทับข้อมูลใหม่กว่า. Payment Approval ต้อง lock PB ก่อนอ่าน source เช่นเดียวกัน เพื่อไม่ให้การอนุมัติแข่งกับการเปลี่ยน Supplier
-12. ฟอร์มแก้ไขต้องใช้ `editForm` และ `updatedAt` จาก detail response ล่าสุดชุดเดียวกัน; การยกเลิกต้อง lock PB ก่อนอ่าน bill/payment/item/approval และ source ที่เกี่ยวข้อง. `source_snapshot` ที่ขาด receipt identity, product, น้ำหนัก หรือจำนวนต้อง reject แบบ fail-closed ไม่เติมค่าจากแหล่งอื่น.
+12. ฟอร์มแก้ไขต้องใช้ `editForm` และ `updatedAt` จาก detail response ล่าสุดชุดเดียวกัน; การยกเลิกต้อง lock PB ก่อนอ่าน bill/payment/item/approval และ source ที่เกี่ยวข้อง. active source relation ที่ขาด receipt identity, product, น้ำหนัก หรือจำนวนต้อง reject แบบ fail-closed ไม่เติมค่าจาก `source_snapshot` หรือแหล่งอื่น. `source_snapshot` ใช้เก็บข้อมูลประวัติทั่วไปของรายการ เช่น PO/product ที่จำเป็นต่อการอ่านเอกสารเก่า ไม่ใช่ source of truth ของ WTI allocation ปัจจุบัน
+
+### 2026-08-19 Supplier-change source and line identity checkpoint
+
+What is what: `purchase_bill_items.line_no` เป็น identity ถาวรของรายการ PB version ที่ active; active receipt allocation และ WTI summary/line relation เป็น source of truth ของ WTI ที่ผูกกับรายการนั้น. Why it has to be like this: การ reorder รายการในฟอร์มต้องไม่เปลี่ยนความหมายของ source และการเพิ่มแถวแบ่งรายการต้องไม่ clone `line_no` เดิมจนชน unique key. แถวใหม่จึงส่งโดยไม่มี persisted `lineNo` และ server จัดเลขที่ยังไม่ใช้ให้ภายใน write path; duplicate persisted `lineNo` ถูก reject ก่อนเขียน. Supplier-change history จับคู่ before/after ด้วย `line_no` เช่นเดียวกัน และบันทึกใน `bill_swap_history.item_index` ตาม contract เดิม (`lineNo - 1`). ไม่มี runtime fallback ไปใช้ WTI identity ใน `source_snapshot`; ถ้า relation ปัจจุบันไม่ครบ ระบบ reject เพื่อให้แก้ source/migration ที่ต้นทาง
 
 ### Historical Compatibility
 

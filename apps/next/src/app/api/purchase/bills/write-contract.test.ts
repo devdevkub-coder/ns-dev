@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest'
 
 const routeSource = readFileSync(new URL('./route.ts', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
 const detailSource = readFileSync(new URL('../../../../lib/server/purchase-bill-detail.ts', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
+const purchaseBillSource = readFileSync(new URL('../../../../lib/purchase-bill.ts', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
+const transactionBillsClientSource = readFileSync(
+  new URL('../../../../components/daily/TransactionBillsPageClient.tsx', import.meta.url),
+  'utf8',
+).replaceAll('\r\n', '\n')
 const migrationSource = readFileSync(
   new URL('../../../../../../../supabase/migrations/20260730230000_harden_purchase_bill_write_guards.sql', import.meta.url),
   'utf8',
@@ -12,7 +17,7 @@ describe('purchase bill write contract', () => {
   it('keeps create strict and scopes edit mismatch to the existing WTI links', () => {
     const postStart = routeSource.indexOf('export async function POST')
     const patchStart = routeSource.indexOf('export async function PATCH')
-    const editValidationStart = routeSource.lastIndexOf('const existingReceiptTicketIds = await resolveReferencedReceiptTicketIdsFromBillItemsRead(existingBillItems)')
+    const editValidationStart = routeSource.lastIndexOf('const existingReceiptTicketIds = await resolveActiveReceiptTicketIdsForBill(prisma, existingBillRef.id)')
     const normalEditSupplierGuardStart = routeSource.indexOf('const supplierChanged = existingBill.supplier_id !== supplier.id', patchStart)
     const patchSource = routeSource.slice(patchStart)
 
@@ -22,7 +27,11 @@ describe('purchase bill write contract', () => {
     expect(normalEditSupplierGuardStart).toBeGreaterThan(patchStart)
     expect(routeSource.slice(postStart, patchStart)).toContain("{ mode: 'required' }")
     expect(patchSource).toContain("{ mode: 'allow-linked-ticket-ids', ticketIds: existingReceiptTicketIdSet }")
-    expect(routeSource.slice(normalEditSupplierGuardStart, editValidationStart)).toContain('validateSupplierChangeSourceItems(values, existingBillItems)')
+    expect(routeSource.slice(normalEditSupplierGuardStart, editValidationStart)).toContain('const sourceFacts = await loadPurchaseBillSupplierChangeSourceFacts(prisma, existingBillRef.id, values.transactionMode)')
+    expect(routeSource.slice(normalEditSupplierGuardStart, editValidationStart)).toContain('validateSupplierChangeSourceItems(values, sourceFacts.facts)')
+    expect(routeSource).toContain('const lockedSourceFacts = await loadPurchaseBillSupplierChangeSourceFacts(tx, existingBillRef.id, values.transactionMode)')
+    expect(routeSource).toContain('const existingReceiptTicketIds = await resolveActiveReceiptTicketIdsForBill(tx, existingBillRef.id)')
+    expect(routeSource).not.toContain('resolveReferencedReceiptTicketIdsFromBillItems')
     expect(routeSource).not.toContain('allowSupplierMismatchTicketIds: Set<bigint> = new Set()')
   })
 
@@ -37,8 +46,7 @@ describe('purchase bill write contract', () => {
     expect(transactionSource).toContain('await lockPurchaseBillWriteSources(tx')
     expect(transactionSource).toContain('await validateStockReceiptSelection(\n              tx')
     expect(transactionSource).toContain('receiptSummarySourceMap = receiptValidation.receiptSummarySourceMap')
-    expect(transactionSource).toContain('receiptTicketDocNo = receiptValidation.ticket.doc_no')
-    expect(transactionSource).toContain('items = buildBillItems(values, productByRef, lockedPoBuyById, receiptSummarySourceMap, receiptTicketDocNo)')
+    expect(transactionSource).toContain('items = buildBillItems(values, productByRef, lockedPoBuyById, receiptSummarySourceMap)')
     expect(routeSource.slice(postStart, transactionStart)).not.toContain('await reconcilePoBuys(tx, poBuyIds)')
   })
 
@@ -79,13 +87,29 @@ describe('purchase bill write contract', () => {
     const buildItemsEnd = routeSource.indexOf('\nasync function createPurchaseBillItems', buildItemsStart)
     const buildItemsSource = routeSource.slice(buildItemsStart, buildItemsEnd)
 
-    expect(routeSource).toContain('receiptTicketDocNo = receiptValidation.ticket.doc_no')
-    expect(buildItemsSource).toContain('receiptTicketDocNo,')
-    expect(buildItemsSource).not.toContain('receiptTicketDocNo: item.receiptTicketDocNo')
+    expect(routeSource).toContain('if (item.receiptTicketId !== ticket.doc_no || !resolvedSummaryRef)')
+    expect(buildItemsSource).toContain('const lineNos = resolvePurchaseBillItemLineNos(values.items)')
+    expect(buildItemsSource).toContain('lineNo: lineNos[index]')
+    expect(buildItemsSource).not.toContain('receiptTicketDocNo')
+    expect(buildItemsSource).not.toContain('receiptTicketId: item.receiptTicketId')
+    expect(routeSource).toContain('line_no: item.lineNo')
+    expect(purchaseBillSource).toContain("lineNoIndexes.set(item.lineNo, index)")
     expect(routeSource).toContain('receiptTicketDocNoByItemId')
     expect(routeSource).not.toContain("typeof snapshot.receiptTicketDocNo === 'string' ? snapshot.receiptTicketDocNo : null")
-    expect(detailSource).toContain('const receiptTicketDocNo = receiptAllocation ? receiptAllocation.weight_tickets.doc_no : null')
+    expect(detailSource).toContain('const receiptTicketDocNo = receiptTicketId')
     expect(detailSource).not.toContain("sourceSnapshotValue(item.source_snapshot, 'receiptTicketDocNo')")
+    expect(detailSource).not.toContain("sourceSnapshotValue(snapshot, 'receiptTicketId')")
+    expect(detailSource).not.toContain("sourceSnapshotValue(snapshot, 'receiptLineId')")
+    expect(detailSource).not.toContain("sourceSnapshotValue(snapshot, 'receiptSummaryId')")
+    expect(detailSource).not.toContain("sourceSnapshotStringArray(snapshot, 'receiptLineIds')")
+  })
+
+  it('keeps new split rows on a new line identity and matches supplier history by line number', () => {
+    expect(transactionBillsClientSource).toContain('lineNo: undefined')
+    expect(transactionBillsClientSource).toContain('lineNo: item.lineNo ?? index + 1')
+    expect(routeSource).toContain('const beforeItemsByLineNo = new Map(lockedExistingBillItems.map((item) => [item.line_no, item] as const))')
+    expect(routeSource).toContain('const afterItemsByLineNo = new Map(itemRows.map((item) => [item.line_no, item] as const))')
+    expect(routeSource).toContain('item_index: lineNo - 1')
   })
 
   it('keeps report projection outside the source transaction', () => {
