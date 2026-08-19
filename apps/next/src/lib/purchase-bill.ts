@@ -121,5 +121,10 @@ export const purchaseBillCancelSchema = z.object({
   note: z.string().trim().min(1, 'กรอกหมายเหตุการยกเลิก').max(500, 'หมายเหตุยาวเกินไป').regex(generalTextPattern, 'หมายเหตุมีรูปแบบไม่ถูกต้อง'),
 })
 
+export const purchaseBillEditConcurrencySchema = z.object({
+  expectedUpdatedAt: z.string().datetime({ offset: true }),
+})
+
 export type PurchaseBillFormValues = z.infer<typeof purchaseBillFormSchema>
 export type PurchaseBillCancelValues = z.infer<typeof purchaseBillCancelSchema>
+export type PurchaseBillEditConcurrencyValues = z.infer<typeof purchaseBillEditConcurrencySchema>

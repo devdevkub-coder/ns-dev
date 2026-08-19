@@ -16,6 +16,7 @@ import { prisma } from '@/lib/server/prisma'
 import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
 import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
+import { lockPurchaseBillWriteSources, PurchaseBillWriteConflictError } from '@/lib/server/purchase-bill-write-lock'
 
 export const runtime = 'nodejs'
 
@@ -621,6 +622,17 @@ export async function POST(request: Request) {
 
     const result = await prisma.$transaction(async (tx) => {
       const sourceDocNo = requireDocumentNo(values.approvalId, 'เอกสารต้นทางที่ต้องการอนุมัติ')
+      if (values.sourceType === 'purchase_bill') {
+        const sourceBill = await tx.purchase_bills.findFirst({
+          select: { id: true },
+          where: {
+            doc_no: sourceDocNo,
+            status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
+          },
+        })
+        if (!sourceBill) throw new Error('ไม่พบบิลซื้อที่ต้องการอนุมัติ หรือบิลถูกยกเลิกแล้ว')
+        await lockPurchaseBillWriteSources(tx, { purchaseBillIds: [sourceBill.id] })
+      }
       const bills = await tx.purchase_bills.findMany({
         include: {
           branches: true,
@@ -1088,6 +1100,9 @@ export async function POST(request: Request) {
       warning: selfApproval ? 'รายการนี้ถูกอนุมัติโดยผู้สร้างรายการเดียวกัน' : null,
     }))
   } catch (caught) {
+    if (caught instanceof PurchaseBillWriteConflictError) {
+      return NextResponse.json({ code: caught.code, error: caught.message }, { status: caught.status })
+    }
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'อนุมัติจ่ายเงินไม่ได้', 400)
   }

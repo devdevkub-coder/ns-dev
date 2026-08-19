@@ -53,12 +53,14 @@ const PURCHASE_BILL_KILOGRAM_UNITS = new Set([
   'kilogram',
   'kilograms',
 ])
+const MISSING_PURCHASE_BILL_UNIT_LABEL = 'ไม่ระบุหน่วย'
 
 /** Keep equivalent kilogram snapshots readable and aligned in the PB table. */
 export function normalizePurchaseBillPrintUnit(value: string | null | undefined) {
   const unit = value?.trim() ?? ''
   const comparableUnit = unit.toLocaleLowerCase('th-TH').replace(/\s+/g, '')
-  return !comparableUnit || PURCHASE_BILL_KILOGRAM_UNITS.has(comparableUnit) ? 'กก.' : unit
+  if (!comparableUnit) return null
+  return PURCHASE_BILL_KILOGRAM_UNITS.has(comparableUnit) ? 'กก.' : unit
 }
 
 /** Normalize unit words inside user-facing PB text without changing the stored snapshot. */
@@ -81,7 +83,7 @@ function companyInfo(profile: CompanyProfilePrintValues, bill: PurchaseBillDetai
 }
 
 function totalsByUnit(bill: PurchaseBillDetail) {
-  const byUnit = new Map<string, { deductWeight: number; grossWeight: number; qty: number }>()
+  const byUnit = new Map<string | null, { deductWeight: number; grossWeight: number; qty: number }>()
   bill.allocationRows.forEach((row) => {
     const unit = normalizePurchaseBillPrintUnit(row.unit)
     const current = byUnit.get(unit) ?? { deductWeight: 0, grossWeight: 0, qty: 0 }
@@ -94,7 +96,7 @@ function totalsByUnit(bill: PurchaseBillDetail) {
 }
 
 function unitSummaryNumbers(
-  values: Array<{ unit: string } & Record<'deductWeight' | 'grossWeight' | 'qty', number>>,
+  values: Array<{ unit: string | null } & Record<'deductWeight' | 'grossWeight' | 'qty', number>>,
   field: 'deductWeight' | 'grossWeight' | 'qty',
 ) {
   if (values.length === 0) return '-'
@@ -103,10 +105,10 @@ function unitSummaryNumbers(
   )).join('')
 }
 
-function unitSummaryLabels(values: Array<{ unit: string } & Record<'deductWeight' | 'grossWeight' | 'qty', number>>) {
+function unitSummaryLabels(values: Array<{ unit: string | null } & Record<'deductWeight' | 'grossWeight' | 'qty', number>>) {
   if (values.length === 0) return '-'
   return values.map((value) => (
-    `<span class="unit-total-line">${escapeHtml(value.unit)}</span>`
+    `<span class="unit-total-line">${escapeHtml(value.unit ?? MISSING_PURCHASE_BILL_UNIT_LABEL)}</span>`
   )).join('')
 }
 
@@ -149,7 +151,7 @@ function renderItemRow(
   if (!item) throw new Error(`ไม่พบรายการ PB ลำดับที่ ${segment.sourceIndex + 1}`)
   const continued = segment.remarkStart > 0
   const values = segment.showValues
-  const quantityUnit = normalizePurchaseBillPrintUnit(item.unit)
+  const quantityUnit = normalizePurchaseBillPrintUnit(item.unit) ?? MISSING_PURCHASE_BILL_UNIT_LABEL
   const measureAttribute = measurementKey ? ` data-measure-row="${escapeHtml(measurementKey)}"` : ''
 
   return `
@@ -205,7 +207,7 @@ export function buildPurchaseBillPrintHtml(
 ) {
   const pagePlan = options.pagePlan ?? []
   const logoHtml = profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="logo no-logo">ไม่มีข้อมูล</div>'
-  const cancelled = ['cancelled', 'cancelled_supplier_swap'].includes(bill.status)
+  const cancelled = bill.status === 'cancelled'
   const title = 'บิลรับซื้อ'
   const totals = totalsByUnit(bill)
   const totalSummaryHtml = unitSummaryNumbers(totals, 'qty')
@@ -376,7 +378,7 @@ export function buildPurchaseBillPrintHtml(
 
   const pagesHtml = pagePlan.map((page) => `
     <main class="page${page.pageNo > 1 ? ' page-break-before' : ''}" data-print-page="${page.pageNo}" data-final-page="${page.isFinalPage}">
-      <div class="watermark">${escapeHtml(bill.statusLabel)}</div>
+      ${cancelled ? `<div class="watermark">${escapeHtml(bill.statusLabel)}</div>` : ''}
       <div class="accent"></div>
       ${renderHeader(`หน้า ${page.pageNo} / ${page.totalPages}`)}
       ${renderSupplierDocSections()}

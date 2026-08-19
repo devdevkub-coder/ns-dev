@@ -42,7 +42,7 @@ updated: 2026-07-01
 | Ref Type | Owner | Direction | Reversal |
 |---|---|---|---|
 | `PB` | Purchase Bill Stock | stock in | `PB-CANCEL`, `PB-EDIT-REV` |
-| `PB-CANCEL` | Purchase Bill cancel / supplier swap void | stock out | append-only reversal ของ PB net movement ด้วย unit cost/value เดิม; ห้ามลบ `PB` row เดิม |
+| `PB-CANCEL` | Purchase Bill cancel | stock out | append-only reversal ของ PB net movement ด้วย unit cost/value เดิม; ห้ามลบ `PB` row เดิม |
 | `PB-EDIT-REV` | Purchase Bill edit | stock out | reverse current PB net movement ก่อน append `PB` state ใหม่ |
 | `SB` | Sales Bill Stock | stock out | `SB-CANCEL` |
 | `SB-CANCEL` | Sales Bill cancel | stock in | สร้าง row ใหม่เพื่อคืน stock ด้วย unit cost/value เดิมของ `SB`; ห้ามลบ `SB` row เดิม |
@@ -213,7 +213,7 @@ Write policy:
 
 - create Stock PB: append `stock_ledger.ref_type = PB`
 - cancel Stock PB: append `stock_ledger.ref_type = PB-CANCEL` จาก net movement ของ doc นั้น โดยใช้ unit cost/value เดิมของ `PB`; current WAC คำนวณใหม่จาก ledger หลัง reversal
-- supplier swap: mark PB เดิมเป็น `cancelled_supplier_swap`, append `PB-CANCEL` ให้ PB เดิม, แล้วสร้าง PB ใหม่พร้อม `PB` rows ใหม่
+- supplier change หลังสร้าง PB: คง PB เดิมและเลขเอกสารเดิม, append `PB-EDIT-REV` จาก net movement ปัจจุบัน แล้ว append `PB` rows ของ state ใหม่; ห้ามสร้าง `PB-CANCEL` หรือ PB ทดแทนเพียงเพราะเปลี่ยน Supplier
 - edit Stock PB: reject การเปลี่ยน `transactionMode` ข้าม `STOCK/TRADING`; append `PB-EDIT-REV` จาก net movement ปัจจุบัน แล้ว append `PB` rows ของ state ใหม่
 - duplicate `PB-CANCEL` สำหรับ doc เดิมต้องถูก reject ก่อนเขียน
 - ถ้า ledger dimension ของ PB ไม่ครบ (`branch_id`, `warehouse_id`, `product_id`) หรือ net movement ผิดรูป ต้อง reject แทน fallback/coerce
@@ -224,9 +224,9 @@ Allocation/item lifecycle policy:
 - current editable/read-model lines ใช้ `item_status = active`
 - edit PB ต้อง mark line version เดิมเป็น `item_status = superseded` พร้อม `superseded_at/by/reason` แล้ว create active item version ใหม่ด้วย `item_version` ถัดไป
 - DB ใช้ partial unique `uq_purchase_bill_items_active_bill_line` เพื่อบังคับ line no ไม่ซ้ำเฉพาะ active rows; superseded rows เก็บ line no เดิมเพื่อ audit ได้
-- `purchase_bill_receipt_allocations` และ `purchase_bill_po_allocations` ต้องไม่ถูก delete ระหว่าง edit/cancel/supplier-swap
+- `purchase_bill_receipt_allocations` และ `purchase_bill_po_allocations` ต้องไม่ถูก delete ระหว่าง edit/cancel/supplier change
 - current WTI/PO availability/reconciliation ใช้เฉพาะ `allocation_status = active`
-- edit/cancel/supplier-swap ต้อง mark allocation เดิมเป็น `allocation_status = released` พร้อม `released_at/by/reason`; rows เหล่านี้เป็น audit history และห้ามถูกนับซ้ำในยอดคงเหลือ
+- edit/cancel/supplier change ต้อง mark allocation เดิมเป็น `allocation_status = released` พร้อม `released_at/by/reason`; rows เหล่านี้เป็น audit history และห้ามถูกนับซ้ำในยอดคงเหลือ. Supplier change ใช้ `PB-EDIT-REV` และ `PB` ภายใต้เลข PB เดิม ไม่ใช้ `PB-CANCEL` และไม่สร้าง PB ทดแทน
 - PB detail/print ต้องอ่าน active item rows เป็น default; historical source ของเอกสารยกเลิกยังอยู่จาก line snapshot และ released allocation rows
 - downstream read-model ที่ใช้ยอด PB items เช่น dashboard/report/tracking/receipt voucher/PO reconciliation ต้อง filter `purchase_bill_items.item_status = active` เสมอ เพื่อไม่ให้ superseded history ถูกนับซ้ำ
 
@@ -281,6 +281,6 @@ Production reversal doc-number policy:
 ## Remaining Design Gaps
 
 - Dedicated durable allocation tables for `SB -> PO Sell`, `SB -> Spot Sale`, and `Customer advance -> SB` are still future work; current runtime uses `sales_bills.items` snapshot plus usage logs.
-- PB edit/cancel/supplier-swap still needs logged-in browser QA even though the API has been hardened to append/reversal policy.
+- PB edit/cancel/supplier change still needs logged-in browser QA even though the API has been hardened to append/reversal policy.
 - Add WTO-backed SB create/cancel QA to cover `WTO -> pending_out -> SB -> SB-CANCEL` without PSALE.
 - Production order create/input/output/reverse has prior browser QA coverage, but the new stock write-path QA script is service-level; rerun logged-in browser QA if UI evidence is required for this exact batch.

@@ -69,6 +69,28 @@ function makeBill(overrides: Partial<PurchaseBillDetail> = {}, allocationCount =
     date: '19/07/2569',
     discount: 50,
     docNo: 'PB012607-0001',
+    editForm: {
+      advancePaymentId: null,
+      branchId: 'branch-1',
+      discountTotal: 50,
+      hasVat: true,
+      items: [],
+      note: 'หมายเหตุท้ายบิลสำหรับทดสอบ',
+      notes: 'หมายเหตุท้ายบิลสำหรับทดสอบ',
+      poBuyId: null,
+      purchaseChannelId: null,
+      purchaseSource: 'SPOT_BUY',
+      receiptTicketId: null,
+      refNo: null,
+      salesId: null,
+      supplierId: 'SUP-001',
+      transactionMode: 'STOCK',
+      vatInvoiceDate: null,
+      vatInvoiceNo: null,
+      vatInvoiceReceived: false,
+      vatType: 'EXCLUDE',
+      warehouseId: 'warehouse-1',
+    },
     hasVat: true,
     licensePlate: '1กก 1234',
     note: 'หมายเหตุท้ายบิลสำหรับทดสอบ',
@@ -89,6 +111,7 @@ function makeBill(overrides: Partial<PurchaseBillDetail> = {}, allocationCount =
     timeline: [],
     totalAmount: 3_263.5,
     transactionMode: 'STOCK',
+    updatedAt: '2026-07-19T10:00:00.000Z',
     vatAmount: 213.5,
     vatInvoiceDate: '',
     vatInvoiceNo: '',
@@ -232,6 +255,16 @@ describe('purchase bill print', () => {
     expect(html).not.toContain('VAT 7%')
   })
 
+  it('does not add a cancellation watermark to the historical supplier-swap status', () => {
+    const html = buildHtml(makeBill({
+      status: 'cancelled_supplier_swap',
+      statusLabel: 'ยกเลิก/เปลี่ยน Supplier',
+    }, 1))
+
+    expect(html).not.toContain('<div class="watermark">ยกเลิก/เปลี่ยน Supplier</div>')
+    expect(html).toContain('.watermark { display: none;')
+  })
+
   it('renders numbered REMARK entries as separate hanging-indent rows', () => {
     const bill = makeBill({}, 1)
     bill.allocationRows[0]!.note = '- 1. สินค้าอื่น 6 กก. ซื้อเป็นกระทะดำ\n- 2. สินค้าอื่น 6.50 กก. ซื้อเป็นก้ามเบรค\n- 3. สินค้าอื่น 12.50 กก.'
@@ -313,6 +346,8 @@ describe('purchase bill print', () => {
     expect(normalizePurchaseBillPrintUnit('kgs')).toBe('กก.')
     expect(normalizePurchaseBillPrintUnit('kilograms')).toBe('กก.')
     expect(normalizePurchaseBillPrintUnit('ลัง')).toBe('ลัง')
+    expect(normalizePurchaseBillPrintUnit(null)).toBeNull()
+    expect(normalizePurchaseBillPrintUnit('')).toBeNull()
     expect(normalizePurchaseBillPrintText('สินค้า 662.50 กิโลกรัม / 1 kg / 2 kgs / 3 kilograms')).toBe('สินค้า 662.50 กก. / 1 กก. / 2 กก. / 3 กก.')
 
     const bill = makeBill({}, 3)

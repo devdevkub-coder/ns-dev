@@ -816,6 +816,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [filterMode, setFilterMode] = useState('')
   const [form, setForm] = useState<PurchaseBillFormValues>(initialPurchaseForm())
   const [purchaseFormBaseline, setPurchaseFormBaseline] = useState<string | null>(null)
+  const [purchaseFormExpectedUpdatedAt, setPurchaseFormExpectedUpdatedAt] = useState<string | null>(null)
   const [editingBillId, setEditingBillId] = useState<string | null>(null)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -1227,6 +1228,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     const option = options.receipts.find((receipt) => receipt.id === form.receiptTicketId)
     if (option) return option
     if (form.items.length === 0) return null
+    const documentNo = form.items[0]?.receiptTicketDocNo
+    if (!documentNo) return null
     const fallbackSummaries = new Map<string, ReceiptOption['productSummaries'][number]>()
     form.items.forEach((item, index) => {
       const summaryId = item.receiptSummaryId ?? item.receiptLineId ?? `${index + 1}`
@@ -1257,7 +1260,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       branchId: form.branchId,
       branchName: activeBranches.find((branch) => branch.id === form.branchId)?.name ?? '-',
       documentDate: '',
-      documentNo: form.items[0]?.receiptTicketDocNo ?? '',
+      documentNo,
       id: form.receiptTicketId,
       lines: form.items.map((item, index) => ({
         deductWeight: item.deductWeight,
@@ -1904,6 +1907,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   async function openPurchaseForm() {
     const nextForm = { ...initialPurchaseForm(), branchId: resolvedPreferredBranchId ?? '' }
     setEditingBillId(null)
+    setPurchaseFormExpectedUpdatedAt(null)
     setSupplierSwapMode(false)
     setSupplierSwapSupplierId('')
     setLockedReceiptSnapshot(null)
@@ -1940,6 +1944,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSupplierSwapMode(false)
     setSupplierSwapSupplierId('')
     setLockedReceiptSnapshot(null)
+    setPurchaseFormExpectedUpdatedAt(null)
     setPurchaseFormBaseline(null)
     setShowForm(false)
   }, [isSaving])
@@ -2174,66 +2179,16 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
-  function purchaseFormFromRow(row: BillRow, detail?: PurchaseBillDetail): PurchaseBillFormValues {
-    const items = (row.items?.length ? row.items : []).map((item, index) => ({
-      deductWeight: Number(item.deductWeight ?? 0),
-      discount: 0,
-      displayName: item.displayName ?? null,
-      grossWeight: Number(
-        detail?.allocationRows.find((allocation) => allocation.lineNo === item.lineNo)?.grossWeight
-        ?? item.grossWeight
-        ?? item.qty
-        ?? ('netWeight' in item ? item.netWeight : 0)
-        ?? 0,
-      ),
-      lotNo: item.lotNo ?? null,
-      note: item.note ?? null,
-      poBuyId: item.poBuyId ?? null,
-      price: Number(item.price ?? 0),
-      productId: String(item.productId ?? ''),
-      qty: Number(item.qty ?? ('netWeight' in item ? item.netWeight : 0) ?? 0),
-      receiptLineId: 'receiptLineId' in item && typeof item.receiptLineId === 'string' ? item.receiptLineId : null,
-      receiptLineIds: 'receiptLineIds' in item && Array.isArray(item.receiptLineIds)
-        ? item.receiptLineIds.filter((value): value is string => typeof value === 'string')
-        : [],
-      receiptSummaryId: 'receiptSummaryId' in item && typeof item.receiptSummaryId === 'string' ? item.receiptSummaryId : null,
-      receiptTicketDocNo: 'receiptTicketDocNo' in item && typeof item.receiptTicketDocNo === 'string' ? item.receiptTicketDocNo : null,
-      receiptTicketId: 'receiptTicketId' in item && typeof item.receiptTicketId === 'string' ? item.receiptTicketId : null,
-      salesPrice: Number(item.salesPrice ?? 0),
-    }))
-
-    return {
-      advancePaymentId: row.advancePaymentId || null,
-      branchId: row.branchId ?? '',
-      discountTotal: row.discountTotal ?? 0,
-      hasVat: row.hasVat ?? false,
-      items,
-      note: row.note || null,
-      notes: row.note || null,
-      poBuyId: row.poBuyId || null,
-      purchaseChannelId: row.purchaseChannelId || null,
-      purchaseSource: (row.purchaseSource === 'PO_RECEIPT' || row.purchaseSource === 'MIXED') ? row.purchaseSource : 'SPOT_BUY',
-      receiptTicketId: items[0]?.receiptTicketId ?? null,
-      refNo: row.refNo || null,
-      salesId: row.salesId || null,
-      supplierId: row.supplierId ?? '',
-      transactionMode: row.transactionMode === 'TRADING' ? 'TRADING' : 'STOCK',
-      vatInvoiceDate: row.vatInvoiceDate || null,
-      vatInvoiceNo: row.vatInvoiceNo || null,
-      vatInvoiceReceived: row.vatInvoiceReceived ?? false,
-      vatType: row.hasVat ? 'EXCLUDE' : 'NONE',
-      warehouseId: row.warehouseId || null,
-    }
-  }
-
-  function receiptSnapshotFromPurchaseForm(row: BillRow, sourceForm: PurchaseBillFormValues): ReceiptOption | null {
+  function receiptSnapshotFromPurchaseForm(detail: PurchaseBillDetail, sourceForm: PurchaseBillFormValues): ReceiptOption | null {
     if (!sourceForm.receiptTicketId || sourceForm.items.length === 0) return null
+    const documentNo = sourceForm.items[0]?.receiptTicketDocNo
+    if (!documentNo) return null
     const fallbackSummaries = new Map<string, ReceiptOption['productSummaries'][number]>()
     sourceForm.items.forEach((item, index) => {
       const summaryId = item.receiptSummaryId ?? item.receiptLineId ?? `${index + 1}`
+      const detailItem = detail.allocationRows.find((allocation) => allocation.lineNo === index + 1)
       const productName = item.displayName
-        ?? row.items?.[index]?.productName
-        ?? activeProducts.find((product) => product.id === item.productId)?.name
+        ?? detailItem?.productName
         ?? item.productId
       const current = fallbackSummaries.get(summaryId)
       if (current) {
@@ -2261,9 +2216,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
     return {
       branchId: sourceForm.branchId,
-      branchName: row.branchName ?? activeBranches.find((branch) => branch.id === sourceForm.branchId)?.name ?? '-',
-      documentDate: row.date,
-      documentNo: sourceForm.items[0]?.receiptTicketDocNo ?? row.receiptDocNos?.[0] ?? '',
+      branchName: detail.branchName,
+      documentDate: detail.date,
+      documentNo,
       id: sourceForm.receiptTicketId,
       lines: sourceForm.items.map((item, index) => ({
         deductWeight: item.deductWeight,
@@ -2274,17 +2229,16 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         note: item.note ?? '',
         productId: item.productId,
         productName: item.displayName
-          ?? row.items?.[index]?.productName
-          ?? activeProducts.find((product) => product.id === item.productId)?.name
+          ?? detail.allocationRows.find((allocation) => allocation.lineNo === index + 1)?.productName
           ?? item.productId,
         remainingQty: item.qty,
         usedQty: 0,
       })),
-      partyName: row.supplierName ?? activeSuppliers.find((supplier) => supplier.id === row.supplierId)?.name ?? '-',
+      partyName: detail.supplierName,
       productSummaries: [...fallbackSummaries.values()],
       status: '',
-      supplierId: row.supplierId ?? sourceForm.supplierId,
-      vehicleNo: row.licensePlate ?? '',
+      supplierId: sourceForm.supplierId,
+      vehicleNo: detail.licensePlate,
     }
   }
 
@@ -2301,11 +2255,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         dailyFetchJson<PurchaseBillDetail>(`/api/purchase/bills/${encodeURIComponent(docNo)}`),
         loadPurchaseOptions(),
       ])
+      if (!detail.updatedAt) throw new Error('ไม่พบเวลาปรับปรุงล่าสุดของบิลรับซื้อ กรุณาโหลดรายการใหม่')
       setEditingBillId(row.id)
+      setPurchaseFormExpectedUpdatedAt(detail.updatedAt)
       setSupplierSwapMode(false)
       setSupplierSwapSupplierId('')
-      const nextForm = purchaseFormFromRow(row, detail)
-      setLockedReceiptSnapshot(receiptSnapshotFromPurchaseForm(row, nextForm))
+      const nextForm = detail.editForm
+      setLockedReceiptSnapshot(receiptSnapshotFromPurchaseForm(detail, nextForm))
       setForm(nextForm)
       setPurchaseFormBaseline(JSON.stringify({ form: nextForm, supplierSwapMode: false, supplierSwapSupplierId: '' }))
       setFieldErrors({})
@@ -3144,6 +3100,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       }
     }
 
+    const expectedUpdatedAt = editingBillId ? purchaseFormExpectedUpdatedAt : null
+    if (editingBillId && !expectedUpdatedAt) {
+      setError('ไม่พบข้อมูลรุ่นล่าสุดของบิลรับซื้อ กรุณาปิดแล้วเปิดบิลใหม่ก่อนบันทึก')
+      return
+    }
+
     setIsSaving(true)
     setError(null)
     try {
@@ -3158,7 +3120,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         }
         : parsed.data
       const payload = editingBillId
-        ? { ...saveData, action: supplierSwapMode ? 'supplier_swap' : undefined, id: editingBillId }
+        ? { ...saveData, expectedUpdatedAt, id: editingBillId }
         : saveData
       await dailyFetchJson('/api/purchase/bills', {
         body: JSON.stringify(payload),
@@ -3168,6 +3130,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       purchaseOptionsRequestRef.current = null
       invalidatePrintDocumentDetail()
       setEditingBillId(null)
+      setPurchaseFormExpectedUpdatedAt(null)
       setSupplierSwapMode(false)
       setSupplierSwapSupplierId('')
       setLockedReceiptSnapshot(null)
@@ -3663,7 +3626,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button className="h-9 rounded-md border border-emerald-600 bg-emerald-600 px-5 text-sm font-normal text-white outline-none hover:border-emerald-700 hover:bg-emerald-700 focus:outline-none disabled:opacity-60" disabled={isSaving || !stockReceiptSelected} type="button" onClick={() => void savePurchaseBill()}>{isSaving ? 'กำลังบันทึก...' : supplierSwapMode ? 'บันทึกและสร้าง PB ใหม่' : editingBillId ? 'บันทึกการแก้ไข' : 'บันทึก'}</button>
+                <button className="h-9 rounded-md border border-emerald-600 bg-emerald-600 px-5 text-sm font-normal text-white outline-none hover:border-emerald-700 hover:bg-emerald-700 focus:outline-none disabled:opacity-60" disabled={isSaving || !stockReceiptSelected} type="button" onClick={() => void savePurchaseBill()}>{isSaving ? 'กำลังบันทึก...' : supplierSwapMode ? 'บันทึกการเปลี่ยน Supplier' : editingBillId ? 'บันทึกการแก้ไข' : 'บันทึก'}</button>
                 <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white outline-none hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={requestClosePurchaseForm}>ยกเลิก</button>
               </div>
             </div>
@@ -3738,7 +3701,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                           }}
                         />
                         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                          โหมดเปลี่ยน Supplier จะ void บิลเดิมและสร้าง PB ใหม่เมื่อกดบันทึก ระบบจะคืน ADV เดิมของบิลเก่าและไม่นำ ADV เดิมไปใช้กับบิลใหม่อัตโนมัติ
+                          การเปลี่ยน Supplier จะอัปเดตหัวบิลเดิมและใช้เลขที่บิลเดิม โดยคงใบรับของ สินค้า และน้ำหนักเดิมไว้; PO เดิมจะถูกปล่อยและบันทึกเป็น Spot Buy
                         </div>
                       </>
                     ) : null}
@@ -4886,4 +4849,3 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     </section>
   )
 }
-

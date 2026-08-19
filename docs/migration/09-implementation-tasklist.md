@@ -36,7 +36,7 @@
 - [x] Expose Customer/Supplier branch mapping fields through domain schemas and master data read/write APIs
 - [x] Update Customer master UI/import/export/detail/table to manage allowed branches and primary branch
 - [x] Update Supplier master UI/import/export/detail/table to manage allowed branches and primary branch
-- [x] Update Purchase selectors/API validation: WTI supplier, PO Buy, Purchase Bill, Supplier Advance, Purchase Bill supplier swap, and AP filters that select Supplier with branch
+- [x] Update Purchase selectors/API validation: WTI supplier, PO Buy, Purchase Bill, Supplier Advance, Purchase Bill supplier change, and AP filters that select Supplier with branch
 - [x] Update Sales selectors/API validation: WTO customer, PO Sell, Sales Bill, and AR filters that select Customer with branch
 - [x] Add focused service checks for branch mapping audit and unmapped reject behavior
   - Audit command: `npm run audit:party-branch-mappings --workspace @ns-scrap-erp/next`
@@ -1094,17 +1094,16 @@ Reporting rule:
   - [ ] remove `อนุมัติแล้ว` as PB-level filter/status; PMA owns that state
   - [ ] Stock PB WTI selector accepts only `WTI = รับของแล้ว`
   - [ ] block legacy partial WTI from new write path selectors
-  - [ ] disable edit/cancel/supplier-swap when active `PMA approved` or `PMT active` exists
+  - [ ] disable edit/cancel/supplier-change when active `PMA approved` or `PMT active` exists
 - [ ] define payment relation
-- [x] `/purchase/bills` supplier swap flow
+- [x] `/purchase/bills` supplier change flow
   - [x] แยก page-specific flow doc เป็น `docs/notes/Purchase Bills Page Flow.md`
   - [x] เพิ่มปุ่ม `เปลี่ยน Supplier` ใน modal แก้ไข PB ข้างช่อง Supplier
-  - [x] save supplier swap ต้อง void PB เดิมทั้งใบและสร้าง PB ใหม่เลขใหม่ใน transaction เดียว
-  - [x] PB ใหม่คง WTI/receipt เดิมได้ แต่เปลี่ยน Supplier และราคาได้
-  - [x] PB ใหม่จาก supplier swap ต้องเป็น Spot Buy ทั้งหมด และ API ต้อง reject ถ้ามี `poBuyId` เพราะห้ามตัด PO ข้าม Supplier จากใบรับของเดิม
-  - [x] ADV allocation ของ PB เดิมต้องถูก void/release ไปกับ PB เดิม และไม่ carry ไป PB ใหม่อัตโนมัติ
-  - [x] PB เดิมที่ถูก void จาก supplier swap ใช้ status แยก `cancelled_supplier_swap` และแสดงผล `ยกเลิก/เปลี่ยน Supplier`
-  - [x] บันทึก `bill_swap_history` ให้ `/daily/bill-swap-history` แสดง Supplier เดิม/ใหม่ ราคาเดิม/ใหม่ และเลข PB ใหม่ในเหตุผลได้
+  - [x] เปลี่ยน Supplier หลังสร้างต้อง PATCH PB เดิม คง `purchase_bills.id` และเลข PB เดิม พร้อมอัปเดต Supplier snapshot
+  - [x] การสร้าง PB ใหม่ยังบังคับ Supplier ให้ตรงกับ WTI; การแก้ไข PB เดิมอนุญาต Supplier ต่างจาก WTI เดิมได้เมื่อคง source และน้ำหนักเดิม
+  - [x] allocation, ADV, WTI status, PO reconciliation และ stock ledger ต้อง rebuild ภายใต้ PB เดิมใน transaction เดียว
+  - [x] บันทึก `bill_swap_history` ด้วย `bill_id` เดิม และ `purchase_bill_status_logs.action = supplier_changed`
+  - [x] flow ปัจจุบันไม่สร้าง `cancelled_supplier_swap`; status นี้คงไว้สำหรับอ่านประวัติเอกสารเก่าเท่านั้น
 
 ### 6.2 Sales Prep
 
@@ -1366,7 +1365,7 @@ Tracker หลักสำหรับงานที่เหลือทั้
 - [x] `/api/stock/convert` and `/api/stock/transfer` no longer derive outward read keys from internal ledger ids
 - [x] `/api/admin/transaction-ledger` no longer falls back from `accountName` to `account_id`
 - [x] `advance-payments` and `weight-tickets` history/timeline events now use outward `event_key` instead of internal audit-log row ids
-- [x] ADV runtime status now includes `partially_paid` (`จ่ายแล้วบางส่วน`), labels `paid` as `จ่ายแล้ว`, and prioritizes allocation status over payment status. PB cancel / supplier swap release ADV allocation now recalculates back to `จ่ายแล้ว` or `จ่ายแล้วบางส่วน` from actual PMT settlement.
+- [x] ADV runtime status now includes `partially_paid` (`จ่ายแล้วบางส่วน`), labels `paid` as `จ่ายแล้ว`, and prioritizes allocation status over payment status. PB cancel / supplier change release ADV allocation now recalculates back to `จ่ายแล้ว` or `จ่ายแล้วบางส่วน` from actual PMT settlement.
 - [x] purchase-bill weight-ticket selectors now use `doc_no` and doc-based composites instead of internal ticket/line/summary ids
 - [x] `/api/finance/foreign/fx-gain-loss-report` now uses a natural outward composite id and no longer exposes raw internal `ref_id`
 - [x] `/api/admin/auth-events` now uses event-based composite ids instead of internal audit/activity row ids
@@ -1376,7 +1375,7 @@ Tracker หลักสำหรับงานที่เหลือทั้
 - [x] `/purchase/po-buy` short-close action is now only enabled for partially received PO rows with remaining quantity; unreceived open rows show the action disabled and the PATCH route rejects direct short-close requests unless the PO is partially received
 - [x] `/purchase/po-buy` Excel export now follows the active purchase export convention: Thai headers, Thai worksheet name, dated filename, branch code included, and search/status/date/selected-row filters preserved
 - [x] `/purchase/po-buy` create/edit modal now has checkbox `มี VAT` like purchase bill create, stores VAT snapshot fields on `po_buys`, and preserves VAT through PO reconciliation
-- [x] Add per-document purchase-bill print for `/purchase/bills` list/detail/direct detail. Use Company Profile as the header source, show a company logo in the header with template default logo fallback if profile logo is missing, support A4 browser print/Save as PDF, show PB status/watermark for cancelled/supplier-swap documents, preserve historical PO/Spot source from PB snapshots, show actual item units, and design a clean corporate A4 landscape template. Use the customer sample image received 2026-06-09 as a data checklist only: delivery grid fields, total summary, document metadata, and item table with gross/deduct/net weight columns must be present.
+- [x] Add per-document purchase-bill print for `/purchase/bills` list/detail/direct detail. Use Company Profile as the header source, show a company logo in the header with template default logo fallback if profile logo is missing, support A4 browser print/Save as PDF, show PB status/watermark only for cancelled documents, preserve historical PO/Spot source from PB snapshots, show actual item units, and design a clean corporate A4 landscape template. Use the customer sample image received 2026-06-09 as a data checklist only: delivery grid fields, total summary, document metadata, and item table with gross/deduct/net weight columns must be present.
 - [x] Add per-document sales-bill print for `/sales/bills` list rows. Use branch-specific Company Profile, A4 portrait, multi-page table header repeat, fixed print footer, Customer/document panels, WTO trace, VAT/totals, Customer advance deduction, and final receivable balance from the `SB` snapshot/detail API.
 - [ ] Audit and update quantity/unit display across PO/WTI/PB/SB/receipt/detail/print/export surfaces so `กก.` and `ลัง` are shown from item unit snapshots/master data and mixed-unit summaries are grouped by unit instead of combined into one number.
 - [ ] decide next schema wave for `public` models still lacking explicit business keys, especially support/admin and document-detail tables

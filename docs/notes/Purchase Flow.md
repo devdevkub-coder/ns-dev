@@ -45,7 +45,7 @@ matrix สถานะเอกสารราย use case และราย st
 
 เอกสาร flow เฉพาะหน้า `/purchase/po-buy` แยกไว้ที่ [[PO Buy Page Flow]] เพื่อเก็บรายละเอียด PO commitment, close-short, allocation log, print, aging, และกติกาว่า `POB` ไม่สร้าง stock/AP เอง
 
-เอกสาร flow เฉพาะหน้า `/purchase/bills` แยกไว้ที่ [[Purchase Bills Page Flow]] เพื่อเก็บรายละเอียด PB create/edit/cancel, supplier swap, UI guard, stock/AP side effects, และ payment lock ระดับ page
+เอกสาร flow เฉพาะหน้า `/purchase/bills` แยกไว้ที่ [[Purchase Bills Page Flow]] เพื่อเก็บรายละเอียด PB create/edit/cancel, supplier change, UI guard, stock/AP side effects, และ payment lock ระดับ page
 
 เอกสาร canonical สำหรับส่วน `อนุมัติจ่ายเงิน / รอจ่าย / ทำจ่าย / ประวัติการจ่ายเงิน / คืนเงินมัดจำ` ถูกแยกไปที่ [[Payment Flow]]
 

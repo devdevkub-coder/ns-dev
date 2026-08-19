@@ -66,7 +66,7 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 
 - `GET /api/purchase/bills - list/filter/source data`
 - `POST /api/purchase/bills - create PB`
-- `PATCH /api/purchase/bills - update/cancel/supplier-swap action`
+- `PATCH /api/purchase/bills - update/cancel/supplier-change action`
 - `GET /api/purchase/bills/[id] - detail/read model/print source`
 - `GET /api/daily/bill-swap-history - supplier swap history tab`
 
@@ -100,13 +100,13 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 - Stock PB ที่มาจาก WTI ต้องตั้งต้นด้วย `น้ำหนักหลัก` ซึ่งเท่ากับน้ำหนักรวมหลังหักภาชนะแล้ว, แสดง `หัก` เฉพาะสิ่งเจือปน, และแสดง `น้ำหนักสุทธิ` ตาม WTI; เช่น gross 970 หักภาชนะ 36 และหักสินค้า/สิ่งเจือปน 37 จะแสดงน้ำหนักหลัก 934, หัก 37, และสุทธิ 897. เมื่อ WTI ถูกออกบิลบางส่วน ระบบต้องกระจายทั้งน้ำหนักหลักและหักสิ่งเจือปนตามสัดส่วนของน้ำหนักสุทธิคงเหลือ. การเปลี่ยนนี้เป็น display contract ของ Stock PB; qty ที่จัดสรร, stock และ ledger ยังคงยึดน้ำหนักสุทธิ และ allocation ยังคงเก็บน้ำหนักชั่งรวมต้นทางเพื่อ audit.
 - เมื่อเปิดแก้ไข Stock PB ระบบต้องอ่าน PB detail แบบ `no-store` และใช้ `allocationRows.grossWeight` ซึ่งคำนวณจากน้ำหนักชั่งรวมลบหักภาชนะแล้วสำหรับค่า `น้ำหนักหลัก` ในฟอร์ม. ห้ามใช้ `purchase_bill_items.gross_weight` ตรง ๆ ในการแสดง เพราะค่านั้นเก็บน้ำหนักชั่งรวมดิบเพื่อ audit; การแยกนี้ทำให้หน้า detail และ edit แสดง contract เดียวกันโดยไม่เปลี่ยน stock, ledger หรือข้อมูลต้นทาง.
 - Stock PB remark ต่อรายการต้องมาจากข้อมูลหักสิ่งเจือปนของ WTI product summary เดียวกัน เช่น `- 1. ฝุ่น 12 กก.` และถ้าสิ่งเจือปนนั้นซื้อกลับเป็นสินค้าอื่นต้องต่อท้าย `ซื้อเป็น <ชื่อสินค้า>`; ถ้ามีหมายเหตุรายเต๋าให้แสดงต่อท้ายเป็นลำดับถัดไปหลังรายการสิ่งเจือปน
-- edit/cancel/supplier swap ของ Stock PB ใช้ append-only reversal (`PB-EDIT-REV` หรือ `PB-CANCEL`) และไม่ delete/rebuild ledger เดิม
+- edit/cancel/supplier change ของ Stock PB ใช้ append-only reversal (`PB-EDIT-REV` หรือ `PB-CANCEL`) และไม่ delete/rebuild ledger เดิม
 - cancel ของ Stock PB ต้อง reverse ด้วย unit cost/value เดิมของ PB แล้วให้ WAC ปัจจุบันคำนวณใหม่จาก ledger ที่เหลือ; ถ้า stock พร้อมใช้ไม่พอสำหรับ reverse ต้อง block หรือใช้ correction/approval flow แยก
 - อัปเดต WTI usage/status เป็นออกบิลแล้ว
 - อัปเดต POB remaining/status ตาม allocation
 - สร้าง/ปรับ PB payable status สำหรับ Payment Flow
 - `purchase_bills.status` รับได้เฉพาะ `unpaid`, `partial`, `paid`, `cancelled`, และ `cancelled_supplier_swap`; ทุก writer ใช้ contract กลาง และ reader ต้อง reject ค่า status ที่ว่างหรือไม่อยู่ในชุดนี้ ห้าม default หรือ map ค่าเก่า เช่น `open` เป็นสถานะใหม่
-- cancel/supplier swap ต้อง reverse/release allocation, ADV, WTI usage และ stock ledger ตาม append/reversal policy
+- cancel/supplier change ต้อง reverse/release allocation, ADV, WTI usage และ stock ledger ตาม append/reversal policy
 
 ## Current Code Baseline
 
@@ -117,9 +117,9 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 
 ## Current Gap
 
-- PB stock ledger append/reversal hardening ทำแล้วสำหรับ create/edit/cancel/supplier swap
-- durable allocation/status/timeline ยังต้องพิสูจน์กับ legacy ทุกกรณี โดยเฉพาะ supplier swap กับ payment lock
-- browser QA สำหรับ edit/cancel/supplier swap หลัง migration index ยังต้องรันใน logged-in session
+- PB stock ledger append/reversal hardening ทำแล้วสำหรับ create/edit/cancel/supplier change
+- durable allocation/status/timeline ยังต้องพิสูจน์กับ legacy ทุกกรณี โดยเฉพาะ supplier change กับ payment lock
+- browser QA สำหรับ edit/cancel/supplier change หลัง migration index ยังต้องรันใน logged-in session
 
 ## Implementation Checklist
 
