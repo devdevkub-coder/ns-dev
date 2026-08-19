@@ -609,41 +609,66 @@ export function WarehouseKpiPageClient() {
           </div>
         )}
 
-        {/* Sticky Action Footer (Inside page flow: Never overlaps Sidebar or Mobile Nav) */}
-        <div className="sticky bottom-0 z-20 -mx-4 -mb-6 mt-8 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 sm:-mx-6 sm:px-6">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center justify-between sm:justify-start sm:gap-3">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                <span>วันที่:</span>
-                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{date}</span>
-              </div>
-              <span className="text-slate-300 dark:text-slate-700">|</span>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                <span>เฉลี่ยรวม:</span>
-                <span className="font-mono text-emerald-600 dark:text-emerald-400">{stats.overallAvg} / 5.0</span>
-              </div>
-            </div>
+        {/* Sticky Action Footer (Floating Rounded Island Dock) */}
+        <div className="sticky bottom-4 z-20 mt-8">
+          <div className="rounded-2xl border border-slate-200/90 bg-white/95 p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.08)] backdrop-blur-2xl dark:border-slate-800/90 dark:bg-slate-900/95 sm:rounded-3xl sm:px-6 sm:py-3.5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {/* Left: Live Status & Executive Score Pills */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-200">
+                  <span className="relative flex size-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75"></span>
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-600"></span>
+                  </span>
+                  <span>ประเมินแล้ว:</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-white">{stats.ratedCount}/5 โกดัง</span>
+                </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
-              <button
-                onClick={() => void handleTestSend()}
-                disabled={isSending || isLoading}
-                className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white shadow-xs transition-all hover:bg-amber-600 active:scale-95 disabled:opacity-50"
-                type="button"
-              >
-                <Send className={`size-4 ${isSending ? 'animate-bounce' : ''}`} />
-                <span>{isSending ? 'กำลังส่ง...' : 'ทดสอบยิง'}</span>
-              </button>
+                <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs shadow-2xs dark:border-slate-700 dark:bg-slate-800">
+                  <Star className="size-3.5 fill-amber-400 text-amber-500" />
+                  <span className="font-medium text-slate-600 dark:text-slate-300">เฉลี่ยรวม:</span>
+                  <span className="font-mono text-sm font-black text-slate-900 dark:text-white">
+                    {stats.overallAvg.toFixed(1)}
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">/ 5.0</span>
+                </div>
 
-              <button
-                onClick={() => void handleSave()}
-                disabled={isSaving || isLoading}
-                className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-xs transition-all hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-                type="button"
-              >
-                <Save className={`size-4 ${isSaving ? 'animate-spin' : ''}`} />
-                <span>{isSaving ? 'กำลังบันทึก...' : '💾 บันทึก'}</span>
-              </button>
+                {stats.problemCount > 0 ? (
+                  <div className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3.5 py-1.5 text-xs font-bold text-rose-800 shadow-2xs dark:border-rose-900 dark:bg-rose-950/70 dark:text-rose-200">
+                    <AlertTriangle className="size-3.5 text-rose-600 dark:text-rose-400" />
+                    <span>{stats.problemCount} รายการปัญหา</span>
+                  </div>
+                ) : (
+                  <div className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-800 shadow-2xs dark:border-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-300 md:flex">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>ปฏิบัติงานราบรื่น</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Primary Action Buttons */}
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
+                <button
+                  onClick={() => void handleTestSend()}
+                  disabled={isSending || isLoading}
+                  className="group flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-xs transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:rounded-2xl"
+                  type="button"
+                  title="ส่งผลสรุป KPI และตารางอันดับเข้า LINE Group ประจำวัน"
+                >
+                  <Send className={`size-4 text-emerald-400 transition-transform group-hover:translate-x-0.5 dark:text-emerald-600 ${isSending ? 'animate-bounce' : ''}`} />
+                  <span>{isSending ? 'กำลังส่งข้อมูล...' : 'ส่งสรุปเข้า LINE'}</span>
+                </button>
+
+                <button
+                  onClick={() => void handleSave()}
+                  disabled={isSaving || isLoading}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] disabled:opacity-50 sm:rounded-2xl"
+                  type="button"
+                >
+                  <Save className={`size-4 ${isSaving ? 'animate-spin' : ''}`} />
+                  <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกผลการประเมิน'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -651,4 +676,6 @@ export function WarehouseKpiPageClient() {
     </div>
   )
 }
+
+
 
