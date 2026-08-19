@@ -17,6 +17,11 @@ const pendingOutEventsSource = readFileSync(
   'utf8',
 )
 
+const weightTicketWriteHandlersSource = readFileSync(
+  resolve(process.cwd(), 'src/lib/server/weight-ticket-write/handlers.ts'),
+  'utf8',
+)
+
 const weightTicketsSource = readFileSync(
   resolve(process.cwd(), 'src/lib/server/weight-tickets.ts'),
   'utf8',
@@ -67,6 +72,12 @@ describe('weight-ticket transaction query contract', () => {
       'export async function appendWtoPendingOutEventsForHoldKeys',
       'export async function getWeightTicketPendingOutEvents',
     ]
+    const weightTicketWriteTxFunctionMarkers = [
+      'export async function resolveWeightTicketWarehousesForWrite',
+      'export async function validateWeightTicketStockForWrite',
+      'export async function applyWeightTicketCreateSideEffects',
+      'export async function applyWeightTicketEditSideEffects',
+    ]
 
     const sliceFunctionSources = (source: string, markers: string[]) => markers.map((marker, index) => {
       const start = source.indexOf(marker)
@@ -81,10 +92,13 @@ describe('weight-ticket transaction query contract', () => {
     const txFunctionSources = [
       ...sliceFunctionSources(stockHoldsSource, stockHoldTxFunctionMarkers),
       ...sliceFunctionSources(pendingOutEventsSource, pendingOutEventTxFunctionMarkers),
+      ...sliceFunctionSources(weightTicketWriteHandlersSource, weightTicketWriteTxFunctionMarkers),
     ]
 
     expect(txFunctionSources).toHaveLength(
-      stockHoldTxFunctionMarkers.length + pendingOutEventTxFunctionMarkers.length,
+      stockHoldTxFunctionMarkers.length
+        + pendingOutEventTxFunctionMarkers.length
+        + weightTicketWriteTxFunctionMarkers.length,
     )
     for (const source of txFunctionSources) {
       expect(source).not.toContain('Promise.all')
