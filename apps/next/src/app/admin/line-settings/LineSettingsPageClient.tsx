@@ -1320,6 +1320,38 @@ export function LineSettingsPageClient() {
     }
   }
 
+  const [isDirectTesting, setIsDirectTesting] = useState(false)
+
+  const handleDirectTestSend = async (type: 'DAILY' | 'MONTHLY', targetId?: string) => {
+    setError(null)
+    setMessage(null)
+    setIsDirectTesting(true)
+    try {
+      const payload: Record<string, unknown> = {
+        documentType: type,
+        targetId: targetId || undefined,
+      }
+      if (type === 'DAILY') {
+        payload.date = new Date().toISOString().slice(0, 10)
+      } else {
+        payload.month = new Date().toISOString().slice(0, 7)
+      }
+
+      const res = await fetch('/api/line/manual-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'ส่งทดสอบไม่สำเร็จ')
+      setMessage(body.message || (type === 'MONTHLY' ? 'ส่งสรุปประจำเดือนเข้า LINE สำเร็จเรียบร้อย' : 'ส่งสรุปประจำวันเข้า LINE สำเร็จเรียบร้อย'))
+    } catch (caught) {
+      setError(getErrorMessage(caught, 'ส่งทดสอบ LINE ขัดข้อง'))
+    } finally {
+      setIsDirectTesting(false)
+    }
+  }
+
   // TEMPLATE CRUD Handlers
   const handleSaveTemplate = async (e: React.FormEvent, confirmed = false) => {
     e.preventDefault()
@@ -2615,14 +2647,28 @@ export function LineSettingsPageClient() {
                                 <span className="font-bold text-slate-800">{r.name}</span>
                                 <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                                   {r.conditions?.documentTypes?.includes('DAILY') && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                    <button
+                                      type="button"
+                                      disabled={isDirectTesting}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold hover:bg-emerald-200 transition active:scale-95 disabled:opacity-50"
+                                      title="คลิกเพื่อทดสอบส่งสรุปประจำวันเข้ากลุ่มนี้ทันที"
+                                      onClick={() => void handleDirectTestSend('DAILY', r.target_id)}
+                                    >
                                       ⏰ สรุปวัน {r.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'} น.
-                                    </span>
+                                      <Send className="size-2.5 ml-0.5 text-emerald-600" />
+                                    </button>
                                   )}
                                   {r.conditions?.documentTypes?.includes('MONTHLY') && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">
+                                    <button
+                                      type="button"
+                                      disabled={isDirectTesting}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold hover:bg-blue-200 transition active:scale-95 disabled:opacity-50"
+                                      title="คลิกเพื่อทดสอบส่งสรุปประจำเดือนเข้ากลุ่มนี้ทันที"
+                                      onClick={() => void handleDirectTestSend('MONTHLY', r.target_id)}
+                                    >
                                       🗓️ สรุปเดือน ทุกวันที่ 1 เวลา {r.conditions?.monthlyScheduleTime || r.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'} น.
-                                    </span>
+                                      <Send className="size-2.5 ml-0.5 text-blue-600" />
+                                    </button>
                                   )}
                                   {r.description && <span className="text-xs text-slate-400">{r.description}</span>}
                                 </div>
@@ -2645,6 +2691,16 @@ export function LineSettingsPageClient() {
                             <td className="whitespace-nowrap px-3 py-3 text-center">
                               <TableActionButton menu={(
                                 <>
+                                  {r.conditions?.documentTypes?.includes('DAILY') && (
+                                    <TableActionMenuItem onSelect={() => void handleDirectTestSend('DAILY', r.target_id)}>
+                                      📤 ทดสอบส่งสรุปประจำวัน
+                                    </TableActionMenuItem>
+                                  )}
+                                  {r.conditions?.documentTypes?.includes('MONTHLY') && (
+                                    <TableActionMenuItem onSelect={() => void handleDirectTestSend('MONTHLY', r.target_id)}>
+                                      🗓️ ทดสอบส่งสรุปประจำเดือน
+                                    </TableActionMenuItem>
+                                  )}
                                   <TableActionMenuItem onSelect={() => { setRuleFieldErrors({}); openRuleForm(r) }}>แก้ไข</TableActionMenuItem>
                                   <TableActionMenuItem onSelect={() => void handleDeleteRule(r.id)}>ลบ</TableActionMenuItem>
                                 </>
@@ -3382,9 +3438,21 @@ export function LineSettingsPageClient() {
                         })}
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500">
-                      ระบบจะรวบรวมยอดชั่งและผลผลิตของทุกโกดัง (WH-01 ถึง WH-05) ส่งเป็นการ์ด Carousel เข้ากลุ่มที่เลือกตามเวลานี้ทุกวัน
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-emerald-200/70">
+                      <p className="text-xs text-slate-500">
+                        ระบบจะรวบรวมยอดชั่งและผลผลิตของทุกโกดัง (WH-01 ถึง WH-05) ส่งเป็นการ์ด Carousel ตามเวลานี้
+                      </p>
+                      <button
+                        type="button"
+                        disabled={isDirectTesting || !editingRule.target_id}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                        title={editingRule.target_id ? 'ทดลองส่งสรุปยอดวันนี้เข้ากลุ่มนี้ทันที' : 'กรุณาเลือกกลุ่ม LINE ข้อ 2 ก่อน'}
+                        onClick={() => void handleDirectTestSend('DAILY', editingRule.target_id)}
+                      >
+                        <Send className="size-3" />
+                        {isDirectTesting ? 'กำลังส่ง...' : '⚡ ทดลองยิงสรุปวันนี้เลย'}
+                      </button>
+                    </div>
                   </div>
                 </section>
               )}
@@ -3448,9 +3516,21 @@ export function LineSettingsPageClient() {
                         })}
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500">
-                      ระบบจะรวบรวมยอดใบชั่ง, ผลผลิต, ยอดซื้อ-ขาย, และการเคลื่อนไหวของทั้งเดือน ส่งเป็นการ์ด Carousel เข้ากลุ่มนี้อัตโนมัติ
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-blue-200/70">
+                      <p className="text-xs text-slate-500">
+                        ระบบจะรวบรวมยอดใบชั่ง, ผลผลิต, ยอดซื้อ-ขาย ทั้งเดือน ส่งเป็นการ์ด Carousel เข้ากลุ่มนี้อัตโนมัติ
+                      </p>
+                      <button
+                        type="button"
+                        disabled={isDirectTesting || !editingRule.target_id}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                        title={editingRule.target_id ? 'ทดลองส่งสรุปยอดเดือนนี้เข้ากลุ่มนี้ทันที' : 'กรุณาเลือกกลุ่ม LINE ข้อ 2 ก่อน'}
+                        onClick={() => void handleDirectTestSend('MONTHLY', editingRule.target_id)}
+                      >
+                        <Send className="size-3" />
+                        {isDirectTesting ? 'กำลังส่ง...' : '⚡ ทดลองยิงสรุปเดือนนี้เลย'}
+                      </button>
+                    </div>
                   </div>
                 </section>
               )}
