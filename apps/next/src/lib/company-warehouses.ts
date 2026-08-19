@@ -2,6 +2,8 @@ export interface WarehouseItem {
   id: string | number
   code: string
   name: string
+  branchId?: string
+  branchName?: string
   inCharge?: string
   targetSortKg?: number
   targetBaleCount?: number

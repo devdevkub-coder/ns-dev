@@ -23,7 +23,12 @@ export async function GET() {
       .filter((row) => row.active === true && /^WH-\d+$/i.test(row.code))
       .map((row) => {
         const code = requireBusinessCode(row.code, `คลัง ${row.id.toString()}`)
-        return { code, id: code, name: row.name }
+        return {
+          branchCode: row.branchCode ?? null,
+          code,
+          id: code,
+          name: row.name,
+        }
       })
     return NextResponse.json({
       branches: branches.map((branch) => {

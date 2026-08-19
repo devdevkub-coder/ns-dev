@@ -24,6 +24,8 @@ type Warehouse = {
   id: number
   code: string
   name: string
+  branch_code?: string | null
+  branch_name?: string | null
   active: boolean
 }
 
@@ -31,6 +33,7 @@ type Evaluation = {
   warehouse_id: number
   warehouse_code: string
   warehouse_name: string
+  branch_name?: string | null
   accuracy: number
   speed: number
   target_hit: number
@@ -126,7 +129,14 @@ const WarehouseCard = memo(function WarehouseCard({
             {ev.warehouse_code}
           </span>
           <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{ev.warehouse_name}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{ev.warehouse_name}</h2>
+              {ev.branch_name ? (
+                <span className="inline-flex items-center rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                  {ev.branch_name}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -323,6 +333,7 @@ export function WarehouseKpiPageClient() {
             warehouse_id: existing.warehouse_id,
             warehouse_code: wh.code,
             warehouse_name: wh.name,
+            branch_name: wh.branch_name ?? null,
             accuracy: Number(existing.accuracy) || 3,
             speed: Number(existing.speed) || 3,
             target_hit: Number(existing.target_hit) || 3,
@@ -335,6 +346,7 @@ export function WarehouseKpiPageClient() {
           warehouse_id: wh.id,
           warehouse_code: wh.code,
           warehouse_name: wh.name,
+          branch_name: wh.branch_name ?? null,
           accuracy: 3,
           speed: 3,
           target_hit: 3,

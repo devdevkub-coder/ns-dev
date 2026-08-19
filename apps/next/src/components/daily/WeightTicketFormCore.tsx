@@ -1500,7 +1500,7 @@ export function WeightTicketFormCore({
   const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(initialForm(initialType)))
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [isLoadingBranches, setIsLoadingBranches] = useState(true)
-  const [warehouses, setWarehouses] = useState<OptionItem[]>(() => readCompanyWarehouses().map((warehouse) => ({ id: String(warehouse.code), label: `${warehouse.code} — ${warehouse.name}` })))
+  const [warehouses, setWarehouses] = useState<Array<OptionItem & { branchCode?: string | null }>>(() => readCompanyWarehouses().map((warehouse) => ({ branchCode: warehouse.branchId ?? null, id: String(warehouse.code), label: `${warehouse.code} — ${warehouse.name}` })))
   const [suppliers, setSuppliers] = useState<OptionItem[]>([])
   const [customers, setCustomers] = useState<OptionItem[]>([])
   const [products, setProducts] = useState<OptionItem[]>([])
@@ -1994,12 +1994,13 @@ export function WeightTicketFormCore({
   useEffect(() => {
     let cancelled = false
 
-    cachedWeightTicketReferences<{ warehouses?: Array<{ code?: string | null; id: string; name: string }> }>('/api/daily/weight-tickets/options')
+    fetchFreshWeightTicketReferences<{ warehouses?: Array<{ branchCode?: string | null; code?: string | null; id: string; name: string }> }>('/api/daily/weight-tickets/options')
       .then((data) => {
         if (cancelled) return
         const rows = data.warehouses ?? []
         if (rows.length === 0) return
         setWarehouses(rows.map((warehouse) => ({
+          branchCode: warehouse.branchCode ?? null,
           id: warehouse.id,
           label: `${warehouse.code ?? warehouse.id} — ${warehouse.name}`,
         })))
@@ -2768,10 +2769,14 @@ export function WeightTicketFormCore({
           const selectedBranch = branches.find((branch) => branch.id === branchId)
           const party = (current.type === 'WTI' ? suppliers : customers)
             .find((option) => option.id === current.partyId && option.branchIds?.includes(branchId))
+          const matchingWarehouses = warehouses.filter((w) => w.branchCode === branchId)
+          const keepGodown = current.godownName && matchingWarehouses.some((w) => w.id === current.godownName)
+          if (current.godownName && !keepGodown) dirtyHeaderFieldsRef.current.add('godownName')
           return {
             ...current,
             branchId,
             branchName: selectedBranch?.label ?? '',
+            godownName: keepGodown ? current.godownName : '',
             lines: current.lines.map((line) => ({ ...line, warehouseId: '', warehouseName: '', warehouseType: '' })),
             partyId: party ? current.partyId : '',
             partyName: party?.label ?? '',
@@ -4392,7 +4397,7 @@ export function WeightTicketFormCore({
                 />
               </FieldBlock>
               <BranchSelectCombobox
-                branches={warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.label }))}
+                branches={(form.branchId ? warehouses.filter((w) => w.branchCode === form.branchId) : warehouses).map((warehouse) => ({ id: warehouse.id, name: warehouse.label }))}
                 error={showError('godownName')}
                 inputId="weight-ticket-godownName"
                 label="โกดัง*"

@@ -167,8 +167,16 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
 ### Filter Row
 
 - filter shell wrapper: `rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm`
-- filter row gap: `gap-2`
+- filter row gap: `gap-2` หรือ `gap-3` ใน single-row toolbar
 - **Single-line field height contract:** normal business-entry controls use `h-10` (40px): shared `Input`, `Select`, `SearchCombobox`, `Combobox` / `InputGroup`, and `DatePicker` / `DatePickerInput`. Filter controls use their explicit compact `h-9` (36px) variant/class only. This changes height only: keep the component's existing width class and responsive width behavior. Do not impose an absolute global height through CSS.
+- **Dropdown/Select Single-Line Text Guard (ห้ามข้อความใน Dropdown/Select ขึ้น 2 บรรทัดเด็ดขาด):**
+  - ความกว้างของกล่อง `Select`, `Combobox`, หรือ `Dropdown` ในแถบตัวกรองและฟอร์ม ต้องคำนวณและตั้งค่าความกว้างให้รองรับ option text ที่ยาวที่สุดของชุดข้อมูลนั้นเสมอ (เช่น ข้อความยาว 20+ ตัวอักษรอย่าง `"ทุกหมวด (ทองแดง+ทองเหลือง)"` ต้องมีความกว้างอย่างน้อย `w-[240px]`)
+  - ห้ามปล่อยให้ความกว้างของกล่องแคบเกินไปจนข้อความยาวถูกบีบตัดคำหรือหลุดขึ้น 2 บรรทัด
+- **Fluid Filter Row & Frame-Fitting Layout (แถบตัวกรองต้องยืดเต็มกรอบการ์ดเสมอ ห้ามโล่งแหว่งทางขวา):**
+  - ในแถว Toolbar / Filter Row ต้องมีช่องป้อนข้อมูลหรือค้นหาหลักที่ใส่ `flex-1` (เช่น `min-w-[160px] flex-1` บนช่องค้นหา) เพื่อดูดซับพื้นที่ว่างที่เหลือและขยายเต็มความกว้างของกรอบการ์ดพอดี
+  - ห้ามใช้ fixed width ทุกตัวในแถวจนเหลือพื้นที่ว่างเปล่าลอยๆ โล่งๆ ทางด้านขวาของการ์ด
+- **No Border Dividers inside Filter Card (ห้ามมีเส้นคั่นกลางในการ์ดตัวกรอง):**
+  - การจัดวางภายใน Filter Card (ระหว่างแถวตัวกรองและแถวปุ่ม Action) ต้องใช้ระยะห่างแนวตั้ง `space-y-3` ภายในการ์ดผืนเดียวกัน ห้ามใส่เส้นคั่น `border-t` แบ่งระหว่างแถวเด็ดขาด
 - The contract does not apply to textarea/multiline fields, checkbox/radio/file inputs, hidden/submit/reset/image inputs, page/action buttons, segmented controls, or compact inline table editors. Those controls remain content- or action-specific.
 - search field:
   - min width: `min-w-[260px]`
@@ -866,6 +874,49 @@ Decision rules:
 - `เลขที่ใบชั่งใหญ่` -> `text`
 - `ทะเบียนรถ` -> `text`
 
+## Universal Contrast And Anti-Camouflage Rules (กฎเหล็กห้ามสีกลืนกันทั่วทั้งระบบ)
+
+ใช้กฎชุดนี้กับ **ทุกหน้า ทุกคอมโพเนนต์ ทุกสี และทุกสถานะทั่วทั้งระบบ** เพื่อป้องกันปัญหาข้อมูลจมหรืออ่านยาก:
+
+1. **ห้ามสีกลืนกับพื้นหลังเด็ดขาด (Zero Visual Camouflage):**
+   - **ห้ามนำสีพื้นหลัง (Background) หรือสีข้อความ (Text) ของ Element ใดๆ ไปใช้เฉดเดียวหรือใกล้เคียงกับพื้นหลังของ Container/Card/Surface ที่มันวางอยู่** จนมองไม่เห็น แยกไม่ออก หรือต้องเพ่งสายตา
+   - **ใน Dark Mode (ห้าม Dark-on-Dark เด็ดขาด):** ห้ามใช้สีทึบ/มืดวางบนพื้นมืด เช่น `slate-700` บนการ์ด `slate-800`, น้ำเงินเข้มบนพื้นดำ, หรือแดงมืดบนพื้นมืด เพราะจะทำให้ Element "จมหายไปในพื้นหลังทันที" ต้องใช้ shade สว่าง (Luminance Contrast สูง) และมี Border บางแบ่งมิติเสมอ
+   - **ใน Light Mode (ห้าม Faint-on-Light):** ห้ามใช้สีเทาอ่อน/ขาวนวล/พาสเทลจาง วางซ้อนบนพื้นขาวหรือเทาอ่อนโดยไม่มีขอบเขต เพราะจะทำให้ทั้งบล็อกกลายเป็นสีโทนเดียวกัน (Monochrome) และดูเหมือนช่องที่ถูกปิดใช้งาน (Disabled)
+
+2. **การแบ่งชั้นและสร้างมิติ (Visual Boundary & Layering):**
+   - ทุก Element ที่ลอยอยู่บนการ์ดหรือตาราง (เช่น Badge, Chip, Tag, Input, Status Indicator) ต้องมีเส้นขอบและ Contrast ที่ชัดเจน:
+     - **Light Mode:** ใช้ Tinted Background + ข้อความเข้ม + เส้นขอบบาง เช่น `border border-{color}-200/60 bg-{color}-50 text-{color}-700`
+     - **Dark Mode:** ใช้ Deep Tint Background + ข้อความสว่าง + เส้นขอบชัด เช่น `dark:border-{color}-800/50 dark:bg-{color}-950/50 dark:text-{color}-300`
+
+3. **ความปลอดภัยของฟอนต์ภาษาไทย (Thai Font Weight & Legibility Guard):**
+   - ข้อความขนาดเล็ก (`text-[10px]` ถึง `text-xs` / 10px-12px) ใน Badge, Tag, Tooltip, หรือ Label **ห้ามใช้ `font-extrabold` (800) หรือ `font-black` (900) เด็ดขาด**
+   - หัวตัวอักษรและสระภาษาไทยจะบวมตันและกลืนเป็นก้อนอ่านยาก ต้องใช้ **`font-semibold` (600)** หรือ **`font-medium` (500)** เป็นเพดานสูงสุดเพื่อความคมชัดและโปร่งตา
+
+4. **การเลือกใช้สีสื่อความหมาย (Semantic Color Palette):**
+   - **ข้อมูลสดจากระบบ / เชื่อมต่อ API / Live Feed:** โทนสีฟ้า (`blue` / `sky`)
+   - **ข้อมูลที่ผู้ใช้ต้องกรอกเอง / ดำเนินการ (Action/Manual):** โทนสีส้ม (`amber` / `orange`)
+   - **สถานะสำเร็จ / พร้อมใช้งาน / เปิดใช้งาน:** โทนสีเขียว (`emerald` / `green`)
+   - **สถานะแจ้งเตือน / ระงับ / รอดำเนินการ:** โทนสีเหลือง/ส้ม (`yellow` / `amber`)
+   - **สถานะผิดพลาด / ยกเลิก / อันตราย:** โทนสีแดง (`red` / `rose`)
+   - **สถานะทั่วไป / ออฟไลน์ / ค่าปกติ:** โทนสีเทา (`slate`) — *ใช้เฉพาะเมื่อเป็น Neutral/Disabled จริง ๆ เท่านั้น ห้ามใช้กับข้อมูลสดหรือ Active State*
+
+5. **กฎเหล็กปฏิทินและตารางนัดหมายใน Dark Mode (Calendar & Schedule Grid Dark Mode Guard):**
+   - **ห้ามใช้ Light-only tint ใน Dark Mode เด็ดขาด:** เช่น `bg-blue-50`, `hover:bg-blue-50`, `bg-emerald-100`, `bg-red-100`, `bg-yellow-50` โดยไม่มี Dark Mode tokens กำกับ เพราะจะทำให้ใน Dark Mode กลายเป็นสีขาว/พาสเทลสว่างจ้า (Neon Flash Glare) แสบตาและรบกวนสายตาอย่างรุนแรง
+   - **ช่องวันที่ถูกเลือก (Selected Date):** ใช้โทน Deep Tint ที่นุ่มนวล เช่น `bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-950/60 dark:ring-blue-500/70`
+   - **Hover State:** ใช้ `dark:hover:bg-slate-800/70` (ไม่ใช้ light hover)
+   - **หัววันประจำสัปดาห์ (อาทิตย์ - เสาร์):** ใช้ `dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300`
+   - **ป้ายกำกับรายการส่งของ/งานค้างในช่องตาราง (Item Pills):** ต้องมีเส้นขอบและพื้นหลัง Deep Tint ใน Dark Mode เสมอ เช่น พร้อมส่ง (`border border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/60 dark:text-emerald-300`) และ ต้องซื้อเพิ่ม/ขาด (`border border-rose-200/60 bg-rose-50 text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/60 dark:text-rose-300`)
+   - **กรอบการ์ดปฏิทินและแถบเครื่องมือ:** ใช้ `dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100` ให้เข้าชุดกับระบบ
+
+6. **กฎเหล็กแถบ Pagination และการจัดวาง Action Buttons ใน Toolbar (Toolbar Action & Flat Pagination Rules):**
+   - **Action Buttons Placement (ปุ่มสร้างใหม่ / ปุ่มส่งออก Excel):**
+     - ใน Filter Toolbar Card ที่มี Filter หลายบรรทัด ปุ่ม Action หลัก (เช่น `[ส่งออก Excel]`, `[+ สร้างรายการใหม่]`) ต้องวางไว้ที่ **บรรทัดล่างสุด (Bottom Row) ฝั่งขวา (`ml-auto`)** เสมอ
+     - ห้ามนำปุ่ม Action ไปวางในบรรทัดกลางหรือบรรทัดแรกที่ทำให้บรรทัดนั้นแน่นเบียดกับ Filter อื่น ขณะที่บรรทัดล่างสุดมีพื้นที่ว่างด้านขวาโล่ง
+   - **Flat Pagination & Summary Bar (ห้ามทำการ์ดซ้อนการ์ดรอบ Pagination):**
+     - แถบสรุปจำนวนรายการและตัวเปลี่ยนหน้า (`พบทั้งหมด X รายการ`, `25 / หน้า`, `ก่อนหน้า - ถัดไป`) ต้องเป็น **Flat Flex Bar** เรียบ ๆ วางอยู่ด้านบนตาราง/การ์ด (`mb-3 px-1 text-sm text-slate-600 dark:text-slate-400`)
+     - **ห้ามครอบ Pagination ด้วย Card Box หรือนำไปยัดไว้ใน Header ของกล่องตารางพร้อมเส้นแบ่ง `border-b`** เพราะจะทำให้เกิดปัญหา "การ์ดซ้อนการ์ด (Over-Nested Cards)" และทำให้โครงสร้างตารางเทอะทะ
+     - กล่องตาราง (`overflow-hidden rounded-md border ...`) ต้องครอบเฉพาะ Element `<Table>` จริง ๆ เท่านั้น
+
 ## Status and Badge Rules
 
 status wording ต้องนิ่งใน flow เดียวกัน เช่น purchase bills:
@@ -878,6 +929,11 @@ status wording ต้องนิ่งใน flow เดียวกัน เ�
 Rules:
 - อย่าใช้ status technical/raw จาก DB ตรง ๆ ถ้ามี business wording ที่ชัดกว่า
 - badge color ต้องใช้ซ้ำได้และไม่สลับความหมายข้ามหน้า
+- **Data Source Badges (ป้ายที่มาของข้อมูลใน Input / Form Cards):**
+  - **`ดึงจาก API` / ข้อมูลสด (Live Feed / System Auto):** ใช้โทนสีฟ้าอ่อน `border border-blue-200/60 bg-blue-50 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/50 dark:text-blue-300` เพื่อสื่อถึงระบบเชื่อมต่อข้อมูลสดอัตโนมัติ
+  - **`กรอกเอง` / Manual Input:** ใช้โทนสีส้ม `border border-amber-200/60 bg-amber-50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300` เพื่อสื่อถึง Action ที่ผู้ใช้ต้องกรอก
+  - **ห้ามใช้สีเทา (`slate-200` / `slate-700`)** สำหรับป้ายข้อมูลสด เพราะสีเทาสื่อถึง Disabled / Inactive และกลืนกับพื้นหลังการ์ดใน Dark Mode จนแยกไม่ออก
+  - **Typography:** Badge ขนาดเล็ก `text-[11px]` ต้องใช้ `font-semibold` ห้ามใช้ `font-extrabold` (800) เพื่อป้องกันตัวอักษรภาษาไทยทึบแน่นและอ่านยาก
 
 ## Wording Conventions
 
@@ -1025,6 +1081,19 @@ reference implementation ที่ใช้อ้างอิงได้ตอ�
 เวลาเริ่มหน้าใหม่ ให้ดู reference ที่ใกล้ domain ที่สุดก่อน
 
 ## Change Log
+
+- 2026-08-17: บันทึกมาตรฐาน Toolbar Action & Flat Pagination Rules สำหรับแถบ Toolbar และแถบควบคุมตารางทั่วทั้งระบบ:
+  1. **การจัดวางปุ่ม Action ใน Toolbar Card:** ใน Filter Toolbar Card ที่มีหลายบรรทัด ปุ่ม Action หลัก (`[ส่งออก Excel]`, `[+ สร้างรายการใหม่]`) ต้องวางไว้ที่ **บรรทัดล่างสุด (Bottom Row) ฝั่งขวา (`ml-auto`)** เสมอ ห้ามนำไปวางในบรรทัดกลางจนทำให้บรรทัดนั้นแน่นเบียดขณะที่บรรทัดล่างสุดมีพื้นที่ว่างด้านขวาโล่ง
+  2. **แถบ Pagination และสรุปรายการต้องเป็น Flat Bar:** แถบสรุปจำนวนรายการและตัวเปลี่ยนหน้า (`พบทั้งหมด X รายการ`, `25 / หน้า`, `ก่อนหน้า - ถัดไป`) ต้องเป็น Flat Flex Bar เรียบ ๆ วางอยู่ด้านบนตาราง/การ์ด (`mb-3 px-1 text-sm text-slate-600 dark:text-slate-400`) ห้ามครอบด้วย Card Box หรือนำไปยัดไว้ใน Header ของกล่องตารางพร้อมเส้นแบ่ง `border-b` เพื่อป้องกันปัญหาการ์ดซ้อนการ์ด (Over-Nested Cards)
+
+- 2026-08-17: บันทึกมาตรฐาน Calendar & Schedule Grid Dark Mode Guard สำหรับหน้าปฏิทินและตารางวางแผนทั่วทั้งระบบ: ห้ามใช้ Light-only tint (`bg-blue-50`, `hover:bg-blue-50`, `bg-emerald-100`, `bg-red-100`) ใน Dark Mode โดยไม่มี Dark tokens กำกับ เพราะจะทำให้เกิดแสงวาบสว่างจ้า (Neon Flash Glare) แสบตา; ให้ใช้ Deep Tint ใน Dark Mode เสมอ เช่น วันที่เลือกใช้ `dark:bg-blue-950/60 dark:ring-blue-500/70`, hover ใช้ `dark:hover:bg-slate-800/70`, หัววัน (อาทิตย์-เสาร์) ใช้ `dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300`, และป้ายกำกับรายการส่งของในช่องวันใช้ Deep Tint พร้อมกรอบบาง (`dark:bg-emerald-950/60` / `dark:bg-rose-950/60`)
+
+- 2026-08-17: บันทึกมาตรฐาน Dropdown Single-Line Text Guard และ Fluid Filter Row สำหรับแถบตัวกรองและฟอร์มทั่วทั้งระบบ:
+  1. **ห้ามข้อความใน Dropdown/Select ขึ้น 2 บรรทัดเด็ดขาด:** ความกว้างของกล่องเลือก (`Select`, `Combobox`, `Dropdown`) ต้องตั้งค่าความกว้างให้รองรับ option text ที่ยาวที่สุดเสมอ (เช่น `"ทุกหมวด (ทองแดง+ทองเหลือง)"` ต้องใช้ `w-[240px]`) ห้ามปล่อยให้กล่องแคบจนข้อความถูกบีบตัดคำหรือหลุดขึ้น 2 บรรทัด
+  2. **แถบตัวกรองต้องยืดขยายพอดีกรอบการ์ด (Fluid Filter Row):** ในแถว Toolbar/Filter Row ต้องมีช่องค้นหาหรือช่องป้อนข้อมูลหลักที่ใส่ `flex-1` (เช่น `min-w-[160px] flex-1`) เพื่อดูดซับพื้นที่ว่างและขยายเต็มกรอบการ์ดพอดี ห้ามใช้ fixed width ทุกตัวจนเหลือพื้นที่ว่างเปล่าลอยๆ โล่งๆ ทางด้านขวา
+  3. **ห้ามมีเส้นคั่นกลางในการ์ดตัวกรอง (No Border Divider):** การจัดวางระหว่างแถว Filter และแถวปุ่ม Action ภายในการ์ด ต้องใช้ระยะห่างแนวตั้ง `space-y-3` เป็นการ์ดผืนเดียวกัน ห้ามใส่เส้นคั่น `border-t` แบ่งแถวเด็ดขาด
+
+- 2026-08-17: บันทึกมาตรฐาน Data Source Badges สำหรับ Form / Input Cards (เช่น ใน `/sales-plan`): ป้ายข้อมูลสด/ดึงจากระบบ (`ดึงจาก API`) ต้องใช้โทนสีฟ้าอ่อน (`border border-blue-200/60 bg-blue-50 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/50 dark:text-blue-300`) และป้ายที่ผู้ใช้ต้องกรอกเอง (`กรอกเอง`) ต้องใช้โทนสีส้ม (`border border-amber-200/60 bg-amber-50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300`). ห้ามใช้สีเทา (`slate-200` / `slate-700`) ซ้ำซ้อนกับพื้นหลังการ์ดจนสีกลืน มองยาก และดูเหมือน Disabled ใน Dark Mode และกำหนดให้ใช้ `font-semibold` บนข้อความขนาดเล็ก (`text-[11px]`) แทน `font-extrabold` เพื่อให้อ่านฟอนต์ภาษาไทยได้คมชัด ไม่ทึบแน่น
 
 - 2026-08-16: Added the project-wide Animation Spec (see "Animation Spec" section): one shared toolkit in `globals.css` (fade-in/out, fade-in-up, scale-in, slide-in-up, dialog-in/out, shimmer + `.skeleton`, button-press scale), sidebar dropdowns animate with the `grid-template-rows` slide + chevron rotation, Dialog/Modal and MobileFilterSheet get enter/exit motion via `data-state`/animation classes, and plain "กำลังโหลดข้อมูล" table cells were replaced with the shared `Skeleton` shimmer (sr-only text kept). All motion is 150–250ms ease-out on transform/opacity only and collapses under `prefers-reduced-motion`.
 

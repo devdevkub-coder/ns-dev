@@ -11,9 +11,8 @@ describe('weight ticket warehouse selection contract', () => {
     const sourceModule = source('../../lib/company-warehouses.ts')
 
     expect(form).toContain('readCompanyWarehouses')
-    expect(form).toContain('branches={warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.label }))}')
-    expect(form).toContain('weight-ticket-godownName')
-    expect(form).toContain('required')
+    expect(form).toContain('inputId="weight-ticket-godownName"')
+    expect(form).toContain('label="โกดัง*"')
     expect(form).toContain('value={form.godownName || null}')
     expect(form).not.toContain('placeholder="เช่น โกดัง A"')
     expect(form).toContain('/api/daily/weight-tickets/options')

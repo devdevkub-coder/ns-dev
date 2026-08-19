@@ -72,6 +72,7 @@ export async function GET(request: Request) {
           code: true,
           name: true,
           active: true,
+          branches: { select: { code: true, name: true } },
         },
         orderBy: { code: 'asc' }
       })
@@ -95,6 +96,8 @@ export async function GET(request: Request) {
       id: Number(w.id),
       code: w.code,
       name: w.name,
+      branch_code: w.branches?.code ?? null,
+      branch_name: w.branches?.name ?? null,
       active: w.active ?? true,
     }))
 

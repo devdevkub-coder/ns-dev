@@ -19,13 +19,15 @@ import {
 import { emptyMasterDataForm, listMasterDataRecords, saveMasterDataRecord, setMasterDataRecordActive, type MasterDataRecord } from '@/lib/master-data'
 
 type StatusFilter = 'all' | 'active' | 'inactive'
-type SortKey = 'code' | 'name' | 'inCharge' | 'targetSortKg' | 'targetBaleCount' | 'active'
+type SortKey = 'code' | 'name' | 'branchName' | 'inCharge' | 'targetSortKg' | 'targetBaleCount' | 'active'
 type TableColumnKey = SortKey | '__action'
 
 const pageSizeOptions = [10, 25, 50, 100]
 
 const EMPTY_FORM: WarehouseItem = {
   active: true,
+  branchId: '',
+  branchName: '',
   code: '',
   id: '',
   name: '',
@@ -43,6 +45,8 @@ function nextWarehouseCode(items: WarehouseItem[]): string {
 function recordToItem(record: MasterDataRecord): WarehouseItem {
   return {
     active: record.active,
+    branchId: record.branchId ?? undefined,
+    branchName: record.branchName ?? undefined,
     code: record.code ?? '',
     createdAt: record.createdAt ?? undefined,
     id: record.id,
@@ -92,6 +96,7 @@ function MatchButton({ active, label, onClick, tone = 'slate' }: { active: boole
 
 export function CompanyWarehouseNamesPageClient() {
   const [items, setItems] = useState<WarehouseItem[]>([])
+  const [branches, setBranches] = useState<Array<{ code: string; name: string }>>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [search, setSearch] = useState('')
@@ -111,12 +116,13 @@ export function CompanyWarehouseNamesPageClient() {
   const [sortKey, setSortKey] = useState<SortKey>('code')
 
   const resizableColumns = useMemo<Array<ResizableColumnDefinition<TableColumnKey>>>(() => ([
-    { defaultWidth: 110, key: 'code', minWidth: 90, maxWidth: 160 },
-    { defaultWidth: 200, key: 'name', minWidth: 140, maxWidth: 320 },
-    { defaultWidth: 160, key: 'inCharge', minWidth: 100, maxWidth: 240 },
-    { defaultWidth: 120, key: 'targetSortKg', minWidth: 100, maxWidth: 180 },
-    { defaultWidth: 120, key: 'targetBaleCount', minWidth: 100, maxWidth: 180 },
-    { defaultWidth: 100, key: 'active', minWidth: 80, maxWidth: 140 },
+    { defaultWidth: 100, key: 'code', minWidth: 80, maxWidth: 150 },
+    { defaultWidth: 180, key: 'name', minWidth: 130, maxWidth: 300 },
+    { defaultWidth: 140, key: 'branchName', minWidth: 100, maxWidth: 220 },
+    { defaultWidth: 150, key: 'inCharge', minWidth: 100, maxWidth: 240 },
+    { defaultWidth: 110, key: 'targetSortKg', minWidth: 90, maxWidth: 170 },
+    { defaultWidth: 110, key: 'targetBaleCount', minWidth: 90, maxWidth: 170 },
+    { defaultWidth: 90, key: 'active', minWidth: 70, maxWidth: 130 },
     { defaultWidth: 72, key: '__action', minWidth: 64, maxWidth: 88 },
   ]), [])
   const columnResize = useResizableColumns<TableColumnKey>('company-data.warehouse-names', resizableColumns)
@@ -124,9 +130,13 @@ export function CompanyWarehouseNamesPageClient() {
   const loadData = useCallback(async () => {
     setError(null)
     try {
-      const rows = await listMasterDataRecords('/api/master-data/warehouses?kind=godown')
+      const [rows, branchRows] = await Promise.all([
+        listMasterDataRecords('/api/master-data/warehouses?kind=godown'),
+        listMasterDataRecords('/api/master-data/branches').catch(() => []),
+      ])
       const nextItems = rows.map(recordToItem)
       setItems(nextItems)
+      setBranches(branchRows.filter((b) => b.active !== false).map((b) => ({ code: b.code || b.id, name: b.name })))
       writeCompanyWarehouses(nextItems)
       setOfflineMode(false)
     } catch {
@@ -152,7 +162,7 @@ export function CompanyWarehouseNamesPageClient() {
       if (statusFilter === 'active' && !item.active) return false
       if (statusFilter === 'inactive' && item.active) return false
       if (!query) return true
-      return [item.code, item.name, item.inCharge]
+      return [item.code, item.name, item.branchName, item.branchId, item.inCharge]
         .some((value) => (value ?? '').toLowerCase().includes(query))
     })
   }, [items, search, statusFilter])
@@ -236,6 +246,7 @@ export function CompanyWarehouseNamesPageClient() {
       const saved = await saveMasterDataRecord('/api/master-data/warehouses', {
         ...emptyMasterDataForm,
         active: formItem.active,
+        branchId: formItem.branchId || null,
         code: formItem.code,
         id: formItem.id ? String(formItem.id) : undefined,
         inCharge: formItem.inCharge?.trim() || null,
@@ -493,6 +504,7 @@ export function CompanyWarehouseNamesPageClient() {
                   <tr>
                     <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="ชื่อโกดัง" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อโกดัง')} sortKey="name" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} sortKey="branchName" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="หัวหน้าโกดัง" resizeProps={columnResize.getResizeHandleProps('inCharge', 'หัวหน้าโกดัง')} sortKey="inCharge" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เป้าคัดแยก" resizeProps={columnResize.getResizeHandleProps('targetSortKg', 'เป้าคัดแยก')} sortKey="targetSortKg" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เป้าอัดก้อน" resizeProps={columnResize.getResizeHandleProps('targetBaleCount', 'เป้าอัดก้อน')} sortKey="targetBaleCount" onSort={setSort} />
@@ -505,6 +517,15 @@ export function CompanyWarehouseNamesPageClient() {
                     <TableRow key={`company-warehouse-${item.id}`} className="border-slate-100 hover:bg-slate-50 focus-within:bg-slate-50 dark:hover:bg-slate-800/60 dark:focus-within:bg-slate-800/60">
                       <TableCell className="p-3 text-xs font-semibold text-slate-700 dark:text-slate-200 font-mono whitespace-nowrap">{item.code || '—'}</TableCell>
                       <TableCell className="p-3 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{item.name}</TableCell>
+                      <TableCell className="p-3 text-xs text-slate-700 dark:text-slate-200 truncate">
+                        {item.branchName ? (
+                          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {item.branchName}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="p-3 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{item.inCharge || '—'}</TableCell>
                       <TableCell className="p-3 text-xs font-semibold text-slate-700 dark:text-slate-200 pr-4 tabular-nums whitespace-nowrap text-right">
                         {item.targetSortKg == null ? '—' : `${formatNumber(item.targetSortKg)} กก.`}
@@ -535,7 +556,7 @@ export function CompanyWarehouseNamesPageClient() {
                   ))}
                   {sortedItems.length === 0 ? (
                     <TableRow>
-                      <TableCell className="p-8 text-center text-sm text-slate-500" colSpan={7}>ไม่พบข้อมูลโกดัง</TableCell>
+                      <TableCell className="p-8 text-center text-sm text-slate-500" colSpan={8}>ไม่พบข้อมูลโกดัง</TableCell>
                     </TableRow>
                   ) : null}
                 </TableBody>
@@ -549,11 +570,18 @@ export function CompanyWarehouseNamesPageClient() {
               <div key={`mobile-warehouse-${item.id}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    {item.code ? (
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                        {item.code}
-                      </span>
-                    ) : null}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {item.code ? (
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                          {item.code}
+                        </span>
+                      ) : null}
+                      {item.branchName ? (
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                          🏢 {item.branchName}
+                        </span>
+                      ) : null}
+                    </div>
                     <h4 className="mt-1.5 text-[15px] font-bold text-slate-900 dark:text-slate-100">{item.name}</h4>
                     {item.inCharge ? <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">👤 {item.inCharge}</div> : null}
                   </div>
@@ -632,16 +660,42 @@ export function CompanyWarehouseNamesPageClient() {
                 />
               </label>
             </div>
-            <label className="block">
-              <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">หัวหน้าโกดัง</span>
-              <Input
-                aria-label="หัวหน้าโกดัง"
-                className="h-10"
-                placeholder="เช่น สมชาย"
-                value={formItem.inCharge ?? ''}
-                onChange={(event) => setFormItem((current) => ({ ...current, inCharge: event.target.value }))}
-              />
-            </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">สาขา</span>
+                <select
+                  aria-label="สาขา"
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  value={formItem.branchId ?? ''}
+                  onChange={(event) => {
+                    const code = event.target.value
+                    const matched = branches.find((b) => b.code === code)
+                    setFormItem((current) => ({
+                      ...current,
+                      branchId: code || undefined,
+                      branchName: matched ? matched.name : undefined,
+                    }))
+                  }}
+                >
+                  <option value="">— ไม่ระบุ (ใช้ทุกสาขา) —</option>
+                  {branches.map((b) => (
+                    <option key={b.code} value={b.code}>
+                      {b.code} - {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">หัวหน้าโกดัง</span>
+                <Input
+                  aria-label="หัวหน้าโกดัง"
+                  className="h-10"
+                  placeholder="เช่น สมชาย"
+                  value={formItem.inCharge ?? ''}
+                  onChange={(event) => setFormItem((current) => ({ ...current, inCharge: event.target.value }))}
+                />
+              </label>
+            </div>
 
             <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-950/30">
               <div className="text-sm font-black text-amber-700 dark:text-amber-300">🎯 เป้าน้ำหนัก/ก้อน /วัน</div>
