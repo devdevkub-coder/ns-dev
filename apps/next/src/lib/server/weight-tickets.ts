@@ -1005,9 +1005,10 @@ export async function rebuildWeightTicketProductSummaries(
   } else {
     await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: ticketId } })
   }
-  const persistedSummaries = await Promise.all(summaryRows.map(async ({ lineIds: _lineIds, ...data }) => {
+  const persistedSummaries = []
+  for (const { lineIds: _lineIds, ...data } of summaryRows) {
     const { created_at: _createdAt, ...upsertData } = data
-    return tx.weight_ticket_product_summaries.upsert({
+    persistedSummaries.push(await tx.weight_ticket_product_summaries.upsert({
       create: data,
       update: { ...upsertData, updated_at: new Date() },
       where: {
@@ -1016,8 +1017,8 @@ export async function rebuildWeightTicketProductSummaries(
           weight_ticket_id: data.weight_ticket_id,
         },
       },
-    })
-  }))
+    }))
+  }
   const summaryIdByProductId = new Map(persistedSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
   const bridgeRows = summaryRows.flatMap(({ lineIds, product_id }) => {
     const summaryId = summaryIdByProductId.get(String(product_id))

@@ -989,14 +989,14 @@ async function updateWeightTicket(
           lineWriteSteps.map((step) => ({ data: step.data, existingLotSeq: step.kind === 'update' ? latestLineByClientId.get(step.clientId)?.lot_seq : undefined })),
         )
         const maxCurrentLineNo = latestLines.reduce((max, line) => Math.max(max, line.line_no), 0)
-        await Promise.all(lineWriteSteps.map((step, index) => (
-          step.kind === 'update'
-            ? tx.weight_ticket_lines.update({
-                data: { line_no: maxCurrentLineNo + index + 1 },
-                where: { id: step.currentLineId },
-              })
-            : Promise.resolve()
-        )))
+        for (const [index, step] of lineWriteSteps.entries()) {
+          if (step.kind === 'update') {
+            await tx.weight_ticket_lines.update({
+              data: { line_no: maxCurrentLineNo + index + 1 },
+              where: { id: step.currentLineId },
+            })
+          }
+        }
         const persistedLinePairs: Array<readonly [string, string]> = []
         for (const [index, step] of lineWriteSteps.entries()) {
           if (step.kind === 'update') {
@@ -1053,14 +1053,14 @@ async function updateWeightTicket(
           deliveredLineWriteSteps.map((step) => ({ data: step.data, existingLotSeq: step.kind === 'update' ? existingLineByLineNo.get(step.data.line_no)?.lot_seq : undefined })),
         )
         const deliveredMaxLineNo = existing.weight_ticket_lines.reduce((max, line) => Math.max(max, line.line_no), 0)
-        await Promise.all(deliveredLineWriteSteps.map((step, index) => (
-          step.kind === 'update'
-            ? tx.weight_ticket_lines.update({
-                data: { line_no: deliveredMaxLineNo + index + 1 },
-                where: { id: step.currentLineId },
-              })
-            : Promise.resolve()
-        )))
+        for (const [index, step] of deliveredLineWriteSteps.entries()) {
+          if (step.kind === 'update') {
+            await tx.weight_ticket_lines.update({
+              data: { line_no: deliveredMaxLineNo + index + 1 },
+              where: { id: step.currentLineId },
+            })
+          }
+        }
         const persistedLinePairs: Array<readonly [string, string]> = []
         for (const [index, step] of deliveredLineWriteSteps.entries()) {
           if (step.kind === 'update') {
