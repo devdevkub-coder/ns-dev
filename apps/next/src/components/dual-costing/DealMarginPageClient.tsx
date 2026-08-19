@@ -40,15 +40,17 @@ type DealMarginRow = {
 
 type Payload = {
   filters: { channels: string[] }
+  unlinkedAllocations: Array<{ allocationNo: string; matchedCost: number; matchedQty: number; salesDocNo: string | null }>
   rows: DealMarginRow[]
   summary: { cost: number; fullyMatched: number; margin: number; marginPct: number; none: number; partial: number; revenue: number; rows: number }
   topDeals: DealMarginRow[]
 }
 
-type DealMarginColumnKey = 'avgCost' | 'channel' | 'customer' | 'date' | 'docNo' | 'margin' | 'marginPct' | 'matchedCost' | 'matchedQty' | 'product' | 'sellQty' | 'statusMatch' | 'totalRevenue' | 'unitPrice'
+type DealMarginColumnKey = 'allocationNo' | 'avgCost' | 'channel' | 'customer' | 'date' | 'docNo' | 'margin' | 'marginPct' | 'matchedCost' | 'matchedQty' | 'product' | 'sellQty' | 'statusMatch' | 'totalRevenue' | 'unitPrice'
 type SortDirection = 'asc' | 'desc'
 
 const dealMarginColumns: Array<ResizableColumnDefinition<DealMarginColumnKey>> = [
+  { key: 'allocationNo', defaultWidth: 150, minWidth: 125 },
   { key: 'docNo', defaultWidth: 150, minWidth: 125 },
   { key: 'date', defaultWidth: 115, minWidth: 100 },
   { key: 'customer', defaultWidth: 210, minWidth: 150 },
@@ -305,6 +307,7 @@ export function DealMarginPageClient() {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
+              <ResizableTableHead align="center" label="Allocation No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="allocationNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('allocationNo', 'Allocation No')} />
               <ResizableTableHead align="center" label="เลขที่ PO Sell" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ PO Sell')} />
               <ResizableTableHead align="center" label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
               <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
@@ -326,6 +329,7 @@ export function DealMarginPageClient() {
             {!isLoading && rows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={dealMarginColumns.length}>ยังไม่มี PO Sell</td></tr> : null}
             {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
+                <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900">{row.allocationNo}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900">{row.docNo}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(row.date)}</td>
                 <td className="px-3 py-3 font-medium text-slate-900">{row.customer}</td>
@@ -359,6 +363,7 @@ export function DealMarginPageClient() {
           <div key={row.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
             <div className="flex justify-between items-start">
               <div>
+                <div className="whitespace-nowrap font-mono text-xs font-bold text-slate-800">{row.allocationNo}</div>
                 <div className="whitespace-nowrap font-mono text-xs font-bold text-slate-800">{row.docNo}</div>
                 <div className="mt-0.5 whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
               </div>
@@ -394,6 +399,27 @@ export function DealMarginPageClient() {
           </div>
         ))}
       </div>
+
+      {(data?.unlinkedAllocations.length ?? 0) > 0 ? (
+        <DualCostingPanel title="ต้นทุนรอผูก Sales Line">
+          <div className="overflow-x-auto">
+            <table className="ns-table min-w-full text-sm">
+              <thead className="bg-slate-100"><tr><th className="px-3 py-2 text-left">Allocation No</th><th className="px-3 py-2 text-left">เลขที่ PO Sell</th><th className="px-3 py-2 text-right">จำนวน</th><th className="px-3 py-2 text-right">ต้นทุน</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">
+                {(data?.unlinkedAllocations ?? []).map((allocation) => (
+                  <tr key={allocation.allocationNo}>
+                    <td className="px-3 py-2 font-mono">{allocation.allocationNo}</td>
+                    <td className="px-3 py-2">{allocation.salesDocNo ?? '-'}</td>
+                    <td className="px-3 py-2 text-right font-mono">{formatMoney(allocation.matchedQty)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{formatMoney(allocation.matchedCost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">รายการนี้ยังไม่รวมในการคำนวณกำไรจนกว่าจะผูกกับ Sales Line</p>
+        </DualCostingPanel>
+      ) : null}
     </DualCostingPageSection>
   )
 }
