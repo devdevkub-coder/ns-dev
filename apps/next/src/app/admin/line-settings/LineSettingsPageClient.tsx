@@ -47,6 +47,9 @@ const credentialsSchema = z.object({
   lineAutoSendWto: z.boolean().default(false),
   dailyReportAutoSend: z.boolean().default(true),
   dailyReportScheduleTime: z.string().trim().default('18:00'),
+  monthlyReportAutoSend: z.boolean().default(true),
+  monthlyReportScheduleTime: z.string().trim().default('08:00'),
+  monthlyReportDay: z.string().trim().default('1'),
 })
 
 type CredentialsFormValues = z.infer<typeof credentialsSchema>
@@ -66,7 +69,7 @@ type Target = {
   last_event_type: string | null
 }
 
-type LineDocumentType = 'WTI' | 'WTO' | 'PB' | 'SB' | 'PMT' | 'RCP' | 'DAILY'
+type LineDocumentType = 'WTI' | 'WTO' | 'PB' | 'SB' | 'PMT' | 'RCP' | 'DAILY' | 'MONTHLY'
 
 type RoutingRuleConditions = {
   documentTypes?: LineDocumentType[]
@@ -103,6 +106,7 @@ const lineDocumentTypeOptions: Array<{ type: LineDocumentType; label: string }> 
   { type: 'PMT', label: 'ใบจ่ายเงิน Supplier' },
   { type: 'RCP', label: 'ใบรับเงิน Customer' },
   { type: 'DAILY', label: '📊 สรุปประจำวัน (Daily Report)' },
+  { type: 'MONTHLY', label: '🗓️ สรุปประจำเดือน (Monthly Report)' },
 ]
 
 type MessageTemplate = {
@@ -374,6 +378,9 @@ export function LineSettingsPageClient() {
     lineAutoSendWto: false,
     dailyReportAutoSend: true,
     dailyReportScheduleTime: '18:00',
+    monthlyReportAutoSend: true,
+    monthlyReportScheduleTime: '08:00',
+    monthlyReportDay: '1',
   })
   const [credentialsBaseline, setCredentialsBaseline] = useState<string | null>(null)
 
@@ -551,7 +558,11 @@ export function LineSettingsPageClient() {
   }, [])
   const openRuleForm = useCallback((rule: Partial<RoutingRule>) => {
     if (rule.conditions?.scheduleTime) {
-      setForm((current) => ({ ...current, dailyReportScheduleTime: rule.conditions?.scheduleTime || current.dailyReportScheduleTime }))
+      if (rule.conditions.documentTypes?.includes('MONTHLY')) {
+        setForm((current) => ({ ...current, monthlyReportScheduleTime: rule.conditions?.scheduleTime || current.monthlyReportScheduleTime }))
+      } else {
+        setForm((current) => ({ ...current, dailyReportScheduleTime: rule.conditions?.scheduleTime || current.dailyReportScheduleTime }))
+      }
     }
     setRuleFormBaseline(JSON.stringify(rule))
     setEditingRule(rule)
@@ -1160,11 +1171,13 @@ export function LineSettingsPageClient() {
       const method = isEdit ? 'PATCH' : 'POST'
       const targetName = targets.find((target) => target.target_id === editingRule.target_id)?.display_name || 'LINE'
       const documentNames = documentTypes.map((type) => lineDocumentTypeOptions.find((option) => option.type === type)?.label || type)
-      const selectedScheduleTime = editingRule.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'
+      const selectedDailyTime = editingRule.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'
+      const selectedMonthlyTime = editingRule.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'
       const conditions: RoutingRuleConditions = {
         ...editingRule.conditions,
         documentTypes,
-        ...(documentTypes.includes('DAILY') ? { scheduleTime: selectedScheduleTime } : {}),
+        ...(documentTypes.includes('DAILY') ? { scheduleTime: selectedDailyTime } : {}),
+        ...(documentTypes.includes('MONTHLY') ? { scheduleTime: selectedMonthlyTime } : {}),
       }
       if (!documentTypes.some((type) => type === 'WTI' || type === 'WTO')) {
         delete conditions.minNetWeight
@@ -1200,6 +1213,19 @@ export function LineSettingsPageClient() {
             ...form,
             dailyReportAutoSend: true,
             dailyReportScheduleTime: form.dailyReportScheduleTime || '18:00',
+          }),
+        }).catch(() => undefined)
+      }
+      if (documentTypes.includes('MONTHLY')) {
+        // Sync monthly schedule time to system_settings in background
+        void fetch('/api/admin/line-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...form,
+            monthlyReportAutoSend: true,
+            monthlyReportScheduleTime: form.monthlyReportScheduleTime || '08:00',
+            monthlyReportDay: form.monthlyReportDay || '1',
           }),
         }).catch(() => undefined)
       }
@@ -1264,7 +1290,7 @@ export function LineSettingsPageClient() {
     e.preventDefault()
     setManualSendError(null)
     setManualSendMessage(null)
-    if (manualSendType !== 'DAILY' && !manualSendDocumentNo.trim()) {
+    if (manualSendType !== 'DAILY' && manualSendType !== 'MONTHLY' && !manualSendDocumentNo.trim()) {
       setManualSendError('กรุณาระบุเลขที่เอกสารที่ต้องการส่ง')
       return
     }
@@ -1276,8 +1302,9 @@ export function LineSettingsPageClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentType: manualSendType,
-          documentNo: manualSendType === 'DAILY' ? undefined : manualSendDocumentNo.trim(),
+          documentNo: (manualSendType === 'DAILY' || manualSendType === 'MONTHLY') ? undefined : manualSendDocumentNo.trim(),
           date: manualSendType === 'DAILY' ? manualSendDate : undefined,
+          month: manualSendType === 'MONTHLY' ? manualSendDate.slice(0, 7) : undefined,
           targetId: manualSendTargetId || undefined,
         })
       })
@@ -1962,6 +1989,86 @@ export function LineSettingsPageClient() {
                   </div>
                 </div>
               </div>
+
+              {/* Monthly Report Auto-Schedule Card */}
+              <div data-line-monthly-schedule className="md:col-span-2 rounded-lg border border-blue-200/90 bg-gradient-to-br from-blue-50/70 to-white p-4 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-blue-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                      <Clock3 className="size-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">ตั้งเวลาส่งสรุปรายงานประจำเดือน (Monthly Executive Report)</h4>
+                      <p className="text-xs text-slate-500">
+                        ระบบจะรวบรวมยอดใบชั่ง, ผลผลิต, การเงิน, และยอดรายโกดังทั้งเดือน ส่งเป็นการ์ด Carousel อัตโนมัติ
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 shadow-xs transition hover:bg-blue-50"
+                    onClick={() => {
+                      setManualSendType('MONTHLY')
+                      setManualSendDate(new Date().toISOString().slice(0, 10))
+                      setIsManualSendModalOpen(true)
+                    }}
+                  >
+                    <Send className="size-3.5 text-blue-600" />
+                    📤 ส่งทดสอบสรุปเดือนนี้
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3.5">
+                  <div className="space-y-2">
+                    <label className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 bg-white p-3 shadow-2xs transition hover:border-slate-300">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 size-5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-0 focus:outline-none"
+                        checked={form.monthlyReportAutoSend}
+                        onChange={(e) => setForm({ ...form, monthlyReportAutoSend: e.target.checked })}
+                      />
+                      <div>
+                        <span className="text-sm font-bold text-slate-900">เปิดใช้งานการส่งรายงานประจำเดือนอัตโนมัติ</span>
+                        <p className="text-xs text-slate-500 mt-0.5">ระบบจะสรุปผลการดำเนินงานของเดือนที่เพิ่งจบไป ส่งเข้า LINE ทุกวันที่ 1 ของเดือน</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700" htmlFor="monthly-report-schedule-time">
+                      เวลาที่ต้องการให้ส่งอัตโนมัติ (ทุกวันที่ 1 เวลาไทย GMT+7)
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        id="monthly-report-schedule-time"
+                        type="time"
+                        className="h-10 w-32 rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-1.5 font-mono text-sm font-semibold text-slate-900 focus:border-blue-500 focus:outline-none dark:bg-amber-200/15"
+                        value={form.monthlyReportScheduleTime || '08:00'}
+                        onChange={(e) => setForm({ ...form, monthlyReportScheduleTime: e.target.value })}
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {['07:30', '08:00', '08:30', '09:00', '18:00'].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            className={`rounded border px-2 py-1 text-xs font-mono transition ${
+                              form.monthlyReportScheduleTime === preset
+                                ? 'border-blue-600 bg-blue-600 text-white font-bold'
+                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                            onClick={() => setForm({ ...form, monthlyReportScheduleTime: preset })}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      กลุ่มเป้าหมาย: กำหนดได้ที่แท็บ <strong>"กฎการส่งแจ้งเตือน"</strong> (เลือกประเภท <strong>MONTHLY</strong> หรือใช้กลุ่ม DAILY)
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div data-line-google-sheets-disclosure className="rounded-md border border-slate-200 bg-slate-50 p-4">
@@ -2507,7 +2614,12 @@ export function LineSettingsPageClient() {
                                 <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                                   {r.conditions?.documentTypes?.includes('DAILY') && (
                                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                                      ⏰ ส่งอัตโนมัติ {r.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'} น.
+                                      ⏰ สรุปวัน {r.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'} น.
+                                    </span>
+                                  )}
+                                  {r.conditions?.documentTypes?.includes('MONTHLY') && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">
+                                      🗓️ สรุปเดือน ทุกวันที่ 1 เวลา {r.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'} น.
                                     </span>
                                   )}
                                   {r.description && <span className="text-xs text-slate-400">{r.description}</span>}
@@ -3164,7 +3276,7 @@ export function LineSettingsPageClient() {
                           const current = new Set<LineDocumentType>(editingRule.conditions?.documentTypes ?? [])
                           if (selected) current.delete(option.type)
                           else {
-                            if (option.type === 'DAILY') {
+                            if (option.type === 'DAILY' || option.type === 'MONTHLY') {
                               current.clear()
                             } else if (option.type === 'WTI' || option.type === 'WTO') {
                               current.delete('PB')
@@ -3172,10 +3284,12 @@ export function LineSettingsPageClient() {
                               current.delete('PMT')
                               current.delete('RCP')
                               current.delete('DAILY')
+                              current.delete('MONTHLY')
                             } else {
                               current.delete('WTI')
                               current.delete('WTO')
                               current.delete('DAILY')
+                              current.delete('MONTHLY')
                             }
                             current.add(option.type)
                           }
@@ -3262,6 +3376,72 @@ export function LineSettingsPageClient() {
                     </div>
                     <p className="text-xs text-slate-500">
                       ระบบจะรวบรวมยอดชั่งและผลผลิตของทุกโกดัง (WH-01 ถึง WH-05) ส่งเป็นการ์ด Carousel เข้ากลุ่มที่เลือกตามเวลานี้ทุกวัน
+                    </p>
+                  </div>
+                </section>
+              )}
+
+              {/* Monthly Report Scheduled Time Configuration inside Modal */}
+              {editingRule.conditions?.documentTypes?.includes('MONTHLY') && (
+                <section className="space-y-3 rounded-xl border border-blue-300 bg-gradient-to-br from-blue-50/90 to-white p-4 shadow-2xs animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex size-7 items-center justify-center rounded-md bg-blue-600 text-white">
+                        <Clock3 className="size-4" />
+                      </div>
+                      <h4 className="font-bold text-slate-900">🗓️ ตั้งเวลาส่งรายงานสรุปยอดประจำเดือน</h4>
+                    </div>
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-800">
+                      Auto Monthly Cron
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      เลือกเวลาที่ต้องการส่งสรุปยอดเข้ากลุ่มนี้ (ทุกวันที่ 1 ของเดือน เวลาไทย GMT+7):
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="time"
+                        className="h-10 w-32 rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-1.5 font-mono text-sm font-bold text-slate-900 focus:border-blue-500 focus:outline-none dark:bg-amber-200/15"
+                        value={editingRule.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setForm((prev) => ({ ...prev, monthlyReportScheduleTime: val }))
+                          setEditingRule((prev) => prev ? ({
+                            ...prev,
+                            conditions: { ...prev.conditions, scheduleTime: val },
+                          }) : null)
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {['07:30', '08:00', '08:30', '09:00', '18:00'].map((preset) => {
+                          const currentVal = editingRule.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'
+                          return (
+                            <button
+                              key={preset}
+                              type="button"
+                              className={`rounded border px-2.5 py-1 text-xs font-mono transition ${
+                                currentVal === preset
+                                  ? 'border-blue-600 bg-blue-600 text-white font-bold shadow-xs'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                              }`}
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, monthlyReportScheduleTime: preset }))
+                                setEditingRule((prev) => prev ? ({
+                                  ...prev,
+                                  conditions: { ...prev.conditions, scheduleTime: preset },
+                                }) : null)
+                              }}
+                            >
+                              {preset}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      ระบบจะรวบรวมยอดใบชั่ง, ผลผลิต, ยอดซื้อ-ขาย, และการเคลื่อนไหวของทั้งเดือน ส่งเป็นการ์ด Carousel เข้ากลุ่มนี้อัตโนมัติ
                     </p>
                   </div>
                 </section>
@@ -3534,6 +3714,18 @@ export function LineSettingsPageClient() {
                       onChange={(event) => setManualSendDate(event.target.value)}
                     />
                     <p className="text-xs text-slate-500">สรุปจะแสดงเฉพาะการ์ดโกดังที่มีงานในวันนั้น (โกดังที่ไม่มีงานจะไม่ถูกส่ง)</p>
+                  </div>
+                ) : manualSendType === 'MONTHLY' ? (
+                  <div className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                    <label className="block font-bold text-slate-800" htmlFor="manual-send-month">2. เลือกเดือนที่ต้องการสรุปรายงาน</label>
+                    <input
+                      id="manual-send-month"
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+                      type="month"
+                      value={manualSendDate.slice(0, 7)}
+                      onChange={(event) => setManualSendDate(`${event.target.value}-01`)}
+                    />
+                    <p className="text-xs text-slate-500">ระบบจะประมวลผลยอดใบชั่ง, ผลผลิต, บิลซื้อ-ขาย, และยอดรายโกดังของเดือนที่เลือก ส่งเข้า LINE ทันที</p>
                   </div>
                 ) : (
                   <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
