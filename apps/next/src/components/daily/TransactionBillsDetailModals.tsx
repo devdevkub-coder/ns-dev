@@ -125,12 +125,13 @@ type PurchaseBillDetail = {
     productName: string
     qty: number
     receiptSummaryLabel: string
-    receiptTicketDocNo: string
+    receiptTicketDocNo: string | null
     receiptVehicleNo: string
     sourceLabel: string
     sourceType: string
     unit: string
   }>
+  editForm: PurchaseBillFormValues
   branchId: string
   branchName: string
   createdBy: string
@@ -167,6 +168,7 @@ type PurchaseBillDetail = {
   timeline: PurchaseBillDetailTimelineEvent[]
   totalAmount: number
   transactionMode: string
+  updatedAt: string
   vatAmount: number
   vatInvoiceDate: string
   vatInvoiceNo: string

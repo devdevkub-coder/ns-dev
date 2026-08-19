@@ -354,6 +354,7 @@ function buildIncrementalFormValues(
     collaborationChangedHeaderFields: Object.keys(header) as Array<'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'>,
     id: String(existing.id),
     lines: scopedLines,
+    allowEmptyProductImages: true,
     partyId: effectiveHeader.partyId,
     remark: effectiveHeader.remark,
     saveScope: patch.scope,
@@ -446,6 +447,7 @@ async function updateWeightTicket(
   request: Request,
   context: { params: Promise<{ id: string }> },
   auditRequest: Request = request,
+  options: { allowEmptyProductImages?: boolean } = {},
 ) {
   const { id } = await context.params
   let authForConflictLog: AppAuthContext | null = null
@@ -457,7 +459,15 @@ async function updateWeightTicket(
     requirePermission(auth, 'daily.weight_tickets.update')
 
     const rawBody = await request.json()
-    const parsedValues = weightTicketUpdateSchema.parse(rawBody)
+    const parsedValues = weightTicketUpdateSchema.parse(
+      options.allowEmptyProductImages
+        ? rawBody
+        : (() => {
+          if (!rawBody || typeof rawBody !== 'object' || !('allowEmptyProductImages' in rawBody)) return rawBody
+          const { allowEmptyProductImages: _ignored, ...publicBody } = rawBody as Record<string, unknown>
+          return publicBody
+        })(),
+    )
     const draftLineIds = new Set(parsedValues.draftLineIds)
     const baselineLineIds = new Set(parsedValues.collaborationBaseLineIds)
     const changedLineIds = new Set(parsedValues.collaborationChangedLineIds)
@@ -1634,7 +1644,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         method: 'PUT',
       })
       delegatedRequest.headers.set('content-type', 'application/json')
-      return updateWeightTicket(delegatedRequest, context, request)
+      return updateWeightTicket(delegatedRequest, context, request, { allowEmptyProductImages: true })
     }
     if (rawValues && typeof rawValues === 'object' && rawValues.operation === 'save_changes') {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'รูปแบบข้อมูลบันทึกการเปลี่ยนแปลงไม่ถูกต้อง' }, { status: 400 })

@@ -21,8 +21,10 @@ describe('purchase bill receipt weight display', () => {
   })
 
   it('uses the canonical allocation weight when reopening an existing PB for editing', () => {
-    expect(pageSource).toContain('function purchaseFormFromRow(row: BillRow, detail?: PurchaseBillDetail)')
-    expect(pageSource).toContain('detail?.allocationRows.find((allocation) => allocation.lineNo === item.lineNo)?.grossWeight')
+    expect(pageSource).toContain('const nextForm = detail.editForm')
+    expect(pageSource).toContain('setPurchaseFormExpectedUpdatedAt(detail.updatedAt)')
+    expect(pageSource).toContain('function receiptSnapshotFromPurchaseForm(detail: PurchaseBillDetail, sourceForm: PurchaseBillFormValues)')
+    expect(pageSource).toContain('detail.allocationRows.find((allocation) => allocation.lineNo === index + 1)?.productName')
     expect(pageSource).toContain('dailyFetchJson<PurchaseBillDetail>(`/api/purchase/bills/${encodeURIComponent(docNo)}`)')
   })
 })

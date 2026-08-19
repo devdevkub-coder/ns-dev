@@ -106,7 +106,7 @@ function buildOverviewBubble(data: KpiReportData) {
 function buildWarehouseBubble(evalData: KpiEvaluation, dateDisplay: string) {
   let startColor = '#7f1d1d'
   let endColor = '#dc2626'
-  
+
   if (evalData.avgScore >= 4) {
     startColor = '#065f46'
     endColor = '#047857'
@@ -229,7 +229,7 @@ function buildWarehouseBubble(evalData: KpiEvaluation, dateDisplay: string) {
 
 export function buildKpiEvaluationFlexMessage(data: KpiReportData) {
   const overview = buildOverviewBubble(data)
-  
+
   // Sort evaluations so highest score is first in the bubbles
   const sorted = [...data.evaluations].sort((a, b) => b.avgScore - a.avgScore)
   const whBubbles = sorted.map(e => buildWarehouseBubble(e, data.dateDisplay))

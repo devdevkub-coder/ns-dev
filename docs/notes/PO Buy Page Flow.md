@@ -192,7 +192,7 @@ VAT storage rules:
 - PB line ที่ตัด PO ต้องไม่เกิน remaining ของ PO item
 - PB save ต้อง update PO remaining ใน transaction เดียว
 - PB edit/cancel ต้อง release/rebuild PO allocation จาก active facts
-- PB supplier swap ต้องไม่ carry PO allocation ข้าม Supplier; PB ใหม่จาก supplier swap ต้องเป็น Spot Buy ตาม [[Purchase Bills Page Flow]]
+- PB supplier change ต้องไม่ carry PO allocation ข้าม Supplier; ปล่อย PO เดิมและ rebuild state ใหม่เป็น Spot Buy ภายใต้ PB เดิมตาม [[Purchase Bills Page Flow]]
 
 ## Print PO Buy
 

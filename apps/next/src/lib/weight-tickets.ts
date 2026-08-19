@@ -270,7 +270,7 @@ const impurityProductNamePattern = /\[impurity_product_name:([^\]]+)\]/i
 const attachmentValueSchema = z.string().trim().min(1).max(4_000_000, 'ข้อมูลรูปภาพใหญ่เกินไป')
 const weightNumberSchema = z.coerce.number().finite().min(0).multipleOf(0.01, 'กรอกทศนิยมได้ไม่เกิน 2 ตำแหน่ง')
 
-const weightTicketLinePayloadSchema = z.object({
+const weightTicketLinePayloadBaseSchema = z.object({
   containerDeductionWeight: weightNumberSchema.default(0),
   deductionMode: deductionModeEnum,
   deductionValue: weightNumberSchema.default(0),
@@ -287,7 +287,10 @@ const weightTicketLinePayloadSchema = z.object({
   warehouseId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
   version: z.number().int().positive().optional(),
   parentId: z.string().trim().optional(),
-}).superRefine((value, ctx) => {
+})
+
+function createWeightTicketLinePayloadSchema(options: { requireProductImage: boolean }) {
+  return weightTicketLinePayloadBaseSchema.superRefine((value, ctx) => {
   const containerDeductionWeight = Math.min(value.containerDeductionWeight, value.grossWeight)
   const netBeforeImpurityWeight = Math.max(0, value.grossWeight - containerDeductionWeight)
   const impurityDeductionWeight = value.deductionMode === 'percent'
@@ -328,7 +331,7 @@ const weightTicketLinePayloadSchema = z.object({
         path: ['deductionValue'],
       })
     }
-    if (!isImpurityPurchase && value.imageNames.length === 0) {
+    if (options.requireProductImage && !isImpurityPurchase && value.imageNames.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'รูปภาพสินค้าอย่างน้อย 1 รูป',
@@ -359,7 +362,11 @@ const weightTicketLinePayloadSchema = z.object({
       path: ['deductionValue'],
     })
   }
-})
+  })
+}
+
+const weightTicketLinePayloadSchema = createWeightTicketLinePayloadSchema({ requireProductImage: true })
+const weightTicketIncrementalLinePayloadSchema = createWeightTicketLinePayloadSchema({ requireProductImage: false })
 
 export type WeightTicketLinePayload = z.infer<typeof weightTicketLinePayloadSchema>
 
@@ -428,7 +435,8 @@ export const weightTicketFormSchema = z.object({
   draftLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   id: z.string().trim().max(80).optional(),
-  lines: z.array(weightTicketLinePayloadSchema),
+  lines: z.array(weightTicketIncrementalLinePayloadSchema),
+  allowEmptyProductImages: z.literal(true).optional(),
   partyId: z.string().trim().min(1, 'เลือกคู่ค้า'),
   remark: z.preprocess(blankToEmpty, z.string().max(500, 'หมายเหตุยาวเกินไป').default('')),
   saveScope: z.enum(['header', 'section', 'document']).optional(),
@@ -442,6 +450,17 @@ export const weightTicketFormSchema = z.object({
     .regex(/^[\p{L}\p{M}\p{N}\s.-]+$/u, 'ทะเบียนรถมีรูปแบบไม่ถูกต้อง'),
   godownName: z.preprocess(blankToEmpty, z.string().max(100, 'ชื่อโกดังยาวเกินไป').default('')),
 }).superRefine((value, ctx) => {
+  if (!value.allowEmptyProductImages) {
+    value.lines.forEach((line, index) => {
+      if (line.grossWeight > 0 && !line.impuritySourceLineId && line.imageNames.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'รูปภาพสินค้าอย่างน้อย 1 รูป',
+          path: ['lines', index, 'imageNames'],
+        })
+      }
+    })
+  }
   if (value.saveScope === 'header' && value.lines.length > 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -619,7 +638,10 @@ export const weightTicketIncrementalPatchSchema = z.object({
     vehicleNo: z.string().trim().min(2).max(24).optional(),
     godownName: z.string().max(100).optional(),
   }),
-  lines: z.array(weightTicketLinePayloadSchema),
+  // Incremental image removal is an attachment operation. The full-document
+  // save contract still requires a product image, but removing the last image
+  // must be allowed to persist immediately so the user can replace it.
+  lines: z.array(weightTicketIncrementalLinePayloadSchema),
   deletedLineIds: z.array(z.string().trim().min(1).max(80)),
   sectionLineIds: z.array(z.string().trim().min(1).max(80)).optional(),
   collaborationBaseLineIds: z.array(z.string().trim().min(1).max(80)),

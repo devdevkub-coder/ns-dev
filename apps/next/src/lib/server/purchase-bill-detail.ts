@@ -2,6 +2,8 @@ import { purchaseBillStatusText, requirePurchaseBillStatus } from '@/lib/purchas
 import { supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { actorDisplayName, resolveActorDisplayNames } from '@/lib/server/actor-display-names'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { receiptLineOutwardId, receiptSummaryOutwardId } from '@/lib/purchase-bill-receipt-reference'
+import type { PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../generated/prisma/client'
 
@@ -41,12 +43,13 @@ export type PurchaseBillDetail = {
     productName: string
     qty: number
     receiptSummaryLabel: string
-    receiptTicketDocNo: string
+    receiptTicketDocNo: string | null
     receiptVehicleNo: string
     sourceLabel: string
     sourceType: string
     unit: string
   }>
+  editForm: PurchaseBillFormValues
   branchId: string
   branchName: string
   createdBy: string
@@ -83,6 +86,7 @@ export type PurchaseBillDetail = {
   timeline: PurchaseBillDetailTimelineEvent[]
   totalAmount: number
   transactionMode: string
+  updatedAt: string
   vatAmount: number
   vatInvoiceDate: string
   vatInvoiceNo: string
@@ -116,6 +120,11 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
             doc_no: true
           }
         }
+        products: {
+          select: {
+            code: true
+          }
+        }
         purchase_bill_po_allocations: {
           include: {
             po_buys: {
@@ -133,6 +142,11 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
                 container_deduction_weight: true
                 net_weight: true
                 product_name: true
+                products: {
+                  select: {
+                    code: true
+                  }
+                }
                 weight_ticket_product_summary_lines: {
                   include: {
                     weight_ticket_lines: {
@@ -231,6 +245,8 @@ function purchaseBillHistoryActionLabel(action: string | null | undefined) {
       return 'ยกเลิกการชำระเงิน'
     case 'cancelled':
       return 'ยกเลิกบิล'
+    case 'supplier_changed':
+      return 'เปลี่ยน Supplier ในบิลเดิม'
     case 'supplier_swap_cancelled':
       return 'ยกเลิกบิลจากการเปลี่ยน Supplier'
     default:
@@ -244,6 +260,8 @@ function purchaseBillHistoryTone(action: string | null | undefined): PurchaseBil
       return 'blue'
     case 'edited':
       return 'amber'
+    case 'supplier_changed':
+      return 'blue'
     case 'payment_recorded':
       return 'emerald'
     case 'payment_reversed':
@@ -313,6 +331,12 @@ function sourceSnapshotValue(snapshot: unknown, key: string) {
   return typeof value === 'string' ? value : null
 }
 
+function sourceSnapshotStringArray(snapshot: unknown, key: string) {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return []
+  const value = (snapshot as Record<string, unknown>)[key]
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
 type PurchaseBillReceiptAllocation = PurchaseBillDetailRow['purchase_bill_items'][number]['purchase_bill_receipt_allocations']
 
 type PurchaseBillReceiptLine = NonNullable<PurchaseBillReceiptAllocation>['weight_tickets']['weight_ticket_lines'][number]
@@ -374,6 +398,11 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
               doc_no: true,
             },
           },
+          products: {
+            select: {
+              code: true,
+            },
+          },
           purchase_bill_po_allocations: {
             include: {
               po_buys: {
@@ -391,6 +420,11 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
                   container_deduction_weight: true,
                   net_weight: true,
                   product_name: true,
+                  products: {
+                    select: {
+                      code: true,
+                    },
+                  },
                   weight_ticket_product_summary_lines: {
                     include: {
                       weight_ticket_lines: {
@@ -571,9 +605,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       ? toNumber(receiptSummary.container_deduction_weight) * allocationRatio
       : 0
     const billGrossWeight = Math.max(0, allocatedGrossWeight - allocatedContainerDeductionWeight)
-    const receiptTicketDocNo = receiptAllocation?.weight_tickets.doc_no
-      ?? sourceSnapshotValue(item.source_snapshot, 'receiptTicketDocNo')
-      ?? '-'
+    const receiptTicketDocNo = receiptAllocation ? receiptAllocation.weight_tickets.doc_no : null
     const receiptVehicleNo = receiptAllocation?.weight_tickets.vehicle_no ?? ''
     const lineNo = item.line_no ?? index + 1
     const remark = receiptLineRemark(receiptAllocation)
@@ -603,7 +635,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       receiptVehicleNo,
       sourceLabel: poDocNo ?? 'Spot Buy',
       sourceType: poDocNo ? 'PO Buy' : 'Spot Buy',
-      unit: item.unit ?? 'กก.',
+      unit: item.unit ?? '',
     }
   })
 
@@ -630,7 +662,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     current.qty += row.qty
     current.sourceKinds.add(row.sourceType)
     if (row.poDocNo) current.poDocNos.add(row.poDocNo)
-    if (row.receiptTicketDocNo && row.receiptTicketDocNo !== '-') current.receiptDocNos.add(row.receiptTicketDocNo)
+    if (row.receiptTicketDocNo) current.receiptDocNos.add(row.receiptTicketDocNo)
     map.set(key, current)
     return map
   }, new Map<string, {
@@ -668,6 +700,8 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const fee = historyMetaValue(log.meta, 'fee')
     const paymentDateSnapshot = historyMetaValue(log.meta, 'paymentDate')
     const paymentDocNo = historyMetaValue(log.meta, 'paymentDocNo')
+    const afterSupplierName = historyMetaValue(log.meta, 'afterSupplierName')
+    const beforeSupplierName = historyMetaValue(log.meta, 'beforeSupplierName')
     const transactionMode = historyMetaValue(log.meta, 'transactionMode')
     const voucherId = historyMetaValue(log.meta, 'voucherId')
     const withholdingTax = historyMetaValue(log.meta, 'withholdingTax')
@@ -735,6 +769,10 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       details.push(`บัญชี ${[typeof accountCode === 'string' && accountCode ? accountCode : null, typeof accountName === 'string' && accountName ? accountName : null].filter(Boolean).join(' - ')}`)
     }
     if (typeof transactionMode === 'string' && transactionMode) details.push(`โหมด ${transactionMode}`)
+    if (log.action === 'supplier_changed') {
+      if (typeof beforeSupplierName === 'string' && beforeSupplierName) details.push(`Supplier เดิม ${beforeSupplierName}`)
+      if (typeof afterSupplierName === 'string' && afterSupplierName) details.push(`Supplier ใหม่ ${afterSupplierName}`)
+    }
     if (log.note) details.push(`หมายเหตุ ${log.note}`)
     return {
       action: log.action,
@@ -750,9 +788,70 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     }
   }).reverse()
 
-  const receiptDocNos = Array.from(new Set(allocationRows.map((row) => row.receiptTicketDocNo).filter((value): value is string => Boolean(value && value !== '-'))))
+  const receiptDocNos = Array.from(new Set(allocationRows.map((row) => row.receiptTicketDocNo).filter((value): value is string => Boolean(value))))
   const activeAdvanceAllocation = bill.supplier_advance_allocations.find((allocation) => allocation.status === 'active') ?? null
   const receiptVehicleNo = allocationRows.map((row) => row.receiptVehicleNo).find(Boolean) ?? ''
+  const editItems = bill.purchase_bill_items.map((item) => {
+    const receiptAllocation = item.purchase_bill_receipt_allocations?.allocation_status === 'active'
+      ? item.purchase_bill_receipt_allocations
+      : null
+    const receiptTicketId = receiptAllocation?.weight_tickets.doc_no ?? null
+    const receiptTicketDocNo = receiptTicketId
+    const receiptSummary = receiptAllocation?.weight_ticket_product_summaries ?? null
+    const receiptLineIds = receiptSummary && receiptTicketId
+      ? receiptSummary.weight_ticket_product_summary_lines.map(({ weight_ticket_lines: line }) => receiptLineOutwardId(receiptTicketId, line.line_no))
+      : []
+    const receiptLineId = receiptLineIds[0] ?? null
+    const receiptSummaryId = receiptSummary && receiptTicketId && receiptSummary.products?.code
+      ? receiptSummaryOutwardId(receiptTicketId, receiptSummary.products.code, receiptSummary.line_count)
+      : null
+    const poAllocation = item.purchase_bill_po_allocations?.allocation_status === 'active'
+      ? item.purchase_bill_po_allocations
+      : null
+    const poBuyId = poAllocation?.po_buys.doc_no ?? item.po_buys?.doc_no ?? null
+    const productId = item.products?.code ?? ''
+    return {
+      deductWeight: toNumber(item.deduct_weight),
+      discount: toNumber(item.discount),
+      displayName: item.display_name,
+      grossWeight: toNumber(item.gross_weight),
+      lineNo: item.line_no,
+      lotNo: item.lot_no,
+      note: item.note,
+      poBuyId,
+      price: toNumber(item.price),
+      productId,
+      qty: toNumber(item.qty),
+      receiptLineId,
+      receiptLineIds,
+      receiptSummaryId,
+      receiptTicketDocNo,
+      receiptTicketId,
+      salesPrice: toNumber(item.sales_price),
+    }
+  })
+  const editForm: PurchaseBillFormValues = {
+    advancePaymentId: activeAdvanceAllocation?.supplier_advance_payments.doc_no ?? null,
+    branchId: bill.branches?.code ?? '',
+    discountTotal: toNumber(bill.discount_total ?? bill.discount),
+    hasVat: Boolean(bill.has_vat),
+    items: editItems,
+    note: bill.note ?? bill.notes ?? null,
+    notes: bill.notes ?? bill.note ?? null,
+    poBuyId: editItems.find((item) => item.poBuyId)?.poBuyId ?? null,
+    purchaseChannelId: bill.purchase_channel_id?.toString() ?? null,
+    purchaseSource: bill.purchase_source === 'PO_RECEIPT' || bill.purchase_source === 'MIXED' ? bill.purchase_source : 'SPOT_BUY',
+    receiptTicketId: editItems.find((item) => item.receiptTicketId)?.receiptTicketId ?? null,
+    refNo: bill.ref_no ?? null,
+    salesId: bill.sales_id?.toString() ?? null,
+    supplierId: bill.suppliers?.code ?? '',
+    transactionMode: bill.transaction_mode === 'TRADING' ? 'TRADING' : 'STOCK',
+    vatInvoiceDate: bill.vat_invoice_date ? toDateOnly(bill.vat_invoice_date) : null,
+    vatInvoiceNo: bill.vat_invoice_no ?? null,
+    vatInvoiceReceived: Boolean(bill.vat_invoice_received),
+    vatType: bill.vat_type === 'EXCLUDE' || bill.vat_type === 'INCLUDE' ? bill.vat_type : 'NONE',
+    warehouseId: bill.warehouses?.code ?? null,
+  }
 
   return {
     advanceAllocatedAmount: toNumber(activeAdvanceAllocation?.allocated_total_amount ?? activeAdvanceAllocation?.allocated_amount),
@@ -764,6 +863,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     advancePaymentVatType: activeAdvanceAllocation?.supplier_advance_payments.vat_type ?? 'NONE',
     advancePaymentVatTypeLabel: supplierAdvanceVatTypeLabel(activeAdvanceAllocation?.supplier_advance_payments.vat_type),
     allocationRows,
+    editForm,
     branchId: bill.branches?.code ?? '',
     branchName: bill.branches?.name ?? '-',
     createdBy: actorDisplayName(bill.created_by ?? '-', actorDisplayNames),
@@ -787,6 +887,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     timeline,
     totalAmount: toNumber(bill.total_amount),
     transactionMode: bill.transaction_mode ?? 'STOCK',
+    updatedAt: bill.updated_at?.toISOString() ?? '',
     vatAmount: toNumber(bill.vat_amount),
     vatInvoiceDate: bill.vat_invoice_date ? toDateOnly(bill.vat_invoice_date) : '-',
     vatInvoiceNo: bill.vat_invoice_no ?? '-',

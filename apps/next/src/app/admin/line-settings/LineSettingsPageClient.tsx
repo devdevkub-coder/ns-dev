@@ -2018,7 +2018,7 @@ export function LineSettingsPageClient() {
                       </div>
                     </div>
                     <p className="text-[11px] text-slate-500">
-                      กลุ่มเป้าหมาย: กำหนดได้ที่แท็บ <strong>"กฎการส่งแจ้งเตือน"</strong> (เลือกประเภท <strong>DAILY</strong>)
+                      กลุ่มเป้าหมาย: กำหนดได้ที่แท็บ <strong>&quot;กฎการส่งแจ้งเตือน&quot;</strong> (เลือกประเภท <strong>DAILY</strong>)
                     </p>
                   </div>
                 </div>
@@ -2098,7 +2098,7 @@ export function LineSettingsPageClient() {
                       </div>
                     </div>
                     <p className="text-[11px] text-slate-500">
-                      กลุ่มเป้าหมาย: กำหนดได้ที่แท็บ <strong>"กฎการส่งแจ้งเตือน"</strong> (เลือกประเภท <strong>MONTHLY</strong> หรือใช้กลุ่ม DAILY)
+                      กลุ่มเป้าหมาย: กำหนดได้ที่แท็บ <strong>&quot;กฎการส่งแจ้งเตือน&quot;</strong> (เลือกประเภท <strong>MONTHLY</strong> หรือใช้กลุ่ม DAILY)
                     </p>
                   </div>
                 </div>

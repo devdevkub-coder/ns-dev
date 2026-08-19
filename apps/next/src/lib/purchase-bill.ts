@@ -32,6 +32,7 @@ export const purchaseBillItemSchema = z.object({
   discount: money('ส่วนลด').default(0),
   displayName: optionalGeneralText('ชื่อแสดงในบิล', 120),
   grossWeight: money('น้ำหนักรวม').default(0),
+  lineNo: z.coerce.number().int().positive('เลขบรรทัดต้องมากกว่า 0').optional(),
   lotNo: optionalGeneralText('Lot', 80),
   note: optionalGeneralText('หมายเหตุรายการ', 200),
   poBuyId: optionalDocNo('PO Buy'),
@@ -80,6 +81,21 @@ export const purchaseBillFormSchema = z.object({
   message: 'กรอกวันที่ใบกำกับภาษีเมื่อระบุว่าได้รับแล้ว',
   path: ['vatInvoiceDate'],
 }).superRefine((value, ctx) => {
+  const lineNoIndexes = new Map<number, number>()
+  value.items.forEach((item, index) => {
+    if (item.lineNo == null) return
+    const previousIndex = lineNoIndexes.get(item.lineNo)
+    if (previousIndex != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'เลขบรรทัดรายการซ้ำกัน',
+        path: ['items', index, 'lineNo'],
+      })
+      return
+    }
+    lineNoIndexes.set(item.lineNo, index)
+  })
+
   if (value.transactionMode === 'STOCK' && !value.receiptTicketId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -121,5 +137,10 @@ export const purchaseBillCancelSchema = z.object({
   note: z.string().trim().min(1, 'กรอกหมายเหตุการยกเลิก').max(500, 'หมายเหตุยาวเกินไป').regex(generalTextPattern, 'หมายเหตุมีรูปแบบไม่ถูกต้อง'),
 })
 
+export const purchaseBillEditConcurrencySchema = z.object({
+  expectedUpdatedAt: z.string().datetime({ offset: true }),
+})
+
 export type PurchaseBillFormValues = z.infer<typeof purchaseBillFormSchema>
 export type PurchaseBillCancelValues = z.infer<typeof purchaseBillCancelSchema>
+export type PurchaseBillEditConcurrencyValues = z.infer<typeof purchaseBillEditConcurrencySchema>

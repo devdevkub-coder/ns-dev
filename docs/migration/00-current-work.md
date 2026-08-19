@@ -1,3 +1,13 @@
+## Active Purchase Bill Supplier Change batch — 2026-08-19
+
+Objective: เปลี่ยน Supplier ของบิลรับซื้อที่สร้างแล้วโดย PATCH `purchase_bills` row เดิม คง `purchase_bills.id`, เลข PB, WTI/source และสถานะ active; อัปเดต Supplier header/snapshot และ rebuild allocation/ledger facts ใน transaction เดียว โดยไม่ void หรือสร้าง PB ใหม่
+
+Current write set: เพิ่ม shared PB/PO/WTI write lock ให้ Purchase Bill และ Payment Approval ใช้ลำดับเดียวกัน, ตรวจ `receiptLineId`/`receiptLineIds` ใน source snapshot แบบไม่แทนค่าที่หาย, คงสาขา/คลังเดิมเมื่อเปลี่ยน Supplier, และใช้ `updated_at` เป็น optimistic-concurrency token ของการแก้ไข PB. `receiptTicketDocNo` ต้องมาจาก WTI ที่ server validate และ lock แล้วเท่านั้น: ห้ามรับจาก client และห้าม fallback ไปอ่าน `source_snapshot`; หน้า list/detail ใช้ active receipt allocation เป็น source และถ้าไม่พบจะแสดงค่าเป็น `null`/หยุดการอ้างอิงแบบ fail-closed. Historical `cancelled_supplier_swap` remains read-only compatibility; current writes use `supplier_changed`.
+
+Validation: focused supplier-change, PB write-contract, Payment Approval write-contract, PB receipt-display และ PB print tests ผ่าน `41/41`; lint, type-check, production build (`339` static pages) และ `git diff --check` ผ่าน. Code review รอบแก้ไขปิดจุด stale edit form, source snapshot ที่ตรวจไม่ครบ, หน่วยว่างที่ถูกแทนเป็น `กก.`, และการอ่านข้อมูลก่อน lock ใน cancel แล้ว. ใช้ schema เดิม ไม่มี migration ใหม่ และ Production DB/schema ยังไม่อยู่ใน scope.
+
+Immediate next: รอคำสั่ง commit/push; ยังไม่ push/deploy ใน batch นี้
+
 ## Active PO Sell price-lock date batch — 2026-08-17
 
 Objective: แยก `priceLockDate` (`po_sells.date`) ออกจาก `createdAt` (`created_at`) โดยให้วันที่ล็อคราคาเป็น business date ที่ผู้ใช้เลือกเองในฟอร์มและใช้ใน list/detail/filter/sort/export/print/เลขเอกสาร/VAT lookup; ตารางคงคอลัมน์วันที่สร้างรายการแยกจากวันที่ล็อคราคา และ `created_at` คงเป็น audit เท่านั้น.

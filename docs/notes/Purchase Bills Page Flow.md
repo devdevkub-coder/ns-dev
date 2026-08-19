@@ -3,16 +3,16 @@ title: Purchase Bills Page Flow
 aliases:
   - Flow หน้าบิลรับซื้อ
   - Purchase Bills Page Flow
-  - PB Supplier Swap Flow
+  - PB Supplier Change Flow
 tags:
   - ns-scrap-erp
   - purchase
   - purchase-bills
   - page-flow
-  - supplier-swap
+  - supplier-change
 status: draft
 created: 2026-06-08
-updated: 2026-07-30
+updated: 2026-08-19
 ---
 
 # Purchase Bills Page Flow / Flow หน้า `/purchase/bills`
@@ -26,7 +26,7 @@ updated: 2026-07-30
 - สร้าง `PB` จาก `WTI` สำหรับ Stock หรือกรอกรายการเองสำหรับ Trading
 - แก้ไข `PB` ที่ยังไม่เข้า Payment Flow lock
 - ยกเลิก `PB` ที่ยังไม่มี active `PMA` หรือ `PMT`
-- เปลี่ยน Supplier ของ `PB` โดย void บิลเดิมและสร้างบิลใหม่ที่ใช้ใบรับของเดิมได้
+- เปลี่ยน Supplier ของ `PB` เดิมได้หลังสร้าง โดยอัปเดตหัวบิลและ snapshot ผู้ขาย แต่คงเลขที่บิลและ `PB.id` เดิม
 - แสดงสถานะจ่ายจาก [[Payment Flow]] เพื่อ lock ปุ่มและ filter list
 - พิมพ์บิลรับซื้อรายใบจากรายการหรือหน้ารายละเอียด
 
@@ -74,7 +74,7 @@ updated: 2026-07-30
 - status badge ของ PB ต้อง map จาก payment read model เป็น `ยังไม่อนุมัติ`, `รอจ่าย`, `ชำระบางส่วน`, `เสร็จสิ้น`, หรือ `ยกเลิก`
 - WTI selector ของ Stock PB ต้องเลือกได้เฉพาะ `WTI = รับของแล้ว`
 - WTI selector ต้องไม่แสดง legacy partial WTI เป็นตัวเลือกใน new write path
-- edit/cancel/supplier-swap ต้องปิดทันทีเมื่อมี active `PMA approved` หรือ `PMT active`
+- edit/cancel/supplier-change ต้องปิดทันทีเมื่อมี active `PMA approved` หรือ `PMT active`
 - detail/print ต้องยังแสดงเอกสารยกเลิกได้เพื่อ audit แต่ไม่เปิด action ที่กระทบ allocation หรือ payment
 
 ## API / DB Optimization Snapshot
@@ -87,7 +87,7 @@ updated: 2026-07-30
 - DB trigger บน `purchase_bill_receipt_allocations` lock summary ของ WTI และ reject เมื่อยอด active allocation เกิน `net_weight`; จึงเป็น guard สุดท้ายแม้มี write path อื่นเรียก DB โดยตรง
 - `PO Buy` reconcile ทำเพียงครั้งหลัง allocation ไม่ทำ pre-reconcile แยกก่อนสร้าง PB เพราะข้อมูลนั้นอาจ stale ก่อน transaction หลักเริ่ม
 - รายการ PB และ Cost Pool ที่สร้างใหม่เขียนแบบ batch; status event ใช้ UUID ไม่ใช้ `count + 1` จึงไม่มี race ของ event key
-- PB create/edit/cancel/supplier swap มี transaction budget สูงสุด 10 วินาทีตาม SLA หน้านี้; ไม่ขยายเป็น timeout ยาวเพื่อกลบ query หรือ lock ที่ผิดปกติ
+- PB create/edit/cancel/supplier change มี transaction budget สูงสุด 10 วินาทีตาม SLA หน้านี้; ไม่ขยายเป็น timeout ยาวเพื่อกลบ query หรือ lock ที่ผิดปกติ
 - เลข PB ยังเป็น `PB{branch}{YYMM}-NNNN` เหมือนเดิม แต่จองเลขผ่าน counter ที่ atomic และสั้นก่อน transaction หลัก ไม่ถือ monthly lock ตลอดการสร้างบิล. หาก transaction หลังจองเลข rollback เลขอาจข้ามได้ แต่ไม่มี PB/stock/allocation ที่ค้างจากเลขนั้น
 - Profit & Cost เป็น derived reporting read model จึง project หลัง response ด้วย `after()`. PB/PO/WTI/stock/AP ไม่รอ report และ report failure ไม่ rollback เอกสารหลัก; การ rebuild report ใช้ facts จาก PB ที่ commit แล้ว
 
@@ -105,8 +105,8 @@ updated: 2026-07-30
   - ใช้ DB `sum(total_amount)` สำหรับ `totalAmount`
   - ยังใช้ in-memory derive/slice เฉพาะกรณีที่ต้อง filter/sort ด้วย workflow status เพราะต้องอ่าน PMA/PMT ก่อน
 - `GET /api/purchase/bills` จำกัด `WTI` options ตาม branch scope ของผู้ใช้ (`allowedBranchIds`) แทนการโหลด WTI ทุกสาขา
-- `POST /api/purchase/bills` และ supplier-swap create path ออกเลข `PB` ด้วย month-scoped advisory lock `purchase_bills:PB{YYMM}` และ SQL `max(running)` แทน global doc-no lock + JS scan
-- `PATCH /api/purchase/bills` cancel/supplier-swap release active allocation rows แทน `deleteMany`
+- `POST /api/purchase/bills` ออกเลข `PB` ด้วย month-scoped advisory lock `purchase_bills:PB{YYMM}` และ SQL `max(running)` แทน global doc-no lock + JS scan; supplier change ไม่ออกเลขใหม่
+- `PATCH /api/purchase/bills` cancel/supplier change release active allocation rows แทน `deleteMany`
 - `PATCH /api/purchase/bills` cancel ของ Stock PB ต้อง append `PB-CANCEL` ด้วย unit cost/value เดิมของ PB ที่ยกเลิก แล้วให้ WAC ปัจจุบันคำนวณใหม่จาก stock ledger ที่เหลือ; ถ้า stock พร้อมใช้ไม่พอสำหรับ reverse ต้อง block หรือใช้ correction/approval flow แยก
 - `PATCH /api/purchase/bills` edit release active allocation rows, mark active item rows เป็น `superseded`, แล้ว create active item/allocation version ใหม่แทน delete/rebuild
 - active availability/reconciliation paths (`WTI` usage, `PO Buy` reconciliation, PB detail/list read model) กรอง `active` lifecycle rows เท่านั้น เพื่อไม่ให้ audit history ถูกนับซ้ำ
@@ -130,7 +130,7 @@ Legacy มี action พิมพ์บิลรับซื้อรายใ�
 
 - หน้า list `/purchase/bills` ต้องมี action `พิมพ์` รายแถว โดยปุ่มย่อยต้อง `stopPropagation()` เพื่อไม่ชนกับ row click ที่เปิด detail
 - หน้า detail/modal และ direct URL `/purchase/bills/{docNo}` ต้องมี action `พิมพ์บิลรับซื้อ` ใช้ read-model เดียวกับ list
-- action พิมพ์ใช้ได้กับ PB ที่บันทึกแล้วทุกสถานะ เพื่อเก็บสำเนาประวัติ; ถ้า PB ถูกยกเลิกหรือถูก void จาก supplier swap เอกสารพิมพ์ต้องแสดงสถานะ/ลายน้ำ `ยกเลิก` หรือ `ยกเลิก/เปลี่ยน Supplier`
+- action พิมพ์ใช้ได้กับ PB ที่บันทึกแล้วทุกสถานะ เพื่อเก็บสำเนาประวัติ; เฉพาะ PB ที่มีสถานะ `cancelled` เท่านั้นที่ต้องแสดงลายน้ำ `ยกเลิก`. การเปลี่ยน Supplier สำเร็จในบิลเดิมไม่ใช่การยกเลิกและไม่สร้างลายน้ำ
 - เอกสารพิมพ์เป็น print preview/popup แบบ A4 มี toolbar เฉพาะบนจอ เช่น `พิมพ์` และ `ปิด`; browser print ต้องสามารถ Save as PDF ได้
 - เอกสารพิมพ์ต้องแบ่งหน้าละ 15 รายการและสร้างหน้า `1..N` ได้โดยไม่จำกัดไว้ที่ 2 หน้า โดยตารางรายการต้อง repeat table header ทุกหน้า, ห้ามตัด row กลางรายการ, หน้า `1..N-1` แสดงยอด/หมายเหตุเป็น `-` พร้อม `Continued on Page X` และหน้า `N` เท่านั้นแสดงยอดจริง/หมายเหตุ/ลายเซ็น
 - ปุ่มพิมพ์ต้องไม่สร้าง `PMA`, `PMT`, stock movement, allocation, หรือ transaction side effect ใด ๆ
@@ -184,14 +184,14 @@ Legacy มี action พิมพ์บิลรับซื้อรายใ�
 
 ### Implementation Notes
 
-- Implemented 2026-06-09, updated 2026-08-07: active Next exposes PB print from `/purchase/bills` list row action, detail modal, and direct detail page. Template is corporate A4 portrait, opens a print window immediately, loads branch-specific Company Profile for header data, shows `ไม่มีข้อมูล` for missing company-profile fields instead of fallback data, includes cancelled/supplier-swap watermark, and supports 15-row `1..N` item pages with repeated table headers and non-splitting item rows.
+- Implemented 2026-06-09, updated 2026-08-19: active Next exposes PB print from `/purchase/bills` list row action, detail modal, and direct detail page. Template is corporate A4 portrait, opens a print window immediately, loads branch-specific Company Profile for header data, shows `ไม่มีข้อมูล` for missing company-profile fields instead of fallback data, includes a watermark only for the `cancelled` status, and supports 15-row `1..N` item pages with repeated table headers and non-splitting item rows.
 - Updated 2026-06-10: `REMARK` ในตารางสินค้า PB print ดึงจากหมายเหตุ lot ของใบรับของ (`weight_ticket_lines.note`) ผ่าน summary ที่ถูก allocate เข้า PB; บิล Trading หรือบรรทัดที่ไม่มี receipt allocation จึงค่อยใช้หมายเหตุบรรทัด PB เดิม
 - Updated 2026-08-07: summary ท้ายเอกสารแสดงยอดของ PB และการใช้ ADV ก่อน VAT เท่านั้น ไม่แสดง `ชำระแล้ว` หรือ `ค้างชำระ` เพราะสถานะการจ่ายเงินเป็นคนละเอกสาร/flow กับบิลรับซื้อ
 - Updated 2026-06-10: stock PB validation ต้องตรวจ product membership ของ PO Buy จาก `po_buys.items` รายสินค้า ไม่ใช่ `po_buys.product_id` ระดับหัวเอกสาร เพราะ multi-product PO เช่น `POB012606-0005` อาจมีหัวเอกสารเป็น `SKU108` แต่ยังมี `SKU109` ที่ต้องตัดยอดกับ `ทองแดงเบอร์ 2` ได้
 - Updated 2026-06-12: PB printable supplier fields are document-owned snapshots. `purchase_bills` stores `supplier_name_snapshot`, `supplier_tax_id_snapshot`, `supplier_address_snapshot`, `supplier_phone_snapshot`, and `supplier_sales_rep_snapshot` at create time from the selected active Supplier master. Address uses `suppliers.address` only, phone uses `suppliers.phone`, tax id uses `suppliers.tax_id`, and sale contact uses `suppliers.sales_rep`; no fallback to `purchase_bills.contact_name`, address-line fields, structured address fields, or current live Supplier master in PB/RV print/detail read paths.
 - ใช้ style print เดียวกับ active print helper เช่น WTI/WTO print และ Company Profile preview โดยใช้ `Noto Sans Thai`
-- `purchase_bill_items` เป็น print snapshot หลักของรายการ; allocation tables ใช้แสดง trace `WTI/POB/Spot` เพิ่มเติม แต่ห้ามทำให้ PB ที่ถูก cancel/supplier swap เสีย historical source เดิม
-- ถ้า active allocation ถูก release แล้ว detail/print ต้องยังอ่าน historical source จาก `purchase_bill_items.po_buy_id` หรือ `purchase_bill_items.source_snapshot.poBuyId` ได้
+- `purchase_bill_items` เป็น print snapshot หลักของรายการ; allocation tables ใช้แสดง trace `WTI/POB/Spot` เพิ่มเติม แต่ห้ามทำให้ PB ที่ถูก cancel หรือเปลี่ยน Supplier เสีย historical source เดิม
+- ถ้า active allocation ถูก release แล้ว detail/print ต้องยังอ่าน historical source จาก `purchase_bill_items.po_buy_id` หรือ `purchase_bill_items.source_snapshot.poBuyId` ได้; สำหรับ supplier change ระบบตั้งใจ release PO เดิมและสร้างชุด Spot Buy ใหม่ จึงไม่ควรอ้าง PO เดิมเป็น active source ของ version ใหม่
 - เอกสารนี้เป็น print ของ `PB` ไม่ใช่ `PMA`, `PMT`, ใบสำคัญจ่าย, หรือใบรับของ `WTI`
 
 ## Create PB
@@ -226,7 +226,7 @@ Contract สำหรับ ADV ที่มี VAT:
 - print/detail/AP drilldown ต้องแสดงว่า ADV ใดหักยอดฐานและ VAT ไปเท่าไร
 - หน้า Tax/VAT/WHT ต้องถือ `PB` หลัง allocation เป็น source ของ VAT ซื้อใน phase นี้ และไม่บวก ADV VAT ซ้ำเป็นเอกสารภาษีซื้ออีกใบ
 - ถ้า PB ไม่มี VAT หรือ VAT ของ PB ไม่พอรองรับ ADV ที่มี VAT ต้อง block หรือแจ้ง validation ชัดเจน ห้าม silent fallback ไปหักยอดรวม
-- การ cancel/edit/supplier swap ต้อง release allocation breakdown ทั้งชุด และ recalc ADV/PB settlement จาก active allocation ที่เหลือ
+- การ cancel/edit/supplier change ต้อง release allocation breakdown ทั้งชุด และ recalc ADV/PB settlement จาก active allocation ที่เหลือ
 
 ## Edit PB
 
@@ -236,7 +236,7 @@ Contract สำหรับ ADV ที่มี VAT:
 - ไม่มี active `payment_approvals.status in ('approved', 'paid')`
 - ไม่มี `payments.status != 'cancelled'`
 
-การแก้ไขปกติเป็นการ update `PB` เดิม โดย refresh allocation facts, ADV allocation, PO reconciliation, WTI billed/remaining, และ status logs ใน transaction เดียว แต่ต้องไม่ refresh supplier printable snapshot ถ้า Supplier ไม่เปลี่ยน เพื่อไม่ให้เอกสารเก่าเปลี่ยนตาม master data ภายหลัง; ถ้าเปลี่ยน Supplier ภายหลังการสร้าง PB ระบบยอมให้ Supplier ของ PB ต่างจาก Supplier บน WTI เดิมได้ โดยยังคง WTI เดิมเป็น source และ update snapshot ของ PB เฉพาะเมื่อ Supplier ของ PB เปลี่ยน
+การแก้ไขปกติเป็นการ update `PB` เดิม โดย refresh allocation facts, ADV allocation, PO reconciliation, WTI billed/remaining, และ status logs ใน transaction เดียว แต่ต้องไม่ refresh supplier printable snapshot ถ้า Supplier ไม่เปลี่ยน เพื่อไม่ให้เอกสารเก่าเปลี่ยนตาม master data ภายหลัง; ถ้าเปลี่ยน Supplier ภายหลังการสร้าง PB ระบบยอมให้ Supplier ของ PB ต่างจาก Supplier บน WTI เดิมได้ โดยยังคง WTI/product/qty/line เดิมเป็น source, release PO allocation เดิม และสร้าง version ใหม่เป็น Spot Buy ก่อน update snapshot ของ PB เป็น Supplier ใหม่
 
 ## Cancel PB
 
@@ -254,71 +254,69 @@ Contract สำหรับ ADV ที่มี VAT:
 - recalc PO, WTI header, และ WTI product summary จาก active PB ที่เหลือ
 - append `purchase_bill_status_logs`, `weight_ticket_usage_logs`, `weight_ticket_status_logs`, `po_buy_allocation_logs`, และ `supplier_advance_allocation_logs`
 
-## Supplier Swap PB
+## Supplier Change PB
 
-ใช้เมื่อผู้ใช้ต้องการเปลี่ยน Supplier ของ PB เดิม โดยต้องคงหลักฐานใบรับของเดิมได้ แต่ราคาและ Supplier ของ PB ใหม่เปลี่ยนได้
+ใช้เมื่อผู้ใช้ต้องการเปลี่ยน Supplier ของ `PB` เดิมหลังจากสร้างเอกสารแล้ว โดยเอกสารเดิมยังเป็นเอกสารเดียวกัน: `purchase_bills.id`, `doc_no`, วันที่, และหลักฐาน WTI ไม่เปลี่ยน ระบบแก้เฉพาะหัวบิลและข้อมูลรายการที่ผู้ใช้แก้ใน form ภายใต้ transaction เดียว
 
 ### UI Contract
 
 - ปุ่ม `เปลี่ยน Supplier` อยู่ใน modal แก้ไขบิล ข้างช่อง Supplier
-- ปุ่มนี้ใช้เข้าโหมด supplier swap เท่านั้น ยังไม่ void เอกสารทันที
-- หลังเข้าโหมด supplier swap ผู้ใช้ยังอยู่ใน form เดิม
-- ระบบไม่แก้ `form.supplierId` ของ PB เดิมระหว่างอยู่ใน modal; Supplier เดิมแสดงเป็น readonly
-- ระบบแสดงช่อง `Supplier ใหม่` แยกต่างหาก และเก็บเป็น draft state สำหรับ supplier swap เท่านั้น
-- สาขา, คลัง, ประเภทบิล, Supplier เดิม, และ `WTI` ยังล็อกอยู่ เพราะ PB ใหม่ต้องใช้ source receipt เดิม
-- ช่องค้นหา ADV/มัดจำใน supplier swap mode ต้องอิง `Supplier ใหม่` ไม่ใช่ Supplier เดิม และต้อง clear ADV ที่เลือกไว้เมื่อเปลี่ยน `Supplier ใหม่`
-- เมื่อเลือก Supplier ใหม่ใน supplier swap mode ต้องไม่ reset, clear, หรือทำให้ค่า `WTI` เดิมหายจากช่องใบรับของ
-- supplier search ระหว่าง supplier swap ห้ามเขียนทับ Supplier เดิมใน form; เฉพาะตอน save เท่านั้นจึงนำ `Supplier ใหม่` ไปแทน `supplierId` ใน payload
-- selector ใบรับของต้องยังแสดง `WTI` เดิมได้ แม้ `WTI` นั้นมี Supplier ต้นทางต่างจาก Supplier ใหม่
-- ไม่แสดงปุ่มล้างใบรับของใน modal แก้ไข/supplier swap เพราะ flow นี้ล็อกใบรับของเดิมไว้จนกว่าจะปิด modal
-- รองรับ supplier swap เฉพาะ PB `STOCK` ที่มี `WTI` เดิม
-- รายการใหม่ต้องคงแถว, สินค้า/source summary, และน้ำหนักเดิมจากใบรับของเดิม
-- ผู้ใช้แก้ราคาได้ แต่ห้ามเพิ่ม/ลบแถวหรือเปลี่ยนน้ำหนักใน supplier swap mode
-- รายการใหม่ต้องเป็น `Spot Buy` ทั้งหมด; ห้ามเลือกหรือตัด `PO Buy` ใน supplier swap mode
-- ต้องแสดงข้อความเตือนว่า action จริงจะเกิดเมื่อกด `บันทึก`
-- เมื่อกด `บันทึก`, ปุ่ม submit ต้องสื่อว่าเป็นการ void PB เดิมและสร้าง PB ใหม่
+- ปุ่มนี้เข้าโหมดแก้ Supplier ใน form เดิมเท่านั้น; ยังไม่ยกเลิกและไม่สร้างเอกสารใหม่
+- ระบบแสดง Supplier เดิมเป็นข้อมูลอ้างอิงและให้เลือก Supplier ใหม่เป็น draft จนกว่าจะกดบันทึก
+- สาขา, คลัง, ประเภทบิล, ใบรับของ WTI, source ของรายการ, จำนวนแถว, และน้ำหนักเดิมยังล็อกตามข้อจำกัดของการแก้ไข source; รายการเดิมยึด `purchase_bill_items.line_no` ไม่ใช่ตำแหน่งใน array
+- เมื่อกดบันทึกให้ส่ง `PATCH /api/purchase/bills` พร้อม `id` ของ PB เดิม โดยไม่ส่ง action ที่เปลี่ยนเป็น flow สร้างบิลทดแทน
+- ปุ่มบันทึกต้องสื่อว่าเป็น `บันทึกการเปลี่ยน Supplier` และหลังสำเร็จให้ใช้เลข PB เดิม
+- การสร้าง PB ใหม่ยังคงตรวจ Supplier ให้ตรงกับ WTI ผ่าน policy `required`; ความต่างระหว่าง Supplier ของ PB กับ WTI เปิดเฉพาะการแก้ไข PB ที่มี WTI เดิมผูกอยู่แล้ว
 
 ### Save Contract
 
-เมื่อ save ในโหมด supplier swap ระบบต้องทำทั้งหมดใน transaction เดียว:
+เมื่อ save ในโหมดเปลี่ยน Supplier ระบบต้องทำทั้งหมดใน transaction เดียว:
 
-1. validate ว่า PB เดิมยังไม่ cancelled, ไม่มี active `PMA`, และไม่มี active `PMT`
-2. validate ว่า WTI ที่ส่งมาเป็น WTI ที่อ้างจาก PB เดิมเท่านั้น
-3. อนุญาตให้ Supplier ใหม่ต่างจาก Supplier เดิมและต่างจาก Supplier บน WTI ได้ เฉพาะใน supplier swap mode
-4. reject ถ้า payload มี `poBuyId` ระดับหัวหรือระดับรายการ เพราะใบรับของเดิมห้ามตัด PO ข้าม Supplier
-5. force PB ใหม่เป็น `Spot Buy` ทั้งหมดใน UI และตรวจซ้ำที่ API ตอนบันทึก
-6. reject ถ้าจำนวนแถว, `receiptSummaryId`, หรือ `qty` ต่างจาก PB เดิม เพราะ flow นี้ล็อกใบรับของเดิมและแก้ได้เฉพาะราคา/Supplier
-7. void/reverse PB เดิมทั้งใบ ด้วย side effects เทียบเท่า cancel PB แต่ raw status ของ PB เดิมต้องเป็น `cancelled_supplier_swap` และแสดงผลเป็น `ยกเลิก/เปลี่ยน Supplier`
-8. void/release ADV allocation เดิมที่ผูกกับ PB เดิม
-9. สร้าง PB ใหม่เลขใหม่ โดยคง receipt/WTI source เดิมและใช้ Supplier/ราคา/รายการล่าสุดใน form
-10. PB ใหม่ต้อง snapshot supplier printable fields จาก Supplier ใหม่ ณ ตอน save
-11. ไม่ carry ADV allocation เดิมไป PB ใหม่อัตโนมัติ ถ้าต้องใช้ ADV ให้เลือก allocation ใหม่ใน PB ใหม่
-12. reverse stock ledger ของ PB เดิม และสร้าง stock ledger ใหม่จาก PB ใหม่โดยอ้าง WTI เดิม
-13. recalc PO, WTI, และ stock ledger จาก active PB หลังจบ transaction
-14. บันทึกประวัติใน `bill_swap_history` เพื่อให้แท็บ `ประวัติเปลี่ยนบิล Supplier` ใน `/purchase/bills` แสดงการเปลี่ยน Supplier และราคาได้
+1. validate ว่า PB เดิมยัง active และไม่มี active `PMA` หรือ `PMT`
+2. validate Supplier ใหม่จาก master และ branch eligibility
+3. ถ้าเป็นการเปลี่ยน Supplier ให้คงจำนวนแถว, source WTI/สินค้า, `receiptLineId`, `receiptLineIds`, และน้ำหนักของรายการเดิม; ระบบอ่าน source ปัจจุบันจาก `purchase_bill_items` + active `purchase_bill_receipt_allocations` + WTI summary/line relation โดยจับคู่ด้วย `line_no` ไม่ใช่ตำแหน่งใน array. ถ้า allocation, summary, product หรือ line identity ไม่ครบให้ reject แบบ fail-closed แทนการเติมค่า `null`, เดาค่า หรืออ่าน WTI identity จาก `source_snapshot`. เลขเอกสาร WTI (`receiptTicketDocNo`) ต้องมาจาก WTI ที่ server validate และ lock แล้วเท่านั้น ห้ามใช้ค่าจาก client
+4. ใช้ `allow-linked-ticket-ids` เฉพาะ WTI ที่มี allocation อยู่กับ PB เดิม; การสร้างใหม่ใช้ `required` และต้อง Supplier ตรงกับ WTI
+5. update `purchase_bills` row เดิมด้วย `supplier_id` และ `supplier_*_snapshot` ของ Supplier ใหม่ โดยคง `id`, `doc_no`, และสถานะเอกสารเดิม
+6. supersede item version เดิมและสร้าง active item/allocation/ledger facts ชุดใหม่ภายใต้ PB เดิม โดยใช้ `doc_no` เดิมเป็น reference
+7. release/rebuild allocation, ADV settlement, PO reconciliation, WTI status และ cost-pool ตาม facts ชุดใหม่
+8. ถ้า Supplier เปลี่ยน ให้บันทึก `bill_swap_history` โดยใช้ `bill_id` เดิม และบันทึก `purchase_bill_status_logs.action = supplier_changed` พร้อม snapshot Supplier เดิม/ใหม่
+9. ส่งผลลัพธ์กลับเป็น `docNo` เดิมและไม่ส่งเลข PB ทดแทน
+10. ห้ามตั้ง `cancelled_supplier_swap`, ห้ามสร้าง PB ใหม่, ห้ามสร้าง watermark จากการเปลี่ยน Supplier สำเร็จ
+
+11. การแก้ PB ต้องส่ง `expectedUpdatedAt` จากรายละเอียดล่าสุดและตรวจซ้ำหลัง lock PB; ถ้าเอกสารถูกแก้ก่อนหน้าให้ตอบ conflict และไม่เขียนทับข้อมูลใหม่กว่า. Payment Approval ต้อง lock PB ก่อนอ่าน source เช่นเดียวกัน เพื่อไม่ให้การอนุมัติแข่งกับการเปลี่ยน Supplier
+12. ฟอร์มแก้ไขต้องใช้ `editForm` และ `updatedAt` จาก detail response ล่าสุดชุดเดียวกัน; การยกเลิกต้อง lock PB ก่อนอ่าน bill/payment/item/approval และ source ที่เกี่ยวข้อง. active source relation ที่ขาด receipt identity, product, น้ำหนัก หรือจำนวนต้อง reject แบบ fail-closed ไม่เติมค่าจาก `source_snapshot` หรือแหล่งอื่น. `source_snapshot` ใช้เก็บข้อมูลประวัติทั่วไปของรายการ เช่น PO/product ที่จำเป็นต่อการอ่านเอกสารเก่า ไม่ใช่ source of truth ของ WTI allocation ปัจจุบัน
+
+### 2026-08-19 Supplier-change source and line identity checkpoint
+
+What is what: `purchase_bill_items.line_no` เป็น identity ถาวรของรายการ PB version ที่ active; active receipt allocation และ WTI summary/line relation เป็น source of truth ของ WTI ที่ผูกกับรายการนั้น. Why it has to be like this: การ reorder รายการในฟอร์มต้องไม่เปลี่ยนความหมายของ source และการเพิ่มแถวแบ่งรายการต้องไม่ clone `line_no` เดิมจนชน unique key. แถวใหม่จึงส่งโดยไม่มี persisted `lineNo` และ server จัดเลขที่ยังไม่ใช้ให้ภายใน write path; duplicate persisted `lineNo` ถูก reject ก่อนเขียน. Supplier-change history จับคู่ before/after ด้วย `line_no` เช่นเดียวกัน และบันทึกใน `bill_swap_history.item_index` ตาม contract เดิม (`lineNo - 1`). ไม่มี runtime fallback ไปใช้ WTI identity ใน `source_snapshot`; ถ้า relation ปัจจุบันไม่ครบ ระบบ reject เพื่อให้แก้ source/migration ที่ต้นทาง
+
+### Historical Compatibility
+
+- `cancelled_supplier_swap` ยังคงอ่านได้เฉพาะเอกสารประวัติที่ถูกสร้างด้วย flow เก่า แต่ไม่ใช่เหตุให้พิมพ์ลายน้ำใน flow ปัจจุบัน
+- flow ปัจจุบันต้องไม่สร้าง status นี้เพิ่ม; การเปลี่ยน Supplier ใหม่เป็นการแก้ไขเอกสารเดิมที่ยัง active
 
 ### Detail / Historical Source Contract
 
 - `purchase_bill_po_allocations` และ `purchase_bill_receipt_allocations` คือ active allocation facts ใช้คำนวณยอดคงเหลือปัจจุบัน
-- เมื่อ PB ถูกยกเลิกหรือถูก void จาก supplier swap ระบบต้อง release active allocation facts เพื่อคืนยอด PO/WTI โดยไม่ลบ row ประวัติ
+- เมื่อ PB ถูกยกเลิก ระบบต้อง release active allocation facts เพื่อคืนยอด PO/WTI โดยไม่ลบ row ประวัติ; การเปลี่ยน Supplier ของ PB active จะ release/rebuild facts ภายใต้ PB เดิม
 - หน้า list `/purchase/bills` ต้องเปิดรายละเอียด PB เป็น modal จากการกดแถว โดยไม่ออกจากหน้ารายการ และปุ่มย่อยในแถวต้อง `stopPropagation()`
 - direct URL `/purchase/bills/{docNo}` ยังเปิดรายละเอียดได้เป็น fallback/link target แต่ต้องใช้ read-model ชุดเดียวกับ modal
 - หน้า detail/modal ของ PB เดิมยังต้องแสดงที่มาดั้งเดิมของรายการจาก `purchase_bill_items.po_buy_id` หรือ `purchase_bill_items.source_snapshot.poBuyId`
 - ห้าม fallback เป็น `Spot Buy` ถ้า item snapshot หรือ item FK ยังระบุ PO เดิมอยู่ เช่น `PB012606-0008` ต้องยังแสดง `POB012606-0004` ในรายละเอียด allocation แม้ active PO allocation row ถูก release แล้ว
-- ประวัติใน detail/modal ใช้ section `ประวัติ PB` แบบ Time Series ล่าสุดอยู่บนสุด โดยรวมสถานะ, payment event, cancel/supplier-swap event และ metadata สำคัญจาก `purchase_bill_status_logs`
+- ประวัติใน detail/modal ใช้ section `ประวัติ PB` แบบ Time Series ล่าสุดอยู่บนสุด โดยรวมสถานะ, payment event, cancel/supplier-change event และ metadata สำคัญจาก `purchase_bill_status_logs`
 
 ### History Contract
 
 แท็บ `ประวัติเปลี่ยนบิล Supplier` ในหน้า `/purchase/bills` ต้องเห็น:
 
-- เลข PB เดิมที่ถูก void
+- เลข PB เดิมที่ยังใช้งานอยู่
 - Supplier เดิม
 - Supplier ใหม่
 - ราคาและยอดก่อน/หลังรายแถวเท่าที่ schema รองรับ
 - ผู้ทำรายการ
-- เหตุผล/ข้อความระบุ PB ใหม่ที่ถูกสร้างแทน
+- เหตุผล/ข้อความของการเปลี่ยน Supplier โดยไม่อ้าง PB ทดแทน
 
-schema ปัจจุบันของ `bill_swap_history` มี `bill_id` หนึ่งค่า จึงให้ผูกกับ PB เดิมเป็นหลัก และใส่เลข PB ใหม่ไว้ใน `reason` จนกว่าจะออกแบบ schema คู่เอกสาร `old_bill_id/new_bill_id` แยกในอนาคต
+schema ปัจจุบันของ `bill_swap_history` มี `bill_id` หนึ่งค่า จึงผูกกับ PB เดิมโดยตรง เพราะ flow ปัจจุบันไม่มี PB ทดแทน; `reason` ระบุว่าเป็นการเปลี่ยน Supplier ในบิลเดิม
 
 ## Guard Summary
 
@@ -327,4 +325,4 @@ schema ปัจจุบันของ `bill_swap_history` มี `bill_id` �
 | Create PB | master/source valid | WTI/PO/warehouse/price invalid |
 | Edit PB | no active PMA/PMT | cancelled, approved PMA, active PMT |
 | Cancel PB | no active PMA/PMT | approved PMA, active PMT, already cancelled |
-| Supplier Swap PB | edit allowed + original WTI source retained + all new lines are Spot Buy | active PMA/PMT, changed WTI, changed branch/warehouse/source, any PO allocation, already cancelled |
+| Supplier Change PB | edit allowed + original WTI/product/qty/lines retained + same PB id/doc_no; old PO allocation is released and the new bill source is Spot Buy | active PMA/PMT, changed WTI, changed branch/warehouse, changed source/qty/lines, already cancelled |

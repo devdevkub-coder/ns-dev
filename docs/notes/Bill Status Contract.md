@@ -15,9 +15,11 @@ status: active
 | `partial` | ชำระเงินบางส่วน |
 | `paid` | ชำระครบแล้ว |
 | `cancelled` | ยกเลิก |
-| `cancelled_supplier_swap` | ยกเลิกเพื่อเปลี่ยนผู้ขาย |
+| `cancelled_supplier_swap` | สถานะประวัติเดิม: ยกเลิกเพื่อเปลี่ยนผู้ขาย |
 
 สถานะ active คือทุกสถานะยกเว้น `cancelled` และ `cancelled_supplier_swap` โดยต้องใช้ `requirePurchaseBillStatus`, `isPurchaseBillCancelledStatus` หรือ `isPurchaseBillActiveStatus` จาก `src/lib/purchase-bill-status.ts`.
+
+การเปลี่ยน Supplier ของ PB ที่ยัง active ไม่ใช่การยกเลิกและไม่เปลี่ยนเลขบิล จึงต้องคงสถานะ active เดิมและบันทึกเป็น event `supplier_changed` ใน `purchase_bill_status_logs`; flow ปัจจุบันห้ามสร้าง `cancelled_supplier_swap` เพิ่ม
 
 ## Sales Bill (SB)
 

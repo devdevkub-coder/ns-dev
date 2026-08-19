@@ -10,6 +10,7 @@ export const PURCHASE_BILL_STATUS_ACTION = {
   PAYMENT_RECORDED: 'payment_recorded',
   PAYMENT_REVERSED: 'payment_reversed',
   STATUS_SYNCED: 'status_synced',
+  SUPPLIER_CHANGED: 'supplier_changed',
   SUPPLIER_SWAP_CANCELLED: 'supplier_swap_cancelled',
 } as const
 

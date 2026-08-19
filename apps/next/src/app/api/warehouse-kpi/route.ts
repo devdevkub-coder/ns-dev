@@ -36,11 +36,11 @@ export async function GET(request: Request) {
       'daily.weight_tickets.share',
       'production.view',
       'production.manage',
-    ]) 
+    ])
 
     const url = new URL(request.url)
     const dateParam = url.searchParams.get('date') || ''
-    
+
     if (!dateParam) {
       return NextResponse.json({ error: 'Date is required' }, { status: 400 })
     }
@@ -120,13 +120,13 @@ export async function POST(request: Request) {
       'production.manage',
       'production.view',
     ])
-    
+
     const body = postSchema.parse(await request.json().catch(() => ({})))
     const targetDate = new Date(`${body.date}T00:00:00.000Z`)
 
     const ops = body.evaluations.map(evalData => {
       const avgScore = Math.round(((evalData.accuracy + evalData.speed + evalData.target_hit) / 3) * 10) / 10
-      
+
       return prisma.warehouse_kpi_evaluations.upsert({
         where: {
           eval_date_warehouse_id: {

@@ -635,6 +635,3 @@ export function WarehouseKpiPageClient() {
     </div>
   )
 }
-
-
-
