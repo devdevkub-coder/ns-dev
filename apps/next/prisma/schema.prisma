@@ -4521,7 +4521,6 @@ model app_users {
   auth_user_id                                                  String?                         @unique @db.Uuid
   display_name                                                  String?
   email                                                         String?
-  username                                                      String
   active                                                        Boolean                         @default(false)
   account_status                                                String                          @default("pending")
   activation_source                                             String?

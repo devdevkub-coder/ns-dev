@@ -191,7 +191,7 @@ function buildMonthlyOverviewBubble(summary: MonthlyReportSummaryData) {
       backgroundColor: '#f8fafc',
       paddingAll: '12px',
       contents: [
-        { type: 'text' as const, text: '👉 เลื่อนขวาเพื่อดูยอดแยกตามโกดัง (WH-01..WH-05)', size: 'xs' as const, color: '#64748b', align: 'center' as const },
+        { type: 'text' as const, text: '👉 เลื่อนขวาเพื่อดูยอดแยกตามโกดัง (KD-0101..KD-0105)', size: 'xs' as const, color: '#64748b', align: 'center' as const },
       ],
     },
   }
