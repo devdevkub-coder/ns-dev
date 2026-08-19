@@ -34,5 +34,12 @@ describe('purchase bill receipt weight display', () => {
 
   it('uses only active receipt allocations in the purchase bill detail read model', () => {
     expect(detailSource).toContain("const allocationRows = bill.purchase_bill_items.map((item, index) => {\n    const receiptAllocation = item.purchase_bill_receipt_allocations?.allocation_status === 'active'")
+    expect(detailSource).toContain("const poAllocation = item.purchase_bill_po_allocations?.allocation_status === 'active'")
+    expect(detailSource).toContain("const poDocNo = poAllocation?.po_buys.doc_no ?? null")
+    expect(detailSource).toContain("const poBuyId = poAllocation?.po_buys.doc_no ?? null")
+    expect(detailSource).not.toContain('item.po_buys')
+    expect(detailSource).not.toContain('sourceSnapshotStringArray')
+    expect(detailSource).not.toContain("const poDocNo = poAllocation?.po_buys.doc_no\n      ?? item.po_buys?.doc_no")
+    expect(detailSource).not.toContain("const poBuyId = poAllocation?.po_buys.doc_no ?? item.po_buys?.doc_no ?? null")
   })
 })

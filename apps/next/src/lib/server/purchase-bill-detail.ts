@@ -115,11 +115,6 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
     }
     purchase_bill_items: {
       include: {
-        po_buys: {
-          select: {
-            doc_no: true
-          }
-        }
         products: {
           select: {
             code: true
@@ -325,18 +320,6 @@ function uniquePaymentAccountRows(rows: PaymentAccountDisplay[]) {
   })
 }
 
-function sourceSnapshotValue(snapshot: unknown, key: string) {
-  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null
-  const value = (snapshot as Record<string, unknown>)[key]
-  return typeof value === 'string' ? value : null
-}
-
-function sourceSnapshotStringArray(snapshot: unknown, key: string) {
-  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return []
-  const value = (snapshot as Record<string, unknown>)[key]
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
-}
-
 type PurchaseBillReceiptAllocation = PurchaseBillDetailRow['purchase_bill_items'][number]['purchase_bill_receipt_allocations']
 
 type PurchaseBillReceiptLine = NonNullable<PurchaseBillReceiptAllocation>['weight_tickets']['weight_ticket_lines'][number]
@@ -393,11 +376,6 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       },
       purchase_bill_items: {
         include: {
-          po_buys: {
-            select: {
-              doc_no: true,
-            },
-          },
           products: {
             select: {
               code: true,
@@ -596,7 +574,9 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const receiptAllocation = item.purchase_bill_receipt_allocations?.allocation_status === 'active'
       ? item.purchase_bill_receipt_allocations
       : null
-    const poAllocation = item.purchase_bill_po_allocations
+    const poAllocation = item.purchase_bill_po_allocations?.allocation_status === 'active'
+      ? item.purchase_bill_po_allocations
+      : null
     const allocatedGrossWeight = receiptAllocation ? toNumber(receiptAllocation.allocated_gross_weight) : toNumber(item.gross_weight)
     const allocatedDeductWeight = receiptAllocation ? toNumber(receiptAllocation.allocated_deduct_weight) : toNumber(item.deduct_weight)
     const allocatedQty = receiptAllocation ? toNumber(receiptAllocation.allocated_qty) : toNumber(item.qty)
@@ -614,10 +594,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const receiptSummaryLabel = receiptAllocation?.weight_ticket_product_summaries
       ? `รวมจาก ${receiptAllocation.weight_ticket_product_summaries.line_count ?? 0} รายการ · ${receiptAllocation.weight_ticket_product_summaries.product_name ?? '-'}`
       : '-'
-    const poDocNo = poAllocation?.po_buys.doc_no
-      ?? item.po_buys?.doc_no
-      ?? sourceSnapshotValue(item.source_snapshot, 'poBuyId')
-      ?? null
+    const poDocNo = poAllocation?.po_buys.doc_no ?? null
 
     return {
       amount: toNumber(item.amount),
@@ -810,7 +787,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const poAllocation = item.purchase_bill_po_allocations?.allocation_status === 'active'
       ? item.purchase_bill_po_allocations
       : null
-    const poBuyId = poAllocation?.po_buys.doc_no ?? item.po_buys?.doc_no ?? null
+    const poBuyId = poAllocation?.po_buys.doc_no ?? null
     const productId = item.products?.code ?? ''
     return {
       deductWeight: toNumber(item.deduct_weight),
