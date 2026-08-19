@@ -1174,6 +1174,7 @@ model asset_disposals {
 }
 
 model equity {
+  registered_capital     Decimal   @default(0) @db.Decimal
   paid_up_capital         Decimal?  @default(0) @db.Decimal
   retained_earnings       Decimal?  @default(0) @db.Decimal
   owner_equity_adjustment Decimal?  @default(0) @db.Decimal
@@ -4520,6 +4521,7 @@ model app_users {
   auth_user_id                                                  String?                         @unique @db.Uuid
   display_name                                                  String?
   email                                                         String?
+  username                                                      String
   active                                                        Boolean                         @default(false)
   account_status                                                String                          @default("pending")
   activation_source                                             String?
@@ -4635,6 +4637,7 @@ model trading_allocation_facts {
   @@index([product_id, date(sort: Desc), id(sort: Desc)], map: "idx_trading_allocation_facts_product_date", where: raw("((status = 'active'::text) AND (product_id IS NOT NULL))"))
   @@index([purchase_bill_id, product_id], map: "idx_trading_allocation_facts_purchase", where: raw("(status = 'active'::text)"))
   @@index([sales_bill_id, sales_line_no, product_id], map: "idx_trading_allocation_facts_sales", where: raw("(status = 'active'::text)"))
+  @@unique([sales_bill_id, sales_line_no], map: "uq_trading_allocation_facts_active_sales_line", where: raw("(status = 'active'::text AND sales_bill_id IS NOT NULL AND sales_line_no IS NOT NULL)"))
   @@index([sales_doc_no], map: "idx_trading_allocation_facts_sales_doc", where: raw("(sales_doc_no IS NOT NULL)"))
   @@index([source_doc_no], map: "idx_trading_allocation_facts_source_doc", where: raw("(source_doc_no IS NOT NULL)"))
   @@index([supplier_id, date(sort: Desc), id(sort: Desc)], map: "idx_trading_allocation_facts_supplier_date", where: raw("((status = 'active'::text) AND (supplier_id IS NOT NULL))"))

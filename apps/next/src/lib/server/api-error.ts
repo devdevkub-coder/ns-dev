@@ -9,6 +9,16 @@ function isPrismaError(caught: unknown): caught is Error & { code: string; meta?
   return caught instanceof Error && 'code' in caught && typeof caught.code === 'string' && caught.code.startsWith('P')
 }
 
+function isTradingAllocationSalesLineConflict(caught: Error & { meta?: Record<string, unknown> }) {
+  const target = caught.meta?.target
+  const targetFields = Array.isArray(target) ? target.map(String) : typeof target === 'string' ? [target] : []
+  const constraint = String(caught.meta?.constraint ?? '')
+  return (
+    targetFields.includes('sales_bill_id')
+    && targetFields.includes('sales_line_no')
+  ) || constraint === 'uq_trading_allocation_facts_active_sales_line'
+}
+
 function errorCodeForStatus(status: number) {
   if (status === 401) return 'AUTH_REQUIRED'
   if (status === 403) return 'FORBIDDEN'
@@ -37,6 +47,12 @@ export function apiErrorResponse(caught: unknown, fallback: string, status = 500
 
   if (isPrismaError(caught)) {
     if (caught.code === 'P2002') {
+      if (isTradingAllocationSalesLineConflict(caught)) {
+        return NextResponse.json({
+          code: 'DEAL_MARGIN_DATA_INTEGRITY',
+          error: 'พบ Allocation ซ้ำใน Sales Bill เดียวกันและ Sales Line เดิม กรุณาตรวจสอบ Allocation ก่อนบันทึก',
+        }, { status: 409 })
+      }
       return NextResponse.json({ code: 'CONFLICT', error: 'ข้อมูลซ้ำกับรายการที่มีอยู่แล้ว' }, { status: 409 })
     }
     if (caught.code === 'P2025') {

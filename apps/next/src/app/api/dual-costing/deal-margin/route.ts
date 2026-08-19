@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server'
-import { XLSX } from '@/lib/server/xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { DealMarginDataIntegrityError, indexDealMarginAllocations } from '@/lib/server/deal-margin-allocation'
+import { buildDealMarginWorkbook } from '@/lib/server/deal-margin-export'
 import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { prisma } from '@/lib/server/prisma'
-import { isTradingMatchingAllocationFact } from '@/lib/server/trading-matching'
-import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
@@ -27,33 +26,6 @@ type DealMarginRow = {
   statusMatch: 'Fully' | 'None' | 'Partial'
   totalRevenue: number
   unitPrice: number
-}
-
-async function buildWorkbook(rows: DealMarginRow[]) {
-  const workbook = XLSX.utils.book_new()
-  const dataRows = rows.map((row) => ({
-    AllocationNo: row.allocationNo,
-    AvgCost: row.avgCost,
-    Channel: row.channel,
-    Customer: row.customer,
-    Date: row.date,
-    DealNo: row.docNo,
-    Margin: row.margin,
-    MarginPct: row.marginPct,
-    MatchedCost: row.matchedCost,
-    MatchedQty: row.matchedQty,
-    Product: row.product,
-    Revenue: row.totalRevenue,
-    SellQty: row.sellQty,
-    StatusMatch: row.statusMatch,
-    UnitPrice: row.unitPrice,
-  }))
-  const sheet = XLSX.utils.json_to_sheet(dataRows)
-  const headers = dataRows[0] ? Object.keys(dataRows[0]) : []
-  sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, String(header).length + 4) }))
-  applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
-  XLSX.utils.book_append_sheet(workbook, sheet, 'Deal Margin')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -114,6 +86,12 @@ export async function GET(request: Request) {
 
     const salesBillIds = salesBills.map((bill) => bill.id)
     const salesDocNos = salesBills.map((bill) => bill.doc_no)
+    const salesBillIdByDocNo = new Map(salesBills.map((bill) => [bill.doc_no, bill.id.toString()]))
+    const salesBillMetaById = new Map(salesBills.map((bill) => [bill.id.toString(), {
+      channel: bill.sales_channels?.name ?? bill.sales_channels?.code ?? 'Trading Deal',
+      date: toDateOnly(bill.date),
+      docNo: bill.doc_no,
+    }]))
     const allocations = salesBillIds.length
       ? await prisma.trading_allocation_facts.findMany({
         where: {
@@ -128,20 +106,28 @@ export async function GET(request: Request) {
       })
       : []
 
-    const allocationByLine = new Map<string, { allocationNo: string; matchedCost: number; matchedQty: number }>()
-    allocations.forEach((allocation) => {
-      if (!isTradingMatchingAllocationFact(allocation)) return
-      if (allocation.sales_line_no == null) return
-      const billKey = allocation.sales_bill_id?.toString() ?? allocation.sales_doc_no ?? ''
-      if (!billKey) return
-      const key = `${billKey}:${allocation.sales_line_no}`
-      const current = allocationByLine.get(key) ?? { allocationNo: allocation.allocation_no, matchedCost: 0, matchedQty: 0 }
-      current.matchedCost += toNumber(allocation.matched_cogs)
-      current.matchedQty += toNumber(allocation.qty)
-      allocationByLine.set(key, current)
-    })
-
-    const rows: DealMarginRow[] = salesBills.flatMap((bill) => bill.sales_bill_lines.map((line) => {
+    const { allocationByLine, unlinkedAllocations } = indexDealMarginAllocations(allocations.map((allocation) => {
+      const billKey = allocation.sales_bill_id?.toString()
+        ?? (allocation.sales_doc_no ? salesBillIdByDocNo.get(allocation.sales_doc_no) ?? allocation.sales_doc_no : null)
+      const billMeta = billKey ? salesBillMetaById.get(billKey) : undefined
+      return {
+        allocationNo: allocation.allocation_no,
+        billKey,
+        salesDocNo: allocation.sales_doc_no ?? billMeta?.docNo ?? null,
+        date: billMeta?.date ?? null,
+        channel: billMeta?.channel ?? null,
+        salesLineNo: allocation.sales_line_no,
+        matchedCost: toNumber(allocation.matched_cogs),
+        matchedQty: toNumber(allocation.qty),
+      }
+    }))
+    const scopedUnlinkedAllocations = unlinkedAllocations.filter((allocation) => (
+      (!from || !allocation.date || allocation.date >= from)
+      && (!to || !allocation.date || allocation.date <= to)
+      && (!channel || channel === 'all' || !allocation.channel || allocation.channel === channel)
+    ))
+    const unlinkedBillKeys = new Set(scopedUnlinkedAllocations.map((allocation) => allocation.billKey).filter((key): key is string => Boolean(key)))
+    const candidateRows: DealMarginRow[] = salesBills.flatMap((bill) => bill.sales_bill_lines.map((line) => {
         const productGroup = line.products?.metal_group ?? line.product_name_snapshot ?? line.products?.name
         if (!isDualCostingGroup(productGroup)) return null
 
@@ -149,6 +135,7 @@ export async function GET(request: Request) {
         const key = `${bill.id.toString()}:${line.line_no}`
         const docKey = `${bill.doc_no}:${line.line_no}`
         const allocation = allocationByLine.get(key) ?? allocationByLine.get(docKey)
+        if (unlinkedBillKeys.has(bill.id.toString()) && !allocation) return null
         const matchedQty = allocation?.matchedQty ?? 0
         const matchedCost = allocation?.matchedCost ?? 0
         const totalRevenue = toNumber(line.line_amount)
@@ -180,10 +167,14 @@ export async function GET(request: Request) {
       }).filter((row): row is DealMarginRow => row !== null))
       .filter((row) => !from || row.date >= from)
       .filter((row) => !to || row.date <= to)
-      .filter((row) => !channel || channel === 'all' || row.channel === channel)
+    const availableChannels = [
+      ...candidateRows.map((row) => row.channel),
+      ...scopedUnlinkedAllocations.map((allocation) => allocation.channel).filter((value): value is string => Boolean(value)),
+    ]
+    const rows = candidateRows.filter((row) => !channel || channel === 'all' || row.channel === channel)
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(await buildWorkbook(rows), 'deal_margin.xlsx')
+      return xlsxResponse(await buildDealMarginWorkbook(rows, scopedUnlinkedAllocations), 'deal_margin.xlsx')
     }
 
     const revenue = rows.reduce((sum, row) => sum + row.totalRevenue, 0)
@@ -192,8 +183,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       filters: {
-        channels: Array.from(new Set(rows.map((row) => row.channel))).sort(),
+        channels: Array.from(new Set(availableChannels)).sort(),
       },
+      unlinkedAllocations: scopedUnlinkedAllocations.map(({ billKey, date, channel, ...allocation }) => allocation),
       rows,
       summary: {
         cost,
@@ -209,6 +201,13 @@ export async function GET(request: Request) {
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof DealMarginDataIntegrityError) {
+      return NextResponse.json({
+        code: caught.code,
+        details: caught.details,
+        error: caught.message,
+      }, { status: 409 })
+    }
     return apiErrorResponse(caught, 'โหลด Deal Margin ไม่ได้', 500)
   }
 }

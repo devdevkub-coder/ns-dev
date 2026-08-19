@@ -48,6 +48,7 @@ import {
   type WarehouseReferenceRecord,
 } from '@/lib/server/reference-master-cache'
 import { Prisma } from '../../../../../generated/prisma/client'
+import { DealMarginDataIntegrityError } from '@/lib/server/deal-margin-data-integrity'
 
 export const runtime = 'nodejs'
 
@@ -2453,6 +2454,24 @@ export async function POST(request: Request) {
           }
         }).filter((row): row is NonNullable<typeof row> => row != null)
         if (allocationRows.length > 0) {
+          const allocationLineNumbers = new Set<number>()
+          const duplicateLine = allocationRows.find((row) => {
+            if (allocationLineNumbers.has(row.sales_line_no)) return true
+            allocationLineNumbers.add(row.sales_line_no)
+            return false
+          })
+          if (duplicateLine) {
+            throw new DealMarginDataIntegrityError(
+              `พบ Allocation ซ้ำใน Sales Bill ${createdBill.doc_no}, Sales Line ${duplicateLine.sales_line_no}`,
+              {
+                allocationNos: allocationRows
+                  .filter((row) => row.sales_line_no === duplicateLine.sales_line_no)
+                  .map((row) => row.allocation_no),
+                salesDocNo: createdBill.doc_no,
+                salesLineNo: duplicateLine.sales_line_no,
+              },
+            )
+          }
           await tx.trading_allocation_facts.createMany({ data: allocationRows })
         }
       }
@@ -2653,6 +2672,9 @@ export async function POST(request: Request) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
+    }
+    if (caught instanceof DealMarginDataIntegrityError) {
+      return NextResponse.json({ code: caught.code, details: caught.details, error: caught.message }, { status: 409 })
     }
     return apiErrorResponse(caught, 'บันทึกบิลขายไม่ได้', 500)
   }
