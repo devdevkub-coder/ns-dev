@@ -310,6 +310,7 @@ export async function POST(request: Request) {
           department_id: departmentId,
           display_name: displayName,
           email: values.email,
+          username: values.email,
           first_name: optionalText(values.firstName),
           last_name: optionalText(values.lastName),
           must_change_password: values.mustChangePassword,
