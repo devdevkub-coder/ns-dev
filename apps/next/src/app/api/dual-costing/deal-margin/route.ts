@@ -3,9 +3,10 @@ import { XLSX } from '@/lib/server/xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { prisma } from '@/lib/server/prisma'
-import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { isTradingMatchingAllocationFact } from '@/lib/server/trading-matching'
+import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
@@ -63,13 +64,9 @@ function xlsxResponse(body: Buffer, filename: string) {
   })
 }
 
-function statusMatch(qty: number, matchedQty: number, rawStatus?: string | null): DealMarginRow['statusMatch'] {
-  const normalizedStatus = rawStatus?.toLowerCase() ?? ''
-  if (normalizedStatus.includes('partial')) return 'Partial'
-  if (normalizedStatus.includes('none') || normalizedStatus.includes('unmatched')) return 'None'
-  if (normalizedStatus.includes('fully') || normalizedStatus.includes('complete')) return 'Fully'
+function statusMatch(sellQty: number, matchedQty: number): DealMarginRow['statusMatch'] {
   if (matchedQty <= 0) return 'None'
-  if (qty > 0 && matchedQty >= qty - 0.001) return 'Fully'
+  if (sellQty > 0 && matchedQty >= sellQty - 0.001) return 'Fully'
   return 'Partial'
 }
 
@@ -90,50 +87,96 @@ export async function GET(request: Request) {
     const channel = url.searchParams.get('channel')
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
-    const allocations = await prisma.trading_allocation_facts.findMany({
-      include: { customers: true, products: true, sales_bills: true },
-      orderBy: [{ date: 'desc' }, { id: 'desc' }],
-      take: 5000,
-      where: { status: 'active' },
+    const branch = await getDualCostingBranch()
+    const salesBills = await prisma.sales_bills.findMany({
+      include: {
+        customers: true,
+        sales_bill_lines: {
+          include: { products: true },
+          orderBy: { line_no: 'asc' },
+          where: { status: 'active' },
+        },
+        sales_channels: true,
+      },
+      orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+      take: 10000,
+      where: {
+        branch_id: branch.id,
+        OR: [
+          { transaction_mode: 'TRADING' },
+          { po_sell_id: { not: null } },
+          { trading_from_purchase_id: { not: null } },
+        ],
+        NOT: { status: { in: ['cancelled', 'Cancelled', 'canceled', 'Canceled'] } },
+      },
     })
 
-    const rows: DealMarginRow[] = allocations
-      .filter(isTradingMatchingAllocationFact)
-      .filter((allocation) => isDualCostingGroup(
-        allocation.products?.metal_group
-        ?? allocation.product_name_snapshot
-        ?? allocation.products?.name,
-      ))
-      .map((allocation, index) => {
-        const matchedQty = toNumber(allocation.qty)
-        const matchedCost = toNumber(allocation.matched_cogs)
-        const totalRevenue = toNumber(allocation.sales_amount)
+    const salesBillIds = salesBills.map((bill) => bill.id)
+    const salesDocNos = salesBills.map((bill) => bill.doc_no)
+    const allocations = salesBillIds.length
+      ? await prisma.trading_allocation_facts.findMany({
+        where: {
+          status: 'active',
+          OR: [
+            { sales_bill_id: { in: salesBillIds } },
+            { sales_doc_no: { in: salesDocNos } },
+          ],
+        },
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        take: 10000,
+      })
+      : []
+
+    const allocationByLine = new Map<string, { allocationNo: string; matchedCost: number; matchedQty: number }>()
+    allocations.forEach((allocation) => {
+      if (!isTradingMatchingAllocationFact(allocation)) return
+      if (allocation.sales_line_no == null) return
+      const billKey = allocation.sales_bill_id?.toString() ?? allocation.sales_doc_no ?? ''
+      if (!billKey) return
+      const key = `${billKey}:${allocation.sales_line_no}`
+      const current = allocationByLine.get(key) ?? { allocationNo: allocation.allocation_no, matchedCost: 0, matchedQty: 0 }
+      current.matchedCost += toNumber(allocation.matched_cogs)
+      current.matchedQty += toNumber(allocation.qty)
+      allocationByLine.set(key, current)
+    })
+
+    const rows: DealMarginRow[] = salesBills.flatMap((bill) => bill.sales_bill_lines.map((line) => {
+        const productGroup = line.products?.metal_group ?? line.product_name_snapshot ?? line.products?.name
+        if (!isDualCostingGroup(productGroup)) return null
+
+        const sellQty = toNumber(line.qty) || toNumber(line.net_weight)
+        const key = `${bill.id.toString()}:${line.line_no}`
+        const docKey = `${bill.doc_no}:${line.line_no}`
+        const allocation = allocationByLine.get(key) ?? allocationByLine.get(docKey)
+        const matchedQty = allocation?.matchedQty ?? 0
+        const matchedCost = allocation?.matchedCost ?? 0
+        const totalRevenue = toNumber(line.line_amount)
         const margin = totalRevenue - matchedCost
-        const unitPrice = matchedQty > 0 ? totalRevenue / matchedQty : 0
-        const customer = allocation.customer_name_snapshot ?? allocation.customers?.name ?? '-'
-        const product = allocation.product_name_snapshot ?? allocation.products?.name ?? '-'
-        const date = toDateOnly(allocation.date)
-        const docNo = allocation.sales_doc_no ?? allocation.sales_bills?.doc_no ?? allocation.allocation_no
-        const rowStatusMatch = statusMatch(matchedQty, matchedQty, allocation.status)
+        const customer = bill.customers?.name ?? '-'
+        const product = line.product_name_snapshot ?? line.products?.name ?? '-'
+        const date = toDateOnly(bill.date)
+        const docNo = bill.doc_no
+        const channelName = bill.sales_channels?.name ?? bill.sales_channels?.code ?? 'Trading Deal'
+        const rowStatusMatch = statusMatch(sellQty, matchedQty)
         return {
-          allocationNo: allocation.allocation_no,
+          allocationNo: allocation?.allocationNo ?? '-',
           avgCost: matchedQty > 0 ? matchedCost / matchedQty : 0,
-          channel: 'Trading Deal',
+          channel: channelName,
           customer,
           date,
           docNo,
-          id: `${docNo}:${allocation.allocation_no}:${customer}:${product}:${date}:${rowStatusMatch}:${index}`,
+          id: `${docNo}:${line.line_no}`,
           margin,
           marginPct: totalRevenue > 0 ? (margin / totalRevenue) * 100 : 0,
           matchedCost,
           matchedQty,
           product,
-          sellQty: matchedQty,
+          sellQty,
           statusMatch: rowStatusMatch,
           totalRevenue,
-          unitPrice,
+          unitPrice: toNumber(line.unit_price),
         }
-      })
+      }).filter((row): row is DealMarginRow => row !== null))
       .filter((row) => !from || row.date >= from)
       .filter((row) => !to || row.date <= to)
       .filter((row) => !channel || channel === 'all' || row.channel === channel)
