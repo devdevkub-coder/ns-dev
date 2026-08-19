@@ -53,7 +53,7 @@ export function BranchSelectCombobox({
 
   return (
     <div className={`${className ?? ''} ${widthClassName ?? ''}`.trim() || undefined} data-error-key={errorKey} data-manual-required={hasInlineRequired ? 'true' : undefined}>
-      {safeLabel ? <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label> : null}
+      {safeLabel ? <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600 dark:text-red-400">*</span> : null}</label> : null}
       <div className="relative">
         <Combobox
           disabled={disabled}

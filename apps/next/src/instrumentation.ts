@@ -1,5 +1,3 @@
-import { randomUUID } from 'crypto'
-
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     console.log('[AUTO-CRON-SCHEDULER] Initializing Daily & Monthly Report background scheduler...')
@@ -72,7 +70,7 @@ export async function register() {
 
           for (const targetId of targetIds) {
             try {
-              const res = await sendLinePush(targetId, [flexMessage], token, randomUUID())
+              const res = await sendLinePush(targetId, [flexMessage], token, crypto.randomUUID())
               console.log(`[AUTO-CRON-SCHEDULER] ✅ Daily Report sent to ${targetId}, reqId: ${res.lineRequestId}`)
             } catch (err) {
               console.error(`[AUTO-CRON-SCHEDULER] ❌ Failed to send Daily Report to ${targetId}:`, err)
@@ -108,7 +106,7 @@ export async function register() {
 
           for (const targetId of monthlyTargetIds) {
             try {
-              const res = await sendLinePush(targetId, [monthlyFlexMessage], token, randomUUID())
+              const res = await sendLinePush(targetId, [monthlyFlexMessage], token, crypto.randomUUID())
               console.log(`[AUTO-CRON-SCHEDULER] ✅ Monthly Report sent to ${targetId}, reqId: ${res.lineRequestId}`)
             } catch (err) {
               console.error(`[AUTO-CRON-SCHEDULER] ❌ Failed to send Monthly Report to ${targetId}:`, err)
