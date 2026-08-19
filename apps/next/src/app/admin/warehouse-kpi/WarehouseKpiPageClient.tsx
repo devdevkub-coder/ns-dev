@@ -615,32 +615,33 @@ export function WarehouseKpiPageClient() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               {/* Left: Live Status & Executive Score Pills */}
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <div className="flex items-center gap-2 rounded-full border border-slate-200/60 bg-slate-100/90 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700/60 dark:bg-slate-800/90 dark:text-slate-300">
+                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-200">
                   <span className="relative flex size-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75"></span>
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-600"></span>
                   </span>
-                  <span>ประเมินแล้ว: <strong className="font-mono text-slate-900 dark:text-slate-100">{stats.ratedCount}/5 โกดัง</strong></span>
+                  <span>ประเมินแล้ว:</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-white">{stats.ratedCount}/5 โกดัง</span>
                 </div>
 
-                <div className="flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50/90 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/70 dark:text-emerald-300">
-                  <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                  <span>เฉลี่ยรวม:</span>
-                  <span className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">
+                <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs shadow-2xs dark:border-slate-700 dark:bg-slate-800">
+                  <Star className="size-3.5 fill-amber-400 text-amber-500" />
+                  <span className="font-medium text-slate-600 dark:text-slate-300">เฉลี่ยรวม:</span>
+                  <span className="font-mono text-sm font-black text-slate-900 dark:text-white">
                     {stats.overallAvg.toFixed(1)}
                   </span>
-                  <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400">/ 5.0</span>
+                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">/ 5.0</span>
                 </div>
 
                 {stats.problemCount > 0 ? (
-                  <div className="flex items-center gap-1.5 rounded-full border border-rose-200/70 bg-rose-50/90 px-3 py-1.5 text-xs font-bold text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/70 dark:text-rose-300">
-                    <AlertTriangle className="size-3.5 text-rose-500" />
+                  <div className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3.5 py-1.5 text-xs font-bold text-rose-800 shadow-2xs dark:border-rose-900 dark:bg-rose-950/70 dark:text-rose-200">
+                    <AlertTriangle className="size-3.5 text-rose-600 dark:text-rose-400" />
                     <span>{stats.problemCount} รายการปัญหา</span>
                   </div>
                 ) : (
-                  <div className="hidden items-center gap-1.5 rounded-full border border-slate-200/50 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500 dark:border-slate-800/50 dark:bg-slate-800/50 dark:text-slate-400 md:flex">
-                    <CheckCircle2 className="size-3.5 text-emerald-500" />
-                    <span>ไร้ปัญหาติดขัด</span>
+                  <div className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-800 shadow-2xs dark:border-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-300 md:flex">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>ปฏิบัติงานราบรื่น</span>
                   </div>
                 )}
               </div>
