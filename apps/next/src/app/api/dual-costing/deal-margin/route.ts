@@ -32,6 +32,7 @@ type DealMarginRow = {
 async function buildWorkbook(rows: DealMarginRow[]) {
   const workbook = XLSX.utils.book_new()
   const dataRows = rows.map((row) => ({
+    AllocationNo: row.allocationNo,
     AvgCost: row.avgCost,
     Channel: row.channel,
     Customer: row.customer,
