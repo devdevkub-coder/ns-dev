@@ -1,3 +1,11 @@
+## SIT Auth & Warehouse Master Parity checkpoint — 2026-08-19
+
+Objective: แก้ไขปัญหา Login ช้า (500 Database Error) และหน้า Master Data โกดังแสดงผลไม่ถูกต้องบน SIT
+- ลบฟิลด์ `username` ออกจาก `model app_users` ใน `apps/next/prisma/schema.prisma` และ `POST /api/admin/users` เพื่อให้สอดคล้องกับ DB จริงหลัง migration `drop_legacy_app_user_username`
+- ปรับ Regex ตรวจสอบรหัสโกดังใน API ให้รองรับทั้ง `KD-` และ `WH-`
+- รัน migration `20260818120000_add_warehouse_management_fields.sql` ใน SIT Supabase ครบถ้วน
+- Validation: `prisma generate`, `type-check`, `lint`, auth tests `15/15` ผ่าน 100%, commit `6f543f48` push ขึ้น `sit-origin/main` แล้ว Vercel deploy `HTTP 200` สำเร็จ
+
 ## Active Purchase Bill Supplier Change batch — 2026-08-19
 
 Objective: เปลี่ยน Supplier ของบิลรับซื้อที่สร้างแล้วโดย PATCH `purchase_bills` row เดิม คง `purchase_bills.id`, เลข PB, WTI/source และสถานะ active; อัปเดต Supplier header/snapshot และ rebuild allocation/ledger facts ใน transaction เดียว โดยไม่ void หรือสร้าง PB ใหม่
