@@ -26,6 +26,11 @@ const settingsSchema = z.object({
   lineAlbumShowBadges: z.boolean().default(true),
   lineAlbumShowTimestamps: z.boolean().default(true),
   lineAlbumQuality: z.number().int().min(10).max(100).default(90),
+  dailyReportAutoSend: z.boolean().default(true),
+  dailyReportScheduleTime: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'รูปแบบเวลาไม่ถูกต้อง (HH:mm)').default('18:00'),
+  monthlyReportAutoSend: z.boolean().default(true).optional(),
+  monthlyReportScheduleTime: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'รูปแบบเวลาไม่ถูกต้อง (HH:mm)').default('08:00').optional(),
+  monthlyReportDay: z.string().trim().default('1').optional(),
   confirmBotChange: z.boolean().default(false),
 })
 
@@ -64,6 +69,11 @@ export async function GET() {
             'LINE_ALBUM_SHOW_BADGES',
             'LINE_ALBUM_SHOW_TIMESTAMPS',
             'LINE_ALBUM_QUALITY',
+            'DAILY_REPORT_AUTO_SEND',
+            'DAILY_REPORT_SCHEDULE_TIME',
+            'MONTHLY_REPORT_AUTO_SEND',
+            'MONTHLY_REPORT_SCHEDULE_TIME',
+            'MONTHLY_REPORT_DAY',
           ],
         },
       },
@@ -79,6 +89,11 @@ export async function GET() {
     const lineAlbumShowBadges = configMap.LINE_ALBUM_SHOW_BADGES !== 'false'
     const lineAlbumShowTimestamps = configMap.LINE_ALBUM_SHOW_TIMESTAMPS !== 'false'
     const lineAlbumQuality = configMap.LINE_ALBUM_QUALITY ? parseInt(configMap.LINE_ALBUM_QUALITY, 10) : 90
+    const dailyReportAutoSend = configMap.DAILY_REPORT_AUTO_SEND !== 'false'
+    const dailyReportScheduleTime = configMap.DAILY_REPORT_SCHEDULE_TIME || '18:00'
+    const monthlyReportAutoSend = configMap.MONTHLY_REPORT_AUTO_SEND !== 'false'
+    const monthlyReportScheduleTime = configMap.MONTHLY_REPORT_SCHEDULE_TIME || '08:00'
+    const monthlyReportDay = configMap.MONTHLY_REPORT_DAY || '1'
 
     const maskSecret = (val: string | null | undefined) => {
       if (!val) return ''
@@ -100,6 +115,11 @@ export async function GET() {
       lineAlbumShowBadges,
       lineAlbumShowTimestamps,
       lineAlbumQuality,
+      dailyReportAutoSend,
+      dailyReportScheduleTime,
+      monthlyReportAutoSend,
+      monthlyReportScheduleTime,
+      monthlyReportDay,
     }, { headers: PRIVATE_NO_STORE_HEADERS })
   } catch (caught) {
     if (caught instanceof AuthContextError) return privateAuthErrorResponse(caught)
@@ -172,6 +192,11 @@ export async function POST(request: Request) {
       { key: 'LINE_ALBUM_SHOW_BADGES', value: values.lineAlbumShowBadges ? 'true' : 'false' },
       { key: 'LINE_ALBUM_SHOW_TIMESTAMPS', value: values.lineAlbumShowTimestamps ? 'true' : 'false' },
       { key: 'LINE_ALBUM_QUALITY', value: String(values.lineAlbumQuality) },
+      { key: 'DAILY_REPORT_AUTO_SEND', value: values.dailyReportAutoSend ? 'true' : 'false' },
+      { key: 'DAILY_REPORT_SCHEDULE_TIME', value: values.dailyReportScheduleTime || '18:00' },
+      { key: 'MONTHLY_REPORT_AUTO_SEND', value: values.monthlyReportAutoSend !== false ? 'true' : 'false' },
+      { key: 'MONTHLY_REPORT_SCHEDULE_TIME', value: values.monthlyReportScheduleTime || '08:00' },
+      { key: 'MONTHLY_REPORT_DAY', value: values.monthlyReportDay || '1' },
     ]
 
     if (!isMasked(values.lineChannelAccessToken)) {

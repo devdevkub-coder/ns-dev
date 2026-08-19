@@ -174,6 +174,9 @@ const nextConfig = {
       { path: '**/weight-ticket-line-notification.ts' },
     ],
   },
+  experimental: {
+    instrumentationHook: true,
+  },
 }
 
 export default nextConfig

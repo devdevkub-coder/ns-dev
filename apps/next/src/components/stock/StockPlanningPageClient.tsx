@@ -1365,10 +1365,10 @@ function CalendarView({
         data-ns-field-scope="filter"
         data-stock-planning-calendar-toolbar
       >
-        <div className="text-xs text-slate-500">เลือกวันที่เพื่อดู PO Sell</div>
+        <div className="text-xs text-slate-500 dark:text-slate-400">เลือกวันที่เพื่อดู PO Sell</div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             onClick={() => shiftMonth(-1)}
             type="button"
           >
@@ -1378,7 +1378,7 @@ function CalendarView({
             <span className="sr-only">เดือน</span>
             <input
               aria-label="เลือกเดือน"
-              className="h-9 rounded-md border border-slate-300 px-3 text-sm"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/25"
               id="stock-planning-month"
               onChange={(event) => changeMonth(event.target.value)}
               type="month"
@@ -1386,7 +1386,7 @@ function CalendarView({
             />
           </label>
           <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             onClick={() => shiftMonth(1)}
             type="button"
           >
@@ -1395,15 +1395,15 @@ function CalendarView({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
         {loading ? (
-          <div className="p-8 text-center text-sm font-semibold text-slate-500">กำลังโหลดข้อมูล</div>
+          <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">กำลังโหลดข้อมูล</div>
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[720px]">
-              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-100">
+              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
                 {['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'].map((day) => (
-                  <div className="p-2 text-center text-xs font-bold text-slate-600" key={day}>{day}</div>
+                  <div className="p-2 text-center text-xs font-bold text-slate-600 dark:text-slate-300" key={day}>{day}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7">
@@ -1415,10 +1415,10 @@ function CalendarView({
                       aria-label={date ? `${date} มี ${dayRows.length} รายการ` : undefined}
                       aria-pressed={date === selectedDate}
                       className={[
-                        'min-h-[112px] border-b border-r border-slate-100 p-2 text-left align-top text-xs outline-none hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500',
-                        date === today ? 'bg-yellow-50 ring-2 ring-inset ring-yellow-400' : '',
-                        hasShortage ? 'bg-red-50/60' : dayRows.length ? 'bg-slate-50' : '',
-                        date === selectedDate ? 'bg-blue-50 ring-2 ring-inset ring-blue-500' : '',
+                        'min-h-[112px] border-b border-r border-slate-100 p-2 text-left align-top text-xs outline-none transition-colors hover:bg-slate-100/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 dark:border-slate-800 dark:hover:bg-slate-800/70',
+                        date === today ? 'bg-amber-50/70 ring-2 ring-inset ring-amber-400 dark:bg-amber-950/30 dark:ring-amber-500/60' : '',
+                        hasShortage ? 'bg-red-50/60 dark:bg-rose-950/30' : dayRows.length ? 'bg-slate-50/60 dark:bg-slate-800/40' : '',
+                        date === selectedDate ? 'bg-blue-50 ring-2 ring-inset ring-blue-500 dark:bg-blue-950/60 dark:ring-blue-500/70' : '',
                       ].join(' ')}
                       disabled={!date}
                       key={`${date}-${index}`}
@@ -1427,22 +1427,22 @@ function CalendarView({
                     >
                       {date ? (
                         <>
-                          <div className="mb-1 flex items-center justify-between font-bold text-slate-700">
+                          <div className="mb-1 flex items-center justify-between font-bold text-slate-700 dark:text-slate-200">
                             <span>{Number(date.slice(-2))}</span>
                             {dayRows.length ? (
-                              <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-white">{dayRows.length}</span>
+                              <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-white dark:bg-slate-600 dark:text-slate-100">{dayRows.length}</span>
                             ) : null}
                           </div>
                           {dayRows.slice(0, 3).map((row) => (
                             <div
-                              className={`mb-1 truncate rounded px-1 py-0.5 text-[10px] ${row.enough ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 font-bold text-red-800'}`}
+                              className={`mb-1 truncate rounded px-1 py-0.5 text-[10px] ${row.enough ? 'border border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/60 dark:text-emerald-300' : 'border border-rose-200/60 bg-rose-50 font-bold text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/60 dark:text-rose-300'}`}
                               key={`${row.docNo}-${row.productId}`}
                             >
                               {row.docNo} · {formatMoney(row.remainingQty)}
                             </div>
                           ))}
                           {dayRows.length > 3 ? (
-                            <div className="text-[10px] text-slate-500">+{dayRows.length - 3} รายการ</div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400">+{dayRows.length - 3} รายการ</div>
                           ) : null}
                         </>
                       ) : null}
@@ -1456,12 +1456,12 @@ function CalendarView({
       </div>
 
       {selectedDate ? (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-100 p-3 text-sm font-bold text-slate-800">
+        <section className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-100 p-3 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
             <span>PO Sell วันที่ {selectedDate}</span>
             {columnResize.hasCustomWidths ? (
               <button
-                className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 md:inline-flex"
+                className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 md:inline-flex"
                 onClick={columnResize.resetColumnWidths}
                 type="button"
               >
@@ -1480,7 +1480,7 @@ function CalendarView({
                     <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
                   ))}
                 </colgroup>
-                <thead className="bg-slate-100">
+                <thead className="bg-slate-100 dark:bg-slate-800">
                   <tr>
                     <ResizableTableHead align="center" label="PO Sell" resizeProps={columnResize.getResizeHandleProps('poSell', 'PO Sell')} />
                     <ResizableTableHead align="left" label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
@@ -1491,20 +1491,20 @@ function CalendarView({
                     <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('urgency', 'สถานะ')} />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {selectedRows.length ? selectedRows.map((row) => (
                     <tr key={`${row.docNo}-${row.productId}`}>
                       <td className="whitespace-nowrap p-3 text-center font-mono font-semibold">{row.docNo}</td>
                       <td className="overflow-hidden p-3 text-left"><div className="truncate" title={`${row.productCode} - ${row.productName}`}>{row.productCode} - {row.productName}</div></td>
                       <td className="overflow-hidden p-3 text-left"><div className="truncate" title={row.partnerName}>{row.partnerName}</div></td>
-                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-700">{formatMoney(row.remainingQty)}</td>
-                      <td className="whitespace-nowrap p-3 text-right tabular-nums">{formatMoney(row.before)}</td>
-                      <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${row.shortage ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.shortage)}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-700 dark:text-slate-200">{formatMoney(row.remainingQty)}</td>
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-700 dark:text-slate-300">{formatMoney(row.before)}</td>
+                      <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${row.shortage ? 'text-red-700 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>{formatMoney(row.shortage)}</td>
                       <td className="p-3 text-center"><StatusIndicator value={row.urgency} /></td>
                     </tr>
                   )) : (
                     <tr>
-                      <td className="p-8 text-center font-semibold text-slate-500" colSpan={7}>ยังไม่มีรายการ</td>
+                      <td className="p-8 text-center font-semibold text-slate-500 dark:text-slate-400" colSpan={7}>ยังไม่มีรายการ</td>
                     </tr>
                   )}
                 </tbody>
@@ -1514,38 +1514,38 @@ function CalendarView({
           <div className="space-y-3 p-3 md:hidden">
             {selectedRows.length ? selectedRows.map((row) => (
               <article
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800"
                 data-stock-planning-mobile-card="calendar"
                 key={`${row.docNo}-${row.productId}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="whitespace-nowrap font-mono font-bold text-slate-800">{row.docNo}</div>
-                    <div className="mt-0.5 break-words text-xs text-slate-500">{row.productCode} - {row.productName}</div>
+                    <div className="whitespace-nowrap font-mono font-bold text-slate-800 dark:text-slate-100">{row.docNo}</div>
+                    <div className="mt-0.5 break-words text-xs text-slate-500 dark:text-slate-400">{row.productCode} - {row.productName}</div>
                   </div>
                   <StatusIndicator value={row.urgency} />
                 </div>
-                <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs">
-                  <div className="text-slate-500">ลูกค้า</div>
-                  <div className="mt-0.5 font-semibold text-slate-800">{row.partnerName}</div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3">
+                <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-900/60">
+                  <div className="text-slate-500 dark:text-slate-400">ลูกค้า</div>
+                  <div className="mt-0.5 font-semibold text-slate-800 dark:text-slate-200">{row.partnerName}</div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
                     <div>
-                      <div className="text-slate-500">ต้องส่ง</div>
-                      <div className="mt-0.5 text-right font-semibold tabular-nums">{formatMoney(row.remainingQty)}</div>
+                      <div className="text-slate-500 dark:text-slate-400">ต้องส่ง</div>
+                      <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-800 dark:text-slate-200">{formatMoney(row.remainingQty)}</div>
                     </div>
                     <div>
-                      <div className="text-slate-500">มี ณ วันส่ง</div>
-                      <div className="mt-0.5 text-right font-semibold tabular-nums">{formatMoney(row.before)}</div>
+                      <div className="text-slate-500 dark:text-slate-400">มี ณ วันส่ง</div>
+                      <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-800 dark:text-slate-200">{formatMoney(row.before)}</div>
                     </div>
                     <div>
-                      <div className="text-slate-500">ต้องซื้อ</div>
-                      <div className={`mt-0.5 text-right font-bold tabular-nums ${row.shortage ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.shortage)}</div>
+                      <div className="text-slate-500 dark:text-slate-400">ต้องซื้อ</div>
+                      <div className={`mt-0.5 text-right font-bold tabular-nums ${row.shortage ? 'text-red-700 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>{formatMoney(row.shortage)}</div>
                     </div>
                   </div>
                 </div>
               </article>
             )) : (
-              <div className="p-8 text-center text-sm font-semibold text-slate-500">ยังไม่มีรายการ</div>
+              <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">ยังไม่มีรายการ</div>
             )}
           </div>
         </section>

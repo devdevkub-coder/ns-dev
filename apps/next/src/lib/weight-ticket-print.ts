@@ -350,11 +350,13 @@ export function estimatePrintWeightRowHeight(row: PrintWeightRow, isReceipt: boo
   // are conservative enough to move a wrapped row early rather than risk
   // allowing text to collide with the numeric cells.
   const itemColumnCharacters = isReceipt ? 34 : 58
-  // A WTI/WTO product heading is a group label that occupies exactly one cell
-  // of the fixed 20-row form grid; its summary detail wraps within that cell
-  // without consuming a second slot, so it never crowds another row off the
-  // page (the DOM fitter re-measures with real fonts for the browser).
-  if (row.className === 'product-heading') return 1
+  if (row.className === 'product-heading') {
+    const headingLines = [
+      estimateWrappedLineCount(row.productName, itemColumnCharacters),
+      row.detail ? estimateWrappedLineCount(row.detail, itemColumnCharacters) : 0,
+    ]
+    return Math.max(1, headingLines.reduce((total, count) => total + count, 0) - 1)
+  }
   const lines = [
     estimateWrappedLineCount(row.productName, itemColumnCharacters),
     row.label ? estimateWrappedLineCount(row.label, itemColumnCharacters) : 0,

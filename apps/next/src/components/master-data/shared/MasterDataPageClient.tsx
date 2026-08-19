@@ -131,6 +131,13 @@ function recordToForm(record: MasterDataRecord, _paymentMethods: MasterDataRecor
     swift: record.swift,
     taxId: record.taxId,
     unit: record.unit,
+    inCharge: record.inCharge,
+    supportedProcesses: (record.supportedProcesses ?? []).filter((value): value is 'RECEIVE' | 'SORT' | 'BALE' | 'LOAD' | 'CRUSH' => (
+      value === 'RECEIVE' || value === 'SORT' || value === 'BALE' || value === 'LOAD' || value === 'CRUSH'
+    )),
+    targetSortKg: record.targetSortKg,
+    targetBaleCount: record.targetBaleCount,
+    maxCapacityKg: record.maxCapacityKg,
   }
 }
 
@@ -816,7 +823,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                           column.align === 'right'
                             ? 'pr-4 tabular-nums whitespace-nowrap'
                             : column.key === 'code'
-                            ? 'font-mono tabular-nums whitespace-nowrap'
+                            ? 'font-mono whitespace-nowrap'
                             : 'truncate'
                         }`}
                       >

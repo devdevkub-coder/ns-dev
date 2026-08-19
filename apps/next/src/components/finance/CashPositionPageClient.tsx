@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { calculateCashPositionMetrics } from '@/lib/cash-position-metrics'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -148,7 +149,7 @@ export function CashPositionPageClient() {
   const arTotal = data?.exposure.ar.total ?? 0
   const apTotal = data?.exposure.ap.total ?? 0
   const liquidTotal = cashTotal + bankTotal + fcdTotal
-  const netCash = cashTotal + bankTotal + fcdTotal + arTotal - apTotal - odUsedTotal
+  const { availableToday, netWorkingCapital } = calculateCashPositionMetrics({ cashTotal, bankTotal, fcdTotal, arTotal, apTotal })
   const topAccounts = accounts.filter((row) => row.balance > 0).sort((left, right) => right.balance - left.balance).slice(0, 8)
   const topBalance = topAccounts[0]?.balance ?? 0
   const donut = liquidTotal > 0
@@ -171,8 +172,9 @@ export function CashPositionPageClient() {
         <button className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 md:col-span-1 md:ml-auto md:w-auto" type="button" onClick={exportXlsx}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
-        <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="สภาพคล่องสุทธิ" note="= เงินสด + ธนาคาร + FCD + ลูกหนี้ − เจ้าหนี้ − OD ใช้ไป" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+        <SharedKpiCard icon={availableToday >= 0 ? '💵' : '⚠️'} label="เงินพร้อมใช้วันนี้" note="= เงินสด + ธนาคาร + FCD · ไม่รวม OD, AR/AP" tone={availableToday >= 0 ? 'emerald' : 'red'} value={formatMoney(availableToday)} />
+        <SharedKpiCard icon={netWorkingCapital >= 0 ? '💰' : '⚠️'} label="เงินทุนหมุนเวียนสุทธิ" note="= เงินพร้อมใช้วันนี้ + ลูกหนี้ − เจ้าหนี้" tone={netWorkingCapital >= 0 ? 'emerald' : 'red'} value={formatMoney(netWorkingCapital)} />
 
         <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
           <div className="mb-2 text-sm font-bold text-slate-700">🥧 องค์ประกอบสภาพคล่อง</div>
@@ -234,8 +236,6 @@ export function CashPositionPageClient() {
         <SharedKpiCard className="col-span-2" icon="📥" label="ลูกหนี้รวม (เงินที่จะได้รับ)" tone={arTotal === 0 ? 'slate' : 'emerald'} value={formatMoney(arTotal)} />
         <SharedKpiCard className="col-span-2" icon="📤" label="เจ้าหนี้รวม (เงินที่ต้องจ่าย)" tone={apTotal === 0 ? 'slate' : 'red'} value={formatMoney(apTotal)} />
       </div>
-
-      <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="สภาพคล่องสุทธิ" note="= เงินสด + ธนาคาร + FCD + ลูกหนี้ - เจ้าหนี้ - OD ใช้ไป" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
 
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-4 py-3 flex items-center justify-between">

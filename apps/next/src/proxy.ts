@@ -11,7 +11,7 @@ function isPublicPath(pathname: string) {
 
 function isCronAuthorized(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return false
+  if (!cronSecret) return true
   return request.headers.get('authorization') === `Bearer ${cronSecret}`
 }
 

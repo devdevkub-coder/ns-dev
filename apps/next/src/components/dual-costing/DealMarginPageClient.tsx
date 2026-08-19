@@ -20,6 +20,7 @@ import {
 } from './DualCostingPageShell'
 
 type DealMarginRow = {
+  allocationNo: string
   avgCost: number
   channel: string
   customer: string
@@ -187,7 +188,9 @@ export function DealMarginPageClient() {
               <div key={row.id} className="text-xs">
                 <div className="mb-0.5 flex items-center gap-2">
                   <span className="w-4 text-center font-bold text-slate-400">{index + 1}</span>
-                  <span className="min-w-0 flex-1 truncate text-slate-700">{row.docNo} · {row.customer}</span>
+                  <span className="min-w-0 flex-1 truncate text-slate-700" title={`${row.allocationNo} · ${row.docNo} · ${row.customer} · ${row.product}`}>
+                    {row.allocationNo} · {row.docNo} · {row.customer} · {row.product}
+                  </span>
                   <span className={`w-20 text-right font-bold ${row.margin >= 0 ? 'text-purple-700' : 'text-red-600'}`}>{formatMoney(row.margin)}</span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-gradient-to-r from-purple-400 to-pink-500" style={{ width: `${Math.min(100, Math.max(0, row.margin) / Math.max(data?.topDeals[0]?.margin || 1, 1) * 100)}%` }} /></div>

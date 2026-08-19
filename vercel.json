@@ -9,6 +9,14 @@
     {
       "path": "/api/cron/fx-rate-daily",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/daily-report",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/monthly-report",
+      "schedule": "0 1 1 * *"
     }
   ]
 }

@@ -99,6 +99,25 @@ describe('paginateMeasuredCorporateRows', () => {
     expect(pages.flatMap((page) => page.items)).toEqual(rows)
   })
 
+  it('handles multi-page continuation remainder when fillContinuationFirst is true without losing rows', () => {
+    const rows = Array.from({ length: 30 }, (_, index) => index + 1)
+    const pages = paginateMeasuredCorporateRows(
+      rows,
+      (candidate) => candidate.length <= 10,
+      (candidate) => candidate.length <= 2,
+      20,
+      true,
+    )
+
+    expect(pages.map((page) => ({ final: page.isFinalPage, count: page.items.length }))).toEqual([
+      { final: false, count: 10 },
+      { final: false, count: 10 },
+      { final: false, count: 8 },
+      { final: true, count: 2 },
+    ])
+    expect(pages.flatMap((page) => page.items)).toEqual(rows)
+  })
+
   it('creates an empty final page when a row fits only the continuation template', () => {
     const pages = paginateMeasuredCorporateRows(
       [1],

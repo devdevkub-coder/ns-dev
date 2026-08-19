@@ -122,7 +122,7 @@ export const branchesPageConfig: MasterDataPageConfig = {
 }
 
 export const warehousesPageConfig: MasterDataPageConfig = {
-  apiPath: '/api/master-data/warehouses',
+  apiPath: '/api/master-data/warehouses?kind=stock',
   createLabel: 'เพิ่มคลัง',
   entityName: 'คลัง',
   emptyMessage: 'ไม่พบข้อมูลคลัง',
