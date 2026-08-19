@@ -4312,6 +4312,7 @@ model warehouses {
   stock_transfers_to                                                  stock_transfers[]         @relation("stock_transfers_to_warehouse_idTowarehouses")
   branches                                                            branches?                 @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   weight_ticket_lines                                                 weight_ticket_lines[]
+  warehouse_kpi_evaluations                                           warehouse_kpi_evaluations[]
 
   @@schema("public")
 }
@@ -4971,4 +4972,27 @@ enum one_time_token_type {
   phone_change_token
 
   @@schema("auth")
+}
+
+/// Warehouse KPI daily evaluations scored by supervisors
+model warehouse_kpi_evaluations {
+  id             BigInt    @id @default(autoincrement())
+  eval_date      DateTime  @db.Date
+  warehouse_id   BigInt
+  warehouse_code String
+  warehouse_name String
+  accuracy       Int       @default(3)
+  speed          Int       @default(3)
+  target_hit     Int       @default(3)
+  avg_score      Decimal   @db.Decimal(2, 1)
+  problems       String?   @default("")
+  solutions      String?   @default("")
+  evaluated_by   String    @default("")
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @db.Timestamptz(6)
+  warehouses     warehouses @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([eval_date, warehouse_id])
+  @@map("warehouse_kpi_evaluations")
+  @@schema("public")
 }

@@ -87,6 +87,7 @@ function hasExpectedDelegates(client: PrismaClient) {
     && typeof clientRecord.stock_issue_status_logs?.createMany === 'function'
     && typeof clientRecord.system_settings?.findMany === 'function'
     && typeof clientRecord.line_groups?.findMany === 'function'
+    && typeof clientRecord.warehouse_kpi_evaluations?.findMany === 'function'
     && hasAccountSubtypeField
     && hasAppUserProfileFields
     && hasCompanyProfileBranchIdField

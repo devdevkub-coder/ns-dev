@@ -64,6 +64,7 @@ const exactPathPermissions: Record<string, string> = {
   '/admin/migration-tools': 'system.backup.manage',
   '/admin/system-settings': 'system.settings.manage',
   '/admin/transaction-ledger': FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger,
+  '/admin/warehouse-kpi': 'system.settings.manage',
   '/admin/roles-permissions': 'system.roles.view',
   '/admin/users': 'system.users.view',
   '/admin/users-permissions': 'system.users.view',
@@ -74,6 +75,7 @@ const exactPathPermissions: Record<string, string> = {
   '/api/admin/auth-events': 'system.audit.view',
   '/api/admin/transaction-ledger': FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger,
   '/api/admin/users': 'system.users.view',
+  '/api/warehouse-kpi': 'system.settings.manage',
   '/api/daily/payment-approval': 'daily.payment_approval.view',
   '/api/daily/bill-swap-history': 'purchase.bills.view',
   '/api/daily/expenses': 'daily.expenses.view',
@@ -344,6 +346,7 @@ const accountingPeriodsEnabled = process.env.NEXT_PUBLIC_ENABLE_ACCOUNTING_PERIO
 export const navigationItems: NavigationItem[] = [
   { href: '/owner-daily', icon: '☀️', label: 'Owner Daily Control', section: 'main' },
   { href: '/daily-report', icon: '📰', label: 'Daily Report', section: 'main' },
+  { href: '/admin/warehouse-kpi', icon: '⭐', label: 'ประเมิน KPI โกดัง', section: 'main' },
   { href: '/analytics-dashboard', icon: '📈', label: 'Analytics Dashboard', section: 'main' },
   { href: '/dashboard-overview', icon: '📊', label: 'Dashboard Overview', section: 'main' },
   { href: '/profit-cost-analysis', icon: '💎', label: 'Profit & Cost Analysis', section: 'main' },
