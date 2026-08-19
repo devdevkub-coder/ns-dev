@@ -30,6 +30,27 @@ export type AppAuthContext = {
   roles: AppRoleSummary[]
 }
 
+type AuthActorAppUser = Pick<NonNullable<AppAuthContext['appUser']>, 'displayName' | 'email' | 'id' | 'username'>
+
+export type AuthActorContext = {
+  appUser: AuthActorAppUser | null
+  authUser: Pick<User, 'email' | 'id'>
+}
+
+export type AuthContextTimingStage = 'auth' | 'app_user'
+
+export type AuthContextTiming = {
+  onStage?: (stage: AuthContextTimingStage, durationMs: number) => void
+}
+
+export type LoginAuthContext = {
+  appUser: AuthActorAppUser & {
+    active: boolean
+    mustChangePassword: boolean
+  }
+  authUser: User
+}
+
 export class AuthContextError extends Error {
   status: number
 
@@ -91,10 +112,23 @@ const appUserAuthSelect = {
   },
 } as const
 
+const appUserLoginSelect = {
+  active: true,
+  auth_user_id: true,
+  display_name: true,
+  email: true,
+  id: true,
+  must_change_password: true,
+} as const
+
 const APP_USER_CONTEXT_CACHE_TTL_MS = 10_000
 
 type AppUserContextRow = NonNullable<Prisma.app_usersGetPayload<{
   select: typeof appUserAuthSelect
+}>>
+
+type AppUserLoginRow = NonNullable<Prisma.app_usersGetPayload<{
+  select: typeof appUserLoginSelect
 }>>
 
 type AppUserContextCacheEntry = {
@@ -162,7 +196,7 @@ async function findAppUserWithAuth(where: Parameters<typeof prisma.app_users.fin
 
 type AppUserWithAuth = NonNullable<Awaited<ReturnType<typeof findAppUserWithAuth>>>
 
-function fallbackUsername(appUser: Pick<AppUserWithAuth, 'display_name' | 'email' | 'id'>, user: User) {
+function fallbackUsername(appUser: Pick<AppUserLoginRow, 'display_name' | 'email' | 'id'>, user: User) {
   const email = appUser.email?.trim() || user.email?.trim()
   if (email) return email
 
@@ -263,6 +297,49 @@ export async function getCurrentAuthContext(): Promise<AppAuthContext> {
 
   const appUser = await findAppUserWithAuth({ auth_user_id: user.id })
   return buildAppUserContext(appUser, user)
+}
+
+export async function getCurrentLoginContext(timing: AuthContextTiming = {}): Promise<LoginAuthContext> {
+  const supabase = await getSupabaseServerClient()
+  const authStartedAt = performance.now()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser().finally(() => {
+    timing.onStage?.('auth', performance.now() - authStartedAt)
+  })
+
+  if (authError || !user) {
+    throw new AuthContextError('กรุณาเข้าสู่ระบบ', 401)
+  }
+
+  const appUserStartedAt = performance.now()
+  const appUser = await prisma.app_users.findUnique({
+    select: appUserLoginSelect,
+    where: { auth_user_id: user.id },
+  }).finally(() => {
+    timing.onStage?.('app_user', performance.now() - appUserStartedAt)
+  })
+
+  if (!appUser) {
+    throw new AuthContextError('ไม่พบข้อมูลผู้ใช้งานในระบบ', 403)
+  }
+
+  if (!appUser.active) {
+    throw new AuthContextError('บัญชีนี้ถูกปิดใช้งาน', 403)
+  }
+
+  return {
+    appUser: {
+      active: appUser.active,
+      displayName: appUser.display_name,
+      email: appUser.email,
+      id: appUser.id,
+      mustChangePassword: appUser.must_change_password,
+      username: fallbackUsername(appUser, user),
+    },
+    authUser: user,
+  }
 }
 
 export function hasPermission(context: AppAuthContext, permissionCode: string) {

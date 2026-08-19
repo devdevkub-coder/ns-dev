@@ -1,6 +1,9 @@
-import type { AppAuthContext } from '@/lib/server/auth-context'
+import type { AuthActorContext } from '@/lib/server/auth-context'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
+import type { PrismaClient } from '../../../generated/prisma/client'
+
+export type AuditDatabaseClient = Pick<PrismaClient, '$executeRaw'>
 
 type LogMetadata = Record<string, boolean | number | string | null>
 
@@ -28,7 +31,8 @@ type AuditLogInput = {
   action?: AuditAction
   afterData?: unknown
   beforeData?: unknown
-  context: AppAuthContext
+  context: AuthActorContext
+  db?: AuditDatabaseClient
   diff?: unknown
   entityId?: string | null
   entityLabel?: string | null
@@ -47,7 +51,7 @@ type AuditLogInput = {
 type ActivityLogInput = {
   activityKey: string
   activityType: 'action' | 'export' | 'filter' | 'navigation' | 'page_view' | 'search' | 'session' | 'system'
-  context: AppAuthContext
+  context: AuthActorContext
   description?: string | null
   metadata?: LogMetadata
   referrer?: string | null
@@ -97,6 +101,7 @@ export async function recordAuditLog({
   afterData = null,
   beforeData = null,
   context,
+  db = prisma,
   diff = null,
   entityId = null,
   entityLabel = null,
@@ -114,7 +119,7 @@ export async function recordAuditLog({
   const actorAppUserId = parseInternalBigIntId(context.appUser?.id)
 
   try {
-    await prisma.$executeRaw`
+      await db.$executeRaw`
       insert into public.app_audit_logs (
         event_key,
         action,

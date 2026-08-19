@@ -204,14 +204,24 @@ export function AppShell({ children }: AppShellProps) {
   }, [isAuthPage, pathname, title])
 
   useEffect(() => {
-    if (isAuthPage) return
-
     let mounted = true
     const handleAuthIdentityChanged = () => {
       invalidateAuthMeCache()
       setAuthContext(null)
     }
     window.addEventListener('ns-scrap-erp:auth-identity-changed', handleAuthIdentityChanged)
+
+    if (isAuthPage) {
+      // Clear the previous account summary while the user is on the auth
+      // surface so the next protected page must fetch the new identity.
+      invalidateAuthMeCache()
+      setAuthContext(null)
+      setAuthLoadError(null)
+      return () => {
+        mounted = false
+        window.removeEventListener('ns-scrap-erp:auth-identity-changed', handleAuthIdentityChanged)
+      }
+    }
 
     async function loadAuthContext() {
       const cached = cachedAuthMe

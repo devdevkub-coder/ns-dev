@@ -3,12 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('server-only', () => ({}))
 
 const mocks = vi.hoisted(() => ({
-  authContextErrorResponse: vi.fn((error: unknown) => Response.json({ error: error instanceof Error ? error.message : 'failed' }, { status: 500 })),
+  authContextErrorResponse: vi.fn((error: unknown) => {
+    const status = typeof error === 'object' && error !== null && 'status' in error && typeof error.status === 'number'
+      ? error.status
+      : 500
+    return Response.json({ error: error instanceof Error ? error.message : 'failed' }, { status })
+  }),
   findUnique: vi.fn(),
   getCurrentAuthContext: vi.fn(),
+  getCurrentLoginContext: vi.fn(),
   getSupabaseServerClient: vi.fn(),
   recordAuthAuditEvent: vi.fn(),
   serializeAuthContext: vi.fn(),
+  transaction: vi.fn(),
   update: vi.fn(),
 }))
 
@@ -16,6 +23,7 @@ vi.mock('@/lib/server/auth-audit', () => ({ recordAuthAuditEvent: mocks.recordAu
 vi.mock('@/lib/server/auth-context', () => ({
   authContextErrorResponse: mocks.authContextErrorResponse,
   getCurrentAuthContext: mocks.getCurrentAuthContext,
+  getCurrentLoginContext: mocks.getCurrentLoginContext,
   getSupabaseServerClient: mocks.getSupabaseServerClient,
   serializeAuthContext: mocks.serializeAuthContext,
 }))
@@ -25,6 +33,7 @@ vi.mock('@/lib/server/prisma', () => ({
       findUnique: mocks.findUnique,
       update: mocks.update,
     },
+    $transaction: mocks.transaction,
   },
 }))
 
@@ -41,9 +50,15 @@ const context = {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.getCurrentAuthContext.mockResolvedValue(context)
+  mocks.getCurrentLoginContext.mockImplementation(async (timing?: { onStage?: (stage: string, durationMs: number) => void }) => {
+    timing?.onStage?.('auth', 1)
+    timing?.onStage?.('app_user', 2)
+    return context
+  })
   mocks.serializeAuthContext.mockReturnValue({ id: '42' })
   mocks.update.mockResolvedValue({})
   mocks.recordAuthAuditEvent.mockResolvedValue(undefined)
+  mocks.transaction.mockImplementation(async (operation: (transaction: unknown) => Promise<unknown>) => operation({ app_users: { update: mocks.update } }))
   mocks.findUnique.mockResolvedValue({
     account_status: 'active',
     email: 'user@example.com',
@@ -68,7 +83,30 @@ describe('auth route cache policy', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Server-Timing')).toMatch(/auth;dur=1\.0/)
+    expect(response.headers.get('Server-Timing')).toMatch(/app_user;dur=2\.0/)
+    expect(response.headers.get('Server-Timing')).toMatch(/last_login;dur=/)
+    expect(response.headers.get('Server-Timing')).toMatch(/audit;dur=/)
+    expect(response.headers.get('Server-Timing')).toMatch(/total;dur=/)
+    expect(mocks.transaction).toHaveBeenCalledTimes(1)
     await expect(response.json()).resolves.toEqual(expect.objectContaining({ authUserId: 'auth-user-id' }))
+  })
+
+  it.each([
+    [401, 'กรุณาเข้าสู่ระบบ'],
+    [403, 'ไม่พบข้อมูลผู้ใช้งานในระบบ'],
+    [403, 'บัญชีนี้ถูกปิดใช้งาน'],
+  ])('does not write login state when login context fails with %s', async (status, message) => {
+    mocks.getCurrentLoginContext.mockRejectedValue(Object.assign(new Error(message), { status }))
+
+    const response = await postLoginComplete(new Request('http://localhost/api/auth/login-complete', { method: 'POST' }))
+
+    expect(response.status).toBe(status)
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.recordAuthAuditEvent).not.toHaveBeenCalled()
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Server-Timing')).toMatch(/total;dur=/)
   })
 
   it('marks POST /api/auth/password-changed as private no-store without changing its payload contract', async () => {

@@ -5,7 +5,7 @@ tags:
   - auth
   - permissions
 status: draft
-updated: 2026-06-11
+updated: 2026-08-19
 ---
 
 # System Supporting Flows
@@ -33,6 +33,7 @@ updated: 2026-06-11
 | Area | Current API | Purpose |
 |---|---|---|
 | Auth | `GET /api/auth/me` | อ่าน current authenticated user/session context |
+| Auth | `POST /api/auth/login-complete` | ยืนยัน session หลัง password login, ตรวจ app user แบบ identity-only, บันทึกเวลา login และ auth audit |
 | Auth | `POST /api/auth/forgot-password` | request reset password flow |
 | Auth | `POST /api/auth/password-changed` | record/handle password changed state |
 | Admin users | `GET/POST /api/admin/users` | list/create/manage users |
@@ -54,6 +55,15 @@ updated: 2026-06-11
 - Admin/Owner may have broader branch visibility, but UI labels such as `ทุกสาขา` must mean every branch the user is allowed to access
 - Document numbers, actor, created date, created by, and audit timestamps are server-owned
 - Business transaction APIs must fail closed when user/branch permission cannot be resolved
+
+## Password Login Completion Performance Contract
+
+1. Browser เรียก Supabase `signInWithPassword` เพื่อยืนยัน credential และรับ session
+2. `POST /api/auth/login-complete` ตรวจ session ฝั่ง server และอ่านเฉพาะ `auth_user_id`, `active`, `id`, display name/email และสถานะเปลี่ยน password ของ `app_users`; ไม่โหลด role, permission หรือ branch ซ้ำในขั้นตอนนี้
+3. ระบบบันทึก `last_login_at` และเขียน `app_audit_logs` กับ `app_auth_events` ใน transaction เดียวกัน ให้ครบก่อนตอบ success; หากงานใดล้มเหลวต้อง rollback ทั้งชุด
+4. Response ใช้ `private, no-store` และ `Server-Timing` แยก `auth`, `app_user`, `last_login`, `audit`, `total` เพื่อวัด latency โดยไม่บันทึก password, token หรือ secret
+5. หลัง redirect หน้า `/api/auth/me` จึงโหลด context เต็มสำหรับ permission และ branch scope; login completion ไม่ใช้ fallback จาก `getSession()` เพื่ออนุญาตสิทธิ์
+6. `AppShell` ต้อง invalidate summary cache เมื่ออยู่บนหน้า auth และเมื่อได้รับ `ns-scrap-erp:auth-identity-changed` เพื่อไม่ให้ account switch ใช้ permission/role summary ของบัญชีเดิม
 
 ## Page Separation Rule
 

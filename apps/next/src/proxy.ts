@@ -3,9 +3,20 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { permissionCodesForPath } from '@/lib/navigation'
 import { applyAuthResponseHeaders } from '@/lib/proxy-auth-headers'
 
-const publicPaths = new Set(['/login', '/forgot-password', '/reset-password', '/api/auth/forgot-password', '/api/health', '/api/line/webhook'])
+const publicPaths = new Set([
+  '/login',
+  '/forgot-password',
+  '/reset-password',
+  '/api/auth/forgot-password',
+  // Login completion performs its own verified auth-context lookup. Keeping
+  // it out of the global proxy auth pass avoids reading/refreshing the newly
+  // written Supabase cookie twice during the same browser login flow.
+  '/api/auth/login-complete',
+  '/api/health',
+  '/api/line/webhook',
+])
 
-function isPublicPath(pathname: string) {
+export function isPublicPath(pathname: string) {
   return publicPaths.has(pathname) || pathname.startsWith('/_next') || pathname.startsWith('/favicon')
 }
 

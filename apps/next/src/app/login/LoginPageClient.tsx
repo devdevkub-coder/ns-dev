@@ -150,7 +150,6 @@ export function LoginPageClient() {
 
         window.dispatchEvent(new Event('ns-scrap-erp:auth-identity-changed'))
 
-        await supabase.auth.getSession().catch(() => undefined)
         setIdentifier('')
         setPassword('')
         const redirectParam = searchParams.get('redirect')
