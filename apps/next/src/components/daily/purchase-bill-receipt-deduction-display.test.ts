@@ -10,6 +10,10 @@ const pageSource = readFileSync(
   fileURLToPath(new URL('./TransactionBillsPageClient.tsx', import.meta.url)),
   'utf8',
 ).replaceAll('\r\n', '\n')
+const detailSource = readFileSync(
+  fileURLToPath(new URL('../../lib/server/purchase-bill-detail.ts', import.meta.url)),
+  'utf8',
+).replaceAll('\r\n', '\n')
 
 describe('purchase bill receipt weight display', () => {
   it('starts from WTI weight after container deduction and keeps impurity deduction separate', () => {
@@ -24,7 +28,11 @@ describe('purchase bill receipt weight display', () => {
     expect(pageSource).toContain('const nextForm = detail.editForm')
     expect(pageSource).toContain('setPurchaseFormExpectedUpdatedAt(detail.updatedAt)')
     expect(pageSource).toContain('function receiptSnapshotFromPurchaseForm(detail: PurchaseBillDetail, sourceForm: PurchaseBillFormValues)')
-    expect(pageSource).toContain('detail.allocationRows.find((allocation) => allocation.lineNo === index + 1)?.productName')
+    expect(pageSource).toContain('detail.allocationRows.find((allocation) => allocation.lineNo === (item.lineNo ?? index + 1))?.productName')
     expect(pageSource).toContain('dailyFetchJson<PurchaseBillDetail>(`/api/purchase/bills/${encodeURIComponent(docNo)}`)')
+  })
+
+  it('uses only active receipt allocations in the purchase bill detail read model', () => {
+    expect(detailSource).toContain("const allocationRows = bill.purchase_bill_items.map((item, index) => {\n    const receiptAllocation = item.purchase_bill_receipt_allocations?.allocation_status === 'active'")
   })
 })

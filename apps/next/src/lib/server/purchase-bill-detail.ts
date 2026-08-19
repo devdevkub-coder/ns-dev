@@ -593,7 +593,9 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
   })
 
   const allocationRows = bill.purchase_bill_items.map((item, index) => {
-    const receiptAllocation = item.purchase_bill_receipt_allocations
+    const receiptAllocation = item.purchase_bill_receipt_allocations?.allocation_status === 'active'
+      ? item.purchase_bill_receipt_allocations
+      : null
     const poAllocation = item.purchase_bill_po_allocations
     const allocatedGrossWeight = receiptAllocation ? toNumber(receiptAllocation.allocated_gross_weight) : toNumber(item.gross_weight)
     const allocatedDeductWeight = receiptAllocation ? toNumber(receiptAllocation.allocated_deduct_weight) : toNumber(item.deduct_weight)
