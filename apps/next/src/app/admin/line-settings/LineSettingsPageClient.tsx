@@ -550,6 +550,9 @@ export function LineSettingsPageClient() {
     setTargetFormBaseline(null)
   }, [])
   const openRuleForm = useCallback((rule: Partial<RoutingRule>) => {
+    if (rule.conditions?.scheduleTime) {
+      setForm((current) => ({ ...current, dailyReportScheduleTime: rule.conditions?.scheduleTime || current.dailyReportScheduleTime }))
+    }
     setRuleFormBaseline(JSON.stringify(rule))
     setEditingRule(rule)
     setIsRuleModalOpen(true)
@@ -1157,7 +1160,12 @@ export function LineSettingsPageClient() {
       const method = isEdit ? 'PATCH' : 'POST'
       const targetName = targets.find((target) => target.target_id === editingRule.target_id)?.display_name || 'LINE'
       const documentNames = documentTypes.map((type) => lineDocumentTypeOptions.find((option) => option.type === type)?.label || type)
-      const conditions = { ...editingRule.conditions, documentTypes }
+      const selectedScheduleTime = editingRule.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'
+      const conditions: RoutingRuleConditions = {
+        ...editingRule.conditions,
+        documentTypes,
+        ...(documentTypes.includes('DAILY') ? { scheduleTime: selectedScheduleTime } : {}),
+      }
       if (!documentTypes.some((type) => type === 'WTI' || type === 'WTO')) {
         delete conditions.minNetWeight
         delete conditions.maxNetWeight
@@ -3216,24 +3224,40 @@ export function LineSettingsPageClient() {
                       <input
                         type="time"
                         className="h-10 w-32 rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-1.5 font-mono text-sm font-bold text-slate-900 focus:border-emerald-500 focus:outline-none dark:bg-amber-200/15"
-                        value={form.dailyReportScheduleTime || '18:00'}
-                        onChange={(e) => setForm({ ...form, dailyReportScheduleTime: e.target.value })}
+                        value={editingRule.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setForm((prev) => ({ ...prev, dailyReportScheduleTime: val }))
+                          setEditingRule((prev) => prev ? ({
+                            ...prev,
+                            conditions: { ...prev.conditions, scheduleTime: val },
+                          }) : null)
+                        }}
                       />
                       <div className="flex flex-wrap gap-1">
-                        {['17:00', '17:30', '18:00', '18:30', '19:00', '20:00'].map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            className={`rounded border px-2.5 py-1 text-xs font-mono transition ${
-                              form.dailyReportScheduleTime === preset
-                                ? 'border-emerald-600 bg-emerald-600 text-white font-bold shadow-xs'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                            }`}
-                            onClick={() => setForm({ ...form, dailyReportScheduleTime: preset })}
-                          >
-                            {preset}
-                          </button>
-                        ))}
+                        {['17:00', '17:30', '18:00', '18:30', '19:00', '20:00'].map((preset) => {
+                          const currentVal = editingRule.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'
+                          return (
+                            <button
+                              key={preset}
+                              type="button"
+                              className={`rounded border px-2.5 py-1 text-xs font-mono transition ${
+                                currentVal === preset
+                                  ? 'border-emerald-600 bg-emerald-600 text-white font-bold shadow-xs'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                              }`}
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, dailyReportScheduleTime: preset }))
+                                setEditingRule((prev) => prev ? ({
+                                  ...prev,
+                                  conditions: { ...prev.conditions, scheduleTime: preset },
+                                }) : null)
+                              }}
+                            >
+                              {preset}
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
                     <p className="text-xs text-slate-500">
