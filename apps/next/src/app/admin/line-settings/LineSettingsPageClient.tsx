@@ -83,6 +83,7 @@ type RoutingRuleConditions = {
   requiresImages?: boolean
   requiresScalePhoto?: boolean
   scheduleTime?: string
+  monthlyScheduleTime?: string
   timeWindows?: unknown[]
 }
 
@@ -558,11 +559,12 @@ export function LineSettingsPageClient() {
   }, [])
   const openRuleForm = useCallback((rule: Partial<RoutingRule>) => {
     if (rule.conditions?.scheduleTime) {
-      if (rule.conditions.documentTypes?.includes('MONTHLY')) {
-        setForm((current) => ({ ...current, monthlyReportScheduleTime: rule.conditions?.scheduleTime || current.monthlyReportScheduleTime }))
-      } else {
-        setForm((current) => ({ ...current, dailyReportScheduleTime: rule.conditions?.scheduleTime || current.dailyReportScheduleTime }))
-      }
+      setForm((current) => ({ ...current, dailyReportScheduleTime: rule.conditions?.scheduleTime || current.dailyReportScheduleTime }))
+    }
+    if (rule.conditions?.monthlyScheduleTime) {
+      setForm((current) => ({ ...current, monthlyReportScheduleTime: rule.conditions?.monthlyScheduleTime || current.monthlyReportScheduleTime }))
+    } else if (rule.conditions?.scheduleTime && rule.conditions.documentTypes?.includes('MONTHLY') && !rule.conditions.documentTypes?.includes('DAILY')) {
+      setForm((current) => ({ ...current, monthlyReportScheduleTime: rule.conditions?.scheduleTime || current.monthlyReportScheduleTime }))
     }
     setRuleFormBaseline(JSON.stringify(rule))
     setEditingRule(rule)
@@ -1172,12 +1174,12 @@ export function LineSettingsPageClient() {
       const targetName = targets.find((target) => target.target_id === editingRule.target_id)?.display_name || 'LINE'
       const documentNames = documentTypes.map((type) => lineDocumentTypeOptions.find((option) => option.type === type)?.label || type)
       const selectedDailyTime = editingRule.conditions?.scheduleTime || form.dailyReportScheduleTime || '18:00'
-      const selectedMonthlyTime = editingRule.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'
+      const selectedMonthlyTime = editingRule.conditions?.monthlyScheduleTime || form.monthlyReportScheduleTime || '08:00'
       const conditions: RoutingRuleConditions = {
         ...editingRule.conditions,
         documentTypes,
         ...(documentTypes.includes('DAILY') ? { scheduleTime: selectedDailyTime } : {}),
-        ...(documentTypes.includes('MONTHLY') ? { scheduleTime: selectedMonthlyTime } : {}),
+        ...(documentTypes.includes('MONTHLY') ? { monthlyScheduleTime: selectedMonthlyTime } : {}),
       }
       if (!documentTypes.some((type) => type === 'WTI' || type === 'WTO')) {
         delete conditions.minNetWeight
@@ -2619,7 +2621,7 @@ export function LineSettingsPageClient() {
                                   )}
                                   {r.conditions?.documentTypes?.includes('MONTHLY') && (
                                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">
-                                      🗓️ สรุปเดือน ทุกวันที่ 1 เวลา {r.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'} น.
+                                      🗓️ สรุปเดือน ทุกวันที่ 1 เวลา {r.conditions?.monthlyScheduleTime || r.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'} น.
                                     </span>
                                   )}
                                   {r.description && <span className="text-xs text-slate-400">{r.description}</span>}
@@ -3274,10 +3276,16 @@ export function LineSettingsPageClient() {
                         type="button"
                         onClick={() => {
                           const current = new Set<LineDocumentType>(editingRule.conditions?.documentTypes ?? [])
-                          if (selected) current.delete(option.type)
-                          else {
+                          if (selected) {
+                            current.delete(option.type)
+                          } else {
                             if (option.type === 'DAILY' || option.type === 'MONTHLY') {
-                              current.clear()
+                              current.delete('PB')
+                              current.delete('SB')
+                              current.delete('PMT')
+                              current.delete('RCP')
+                              current.delete('WTI')
+                              current.delete('WTO')
                             } else if (option.type === 'WTI' || option.type === 'WTO') {
                               current.delete('PB')
                               current.delete('SB')
@@ -3404,19 +3412,19 @@ export function LineSettingsPageClient() {
                       <input
                         type="time"
                         className="h-10 w-32 rounded-md border border-slate-300 bg-[#FFF7CC] px-3 py-1.5 font-mono text-sm font-bold text-slate-900 focus:border-blue-500 focus:outline-none dark:bg-amber-200/15"
-                        value={editingRule.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'}
+                        value={editingRule.conditions?.monthlyScheduleTime || form.monthlyReportScheduleTime || '08:00'}
                         onChange={(e) => {
                           const val = e.target.value
                           setForm((prev) => ({ ...prev, monthlyReportScheduleTime: val }))
                           setEditingRule((prev) => prev ? ({
                             ...prev,
-                            conditions: { ...prev.conditions, scheduleTime: val },
+                            conditions: { ...prev.conditions, monthlyScheduleTime: val },
                           }) : null)
                         }}
                       />
                       <div className="flex flex-wrap gap-1">
                         {['07:30', '08:00', '08:30', '09:00', '18:00'].map((preset) => {
-                          const currentVal = editingRule.conditions?.scheduleTime || form.monthlyReportScheduleTime || '08:00'
+                          const currentVal = editingRule.conditions?.monthlyScheduleTime || form.monthlyReportScheduleTime || '08:00'
                           return (
                             <button
                               key={preset}
@@ -3430,7 +3438,7 @@ export function LineSettingsPageClient() {
                                 setForm((prev) => ({ ...prev, monthlyReportScheduleTime: preset }))
                                 setEditingRule((prev) => prev ? ({
                                   ...prev,
-                                  conditions: { ...prev.conditions, scheduleTime: preset },
+                                  conditions: { ...prev.conditions, monthlyScheduleTime: preset },
                                 }) : null)
                               }}
                             >

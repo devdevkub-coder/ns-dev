@@ -24,12 +24,8 @@ export function lineRuleConditionsValidationError(conditions: Record<string, unk
     return 'กรุณาแยกใบรับ-ส่งของกับเอกสารการเงินเป็นคนละกฎ'
   }
 
-  if (hasDailyReport && (hasWeightTicket || hasFinancialDocument)) {
-    return 'กรุณาแยกสรุปประจำวัน (DAILY) เป็นกฎของตัวเอง'
-  }
-
-  if (hasMonthlyReport && (hasWeightTicket || hasFinancialDocument || hasDailyReport)) {
-    return 'กรุณาแยกสรุปประจำเดือน (MONTHLY) เป็นกฎของตัวเอง'
+  if ((hasDailyReport || hasMonthlyReport) && (hasWeightTicket || hasFinancialDocument)) {
+    return 'กรุณาแยกรายงานสรุป (DAILY / MONTHLY) เป็นคนละกฎกับใบชั่งหรือเอกสารการเงิน'
   }
 
   const hasWeightOrPhotoCondition = [
