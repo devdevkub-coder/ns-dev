@@ -354,6 +354,7 @@ function buildIncrementalFormValues(
     collaborationChangedHeaderFields: Object.keys(header) as Array<'branchId' | 'partyId' | 'remark' | 'vehicleImageNames' | 'vehicleNo' | 'godownName'>,
     id: String(existing.id),
     lines: scopedLines,
+    allowEmptyProductImages: true,
     partyId: effectiveHeader.partyId,
     remark: effectiveHeader.remark,
     saveScope: patch.scope,
