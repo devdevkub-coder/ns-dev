@@ -10,6 +10,12 @@ export function shouldWarnWeightTicketRealtimeStatus(status: string, disposed = 
   return !disposed && status !== 'SUBSCRIBED'
 }
 
+function maskRealtimeUserId(userId: string | undefined) {
+  if (!userId) return null
+  if (userId.length <= 8) return '***'
+  return `${userId.slice(0, 4)}…${userId.slice(-4)}`
+}
+
 export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEvent) => void, enabled = true, branchIds: string[] = []) {
   const onChangeRef = useRef(onChange)
 
@@ -31,9 +37,14 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
     const startedAt = performance.now()
     const pendingEvents = new Map<string, { event: WeightTicketChangeEvent; timeoutId: ReturnType<typeof setTimeout> }>()
 
-    const debugLogging = process.env.NODE_ENV !== 'production'
+    const debugLogging = true
     const logDebug = (message: string, details: Record<string, unknown>) => {
-      if (debugLogging) console.info(message, details)
+      if (debugLogging) {
+        console.info(message, {
+          ...details,
+          pathname: typeof window === 'undefined' ? undefined : window.location.pathname,
+        })
+      }
     }
 
     const emitChange = (payload: WeightTicketChangeEvent, branchId: string) => {
@@ -62,11 +73,15 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
       // browser client normally propagates it automatically, but explicitly
       // setting it here removes the auth/subscription race on a freshly opened
       // tab or after a session refresh.
-      const { data: sessionData } = await supabase.auth.getSession()
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
       if (disposed) return
       logDebug('[weight-ticket-realtime] subscribe.auth', {
         subscriptionId,
         authenticated: Boolean(sessionData.session),
+        hasAccessToken: Boolean(sessionData.session?.access_token),
+        sessionUserId: maskRealtimeUserId(sessionData.session?.user.id),
+        sessionError: sessionError ? { name: sessionError.name, message: sessionError.message } : null,
+        branchCount: uniqueBranchIds.length,
         durationMs: Math.round(performance.now() - startedAt),
       })
       await supabase.realtime.setAuth(sessionData.session?.access_token ?? null)
@@ -96,6 +111,8 @@ export function useWeightTicketRealtime(onChange: (event: WeightTicketChangeEven
           logDebug('[weight-ticket-realtime] subscribe.status', {
             subscriptionId,
             branchId,
+            channelName: weightTicketRealtimeChannel(branchId),
+            channelCount: channels.length,
             status,
             durationMs: Math.round(performance.now() - startedAt),
             errorName: error?.name,
