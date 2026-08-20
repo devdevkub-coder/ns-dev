@@ -45,6 +45,7 @@ import {
 } from '@/lib/server/weight-tickets'
 import { assertWeightTicketImageAssetOwnership, attachWeightTicketImageAssets, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
 import { publishWeightTicketChange } from '@/lib/server/weight-ticket-realtime'
+import { readWeightTicketInTransaction } from '@/lib/server/weight-ticket-transaction-read'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -380,10 +381,7 @@ export async function POST(request: Request) {
         values.lines.map((line, index) => ({ clientId: line.id, lineNo: index + 1 })),
         createdLines,
       )
-      const ticket = await tx.weight_tickets.findUniqueOrThrow({
-        include: weightTicketInclude,
-        where: { id: createdTicket.id },
-      })
+      const ticket = await readWeightTicketInTransaction(tx, createdTicket.id)
       return { lineIdMap, ticket }
     })
 

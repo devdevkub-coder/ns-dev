@@ -7,6 +7,16 @@ const editRouteSource = readFileSync(
   'utf8',
 )
 
+const createRouteSource = readFileSync(
+  resolve(process.cwd(), 'src/app/api/daily/weight-tickets/route.ts'),
+  'utf8',
+)
+
+const transactionReadSource = readFileSync(
+  resolve(process.cwd(), 'src/lib/server/weight-ticket-transaction-read.ts'),
+  'utf8',
+)
+
 const stockHoldsSource = readFileSync(
   resolve(process.cwd(), 'src/lib/server/stock-holds.ts'),
   'utf8',
@@ -50,14 +60,16 @@ describe('weight-ticket transaction query contract', () => {
   })
 
   it('serializes transaction-backed ticket relation reads instead of using a fan-out include', () => {
-    expect(editRouteSource).toContain('async function readWeightTicketInTransaction(')
     expect(editRouteSource).toContain('const existing = await readWeightTicketInTransaction(tx, ticketId)')
-    expect(editRouteSource).toContain('const productIds = [...new Set([')
-    expect(editRouteSource).toContain('const warehouseIds = [...new Set([')
-    expect(editRouteSource).toContain("ticket.doc_type !== 'WTO' || ticket.customer_id == null")
-    expect(editRouteSource).toContain("ticket.doc_type !== 'WTI' || ticket.supplier_id == null")
-    expect(editRouteSource).toContain('ข้อมูลคลังในรายการที่ ${line.line_no} ไม่ครบ')
     expect(editRouteSource).not.toMatch(/tx\.weight_tickets\.findUniqueOrThrow\(\{/)
+    expect(createRouteSource).toContain('const ticket = await readWeightTicketInTransaction(tx, createdTicket.id)')
+    expect(createRouteSource).not.toMatch(/tx\.weight_tickets\.findUniqueOrThrow\(\{[\s\S]*?include:\s*weightTicketInclude/)
+    expect(transactionReadSource).toContain('const productIds = [...new Set([')
+    expect(transactionReadSource).toContain('const warehouseIds = [...new Set([')
+    expect(transactionReadSource).toContain("ticket.doc_type !== 'WTO' || ticket.customer_id == null")
+    expect(transactionReadSource).toContain("ticket.doc_type !== 'WTI' || ticket.supplier_id == null")
+    expect(transactionReadSource).toContain('ข้อมูลคลังในรายการที่ ${line.line_no} ไม่ครบ')
+    expect(transactionReadSource).not.toContain('Promise.all')
   })
 
   it('serializes all query reads used by transaction-backed WTO stock and pending-out flows', () => {

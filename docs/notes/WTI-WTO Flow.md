@@ -1369,3 +1369,18 @@ transaction เดียวกัน.
 บน mobile เมื่อผู้ใช้เปิดรายละเอียดเต๋าอยู่แล้วกด `บันทึกสินค้านี้` และ server บันทึกสำเร็จ
 โดยไม่มีการแก้ไขเพิ่มระหว่าง request ระบบจะยุบเฉพาะเต๋าที่กำลังเปิดและกลับไปมุมมองสินค้า
 โดยไม่ปิดหน้าสินค้าทั้งชุด. Desktop และการบันทึกจากมุมมองสินค้าโดยตรงยังคง behavior เดิม.
+
+## Transaction query contract ของการสร้างและแก้ไข (2026-08-20)
+
+Transaction ของ WTI/WTO ใช้ PostgreSQL connection เดียว ดังนั้น relation read ที่อยู่ภายใน
+interactive transaction ต้องอ่านเป็น query ที่ `await` ต่อเนื่อง ห้ามใช้ relation `include`
+ที่อาจ fan-out query หรือ `Promise.all` กับ `Prisma.TransactionClient`. Create, edit, delete,
+confirm และ cancel ใช้ `readWeightTicketInTransaction()` ร่วมกันเพื่ออ่าน header, คู่ค้า,
+summary, lines, stock holds, products และ warehouses ตามลำดับ และตรวจข้อมูลที่ relation
+หายแบบ fail-closed.
+
+เหตุผลคือการอ่านข้อมูลให้ครบก่อนคืน response ต้องยังอยู่ใน transaction เดียวกับการเขียน
+และต้องไม่ทำให้ `pg@9` รับ query ซ้อนบน connection เดียว. ส่วน read หลัง transaction ที่ใช้
+`PrismaClient` แบบ pool เช่น usage counts ยังขนานได้ตามปกติ. Realtime `created` เป็น
+invalidation event จึงไม่ใช้ `lineIds` เป็นจำนวนรายการในฐานข้อมูล; client จะโหลดข้อมูลล่าสุด
+จาก API อีกครั้ง.
