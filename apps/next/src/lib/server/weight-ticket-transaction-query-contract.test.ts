@@ -49,6 +49,17 @@ describe('weight-ticket transaction query contract', () => {
     expect(editRouteSource).not.toMatch(/getWeightTicketUsageCounts\(tx\s*,/)
   })
 
+  it('serializes transaction-backed ticket relation reads instead of using a fan-out include', () => {
+    expect(editRouteSource).toContain('async function readWeightTicketInTransaction(')
+    expect(editRouteSource).toContain('const existing = await readWeightTicketInTransaction(tx, ticketId)')
+    expect(editRouteSource).toContain('const productIds = [...new Set([')
+    expect(editRouteSource).toContain('const warehouseIds = [...new Set([')
+    expect(editRouteSource).toContain("ticket.doc_type !== 'WTO' || ticket.customer_id == null")
+    expect(editRouteSource).toContain("ticket.doc_type !== 'WTI' || ticket.supplier_id == null")
+    expect(editRouteSource).toContain('ข้อมูลคลังในรายการที่ ${line.line_no} ไม่ครบ')
+    expect(editRouteSource).not.toMatch(/tx\.weight_tickets\.findUniqueOrThrow\(\{/)
+  })
+
   it('serializes all query reads used by transaction-backed WTO stock and pending-out flows', () => {
     const stockHoldTxFunctionMarkers = [
       'export async function resolveWtoWarehousesForLines',
