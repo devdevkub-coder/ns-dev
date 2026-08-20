@@ -2911,7 +2911,8 @@ export function WeightTicketFormCore({
       await waitForPendingAttachmentUploads(attachmentOwnerIds)
       const latestForm = formRef.current
       const baselineTicket = savedTicketRef.current
-      const baselineLines = new Map(baselineTicket ? baselineTicket.lines.map((line) => [line.id, line] as const) : [])
+      const persistedBaselineLines = baselineTicket?.lines.filter((line) => line.version != null) ?? []
+      const baselineLines = new Map(persistedBaselineLines.map((line) => [line.id, line] as const))
       const latestLinesById = new Map(latestForm.lines.map((line) => [line.id, line]))
       const snapshotToSave: FormState = {
         ...snapshot,
@@ -2984,7 +2985,7 @@ export function WeightTicketFormCore({
       const saveValues: WeightTicketFormValues = {
         branchId: snapshotToSave.branchId,
         collaborationBaseLineIds: baselineLineIds,
-        collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version])),
+        collaborationBaseLineVersions: Object.fromEntries(persistedBaselineLines.map((line) => [line.id, line.version])),
         collaborationChangedLineIds: Array.from(changedLineIds),
         collaborationDeletedLineIds: Array.from(deletedLineIds),
         draftLineIds: Array.from(draftLineIds),
