@@ -17,6 +17,7 @@ export function paginateMeasuredCorporateRows<T>(
   fitsFinalPage: (candidateRows: readonly T[]) => boolean,
   maxRowsPerPage = CORPORATE_PRINT_MAX_ROWS_PER_PAGE,
   fillContinuationFirst = false,
+  requireFinalPageRows = false,
 ): MeasuredCorporatePage<T>[] {
   if (maxRowsPerPage < 1 || !Number.isInteger(maxRowsPerPage)) {
     throw new Error('maxRowsPerPage must be a positive integer')
@@ -25,74 +26,42 @@ export function paginateMeasuredCorporateRows<T>(
   if (rows.length === 0) return [{ isFinalPage: true, items: [], pageNo: 1 }]
 
   if (fillContinuationFirst) {
-    // Pages fill to capacity first; the final page receives the remainder
-    // (reserving totals/signatures). If the remainder overflows the final
-    // page's own capacity, only the overflow stays on a continuation page so
-    // the final page is never left empty. This mirrors the deterministic plan
-    // of the dedicated WTI/WTO paginator used by PDF and LINE so every
-    // pipeline keeps page 1 full before spilling onto page 2.
+    // WTI/WTO contract: fill every earlier page as much as physically possible
+    // while keeping the three empty summary boxes fixed in place. Only the last
+    // page carries the real summary/signatures, and it must never be empty.
     const pages: MeasuredCorporatePage<T>[] = []
     let cursor = 0
+
     while (cursor < rows.length) {
-      const remaining = rows.length - cursor
-      if (remaining <= maxRowsPerPage) {
-        // The tail may exceed what the final template can hold alongside its
-        // totals/signatures. Give the final page as many trailing rows as fit,
-        // pushing only the overflow onto a continuation page.
-        let finalCount = remaining
-        while (finalCount > 0 && !fitsFinalPage(rows.slice(rows.length - finalCount))) {
-          finalCount -= 1
-        }
-        if (finalCount === 0 && !fitsFinalPage([])) {
-          throw new Error(`Corporate print row ${rows.length} is taller than the available A4 page area`)
-        }
-        if (finalCount === remaining) {
-          pages.push({
-            isFinalPage: true,
-            items: [...rows.slice(cursor)],
-            pageNo: pages.length + 1,
-          })
-          return pages
-        }
-        const continuationRemaining = rows.slice(cursor, rows.length - finalCount)
-        if (continuationRemaining.length > 0) {
-          let contCursor = 0
-          while (contCursor < continuationRemaining.length) {
-            let contCount = Math.min(continuationRemaining.length - contCursor, maxRowsPerPage)
-            while (
-              contCount > 0
-              && !fitsContinuationPage(continuationRemaining.slice(contCursor, contCursor + contCount))
-            ) {
-              contCount -= 1
-            }
-            if (contCount === 0) {
-              throw new Error(`Corporate print row ${cursor + contCursor + 1} is taller than the available A4 page area`)
-            }
-            pages.push({
-              isFinalPage: false,
-              items: [...continuationRemaining.slice(contCursor, contCursor + contCount)],
-              pageNo: pages.length + 1,
-            })
-            contCursor += contCount
-          }
-        }
+      const remaining = rows.slice(cursor)
+
+      // As soon as the complete remainder fits the real final-page template,
+      // stop pagination and render that remainder as the final page.
+      if (remaining.length <= maxRowsPerPage && fitsFinalPage(remaining)) {
         pages.push({
           isFinalPage: true,
-          items: [...rows.slice(rows.length - finalCount)],
+          items: [...remaining],
           pageNo: pages.length + 1,
         })
         return pages
       }
-      let continuationCount = maxRowsPerPage
+
+      // Fill the current placeholder-summary page greedily. Always reserve at
+      // least one trailing row for the real final page, otherwise an exact page
+      // boundary would create the blank-summary page the WTI/WTO contract bans.
+      const rowsLeft = rows.length - cursor
+      let continuationCount = Math.min(maxRowsPerPage, Math.max(0, rowsLeft - 1))
       while (
         continuationCount > 0
         && !fitsContinuationPage(rows.slice(cursor, cursor + continuationCount))
       ) {
         continuationCount -= 1
       }
+
       if (continuationCount === 0) {
-        throw new Error(`Corporate print row ${cursor + 1} is taller than the available A4 page area`)
+        throw new Error(`Corporate print row ${cursor + 1} cannot fit before the fixed summary boxes`)
       }
+
       pages.push({
         isFinalPage: false,
         items: [...rows.slice(cursor, cursor + continuationCount)],
@@ -100,9 +69,8 @@ export function paginateMeasuredCorporateRows<T>(
       })
       cursor += continuationCount
     }
-    // Unreachable for non-empty input: the tail branch above always returns.
-    pages.push({ isFinalPage: true, items: [], pageNo: pages.length + 1 })
-    return pages
+
+    throw new Error('Corporate print pagination ended without a real final page')
   }
 
   // Reserve a fitting suffix for the final page first. This prevents a
@@ -112,8 +80,13 @@ export function paginateMeasuredCorporateRows<T>(
   while (finalCount > 0 && !fitsFinalPage(rows.slice(rows.length - finalCount))) {
     finalCount -= 1
   }
-  if (finalCount === 0 && !fitsFinalPage([])) {
-    throw new Error(`Corporate print row ${rows.length} is taller than the available A4 page area`)
+  if (finalCount === 0) {
+    if (!fitsFinalPage([])) {
+      throw new Error(`Corporate print row ${rows.length} is taller than the available A4 page area`)
+    }
+    if (requireFinalPageRows) {
+      throw new Error('หน้าสุดท้ายของใบชั่งต้องมีอย่างน้อย 1 รายการพร้อมกล่องสรุป')
+    }
   }
 
   const pages: MeasuredCorporatePage<T>[] = []
@@ -158,11 +131,12 @@ type CorporatePrintLayoutOptions = {
   /** Dedicated builders (WTI/WTO) already own their row capacities. */
   reflowRows?: boolean
   /**
-   * Fill continuation pages to capacity before spilling the remainder onto the
-   * final page. WTI/WTO form documents opt in so page 1 is always full and the
-   * final page (totals/signatures) receives only the leftover rows.
+   * WTI/WTO: fill earlier pages greedily while their fixed summary boxes stay
+   * empty; render real summary/Weight Info/signatures only on the last page.
    */
   fillContinuationFirst?: boolean
+  /** WTI/WTO: never emit a summary-only final page with zero item rows. */
+  requireFinalPageRows?: boolean
 }
 
 type PrintPageElement = HTMLElement & {
@@ -261,10 +235,36 @@ function setPageMetadata(page: PrintPageElement, pageNo: number, totalPages: num
   })
 }
 
+function guardedContentOverflows(page: PrintPageElement) {
+  const guards = Array.from(page.querySelectorAll<HTMLElement>('[data-print-overflow-guard], .items-frame'))
+  return guards.some((guard) => {
+    if (guard.clientHeight > 0 && (
+      guard.scrollHeight > guard.clientHeight + 1 || guard.scrollWidth > guard.clientWidth + 1
+    )) return true
+
+    // overflow:hidden can keep the outer A4 page's scrollHeight unchanged even
+    // when the final table rows are physically below the visible item frame.
+    // Check row geometry as a second line of defence so a clipped row is always
+    // treated as a pagination overflow instead of silently disappearing.
+    const bounds = guard.getBoundingClientRect()
+    if (bounds.height <= 0 || bounds.width <= 0) return false
+    return Array.from(guard.querySelectorAll<HTMLTableRowElement>('tr[data-row-slot]'))
+      .filter(isRealRow)
+      .some((row) => {
+        const rowBounds = row.getBoundingClientRect()
+        return rowBounds.top < bounds.top - 1
+          || rowBounds.bottom > bounds.bottom + 1
+          || rowBounds.left < bounds.left - 1
+          || rowBounds.right > bounds.right + 1
+      })
+  })
+}
+
 function overflows(page: PrintPageElement) {
-  return page.clientHeight > 0 && (
-    page.scrollHeight > page.clientHeight + 1 || page.scrollWidth > page.clientWidth + 1
-  )
+  if (page.clientHeight <= 0) return false
+  return page.scrollHeight > page.clientHeight + 1
+    || page.scrollWidth > page.clientWidth + 1
+    || guardedContentOverflows(page)
 }
 
 function measureCandidate(
@@ -306,7 +306,7 @@ function continuationPanelTitle(document: Document, title: string) {
   body.className = 'panel-body continuation-panel-body'
   const placeholder = document.createElement('div')
   placeholder.className = 'continuation-placeholder'
-  placeholder.textContent = '-'
+  placeholder.textContent = ''
   body.append(placeholder)
   panel.append(heading, body)
   return panel
@@ -373,12 +373,18 @@ function createContinuationTemplate(finalTemplate: PrintPageElement) {
     child.remove()
   })
 
+  const documentType = finalTemplate.dataset.documentType
+  const isWeightTicket = documentType === 'WTI' || documentType === 'WTO'
+  const marker = parent.ownerDocument.createElement('div')
+  marker.className = 'continuation-signature continued'
+  marker.dataset.continuationSignature = 'true'
+  marker.textContent = '( มีต่อหน้า 2 / Continued on Page 2 ➔ )'
+
   const continuation = parent.ownerDocument.createElement('section')
   continuation.className = Array.from(continuationClasses).join(' ')
   continuation.dataset.continuationSummary = 'placeholder'
   continuation.dataset.continuationPanels = 'placeholder'
   continuation.setAttribute('aria-label', 'Continuation page summary placeholders')
-  const documentType = finalTemplate.dataset.documentType
   const documentTitle = finalTemplate.querySelector<HTMLElement>('.doc-title, h1')?.textContent?.trim().toLowerCase() ?? ''
   const title = /อนุมัติ|approval|cashier/.test(documentTitle)
     ? 'สรุปการอนุมัติจ่าย'
@@ -392,16 +398,17 @@ function createContinuationTemplate(finalTemplate: PrintPageElement) {
             ? 'สรุปค่าใช้จ่าย'
             : 'สรุปตามหมวดสินค้า'
   const panelTitles = [title, 'หมายเหตุ']
-  if (documentType === 'WTI' || documentType === 'WTO') {
-    panelTitles.push('ข้อมูลน้ำหนัก / Weight Info')
-  }
+  if (isWeightTicket) panelTitles.push('ข้อมูลน้ำหนัก / Weight Info')
   continuation.append(...panelTitles.map((panelTitle) => continuationPanelTitle(parent.ownerDocument, panelTitle)))
 
-  const marker = parent.ownerDocument.createElement('div')
-  marker.className = 'continuation-signature continued'
-  marker.dataset.continuationSignature = 'true'
-  marker.textContent = '( มีต่อหน้า 2 / Continued on Page 2 ➔ )'
-  parent.append(continuation, marker, ...preservedFooter)
+  if (isWeightTicket) {
+    const bottomZone = parent.ownerDocument.createElement('section')
+    bottomZone.className = 'bottom-zone'
+    bottomZone.append(continuation, marker)
+    parent.append(bottomZone, ...preservedFooter)
+  } else {
+    parent.append(continuation, marker, ...preservedFooter)
+  }
   return template
 }
 
@@ -661,6 +668,7 @@ export async function prepareCorporatePrintLayout(
         (candidateRows) => measureCandidate(document, finalTemplate, candidateRows, true),
         maxRowsPerPage,
         options.fillContinuationFirst === true,
+        options.requireFinalPageRows === true,
       )
       return { group, allRows, plans }
     })
@@ -705,6 +713,18 @@ export async function prepareCorporatePrintLayout(
 
     const outputPages = Array.from(document.querySelectorAll<PrintPageElement>('[data-corporate-print-page="true"]'))
       .filter((page) => page.querySelector('tbody'))
+
+    // Pagination is allowed to redistribute rows, never to drop or reorder
+    // them. Verify the exact source row-slot sequence before enabling Print.
+    const expectedRowSlots = groupPlans.flatMap(({ allRows }) => allRows.map((row) => row.dataset.rowSlot ?? ''))
+    const renderedRowSlots = outputPages.flatMap((page) => pageRows(page).map((row) => row.dataset.rowSlot ?? ''))
+    if (
+      expectedRowSlots.length !== renderedRowSlots.length
+      || expectedRowSlots.some((slot, index) => slot !== renderedRowSlots[index])
+    ) {
+      throw new Error(`รายการเอกสารหลังจัดหน้าไม่ครบหรือเรียงลำดับผิด (ต้นฉบับ ${expectedRowSlots.length} / พิมพ์ ${renderedRowSlots.length})`)
+    }
+
     const overflowPages = outputPages.filter(overflows).map((page) => page.dataset.printPage ?? '?')
     if (overflowPages.length > 0) throw new Error(`หน้า ${overflowPages.join(', ')} มีเนื้อหาล้นกรอบ A4`)
 

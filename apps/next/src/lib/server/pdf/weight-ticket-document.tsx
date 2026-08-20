@@ -822,7 +822,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
               {isLastPage ? <TableFooter ticket={ticket} isReceipt={isReceipt} /> : <EmptyTableFooter dense={denseTable} />}
             </View>
 
-            {/* Bottom section (last page only); the table container above
+            {/* Bottom section (final page only); the table container above
                 flexes to fill the page, so the bottom sections stay pinned. */}
             {isLastPage ? (
               <View style={styles.bottomZone}>
@@ -900,15 +900,15 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                 <View style={styles.bottomGrid} wrap={false}>
                   <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 1.15 }]}>
                     <Text style={styles.panelTitle}>{nt('สรุปตามหมวดสินค้า')}</Text>
-                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{' '}</Text></View>
                   </View>
                   <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 0.8 }]}>
                     <Text style={styles.panelTitle}>{nt('หมายเหตุ')}</Text>
-                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{' '}</Text></View>
                   </View>
                   <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 1.05 }]}>
                     <Text style={styles.panelTitle}>{nt('ข้อมูลน้ำหนัก / Weight Info')}</Text>
-                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{nt('-')}</Text></View>
+                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{' '}</Text></View>
                   </View>
                 </View>
                 <Text style={[styles.continued, denseTable ? styles.continuedDense : {}]}>{nt(`( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )`)}</Text>

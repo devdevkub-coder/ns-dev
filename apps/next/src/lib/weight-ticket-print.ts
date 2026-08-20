@@ -429,35 +429,28 @@ function largestFittingSuffix(
 }
 
 /**
- * Keep WTI/WTO ordering intact while using a 20-row ceiling and moving a
- * complete long row to the next page. The final page is reserved after the
- * first greedy pass so totals/signatures never get pushed out by the table.
+ * Keep WTI/WTO rows ordered. Every non-final page keeps the three summary
+ * boxes in-place as empty placeholders; only the final page contains real
+ * totals/summary/signatures. A final page with no item rows is never emitted.
  */
 export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: boolean): WeightTicketPrintPage[] {
   const continuationBudget = CONTINUATION_PAGE_ITEM_ROWS
   const finalMaxRows = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
-  const finalBudget = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
+  const finalBudget = isReceipt ? WTI_FINAL_PAGE_HEIGHT_UNITS : WTO_FINAL_PAGE_HEIGHT_UNITS
   const pages: WeightTicketPrintPage[] = []
   let cursor = 0
 
   while (cursor < printRows.length) {
     const items = takeRowsForBudget(printRows, cursor, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
-    if (items.length === 0) {
-      throw new Error('Unable to paginate WTI/WTO print rows without losing data')
-    }
+    if (items.length === 0) throw new Error('Unable to paginate WTI/WTO print rows without losing data')
     pages.push(makePrintPage(items, continuationBudget, isReceipt))
     cursor += items.length
   }
 
-  if (pages.length === 0) {
-    return [makePrintPage([], finalBudget, isReceipt, finalMaxRows)]
-  }
+  if (pages.length === 0) return [makePrintPage([], finalBudget, isReceipt, finalMaxRows)]
 
   const lastIndex = pages.length - 1
   const lastPage = pages[lastIndex]
-  // A final table that reaches its row ceiling needs an entirely short set of
-  // rows. Move one complete row forward when a wrapped row would otherwise
-  // consume the fixed footer/signature reserve.
   const finalRowLimit = lastPage.items.length === finalMaxRows
     && lastPage.items.some((row) => estimatePrintWeightRowHeight(row, isReceipt) > 1)
     ? finalMaxRows - 1
@@ -467,16 +460,9 @@ export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: 
     return pages
   }
 
-  // Move the largest fitting suffix to a new final page. If the current page
-  // is not the first, try to append its prefix to the preceding page before
-  // creating an extra continuation page.
   const splitAt = largestFittingSuffix(lastPage.items, finalBudget, isReceipt, finalRowLimit)
   if (splitAt <= 0) {
-    // The row still fits a continuation form, but cannot coexist with the
-    // final totals/signature reserve. Keep it intact and emit a final page
-    // containing only the reserved final sections.
-    pages.push(makePrintPage([], finalBudget, isReceipt, finalMaxRows))
-    return pages
+    throw new Error('หน้าสุดท้ายของใบชั่งไม่สามารถวางรายการพร้อมกล่องสรุปได้')
   }
 
   const prefix = lastPage.items.slice(0, splitAt)
@@ -484,10 +470,7 @@ export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: 
   const previousPage = pages[lastIndex - 1]
   if (previousPage) {
     const merged = [...previousPage.items, ...prefix]
-    if (
-      merged.length <= WEIGHT_TICKET_MAX_ROWS_PER_PAGE
-      && estimateRowsHeight(merged, isReceipt) <= continuationBudget
-    ) {
+    if (merged.length <= WEIGHT_TICKET_MAX_ROWS_PER_PAGE && estimateRowsHeight(merged, isReceipt) <= continuationBudget) {
       pages.splice(lastIndex - 1, 2, makePrintPage(merged, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE))
       pages.push(makePrintPage(suffix, finalBudget, isReceipt, finalMaxRows))
       return pages
@@ -623,7 +606,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </div>
         </section>
 
-        <div class="items-frame">
+        <div class="items-frame" data-print-overflow-guard="items">
         <table class="items" style="--item-row-slots: ${page.capacity}">
           <thead>
             <tr>
@@ -704,23 +687,14 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </section>
           </section>
         ` : `
-          <section class="bottom-grid" data-continuation-panels="placeholder" aria-label="Continuation page summary placeholders">
-            <div class="panel continuation-summary-panel">
-              <div class="panel-title">สรุปตามหมวดสินค้า</div>
-              <div class="panel-body continuation-panel-body"><div class="continuation-placeholder">-</div></div>
-            </div>
-            <div class="panel continuation-summary-panel">
-              <div class="panel-title">หมายเหตุ</div>
-              <div class="panel-body continuation-panel-body"><div class="continuation-placeholder">-</div></div>
-            </div>
-            <div class="panel continuation-summary-panel">
-              <div class="panel-title">ข้อมูลน้ำหนัก / Weight Info</div>
-              <div class="panel-body continuation-panel-body"><div class="continuation-placeholder">-</div></div>
-            </div>
+          <section class="bottom-zone">
+            <section class="bottom-grid" data-continuation-panels="placeholder" aria-label="Continuation page summary placeholders">
+              <div class="panel continuation-summary-panel"><div class="panel-title">สรุปตามหมวดสินค้า</div><div class="panel-body continuation-panel-body"><div class="continuation-placeholder"></div></div></div>
+              <div class="panel continuation-summary-panel"><div class="panel-title">หมายเหตุ</div><div class="panel-body continuation-panel-body"><div class="continuation-placeholder"></div></div></div>
+              <div class="panel continuation-summary-panel"><div class="panel-title">ข้อมูลน้ำหนัก / Weight Info</div><div class="panel-body continuation-panel-body"><div class="continuation-placeholder"></div></div></div>
+            </section>
+            <div class="continued" data-continuation-signature="true">( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )</div>
           </section>
-          <div class="continued" data-continuation-signature="true">
-            ( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )
-          </div>
         `}
       </main>
     `
@@ -845,7 +819,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .album-card-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 7px; }
       .album-file-name { min-width: 0; overflow-wrap: anywhere; color: #334155; font-size: 9px; }
       .album-index { flex: 0 0 auto; border-radius: 4px; padding: 2px 5px; background: #f1f5f9; color: #475569; font-size: 9px; font-weight: 700; }
-      .bottom-zone { margin-top: auto; display: flex; flex-direction: column; }
+      .bottom-zone { margin-top: auto; display: flex; flex-direction: column; flex: 0 0 auto; break-inside: avoid; page-break-inside: avoid; }
       .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 28px; margin-bottom: 0; break-inside: avoid; page-break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 16px; font-weight: 700; color: #1e293b; }
@@ -908,6 +882,7 @@ export async function openWeightTicketReceiptPrint(ticket: WeightTicketRecord, t
     maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
     reflowRows: true,
     fillContinuationFirst: true,
+    requireFinalPageRows: true,
   })
   printWindow.focus()
 }

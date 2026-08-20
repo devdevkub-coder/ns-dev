@@ -493,6 +493,7 @@ describe('weight ticket print HTML', () => {
       expect(htmlPages).toHaveLength(pages.length)
       expect(htmlPages.at(-1)?.[0]).toContain(`หน้า ${pages.length} / ${pages.length}`)
       expect(htmlPages.at(-1)?.[0]).toContain('data-signatures="final"')
+      if (htmlPages.length > 1) expect(htmlPages[0]?.[0]).not.toContain('data-signatures="final"')
       expect(countPdfPages(Buffer.from(pdf))).toBe(pages.length)
     }
   }, 30_000)
@@ -708,10 +709,12 @@ describe('weight ticket print HTML', () => {
   it('keeps WTI/WTO form pagination owned by the dedicated paginator', () => {
     expect(weightTicketPrintSource).toContain('maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE')
     expect(weightTicketPrintSource).toContain('reflowRows: true')
+    expect(weightTicketPrintSource).toContain('fillContinuationFirst: true')
+    expect(weightTicketPrintSource).toContain('requireFinalPageRows: true')
   })
 
-  it('turns an initially single WTI form into a three-panel continuation without copying totals or signatures', async () => {
-    const dom = new JSDOM(buildReceiptPrintHtml(ticketWithPrintRowCount(12), profile))
+  it('keeps empty summary boxes on non-final WTI pages and puts real data only on the final page', async () => {
+    const dom = new JSDOM(buildReceiptPrintHtml(ticketWithPrintRowCount(12), profile), { url: 'https://print.test/' })
     const document = dom.window.document
     Object.defineProperty(document, 'fonts', {
       configurable: true,
@@ -726,8 +729,12 @@ describe('weight ticket print HTML', () => {
       scrollHeight: {
         configurable: true,
         get(this: HTMLElement) {
-          const realRows = this.querySelectorAll('tr[data-row-slot]:not([data-row-slot^="empty-"])').length
-          return realRows > 8 ? 200 : 100
+          if (this.classList?.contains('items-frame')) {
+            const realRows = this.querySelectorAll('tr[data-row-slot]:not([data-row-slot^="empty-"])').length
+            const finalPage = this.closest<HTMLElement>('[data-final-page]')?.dataset.finalPage === 'true'
+            return realRows > (finalPage ? 4 : 8) ? 200 : 100
+          }
+          return 100
         },
       },
       scrollWidth: { configurable: true, get: () => 800 },
@@ -736,44 +743,51 @@ describe('weight ticket print HTML', () => {
     await prepareCorporatePrintLayout(document, {
       maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
       reflowRows: true,
+      fillContinuationFirst: true,
+      requireFinalPageRows: true,
     })
 
     const pages = [...document.querySelectorAll<HTMLElement>('[data-corporate-print-page="true"]')]
+    const realRows = (page: HTMLElement | undefined) => page
+      ? [...page.querySelectorAll<HTMLTableRowElement>('tbody tr[data-row-slot]')]
+        .filter((row) => !row.dataset.rowSlot?.startsWith('empty-')).length
+      : 0
+
     expect(pages).toHaveLength(2)
-    expect(pages[0]?.querySelector('[data-page-totals="final"]')).toBeNull()
+    expect(realRows(pages[0])).toBe(8)
+    expect(realRows(pages[1])).toBe(4)
     expect(pages[0]?.querySelector('[data-page-totals="placeholder"]')).not.toBeNull()
     expect(pages[0]?.querySelector('[data-signatures="final"]')).toBeNull()
-    expect(pages[0]?.querySelector('section.bottom-grid.continuation-summary[data-continuation-panels="placeholder"]')).not.toBeNull()
-    expect(pages[0]?.querySelectorAll('[data-continuation-panels="placeholder"] .continuation-summary-panel')).toHaveLength(3)
-    expect(pages[0]?.textContent).toContain('ข้อมูลน้ำหนัก / Weight Info')
+    expect(pages[0]?.querySelector('[data-continuation-panels="placeholder"]')).not.toBeNull()
+    expect(pages[0]?.querySelectorAll('.continuation-placeholder')).toHaveLength(3)
+    expect([...pages[0]!.querySelectorAll<HTMLElement>('.continuation-placeholder')].every((node) => node.textContent === '')).toBe(true)
+    expect(pages[0]?.querySelector('[data-continuation-signature="true"]')).not.toBeNull()
     expect(pages[1]?.querySelector('[data-page-totals="final"]')).not.toBeNull()
     expect(pages[1]?.querySelector('[data-signatures="final"]')).not.toBeNull()
+    expect(pages[1]?.querySelector('[data-continuation-panels="placeholder"]')).toBeNull()
+    expect(realRows(pages[1])).toBeGreaterThan(0)
   })
 
-  it('shows titled placeholder summary panels and replaces signatures with a continuation marker on non-final HTML/PDF pages', async () => {
+  it('keeps empty WTI/WTO summary boxes on earlier pages and real summary data only on the last page', async () => {
     const multiPageTicket = ticketWithPrintRowCount(21)
     const html = buildReceiptPrintHtml(multiPageTicket, profile)
     const pages = [...html.matchAll(/<main class="page(?: dense-page)?" data-document-type="(?:WTI|WTO)" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
 
     expect(pages).toHaveLength(2)
-    expect(pages[0]).toContain('data-continuation-panels="placeholder"')
-    expect(pages[0].match(/class="panel continuation-summary-panel"/g)).toHaveLength(3)
-    expect(pages[0].match(/class="continuation-placeholder"/g)).toHaveLength(3)
-    expect(pages[0]).toContain('สรุปตามหมวดสินค้า')
-    expect(pages[0]).toContain('หมายเหตุ')
-    expect(pages[0]).toContain('ข้อมูลน้ำหนัก / Weight Info')
-    expect(pages[0]).toContain('>-</div>')
-    expect(pages[0]).toContain('Continued on Page 2')
     expect(pages[0]).not.toContain('data-signatures="final"')
+    expect(pages[0]).toContain('data-continuation-panels="placeholder"')
+    expect(pages[0].match(/class="continuation-placeholder"/g)).toHaveLength(3)
+    expect(pages[0]).not.toContain('continuation-placeholder">-</div>')
+    expect(weightTicketPdfSource).not.toContain("styles.continuationPlaceholder}>{nt('-')}")
+    expect(pages[0]).toContain('Continued on Page 2')
     expect(pages[1]).toContain('data-signatures="final"')
+    expect(pages[1]).toContain('Weight Info')
     expect(pages[1]).not.toContain('data-continuation-panels="placeholder"')
 
     await ensurePdfFontsRegistered()
     const pdfDocument = WeightTicketDocument({ profile, ticket: multiPageTicket })
     const pdfText = nodeText(pdfDocument)
     expect(pdfText).toContain('Continued on Page 2')
-    expect(pdfText.match(/สรุปตามหมวดสินค้า/g)).toHaveLength(2)
-    expect(pdfText.match(/หมายเหตุ/g)).toHaveLength(2)
     expect(pdfText.match(/Weight Info/g)).toHaveLength(2)
     expect(countPdfPages(Buffer.from(await renderToBuffer(pdfDocument)))).toBe(2)
   }, 30_000)
