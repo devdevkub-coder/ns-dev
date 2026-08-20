@@ -72,7 +72,7 @@ function formatThaiDateShort(date: Date): string {
  * รวมยอดสรุปประจำเดือน (Monthly Production & Operations Summary):
  * - ใบชั่ง WTI/WTO ตลอดทั้งเดือน
  * - งานผลิต production_orders ตลอดทั้งเดือน
- * - แยกสรุปรายโกดัง WH-01..WH-05
+ * - แยกสรุปรายโกดังจาก weight_tickets.godown_name
  */
 export async function getMonthlyProductionSummary(targetDate: Date): Promise<MonthlyReportSummaryData> {
   const start = startOfMonth(targetDate)
@@ -119,8 +119,8 @@ export async function getMonthlyProductionSummary(targetDate: Date): Promise<Mon
     },
   })
 
-  // 3. โกดังที่เปิดใช้งาน
-  const activeWarehouses = await prisma.warehouses.findMany({
+  // 3. โกดังที่เปิดใช้งานจาก master โกดังโดยตรง
+  const activeGodowns = await prisma.godowns.findMany({
     orderBy: { code: 'asc' },
     where: { active: true },
   })
@@ -182,15 +182,11 @@ export async function getMonthlyProductionSummary(targetDate: Date): Promise<Mon
     if (p.created_at) activeDaysSet.add(new Date(p.created_at).toISOString().slice(0, 10))
   }
 
-  // คำนวณรายโกดัง (Warehouse Breakdown)
-  const warehouses: WarehouseDetailSummary[] = activeWarehouses.map((warehouse) => {
-    const whTickets = tickets.filter((t) =>
-      t.weight_ticket_lines.some((line) => String(line.warehouse_id) === String(warehouse.id)),
-    )
-    const whOrders = productionOrders.filter((p) =>
-      p.production_outputs.some((o) => String(o.destination_warehouse_id) === String(warehouse.id))
-      || String(p.warehouse_id) === String(warehouse.id),
-    )
+  // คำนวณรายโกดังจาก snapshot header; production orders ไม่มี godown field
+  const warehouses: WarehouseDetailSummary[] = activeGodowns.map((godown) => {
+    const godownLabels = new Set([godown.code, godown.name])
+    const whTickets = tickets.filter((ticket) => godownLabels.has(ticket.godown_name?.trim() ?? ''))
+    const whOrders: typeof productionOrders = []
 
     const whWti = whTickets.filter((t) => t.doc_type === 'WTI')
     const whWto = whTickets.filter((t) => t.doc_type === 'WTO')
@@ -238,14 +234,14 @@ export async function getMonthlyProductionSummary(targetDate: Date): Promise<Mon
     }
 
     return {
-      code: warehouse.code,
+      code: godown.code,
       completedCount: whTickets.length + whOrders.length,
       customerCount: new Set(whTickets.map((t) => t.supplier_id || t.customer_id).filter(Boolean)).size,
       endTime: 'ทั้งเดือน',
-      id: warehouse.id,
+      id: godown.id,
       items,
       jobCount: whTickets.length + whOrders.length,
-      name: warehouse.name,
+      name: godown.name,
       startTime: '1 ส.ค.',
       types,
     }

@@ -92,7 +92,7 @@ function formatTime(date: Date | string | null | undefined): string {
  * รวมยอดสรุปรายวันตาม Schema จริง (mapping ตามโปรเจกต์นี้ ไม่ใช่ตาม spec ของระบบอ้างอิง):
  * - ใบชั่ง: weight_tickets (doc_type WTI/WTO) + น้ำหนักจาก weight_ticket_lines
  * - งานผลิต: production_orders + น้ำหนัก/ก้อนจาก production_outputs
- * - แยกรายละเอียดรายโกดัง WH-01..WH-05 สำหรับ Carousel
+ * - แยกรายละเอียดรายโกดังจาก weight_tickets.godown_name สำหรับ Carousel
  */
 export async function getDailyProductionSummary(targetDate: Date): Promise<DailyReportSummaryData> {
   const start = startOfDay(targetDate)
@@ -126,8 +126,8 @@ export async function getDailyProductionSummary(targetDate: Date): Promise<Daily
     },
   })
 
-  // 3. โกดังที่เปิดใช้งาน (ตามมาตรฐาน WH-XX)
-  const activeWarehouses = await prisma.warehouses.findMany({
+  // 3. โกดังที่เปิดใช้งานจาก master โกดังโดยตรง
+  const activeGodowns = await prisma.godowns.findMany({
     orderBy: { code: 'asc' },
     where: { active: true },
   })
@@ -170,15 +170,12 @@ export async function getDailyProductionSummary(targetDate: Date): Promise<Daily
   const receiveVendors = new Set(wtiTickets.map((t) => t.suppliers?.name || t.party_name).filter(Boolean))
   const loadCustomers = new Set(wtoTickets.map((t) => t.customers?.name || t.party_name).filter(Boolean))
 
-  // 4. สรุปรายละเอียดรายโกดัง WH-01 .. WH-05
-  const warehouses: WarehouseDetailSummary[] = activeWarehouses.map((warehouse) => {
-    const whTickets = tickets.filter((t) =>
-      t.weight_ticket_lines.some((line) => String(line.warehouse_id) === String(warehouse.id)),
-    )
-    const whOrders = productionOrders.filter((p) =>
-      p.production_outputs.some((o) => String(o.destination_warehouse_id) === String(warehouse.id))
-      || String(p.warehouse_id) === String(warehouse.id),
-    )
+  // 4. สรุปรายละเอียดรายโกดังจาก snapshot header; production orders
+  // ไม่มี godown field จึงไม่เดาคลัง stock ให้เป็นโกดัง
+  const warehouses: WarehouseDetailSummary[] = activeGodowns.map((godown) => {
+    const godownLabels = new Set([godown.code, godown.name])
+    const whTickets = tickets.filter((ticket) => godownLabels.has(ticket.godown_name?.trim() ?? ''))
+    const whOrders: typeof productionOrders = []
 
     const whWti = whTickets.filter((t) => t.doc_type === 'WTI')
     const whWto = whTickets.filter((t) => t.doc_type === 'WTO')
@@ -241,14 +238,14 @@ export async function getDailyProductionSummary(targetDate: Date): Promise<Daily
     if (whWto.length > 0) types.push({ count: whWto.length, icon: '🚛', kg: whLkg, label: 'ขึ้นสินค้า' })
 
     return {
-      code: warehouse.code,
+      code: godown.code,
       completedCount: whTickets.length + whOrders.length,
       customerCount: whCustomers.size,
       endTime: whDates.length > 0 ? formatTime(whDates[whDates.length - 1]) : '--:--',
-      id: warehouse.id,
+      id: godown.id,
       items,
       jobCount: whTickets.length + whOrders.length,
-      name: warehouse.name,
+      name: godown.name,
       startTime: whDates.length > 0 ? formatTime(whDates[0]) : '--:--',
       types,
     }

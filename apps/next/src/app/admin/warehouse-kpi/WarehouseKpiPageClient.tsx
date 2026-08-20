@@ -20,7 +20,7 @@ import { KpiCard, KpiCardGrid } from '@/components/ui/KpiCard'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 
-type Warehouse = {
+type Godown = {
   id: number
   code: string
   name: string
@@ -30,9 +30,9 @@ type Warehouse = {
 }
 
 type Evaluation = {
-  warehouse_id: number
-  warehouse_code: string
-  warehouse_name: string
+  godown_id: number
+  godown_code: string
+  godown_name: string
   branch_name?: string | null
   accuracy: number
   speed: number
@@ -116,7 +116,7 @@ const WarehouseCard = memo(function WarehouseCard({
   onUpdate,
 }: {
   ev: Evaluation
-  onUpdate: (warehouseId: number, field: keyof Evaluation, value: string | number) => void
+  onUpdate: (godownId: number, field: keyof Evaluation, value: string | number) => void
 }) {
   const avgScore = Number(((ev.accuracy + ev.speed + ev.target_hit) / 3).toFixed(1))
 
@@ -126,11 +126,11 @@ const WarehouseCard = memo(function WarehouseCard({
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/40">
         <div className="flex items-center gap-2.5">
           <span className="flex h-6 items-center rounded-md bg-emerald-100 px-2 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-            {ev.warehouse_code}
+            {ev.godown_code}
           </span>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{ev.warehouse_name}</h2>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{ev.godown_name}</h2>
               {ev.branch_name ? (
                 <span className="inline-flex items-center gap-1 rounded-md border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/70 dark:text-sky-300">
                   🏢 {ev.branch_name}
@@ -166,7 +166,7 @@ const WarehouseCard = memo(function WarehouseCard({
                 <div className="flex justify-end">
                   <StarRatingControl
                     value={val}
-                    onChange={(newVal) => onUpdate(ev.warehouse_id, crit.key, newVal)}
+                    onChange={(newVal) => onUpdate(ev.godown_id, crit.key, newVal)}
                   />
                 </div>
               </div>
@@ -183,7 +183,7 @@ const WarehouseCard = memo(function WarehouseCard({
             </label>
             <textarea
               value={ev.problems}
-              onChange={(e) => onUpdate(ev.warehouse_id, 'problems', e.target.value)}
+              onChange={(e) => onUpdate(ev.godown_id, 'problems', e.target.value)}
               rows={2}
               className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs font-normal text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
               placeholder="ระบุปัญหาหน้างาน เช่น น้ำยาเทสไม่พอ, ลูกค้าปฏิเสธเกรด..."
@@ -197,7 +197,7 @@ const WarehouseCard = memo(function WarehouseCard({
             </label>
             <textarea
               value={ev.solutions}
-              onChange={(e) => onUpdate(ev.warehouse_id, 'solutions', e.target.value)}
+              onChange={(e) => onUpdate(ev.godown_id, 'solutions', e.target.value)}
               rows={2}
               className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs font-normal text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
               placeholder="ระบุวิธีแก้ไขหน้างาน..."
@@ -244,7 +244,7 @@ const LeaderboardCard = memo(function LeaderboardCard({
 
             return (
               <div
-                key={wh.warehouse_id}
+                key={wh.godown_id}
                 className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/60 p-2 dark:border-slate-800 dark:bg-slate-800/30"
               >
                 <div className="flex min-w-0 items-center gap-2">
@@ -252,8 +252,8 @@ const LeaderboardCard = memo(function LeaderboardCard({
                     {medal}
                   </span>
                   <div className="min-w-0 truncate">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{wh.warehouse_name}</span>
-                    <span className="ml-1 text-[10px] text-slate-400">({wh.warehouse_code})</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{wh.godown_name}</span>
+                    <span className="ml-1 text-[10px] text-slate-400">({wh.godown_code})</span>
                   </div>
                 </div>
 
@@ -293,7 +293,7 @@ export function WarehouseKpiPageClient() {
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [globalEvaluator, setGlobalEvaluator] = useState('MAY')
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [godowns, setGodowns] = useState<Godown[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -316,7 +316,7 @@ export function WarehouseKpiPageClient() {
       const data = await res.json()
 
       const dbEvaluations: Evaluation[] = data.evaluations || []
-      const activeWarehouses: Warehouse[] = data.warehouses || []
+      const activeGodowns: Godown[] = data.godowns ?? []
 
       // If existing records have evaluator name, pick the first one
       const existingEvaluator = dbEvaluations.find((e) => e.evaluated_by)?.evaluated_by
@@ -324,16 +324,16 @@ export function WarehouseKpiPageClient() {
         setGlobalEvaluator(existingEvaluator)
       }
 
-      setWarehouses(activeWarehouses)
+      setGodowns(activeGodowns)
 
-      const initialEvals = activeWarehouses.map((wh) => {
-        const existing = dbEvaluations.find((e) => e.warehouse_id === wh.id)
+      const initialEvals = activeGodowns.map((godown) => {
+        const existing = dbEvaluations.find((e) => e.godown_id === godown.id)
         if (existing) {
           return {
-            warehouse_id: existing.warehouse_id,
-            warehouse_code: wh.code,
-            warehouse_name: wh.name,
-            branch_name: wh.branch_name ?? null,
+            godown_id: existing.godown_id,
+            godown_code: godown.code,
+            godown_name: godown.name,
+            branch_name: godown.branch_name ?? null,
             accuracy: Number(existing.accuracy) || 3,
             speed: Number(existing.speed) || 3,
             target_hit: Number(existing.target_hit) || 3,
@@ -343,10 +343,10 @@ export function WarehouseKpiPageClient() {
           }
         }
         return {
-          warehouse_id: wh.id,
-          warehouse_code: wh.code,
-          warehouse_name: wh.name,
-          branch_name: wh.branch_name ?? null,
+          godown_id: godown.id,
+          godown_code: godown.code,
+          godown_name: godown.name,
+          branch_name: godown.branch_name ?? null,
           accuracy: 3,
           speed: 3,
           target_hit: 3,
@@ -373,9 +373,9 @@ export function WarehouseKpiPageClient() {
     setEvaluations((prev) => prev.map((ev) => ({ ...ev, evaluated_by: name })))
   }
 
-  const handleUpdateEval = useCallback((warehouseId: number, field: keyof Evaluation, value: string | number) => {
+  const handleUpdateEval = useCallback((godownId: number, field: keyof Evaluation, value: string | number) => {
     setEvaluations((prev) =>
-      prev.map((ev) => (ev.warehouse_id === warehouseId ? { ...ev, [field]: value } : ev)),
+      prev.map((ev) => (ev.godown_id === godownId ? { ...ev, [field]: value } : ev)),
     )
   }, [])
 
@@ -439,7 +439,7 @@ export function WarehouseKpiPageClient() {
     ).length
     return {
       overallAvg: Number(overallAvg.toFixed(1)),
-      topWh: topWh ? { name: topWh.warehouse_name, code: topWh.warehouse_code, score: topWh.avg.toFixed(1) } : null,
+      topWh: topWh ? { name: topWh.godown_name, code: topWh.godown_code, score: topWh.avg.toFixed(1) } : null,
       problemCount,
       ratedCount: evaluations.length,
     }
@@ -560,7 +560,7 @@ export function WarehouseKpiPageClient() {
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
             {evaluations.map((ev) => (
-              <WarehouseCard key={ev.warehouse_id} ev={ev} onUpdate={handleUpdateEval} />
+              <WarehouseCard key={ev.godown_id} ev={ev} onUpdate={handleUpdateEval} />
             ))}
 
             {/* 6th Card: Leaderboard & Summary (Fills 3x2 Grid Perfectly) */}

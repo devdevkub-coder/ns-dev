@@ -4319,6 +4319,28 @@ model warehouses {
   @@schema("public")
 }
 
+model godown_kpi_evaluations {
+  id           BigInt   @id @default(autoincrement())
+  eval_date    DateTime @db.Date
+  godown_id    BigInt
+  godown_code  String
+  godown_name  String
+  accuracy     Int      @default(3)
+  speed        Int      @default(3)
+  target_hit   Int      @default(3)
+  avg_score    Decimal  @db.Decimal(2, 1)
+  problems     String?  @default("")
+  solutions    String?  @default("")
+  evaluated_by String   @default("")
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime? @db.Timestamptz(6)
+  godowns      godowns  @relation(fields: [godown_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([eval_date, godown_id])
+  @@index([godown_id])
+  @@schema("public")
+}
+
 model godowns {
   code                String    @unique
   name                String
@@ -4334,6 +4356,7 @@ model godowns {
   id                  BigInt    @id @default(autoincrement())
   branch_id           BigInt?
   branches            branches? @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  godown_kpi_evaluations godown_kpi_evaluations[]
 
   @@index([branch_id])
   @@schema("public")

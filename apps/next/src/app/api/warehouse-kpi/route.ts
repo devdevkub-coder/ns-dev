@@ -13,9 +13,9 @@ const getSchema = z.object({
 const postSchema = z.object({
   date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)'),
   evaluations: z.array(z.object({
-    warehouse_id: z.number(),
-    warehouse_code: z.string(),
-    warehouse_name: z.string(),
+    godown_id: z.number(),
+    godown_code: z.string(),
+    godown_name: z.string(),
     accuracy: z.number().min(1).max(5),
     speed: z.number().min(1).max(5),
     target_hit: z.number().min(1).max(5),
@@ -48,14 +48,14 @@ export async function GET(request: Request) {
     const { date } = getSchema.parse({ date: dateParam })
     const targetDate = new Date(`${date}T00:00:00.000Z`)
 
-    const [evaluations, warehouses] = await Promise.all([
-      prisma.warehouse_kpi_evaluations.findMany({
+    const [evaluations, godowns] = await Promise.all([
+      prisma.godown_kpi_evaluations.findMany({
         where: { eval_date: targetDate },
         select: {
           id: true,
-          warehouse_id: true,
-          warehouse_code: true,
-          warehouse_name: true,
+          godown_id: true,
+          godown_code: true,
+          godown_name: true,
           accuracy: true,
           speed: true,
           target_hit: true,
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
           evaluated_by: true,
         },
       }),
-      prisma.warehouses.findMany({
+      prisma.godowns.findMany({
         where: { active: true },
         select: {
           id: true,
@@ -80,9 +80,9 @@ export async function GET(request: Request) {
 
     const safeEvaluations = evaluations.map((e) => ({
       id: Number(e.id),
-      warehouse_id: Number(e.warehouse_id),
-      warehouse_code: e.warehouse_code,
-      warehouse_name: e.warehouse_name,
+      godown_id: Number(e.godown_id),
+      godown_code: e.godown_code,
+      godown_name: e.godown_name,
       accuracy: e.accuracy,
       speed: e.speed,
       target_hit: e.target_hit,
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
       evaluated_by: e.evaluated_by || '',
     }))
 
-    const safeWarehouses = warehouses.map((w) => ({
+    const safeGodowns = godowns.map((w) => ({
       id: Number(w.id),
       code: w.code,
       name: w.name,
@@ -101,7 +101,7 @@ export async function GET(request: Request) {
       active: w.active ?? true,
     }))
 
-    return NextResponse.json({ evaluations: safeEvaluations, warehouses: safeWarehouses })
+    return NextResponse.json({ evaluations: safeEvaluations, godowns: safeGodowns })
   } catch (caught) {
     console.error('[API /api/warehouse-kpi GET ERROR]:', caught)
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -124,19 +124,29 @@ export async function POST(request: Request) {
     const body = postSchema.parse(await request.json().catch(() => ({})))
     const targetDate = new Date(`${body.date}T00:00:00.000Z`)
 
+    const godownIds = [...new Set(body.evaluations.map((evaluation) => BigInt(evaluation.godown_id)))]
+    const godownRows = await prisma.godowns.findMany({
+      where: { active: true, id: { in: godownIds } },
+      select: { code: true, id: true, name: true },
+    })
+    const godownById = new Map(godownRows.map((godown) => [godown.id.toString(), godown]))
+    if (godownRows.length !== godownIds.length) throw new Error('มีโกดังที่ไม่พบหรือถูกปิดใช้งาน')
+
     const ops = body.evaluations.map(evalData => {
       const avgScore = Math.round(((evalData.accuracy + evalData.speed + evalData.target_hit) / 3) * 10) / 10
+      const godown = godownById.get(String(evalData.godown_id))
+      if (!godown) throw new Error('ไม่พบโกดังที่ต้องการบันทึก KPI')
 
-      return prisma.warehouse_kpi_evaluations.upsert({
+      return prisma.godown_kpi_evaluations.upsert({
         where: {
-          eval_date_warehouse_id: {
+          eval_date_godown_id: {
             eval_date: targetDate,
-            warehouse_id: BigInt(evalData.warehouse_id)
+            godown_id: BigInt(evalData.godown_id)
           }
         },
         update: {
-          warehouse_code: evalData.warehouse_code,
-          warehouse_name: evalData.warehouse_name,
+          godown_code: godown.code,
+          godown_name: godown.name,
           accuracy: evalData.accuracy,
           speed: evalData.speed,
           target_hit: evalData.target_hit,
@@ -148,9 +158,9 @@ export async function POST(request: Request) {
         },
         create: {
           eval_date: targetDate,
-          warehouse_id: BigInt(evalData.warehouse_id),
-          warehouse_code: evalData.warehouse_code,
-          warehouse_name: evalData.warehouse_name,
+          godown_id: BigInt(evalData.godown_id),
+          godown_code: godown.code,
+          godown_name: godown.name,
           accuracy: evalData.accuracy,
           speed: evalData.speed,
           target_hit: evalData.target_hit,

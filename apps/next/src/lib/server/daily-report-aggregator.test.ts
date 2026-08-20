@@ -5,7 +5,7 @@ vi.mock('@/lib/server/prisma', () => ({
   prisma: {
     weight_tickets: { findMany: vi.fn() },
     production_orders: { findMany: vi.fn() },
-    warehouses: { findMany: vi.fn() },
+    godowns: { findMany: vi.fn() },
   },
 }))
 
@@ -14,7 +14,7 @@ import { getDailyProductionSummary } from '@/lib/server/daily-report-aggregator'
 
 const weightTicketsMock = vi.mocked(prisma.weight_tickets.findMany)
 const productionOrdersMock = vi.mocked(prisma.production_orders.findMany)
-const warehousesMock = vi.mocked(prisma.warehouses.findMany)
+const godownsMock = vi.mocked(prisma.godowns.findMany)
 
 describe('getDailyProductionSummary', () => {
   it('รวมยอดรับเข้า/ส่งออก/คัดแยกจาก schema จริง + แยกรายโกดัง', async () => {
@@ -25,6 +25,7 @@ describe('getDailyProductionSummary', () => {
         doc_no: 'WTI-001',
         doc_type: 'WTI',
         id: 1n,
+        godown_name: 'KD-0101',
         party_name: 'ซัพพลายเออร์ A',
         status: 'received',
         supplier_id: 10n,
@@ -39,6 +40,7 @@ describe('getDailyProductionSummary', () => {
         doc_no: 'WTO-001',
         doc_type: 'WTO',
         id: 2n,
+        godown_name: 'KD-0101',
         party_name: 'ลูกค้า B',
         status: 'delivered',
         supplier_id: null,
@@ -60,8 +62,8 @@ describe('getDailyProductionSummary', () => {
       },
     ] as never)
 
-    warehousesMock.mockResolvedValue([
-      { active: true, code: 'WH-01', id: 262n, in_charge: 'สมชาย', name: 'โกดัง 1', target_bale_count: 20, target_sort_kg: 5000n },
+    godownsMock.mockResolvedValue([
+      { active: true, code: 'KD-0101', id: 262n, name: 'โกดัง 1' },
     ] as never)
 
     const summary = await getDailyProductionSummary(new Date('2026-08-18T12:00:00'))
@@ -77,9 +79,9 @@ describe('getDailyProductionSummary', () => {
     expect(summary.earliestTime).not.toBe('--:--')
     expect(summary.warehouses).toHaveLength(1)
     expect(summary.warehouses[0]).toMatchObject({
-      code: 'WH-01',
-      jobCount: 3, // 2 ใบชั่ง + 1 งานผลิต (warehouse_id = 262)
-      completedCount: 3,
+      code: 'KD-0101',
+      jobCount: 2,
+      completedCount: 2,
       customerCount: 2,
     })
     expect(summary.warehouses[0].types[0]).toMatchObject({ icon: '📥', label: 'รับสินค้า', count: 1, kg: 1000 })
@@ -89,7 +91,7 @@ describe('getDailyProductionSummary', () => {
   it('คืนยอด 0 เมื่อไม่มีข้อมูลในวันนั้น (ไม่ error)', async () => {
     weightTicketsMock.mockResolvedValue([] as never)
     productionOrdersMock.mockResolvedValue([] as never)
-    warehousesMock.mockResolvedValue([] as never)
+    godownsMock.mockResolvedValue([] as never)
 
     const summary = await getDailyProductionSummary(new Date('2026-08-18T12:00:00'))
 
