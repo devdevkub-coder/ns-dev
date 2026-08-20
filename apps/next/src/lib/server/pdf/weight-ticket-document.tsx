@@ -506,6 +506,20 @@ function ItemRow({ row, isReceipt, dense = false }: { row: PrintWeightRow; isRec
             : row.className === 'product-total' ? styles.bgProductTotal
               : {}
 
+  if (row.continuation) {
+    return (
+      <View style={[styles.tableRow, bgStyle]} wrap={false}>
+        <View style={[styles.tableCell, cellDensity, { width: COL_RANK, textAlign: 'center' }]}>
+          <Text>{''}</Text>
+        </View>
+        <View style={[styles.tableCellLast, cellDensity, { width: isReceipt ? `${100 - 4}%` : `${100 - 4 - 12 - 12 - 26}%` }]}>
+          {row.label ? <Text style={[styles.muted, mutedDensity]}>{nt(row.label)}</Text> : null}
+          {row.detail ? <Text style={[styles.muted, mutedDensity]}>{nt(row.detail)}</Text> : null}
+        </View>
+      </View>
+    )
+  }
+
   if (row.className === 'product-heading') {
     return (
       <View style={[styles.tableRow, bgStyle]} wrap={false}>

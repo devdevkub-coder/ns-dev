@@ -453,6 +453,19 @@ describe('weight ticket print HTML', () => {
     expect(pages[1]?.items[0]?.continuation).toBe(true)
     expect(pages[1]?.items[0]?.grossWeight).toBe(0)
     expect(pages[1]?.items[0]?.netWeight).toBe(0)
+
+    const ticket = ticketWithPrintRowCount(18, 'WTI')
+    ticket.lines[17] = {
+      ...ticket.lines[17],
+      note: 'รายละเอียดที่ยาวมาก '.repeat(12),
+      productName: 'Wrapped row',
+    }
+    const html = buildReceiptPrintHtml(ticket, profile)
+    const continuationRows = Array.from(html.matchAll(/<tr class="item-row continuation-row[\s\S]*?<\/tr>/g), (match) => match[0])
+    expect(continuationRows.length).toBeGreaterThan(0)
+    expect(continuationRows.every((row) => row.match(/<td class="c rank-cell">\s*<\/td>/))).toBe(true)
+    expect(continuationRows.every((row) => !row.includes('class="item-name"'))).toBe(true)
+    expect(html).toContain('ต่อรายละเอียด')
   })
 
   it('keeps twelve rows with wrapped detail on the single WTI form page', () => {

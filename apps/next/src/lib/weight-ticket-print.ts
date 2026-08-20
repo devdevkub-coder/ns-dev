@@ -354,6 +354,13 @@ export function estimatePrintWeightRowHeight(row: PrintWeightRow, isReceipt: boo
   // are conservative enough to move a wrapped row early rather than risk
   // allowing text to collide with the numeric cells.
   const itemColumnCharacters = isReceipt ? 34 : 58
+  if (row.continuation) {
+    const lines = [
+      row.label ? estimateWrappedLineCount(row.label, itemColumnCharacters) : 0,
+      row.detail ? estimateWrappedLineCount(row.detail, itemColumnCharacters) : 0,
+    ]
+    return Math.max(1, lines.reduce((total, count) => total + count, 0))
+  }
   if (row.className === 'product-heading') {
     const headingLines = [
       estimateWrappedLineCount(row.productName, itemColumnCharacters),
@@ -630,6 +637,19 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   const lotCount = lotLines.length
 
   function rowHtml(row: PrintWeightRow, rowSlot: number) {
+    if (row.continuation) {
+      const colSpan = isReceipt ? 7 : 5
+      return `
+        <tr class="item-row continuation-row ${escapeHtml(row.className || '')}" data-row-slot="${rowSlot}">
+          <td class="c rank-cell"></td>
+          <td colspan="${colSpan - 1}">
+            ${row.label ? `<div class="muted">${escapeHtml(row.label)}</div>` : ''}
+            ${row.detail ? `<div class="muted">${detailHtml(row.detail)}</div>` : ''}
+          </td>
+        </tr>
+      `
+    }
+
     if (row.className === 'product-heading') {
       const colSpan = isReceipt ? 7 : 5
       return `
