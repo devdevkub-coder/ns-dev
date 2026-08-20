@@ -644,14 +644,27 @@ async function updateWeightTicket(
       submittedLineIds: values.lines.map((line) => line.id),
       changedHeaderFields: [...changedHeaderFields],
     })
+    const savePhaseStartedAt = Date.now()
+    const logSavePhase = (phase: string, details: Record<string, unknown> = {}) => {
+      console.info('[weight-ticket-save] phase', {
+        documentId: id,
+        phase,
+        durationMs: Date.now() - savePhaseStartedAt,
+        ...details,
+      })
+    }
     const ticketId = existing.id
     const submittedValues = values
+    logSavePhase('transaction.start')
     const updateResult = await prisma.$transaction(async (tx) => {
       // Every ticket mutation uses the same lock and then re-reads lifecycle
       // state. PUT must not continue from a draft snapshot after confirm,
       // cancel, or downstream usage has already changed the ticket.
       await tx.$executeRaw`select pg_advisory_xact_lock(${ticketId})`
+      logSavePhase('transaction.lock.acquired')
+      logSavePhase('transaction.initial-read.start')
       const existing = await tx.weight_tickets.findUniqueOrThrow({ include: ticketInclude, where: { id: ticketId } })
+      logSavePhase('transaction.initial-read.end')
       const persistedClientLineIdMap = new Map(
         existing.weight_ticket_lines
           .filter((line) => Boolean(line.client_line_id))
@@ -672,7 +685,9 @@ async function updateWeightTicket(
       const collaborationBaseLineVersions = values.collaborationBaseLineVersions
       const collaborationChangedLineIds = new Set(values.collaborationChangedLineIds)
       const collaborationDeletedLineIds = new Set(values.collaborationDeletedLineIds)
+      logSavePhase('transaction.usage-read.start')
       const lockedUsage = await getWeightTicketUsageCountsInTransaction(tx, existing.id)
+      logSavePhase('transaction.usage-read.end')
       if (!canEditWeightTicket({ docType: existing.doc_type, status: existing.status }, lockedUsage)) {
         throw new WeightTicketWriteValidationError(mutableTicketErrorMessage('edit', lockedUsage), {})
       }
@@ -1256,10 +1271,12 @@ async function updateWeightTicket(
         })
       }
 
+      logSavePhase('transaction.final-read.start')
       const ticket = await tx.weight_tickets.findUniqueOrThrow({
         include: ticketInclude,
         where: { id: existing.id },
       })
+      logSavePhase('transaction.final-read.end')
       return {
         beforeSnapshot,
         eventDeletedLineIds: resolvedDeletedLineIds,
@@ -1272,9 +1289,12 @@ async function updateWeightTicket(
         ticket,
       }
     })
+    logSavePhase('transaction.end')
 
     const updated = updateResult.ticket
+    logSavePhase('post-transaction.usage-read.start')
     const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
+    logSavePhase('post-transaction.usage-read.end')
     const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
     const beforeSnapshot = updateResult.beforeSnapshot
     const eventDeletedLineIds = updateResult.eventDeletedLineIds
@@ -1302,6 +1322,7 @@ async function updateWeightTicket(
                 : mapped.godownName ?? ''
       return JSON.stringify(beforeValue) !== JSON.stringify(afterValue)
     })
+    logSavePhase('audit.start')
     await recordAuditLog({
         action: 'update',
         afterData: weightTicketAuditSnapshot(mapped),
@@ -1322,6 +1343,7 @@ async function updateWeightTicket(
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
     })
+    logSavePhase('audit.end')
     const realtimeEvent = {
       changeType: 'updated' as const,
       updatedAt: mapped.updatedAt,
@@ -1337,6 +1359,7 @@ async function updateWeightTicket(
       deletedLineIds: eventDeletedLineIds,
       changedHeaderFields: eventHeaderFields,
     })
+    logSavePhase('broadcast.log')
     const previousBranchId = updateResult.previousHeader.branchId
     const previousDocumentNo = updateResult.previousDocumentNo
     after(() => Promise.all([
