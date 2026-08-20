@@ -4009,8 +4009,13 @@ export function WeightTicketFormCore({
       const savedSectionLineIdSet = new Set(savedSectionLineIds)
       const savedSectionLines = snapshot.lines.filter((line) => savedSectionLineIdSet.has(line.id))
       const sectionDraftLineIds = getWeightTicketSectionDraftLineIds(savedSectionLines, targetLineIdSet)
-      const baselineById = new Map(baselineSectionLines.map((line) => [line.id, line] as const))
-      const baselineIds = baselineSectionLines.map((line) => line.id)
+      // Collaboration baseline represents rows that already exist on the
+      // server. A newly created impurity-purchase row has a local UUID and no
+      // server version yet; including it in deletedLineIds or the version map
+      // makes the client request schema reject the whole save before fetch().
+      const persistedBaselineSectionLines = baselineSectionLines.filter((line) => line.version != null)
+      const baselineById = new Map(persistedBaselineSectionLines.map((line) => [line.id, line] as const))
+      const baselineIds = persistedBaselineSectionLines.map((line) => line.id)
       const deletedIds = new Set(
         baselineIds.filter((lineId) => savedTargetLineIdSet.has(lineId) && !savedSectionLines.some((line) => line.id === lineId)),
       )
@@ -4037,7 +4042,7 @@ export function WeightTicketFormCore({
       const saveValues = {
         branchId: snapshot.branchId,
         collaborationBaseLineIds: baselineIds,
-        collaborationBaseLineVersions: Object.fromEntries(baselineSectionLines.map((line) => [line.id, line.version])),
+        collaborationBaseLineVersions: Object.fromEntries(persistedBaselineSectionLines.map((line) => [line.id, line.version])),
         collaborationChangedLineIds: Array.from(changedIds),
         collaborationDeletedLineIds: Array.from(deletedIds),
         // A full product-section save is strict (`targetLineIdSet === null`
