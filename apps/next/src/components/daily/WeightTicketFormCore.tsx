@@ -2576,7 +2576,8 @@ export function WeightTicketFormCore({
       ...formRef.current,
       lines: remapWeightTicketLineIds(formRef.current.lines, lineIdMap),
     }
-    const baselineLineIds = new Set(baselineTicket.lines.map((line) => line.id))
+    const persistedBaselineLines = baselineTicket.lines.filter((line) => line.version != null)
+    const baselineLineIds = new Set(persistedBaselineLines.map((line) => line.id))
     const persistedLineId = (lineId: string) => {
       const mappedLineId = lineIdMap[lineId]
       if (mappedLineId) return mappedLineId
@@ -2608,7 +2609,7 @@ export function WeightTicketFormCore({
     changedIds.clear()
     remappedChangedIds.forEach((lineId) => changedIds.add(lineId))
     deletedIds.forEach((lineId) => changedIds.add(lineId))
-    const baselineLines = new Map(baselineTicket.lines.map((line) => [line.id, line] as const))
+    const baselineLines = new Map(persistedBaselineLines.map((line) => [line.id, line] as const))
     for (const lineId of Array.from(deletedIds)) {
       if (!baselineLines.has(lineId)) deletedIds.delete(lineId)
     }
@@ -2638,8 +2639,8 @@ export function WeightTicketFormCore({
     const baselineFormLines = new Map(ticketToFormState(baselineTicket).lines.map((line) => [line.id, line] as const))
     const saveValues: WeightTicketFormValues = {
       branchId: headerChanges.has('branchId') ? latestSnapshot.branchId : baselineTicket.branchId,
-      collaborationBaseLineIds: baselineTicket.lines.map((line) => line.id),
-      collaborationBaseLineVersions: Object.fromEntries(baselineTicket.lines.map((line) => [line.id, line.version])),
+      collaborationBaseLineIds: persistedBaselineLines.map((line) => line.id),
+      collaborationBaseLineVersions: Object.fromEntries(persistedBaselineLines.map((line) => [line.id, line.version])),
       collaborationChangedLineIds: Array.from(changedIds),
       collaborationDeletedLineIds: Array.from(deletedIds),
       draftLineIds,
