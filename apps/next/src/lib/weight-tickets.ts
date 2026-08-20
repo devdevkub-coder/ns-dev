@@ -1512,10 +1512,68 @@ function payloadFromForm(values: WeightTicketFormValues) {
   }
 }
 
+function summarizeWeightTicketRequest(payload: unknown) {
+  if (!payload || typeof payload !== 'object') return { payloadType: typeof payload }
+  const record = payload as Record<string, unknown>
+  const rawLines = Array.isArray(record.lines) ? record.lines : []
+  return {
+    documentId: typeof record.id === 'string' ? record.id : undefined,
+    type: typeof record.type === 'string' ? record.type : undefined,
+    scope: typeof record.saveScope === 'string' ? record.saveScope : record.scope,
+    lineCount: rawLines.length,
+    lineIds: rawLines.map((line) => (line && typeof line === 'object' && 'id' in line ? String(line.id) : 'unknown')),
+    changedLineIds: Array.isArray(record.collaborationChangedLineIds) ? record.collaborationChangedLineIds : [],
+    deletedLineIds: Array.isArray(record.collaborationDeletedLineIds)
+      ? record.collaborationDeletedLineIds
+      : Array.isArray(record.deletedLineIds) ? record.deletedLineIds : [],
+    sectionLineIds: Array.isArray(record.sectionLineIds) ? record.sectionLineIds : [],
+    lines: rawLines.map((line) => {
+      if (!line || typeof line !== 'object') return { valueType: typeof line }
+      const item = line as Record<string, unknown>
+      return {
+        id: item.id,
+        parentId: item.parentId,
+        impurityId: item.impurityId,
+        impurityProductId: item.impurityProductId,
+        impuritySourceLineId: item.impuritySourceLineId,
+        productId: item.productId,
+        warehouseId: item.warehouseId,
+        deductionMode: item.deductionMode,
+        deductionValue: item.deductionValue,
+        grossWeight: item.grossWeight,
+        imageCount: Array.isArray(item.imageNames) ? item.imageNames.length : undefined,
+      }
+    }),
+  }
+}
+
+function parseWeightTicketRequest<TSchema extends z.ZodTypeAny>(schema: TSchema, payload: unknown, operation: string): z.output<TSchema> {
+  const summary = summarizeWeightTicketRequest(payload)
+  console.info('[weight-ticket-request-contract] parse.start', { operation, ...summary })
+  const parsed = schema.safeParse(payload)
+  if (!parsed.success) {
+    console.error('[weight-ticket-request-contract] invalid', {
+      operation,
+      ...summary,
+      issues: parsed.error.issues.map((issue) => ({
+        code: issue.code,
+        message: issue.message,
+        path: issue.path.map((segment) => String(segment)).join('.'),
+      })),
+    })
+    throw parsed.error
+  }
+  console.info('[weight-ticket-request-contract] parse.success', {
+    operation,
+    ...summary,
+  })
+  return parsed.data
+}
+
 export async function saveWeightTicket(values: WeightTicketFormValues) {
   const parsed = values.id
-    ? weightTicketUpdateSchema.parse(values)
-    : weightTicketFormSchema.parse(values)
+    ? parseWeightTicketRequest(weightTicketUpdateSchema, values, 'save')
+    : parseWeightTicketRequest(weightTicketFormSchema, values, 'create')
   const method = parsed.id ? 'PUT' : 'POST'
   const path = parsed.id ? `/api/daily/weight-tickets/${encodeURIComponent(parsed.id)}` : '/api/daily/weight-tickets'
   const response = await fetch(path, {
@@ -1559,7 +1617,7 @@ export async function patchWeightTicketChanges(
   }
   const changedLineIds = new Set(values.collaborationChangedLineIds)
   const changedHeaderFields = new Set(values.collaborationChangedHeaderFields)
-  const parsed = weightTicketIncrementalPatchSchema.parse({
+  const parsed = parseWeightTicketRequest(weightTicketIncrementalPatchSchema, {
     operation: 'save_changes',
     scope: values.saveScope === 'section' ? 'section' : values.saveScope === 'header' ? 'header' : 'document',
     collaborationBaseHeader: values.collaborationBaseHeader,
@@ -1583,7 +1641,7 @@ export async function patchWeightTicketChanges(
     collaborationChangedLineIds: values.collaborationChangedLineIds,
     collaborationBaseUpdatedAt: values.collaborationBaseUpdatedAt,
     draftLineIds: values.draftLineIds,
-  })
+  }, `patch:${id}`)
   const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

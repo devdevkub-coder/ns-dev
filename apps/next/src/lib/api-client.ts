@@ -38,7 +38,7 @@ function fallbackMessage(status: number, fallback: string) {
 
 export function getErrorMessage(caught: unknown, fallback: string) {
   if (caught instanceof ApiError) return caught.message
-  if (caught instanceof z.ZodError) return 'รูปแบบข้อมูลจาก server ไม่ถูกต้อง'
+  if (caught instanceof z.ZodError) return 'ข้อมูลก่อนส่งไม่ถูกต้อง'
   if (caught instanceof TypeError) return 'เชื่อมต่อ server ไม่สำเร็จ กรุณาตรวจสอบเครือข่ายแล้วลองใหม่'
   if (caught instanceof Error) return caught.message
   return fallback
