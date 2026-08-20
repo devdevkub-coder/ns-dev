@@ -1654,6 +1654,7 @@ export function WeightTicketFormCore({
       fileName: file.name,
       id: makeFileId(),
       rawValue: file.name,
+      sizeBytes: file.size,
       url: URL.createObjectURL(file),
     }))
     onPreviewsReady?.(localPreviews)
