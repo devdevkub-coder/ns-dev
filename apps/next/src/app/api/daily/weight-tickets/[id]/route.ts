@@ -1,6 +1,6 @@
 import { after, NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { calculateTicketTotals, isOtherProductImpurityLabel, isWeightTicketDraftLotSkeleton, OTHER_PRODUCT_IMPURITY_ID, parseImpurityProductMeta, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketDeleteLinesSchema, weightTicketIncrementalPatchSchema, weightTicketUpdateSchema, type WeightTicketFormValues, type WeightTicketIncrementalPatch } from '@/lib/weight-tickets'
+import { calculateTicketTotals, isOtherProductImpurityLabel, isWeightTicketDraftLotSkeleton, OTHER_PRODUCT_IMPURITY_ID, parseImpurityProductMeta, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketDeleteLinesSchema, weightTicketIncrementalPatchSchema, weightTicketSaveResultSchema, weightTicketUpdateSchema, type WeightTicketFormValues, type WeightTicketIncrementalPatch } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
@@ -638,6 +638,9 @@ async function updateWeightTicket(
       documentId: id,
       changedLineIds: [...collaborationChangedLineIds],
       deletedLineIds: [...collaborationDeletedLineIds],
+      draftLineCount: values.draftLineIds.length,
+      scope: values.saveScope ?? 'document',
+      submittedLineCount: values.lines.length,
       submittedLineIds: values.lines.map((line) => line.id),
       changedHeaderFields: [...changedHeaderFields],
     })
@@ -1343,14 +1346,29 @@ async function updateWeightTicket(
         : []),
     ]).then(() => undefined))
     const actorDisplayNames = await resolveWeightTicketActorDisplayNames([mapped.createdBy, mapped.enteredBy, mapped.updatedBy])
-    return NextResponse.json({
+    const responsePayload = {
       ...mapped,
       createdBy: weightTicketActorDisplayName(mapped.createdBy, actorDisplayNames),
       enteredBy: mapped.enteredBy == null ? null : weightTicketActorDisplayName(mapped.enteredBy, actorDisplayNames),
       lineIdMap: updateResult.lineIdMap,
       serverNow: new Date().toISOString(),
       updatedBy: mapped.updatedBy == null ? null : weightTicketActorDisplayName(mapped.updatedBy, actorDisplayNames),
-    })
+    }
+    const responseContract = weightTicketSaveResultSchema.safeParse(responsePayload)
+    if (!responseContract.success) {
+      console.error('[weight-ticket-response-contract] invalid', {
+        documentNo: mapped.documentNo,
+        lineCount: responsePayload.lines.length,
+        lineIdMapCount: Object.keys(responsePayload.lineIdMap).length,
+        scope: submittedValues.saveScope ?? 'document',
+        issues: responseContract.error.issues.map((issue) => ({
+          code: issue.code,
+          message: issue.message,
+          path: issue.path.map((segment) => String(segment)).join('.'),
+        })),
+      })
+    }
+    return NextResponse.json(responsePayload)
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     if (caught instanceof WeightTicketDataContractError) return apiErrorResponse(caught, 'ข้อมูลประวัติใบรับ-ส่งของไม่ครบ กรุณาแจ้งผู้ดูแลระบบ', caught.status)

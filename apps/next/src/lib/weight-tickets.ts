@@ -870,7 +870,7 @@ export const weightTicketRecordSchema = z.object({
   godownName: z.string(),
 })
 
-const weightTicketSaveResultSchema = weightTicketRecordSchema.extend({
+export const weightTicketSaveResultSchema = weightTicketRecordSchema.extend({
   lineIdMap: z.record(z.string(), z.string()),
 })
 
