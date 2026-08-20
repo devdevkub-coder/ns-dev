@@ -22,6 +22,8 @@ const CONTINUATION_PAGE_ITEM_ROWS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
 // the page; a row that does not fit moves to the next page as a whole row.
 const WTI_FINAL_PAGE_HEIGHT_UNITS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
 const WTO_FINAL_PAGE_HEIGHT_UNITS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
+const WTI_DETAIL_CHARS_PER_WRAP = 34
+const WTO_DETAIL_CHARS_PER_WRAP = 58
 export const WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE = 6
 
 /** exported เพื่อให้ react-pdf template ใช้ค่าเดียวกันกับ HTML template */
@@ -40,6 +42,7 @@ export type PrintWeightRow = {
   netWeight: number
   productName: string
   rank?: string
+  continuation?: boolean
 }
 
 export type WeightTicketPrintPage = {
@@ -372,6 +375,85 @@ function estimateRowsHeight(rows: readonly PrintWeightRow[], isReceipt: boolean)
   return rows.reduce((total, row) => total + estimatePrintWeightRowHeight(row, isReceipt), 0)
 }
 
+function wrapPrintDetailLines(value: string, maxCharacters: number) {
+  const segmenter = typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null
+  return value.split('\n').flatMap((line) => {
+    const characters = segmenter
+      ? Array.from(segmenter.segment(line), (segment) => segment.segment)
+      : Array.from(line)
+    if (characters.length === 0) return ['']
+
+    const chunks: string[] = []
+    for (let cursor = 0; cursor < characters.length; cursor += maxCharacters) {
+      chunks.push(characters.slice(cursor, cursor + maxCharacters).join(''))
+    }
+    return chunks
+  })
+}
+
+function splitOversizedPrintRow(row: PrintWeightRow, isReceipt: boolean, budget: number) {
+  const originalHeight = estimatePrintWeightRowHeight(row, isReceipt)
+  if (originalHeight <= budget || !row.detail) return [row]
+
+  const maxCharacters = isReceipt ? WTI_DETAIL_CHARS_PER_WRAP : WTO_DETAIL_CHARS_PER_WRAP
+  const detailLines = wrapPrintDetailLines(row.detail, maxCharacters)
+  const chunks: PrintWeightRow[] = []
+  let cursor = 0
+
+  while (cursor < detailLines.length) {
+    const isFirstChunk = chunks.length === 0
+    let end = cursor
+    let fittingRow: PrintWeightRow | null = null
+
+    while (end < detailLines.length) {
+      end += 1
+      const detail = detailLines.slice(cursor, end).join('\n')
+      const candidate: PrintWeightRow = isFirstChunk
+        ? { ...row, detail }
+        : {
+            ...row,
+            continuation: true,
+            containerDeductionWeight: 0,
+            deductionWeight: 0,
+            detail,
+            grossWeight: 0,
+            label: 'ต่อรายละเอียด',
+            netWeight: 0,
+            productName: row.productName,
+            rank: row.rank,
+          }
+
+      if (estimatePrintWeightRowHeight(candidate, isReceipt) > budget) {
+        end -= 1
+        break
+      }
+      fittingRow = candidate
+    }
+
+    if (!fittingRow || end <= cursor) {
+      throw new Error('Unable to split WTI/WTO print row without losing detail')
+    }
+
+    chunks.push(fittingRow)
+    cursor = end
+  }
+
+  console.info('[weight-ticket-print] split oversized row', {
+    className: row.className,
+    detailLength: Array.from(row.detail).length,
+    originalHeight,
+    continuationRows: chunks.length - 1,
+  })
+
+  return chunks
+}
+
+function normalizePrintRowsForPagination(rows: readonly PrintWeightRow[], isReceipt: boolean, budget: number) {
+  return rows.flatMap((row) => splitOversizedPrintRow(row, isReceipt, budget))
+}
+
 function makePrintPage(
   items: readonly PrintWeightRow[],
   budget: number,
@@ -437,12 +519,15 @@ export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: 
   const continuationBudget = CONTINUATION_PAGE_ITEM_ROWS
   const finalMaxRows = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
   const finalBudget = isReceipt ? WTI_FINAL_PAGE_HEIGHT_UNITS : WTO_FINAL_PAGE_HEIGHT_UNITS
+  const normalizedPrintRows = normalizePrintRowsForPagination(printRows, isReceipt, continuationBudget)
   const pages: WeightTicketPrintPage[] = []
   let cursor = 0
 
-  while (cursor < printRows.length) {
-    const items = takeRowsForBudget(printRows, cursor, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
-    if (items.length === 0) throw new Error('Unable to paginate WTI/WTO print rows without losing data')
+  while (cursor < normalizedPrintRows.length) {
+    const items = takeRowsForBudget(normalizedPrintRows, cursor, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+    if (items.length === 0) {
+      throw new Error('Unable to paginate WTI/WTO print rows without losing data')
+    }
     pages.push(makePrintPage(items, continuationBudget, isReceipt))
     cursor += items.length
   }
@@ -538,15 +623,15 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           ${row.label ? `<div class="muted">${escapeHtml(row.label)}</div>` : ''}
           ${row.detail ? `<div class="muted">${detailHtml(row.detail)}</div>` : ''}
         </td>
-        <td class="r">${formatPrintableNumber(row.grossWeight)}</td>
+        <td class="r">${row.continuation ? '&nbsp;' : formatPrintableNumber(row.grossWeight)}</td>
         ${isReceipt ? `
-        <td class="r">${formatPrintableNumber(row.containerDeductionWeight)}</td>
-        <td class="r">${formatPrintableNumber(afterContainerWeight)}</td>
-        <td class="r">${formatPrintableNumber(row.deductionWeight)}</td>
+        <td class="r">${row.continuation ? '&nbsp;' : formatPrintableNumber(row.containerDeductionWeight)}</td>
+        <td class="r">${row.continuation ? '&nbsp;' : formatPrintableNumber(afterContainerWeight)}</td>
+        <td class="r">${row.continuation ? '&nbsp;' : formatPrintableNumber(row.deductionWeight)}</td>
         ` : `
-        <td class="r">${formatPrintableNumber(row.containerDeductionWeight)}</td>
+        <td class="r">${row.continuation ? '&nbsp;' : formatPrintableNumber(row.containerDeductionWeight)}</td>
         `}
-        <td class="r strong">${formatPrintableNumber(row.netWeight)}</td>
+        <td class="r strong">${row.continuation ? '&nbsp;' : formatPrintableNumber(row.netWeight)}</td>
       </tr>
     `
   }

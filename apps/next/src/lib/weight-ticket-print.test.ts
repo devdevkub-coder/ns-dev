@@ -463,7 +463,7 @@ describe('weight ticket print HTML', () => {
     expect(pages[0]?.estimatedHeight).toBe(13)
   })
 
-  it('rejects a row taller than one A4 form instead of emitting an invalid page plan', () => {
+  it('splits a row taller than one A4 form into continuation rows without duplicating totals', () => {
     const oversizedRow = {
       containerDeductionWeight: 0,
       deductionWeight: 0,
@@ -474,8 +474,62 @@ describe('weight ticket print HTML', () => {
       productName: 'Oversized row',
     }
 
-    expect(() => paginatePrintWeightRows([oversizedRow], true)).toThrow('รายการ WTI/WTO ยาวเกินพื้นที่หนึ่งหน้า A4')
+    const pages = paginatePrintWeightRows([oversizedRow], true)
+    const printedRows = pages.flatMap((page) => page.items)
+
+    expect(pages.length).toBeGreaterThan(1)
+    expect(printedRows[0]).toMatchObject({
+      containerDeductionWeight: oversizedRow.containerDeductionWeight,
+      deductionWeight: oversizedRow.deductionWeight,
+      grossWeight: oversizedRow.grossWeight,
+      label: oversizedRow.label,
+      netWeight: oversizedRow.netWeight,
+      productName: oversizedRow.productName,
+    })
+    expect(printedRows.slice(1).every((row) => row.productName === oversizedRow.productName)).toBe(true)
+    expect(printedRows.slice(1).every((row) => row.grossWeight === 0 && row.netWeight === 0)).toBe(true)
+    expect(printedRows.every((row) => estimatePrintWeightRowHeight(row, true) <= WEIGHT_TICKET_MAX_ROWS_PER_PAGE)).toBe(true)
+    expect(printedRows.map((row) => row.detail).join('').replace(/\s/g, '')).toBe(oversizedRow.detail.replace(/\s/g, ''))
   })
+
+  it('renders oversized WTI detail and preserves the WTO pagination contract without duplicating totals', async () => {
+    await ensurePdfFontsRegistered()
+
+    for (const type of ['WTI', 'WTO'] as const) {
+      const oversizedTicket = ticketWithPrintRowCount(1, type)
+      oversizedTicket.lines[0] = {
+        ...oversizedTicket.lines[0],
+        note: 'รายละเอียดภาษาไทยที่ยาวมาก '.repeat(80),
+      }
+      const isReceipt = type === 'WTI'
+      const rows = buildPrintWeightRows(oversizedTicket, isReceipt)
+      const pages = paginatePrintWeightRows(rows, isReceipt)
+      const html = buildReceiptPrintHtml(oversizedTicket, profile)
+      const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: oversizedTicket }))
+
+      expect(pages.length).toBeGreaterThanOrEqual(1)
+      if (isReceipt) {
+        expect(html).toContain('ต่อรายละเอียด')
+        const continuationLabelIndex = html.indexOf('ต่อรายละเอียด')
+        const continuationRowStart = html.lastIndexOf('<tr', continuationLabelIndex)
+        const continuationRowEnd = html.indexOf('</tr>', continuationLabelIndex)
+        expect(html.slice(continuationRowStart, continuationRowEnd)).not.toContain('100.00')
+      } else {
+        const oversizedWtoPages = paginatePrintWeightRows([{
+          containerDeductionWeight: 0,
+          deductionWeight: 0,
+          detail: 'รายละเอียด WTO ที่ยาวมาก '.repeat(100),
+          grossWeight: 100,
+          label: '',
+          netWeight: 100,
+          productName: 'WTO oversized row',
+        }], false)
+        expect(oversizedWtoPages.flatMap((page) => page.items).length).toBeGreaterThan(1)
+        expect(html).not.toContain('ต่อรายละเอียด')
+      }
+      expect(countPdfPages(Buffer.from(pdf))).toBe(pages.length)
+    }
+  }, 30_000)
 
   it('keeps WTI/WTO HTML and React-PDF page plans aligned without losing rows', async () => {
     await ensurePdfFontsRegistered()

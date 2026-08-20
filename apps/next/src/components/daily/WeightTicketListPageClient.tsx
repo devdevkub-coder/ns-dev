@@ -23,10 +23,8 @@ import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import {
   invalidateWeightTicketForPrintCache,
-  peekCachedWeightTicketForPrint,
   prefetchPrintAssets,
   prefetchPrintFonts,
-  prefetchWeightTicketForPrint,
 } from '@/lib/print-asset-prefetch'
 import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
@@ -487,24 +485,11 @@ export function WeightTicketListPageClient() {
       // The prefetch is best-effort: a failure here only means the builder
       // refetches (it always fetches when the cache is empty).
       void prefetchPrintAssets(ticket.branchId)
-      // If the user hovered the print action first, the ticket detail and its
-      // attachment signed URLs are already cached and preloaded — skip the
-      // refetch so the popup can render immediately.
-      let detailTicket: WeightTicketRecord | null = peekCachedWeightTicketForPrint(ticket.id)
-      if (!detailTicket) {
-        // The print album renders each photo from its signed URL, so it normally
-        // fetches the ticket with image previews. Tickets whose photos were never
-        // thumbnail-processed cannot build preview URLs (the API throws), so fall
-        // back to the raw record: the form still prints and any photo without a
-        // URL is simply omitted from the album instead of blocking the whole
-        // document with a 500.
-        try {
-          detailTicket = await getWeightTicket(ticket.id)
-        } catch (caught) {
-          console.warn('[weight-ticket-print] image preview URLs unavailable, printing without photo previews', caught)
-          detailTicket = await getWeightTicket(ticket.id, { includeImagePreviews: false })
-        }
-      }
+      // The list/prefetch cache can contain an older line snapshot after an
+      // edit. Printing is a document fact, so always re-read the ticket at the
+      // moment the user clicks Print; the prefetch above only warms assets.
+      invalidateWeightTicketForPrintCache(ticket.id)
+      const detailTicket: WeightTicketRecord = await getWeightTicket(ticket.id)
       await openWeightTicketReceiptPrint(detailTicket, printWindow)
     } catch (caught) {
       printWindow?.close()
@@ -841,7 +826,7 @@ export function WeightTicketListPageClient() {
                       {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
                       {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                       {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
-                      {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => { void prefetchWeightTicketForPrint(ticket.id); void prefetchPrintAssets(ticket.branchId) }} onFocus={() => { void prefetchWeightTicketForPrint(ticket.id); void prefetchPrintAssets(ticket.branchId) }}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                      {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => { void prefetchPrintAssets(ticket.branchId) }} onFocus={() => { void prefetchPrintAssets(ticket.branchId) }}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
                       {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                       {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                       {ticket.canCancel ? (
@@ -954,7 +939,7 @@ export function WeightTicketListPageClient() {
                             {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
                             {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                             {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
-                            {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => { void prefetchWeightTicketForPrint(ticket.id); void prefetchPrintAssets(ticket.branchId) }} onFocus={() => { void prefetchWeightTicketForPrint(ticket.id); void prefetchPrintAssets(ticket.branchId) }}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                            {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => { void prefetchPrintAssets(ticket.branchId) }} onFocus={() => { void prefetchPrintAssets(ticket.branchId) }}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
                             {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                             {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                             {ticket.canCancel ? (

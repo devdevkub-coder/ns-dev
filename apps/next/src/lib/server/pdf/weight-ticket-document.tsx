@@ -555,23 +555,23 @@ function ItemRow({ row, isReceipt, dense = false }: { row: PrintWeightRow; isRec
         {row.detail && !inlineNoImpurityDetail ? <Text style={[styles.muted, mutedDensity]}>{nt(row.detail)}</Text> : null}
       </View>
       <View style={[styles.tableCellRight, cellDensity, { width: COL_GROSS }]}>
-        <Text>{formatPrintableNumber(row.grossWeight)}</Text>
+        <Text>{row.continuation ? '' : formatPrintableNumber(row.grossWeight)}</Text>
       </View>
       <View style={[styles.tableCellRight, cellDensity, { width: COL_CONTAINER }]}>
-        <Text>{formatPrintableNumber(row.containerDeductionWeight)}</Text>
+        <Text>{row.continuation ? '' : formatPrintableNumber(row.containerDeductionWeight)}</Text>
       </View>
       {isReceipt ? (
         <>
           <View style={[styles.tableCellRight, cellDensity, { width: COL_AFTER_CONTAINER }]}>
-            <Text>{formatPrintableNumber(afterContainerWeight)}</Text>
+            <Text>{row.continuation ? '' : formatPrintableNumber(afterContainerWeight)}</Text>
           </View>
           <View style={[styles.tableCellRight, cellDensity, { width: COL_DEDUCTION }]}>
-            <Text>{formatPrintableNumber(row.deductionWeight)}</Text>
+            <Text>{row.continuation ? '' : formatPrintableNumber(row.deductionWeight)}</Text>
           </View>
         </>
       ) : null}
       <View style={[styles.tableCellStrongLast, cellDensity, { width: isReceipt ? COL_NET : COL_NET_WTO }]}>
-        <Text>{formatPrintableNumber(row.netWeight)}</Text>
+        <Text>{row.continuation ? '' : formatPrintableNumber(row.netWeight)}</Text>
       </View>
     </View>
   )
