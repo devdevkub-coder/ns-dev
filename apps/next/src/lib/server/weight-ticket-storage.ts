@@ -312,7 +312,6 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
       continue
     }
     const processingAsset = assetByStorageKey.get(storageKey)
-    const byteSize = processingAsset?.byte_size == null ? undefined : Number(processingAsset.byte_size)
     if (!processingAsset) continue
     // Legacy references stored without a thumbnailStorageKey field can still
     // resolve through the asset ledger, which knows the generated thumbnail.
@@ -356,6 +355,7 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
       throw new WeightTicketImageReferenceError(`storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
     }
     const processingAsset = assetByStorageKey.get(storageKey)
+    const byteSize = processingAsset?.byte_size == null ? undefined : Number(processingAsset.byte_size)
     // Legacy references stored before the thumbnail pipeline may lack the
     // thumbnailStorageKey field. Resolve it through the asset ledger when
     // possible; when neither the reference nor the ledger knows a thumbnail,
