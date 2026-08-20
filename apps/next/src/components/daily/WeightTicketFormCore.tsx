@@ -3857,7 +3857,12 @@ export function WeightTicketFormCore({
       const persistedBaselineLines = baselineTicket?.lines.filter((line) => line.version != null) ?? []
       const baselineLines = new Map(persistedBaselineLines.map((line) => [line.id, line] as const))
       const baselineLineIds = Array.from(baselineLines.keys())
-      const deletedLineIds = new Set(deletedLineIdsRef.current)
+      // The deletion ref can contain local draft UUIDs from an earlier
+      // interaction. Only persisted rows can be deleted through the
+      // collaboration contract; draft rows are created/removed locally.
+      const deletedLineIds = new Set(
+        Array.from(deletedLineIdsRef.current).filter((lineId) => baselineLines.has(lineId)),
+      )
       baselineLineIds.filter((lineId) => !formToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
       const changedLineIds = getWeightTicketChangedLineIds(
         formToSave.lines,
