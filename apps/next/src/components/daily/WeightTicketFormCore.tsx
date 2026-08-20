@@ -3851,7 +3851,11 @@ export function WeightTicketFormCore({
       await waitForPendingAttachmentUploads()
       const formToSave = formRef.current
       const saveSnapshot = formSafetySnapshot(formToSave, discardableDraftLineIdsRef.current)
-      const baselineLines = new Map(baselineTicket ? baselineTicket.lines.map((line) => [line.id, line] as const) : [])
+      // Draft rows can temporarily exist in the local form/baseline after a
+      // product or impurity row is added. They are not part of the persisted
+      // collaboration baseline until the server assigns a version.
+      const persistedBaselineLines = baselineTicket?.lines.filter((line) => line.version != null) ?? []
+      const baselineLines = new Map(persistedBaselineLines.map((line) => [line.id, line] as const))
       const baselineLineIds = Array.from(baselineLines.keys())
       const deletedLineIds = new Set(deletedLineIdsRef.current)
       baselineLineIds.filter((lineId) => !formToSave.lines.some((line) => line.id === lineId)).forEach((lineId) => deletedLineIds.add(lineId))
@@ -3867,7 +3871,7 @@ export function WeightTicketFormCore({
       const saveValues = {
         branchId: formToSave.branchId,
         collaborationBaseLineIds: baselineLineIds,
-        collaborationBaseLineVersions: Object.fromEntries(Array.from(baselineLines.entries()).map(([lineId, line]) => [lineId, line.version])),
+        collaborationBaseLineVersions: Object.fromEntries(persistedBaselineLines.map((line) => [line.id, line.version])),
         collaborationChangedLineIds: Array.from(changedLineIds),
         collaborationDeletedLineIds: Array.from(deletedLineIds),
         // Final document save is a strict validation boundary. A blank lot

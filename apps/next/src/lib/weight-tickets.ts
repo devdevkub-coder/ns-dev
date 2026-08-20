@@ -1552,14 +1552,17 @@ function parseWeightTicketRequest<TSchema extends z.ZodTypeAny>(schema: TSchema,
   console.info('[weight-ticket-request-contract] parse.start', { operation, ...summary })
   const parsed = schema.safeParse(payload)
   if (!parsed.success) {
+    const issues = parsed.error.issues.map((issue) => ({
+      code: issue.code,
+      message: issue.message,
+      path: issue.path.map((segment) => String(segment)).join('.'),
+    }))
     console.error('[weight-ticket-request-contract] invalid', {
       operation,
       ...summary,
-      issues: parsed.error.issues.map((issue) => ({
-        code: issue.code,
-        message: issue.message,
-        path: issue.path.map((segment) => String(segment)).join('.'),
-      })),
+      issueCount: issues.length,
+      issues,
+      issuesJson: JSON.stringify(issues),
     })
     throw parsed.error
   }
