@@ -22,7 +22,7 @@ import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/compon
 import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 import { cn } from '@/lib/utils'
-import { readCompanyWarehouses } from '@/lib/company-warehouses'
+import { readCompanyGodowns } from '@/lib/company-godowns'
 import { cachedWeightTicketReferences, fetchFreshWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import { mergeWeightTicketCollaborationBaseline } from '@/lib/weight-ticket-collaboration'
@@ -1500,7 +1500,7 @@ export function WeightTicketFormCore({
   const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(initialForm(initialType)))
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [isLoadingBranches, setIsLoadingBranches] = useState(true)
-  const [warehouses, setWarehouses] = useState<Array<OptionItem & { branchCode?: string | null }>>(() => readCompanyWarehouses().map((warehouse) => ({ branchCode: warehouse.branchId ?? null, id: String(warehouse.code), label: `${warehouse.code} — ${warehouse.name}` })))
+  const [warehouses, setWarehouses] = useState<Array<OptionItem & { branchCode?: string | null }>>(() => readCompanyGodowns().map((godown) => ({ branchCode: godown.branchId ?? null, id: String(godown.code), label: `${godown.code} — ${godown.name}` })))
   const [suppliers, setSuppliers] = useState<OptionItem[]>([])
   const [customers, setCustomers] = useState<OptionItem[]>([])
   const [products, setProducts] = useState<OptionItem[]>([])
@@ -1994,10 +1994,10 @@ export function WeightTicketFormCore({
   useEffect(() => {
     let cancelled = false
 
-    fetchFreshWeightTicketReferences<{ warehouses?: Array<{ branchCode?: string | null; code?: string | null; id: string; name: string }> }>('/api/daily/weight-tickets/options')
+    fetchFreshWeightTicketReferences<{ godowns?: Array<{ branchCode?: string | null; code?: string | null; id: string; name: string }> }>('/api/daily/weight-tickets/options')
       .then((data) => {
         if (cancelled) return
-        const rows = data.warehouses ?? []
+        const rows = data.godowns ?? []
         if (rows.length === 0) return
         setWarehouses(rows.map((warehouse) => ({
           branchCode: warehouse.branchCode ?? null,

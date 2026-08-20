@@ -953,6 +953,7 @@ model branches {
   trading_cost_sources      trading_cost_sources[]
   transfers                 transfers[]
   warehouses                warehouses[]
+  godowns                   godowns[]
   weight_tickets            weight_tickets[]
 
   @@schema("public")
@@ -4315,6 +4316,26 @@ model warehouses {
   weight_ticket_lines                                                 weight_ticket_lines[]
   warehouse_kpi_evaluations                                           warehouse_kpi_evaluations[]
 
+  @@schema("public")
+}
+
+model godowns {
+  code                String    @unique
+  name                String
+  active              Boolean?  @default(true)
+  created_at          DateTime? @default(now()) @db.Timestamptz(6)
+  in_charge           String?
+  phone               String?
+  supported_processes String[]   @default([])
+  target_sort_kg      Decimal?  @db.Decimal
+  target_bale_count   Int?
+  max_capacity_kg     Decimal?  @db.Decimal
+  updated_at          DateTime? @db.Timestamptz(6)
+  id                  BigInt    @id @default(autoincrement())
+  branch_id           BigInt?
+  branches            branches? @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([branch_id])
   @@schema("public")
 }
 

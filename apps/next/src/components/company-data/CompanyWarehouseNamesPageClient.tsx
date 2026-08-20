@@ -13,15 +13,16 @@ import { Button } from '@/components/ui/Button'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import {
-  readCompanyWarehouses,
-  writeCompanyWarehouses,
-  type WarehouseItem,
-} from '@/lib/company-warehouses'
+  readCompanyGodowns,
+  writeCompanyGodowns,
+  type GodownItem,
+} from '@/lib/company-godowns'
 import { emptyMasterDataForm, listMasterDataRecords, saveMasterDataRecord, setMasterDataRecordActive, type MasterDataRecord } from '@/lib/master-data'
 
 type StatusFilter = 'all' | 'active' | 'inactive'
 type SortKey = 'code' | 'name' | 'branchName' | 'inCharge' | 'active'
 type TableColumnKey = SortKey | '__action'
+type WarehouseItem = GodownItem
 
 const pageSizeOptions = [10, 25, 50, 100]
 
@@ -128,16 +129,16 @@ export function CompanyWarehouseNamesPageClient() {
     setError(null)
     try {
       const [rows, branchRows] = await Promise.all([
-        listMasterDataRecords('/api/master-data/warehouses?kind=godown'),
+        listMasterDataRecords('/api/master-data/godowns'),
         listMasterDataRecords('/api/master-data/branches').catch(() => []),
       ])
       const nextItems = rows.map(recordToItem)
       setItems(nextItems)
       setBranches(branchRows.filter((b) => b.active !== false).map((b) => ({ code: b.code || b.id, name: b.name })))
-      writeCompanyWarehouses(nextItems)
+      writeCompanyGodowns(nextItems)
       setOfflineMode(false)
     } catch {
-      const offline = readCompanyWarehouses()
+      const offline = readCompanyGodowns()
       if (offline.length > 0) {
         setItems(offline)
         setOfflineMode(true)
@@ -225,7 +226,7 @@ export function CompanyWarehouseNamesPageClient() {
   }
 
   async function persistLocally(nextItems: WarehouseItem[], actionMessage: string) {
-    writeCompanyWarehouses(nextItems)
+    writeCompanyGodowns(nextItems)
     setItems(nextItems)
     setOfflineMode(true)
     setMessage(`${actionMessage} (บันทึกในเครื่องเท่านั้น ยังไม่ได้บันทึกที่ฐานข้อมูล)`)
@@ -252,7 +253,7 @@ export function CompanyWarehouseNamesPageClient() {
     setError(null)
     setMessage(null)
     try {
-      const saved = await saveMasterDataRecord('/api/master-data/warehouses', {
+      const saved = await saveMasterDataRecord('/api/master-data/godowns', {
         ...emptyMasterDataForm,
         active: formItem.active,
         branchId: formItem.branchId || null,
@@ -265,7 +266,7 @@ export function CompanyWarehouseNamesPageClient() {
       const nextItems = isEditing
         ? items.map((item) => String(item.id) === String(savedItem.id) ? savedItem : item)
         : [...items, savedItem]
-      writeCompanyWarehouses(nextItems)
+      writeCompanyGodowns(nextItems)
       setItems(nextItems)
       setOfflineMode(false)
       setMessage(isEditing ? `แก้ไขโกดัง ${savedItem.code} แล้ว` : `เพิ่มโกดัง ${savedItem.code} แล้ว`)
@@ -290,10 +291,10 @@ export function CompanyWarehouseNamesPageClient() {
     setError(null)
     setMessage(null)
     try {
-      const saved = await setMasterDataRecordActive('/api/master-data/warehouses', String(item.id), !item.active)
+      const saved = await setMasterDataRecordActive('/api/master-data/godowns', String(item.id), !item.active)
       const savedItem = recordToItem(saved)
       const nextItems = items.map((entry) => String(entry.id) === String(savedItem.id) ? savedItem : entry)
-      writeCompanyWarehouses(nextItems)
+      writeCompanyGodowns(nextItems)
       setItems(nextItems)
       setOfflineMode(false)
       setMessage(`โกดัง ${savedItem.code} ${savedItem.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} แล้ว`)
@@ -311,13 +312,13 @@ export function CompanyWarehouseNamesPageClient() {
     let offlineError: unknown = null
     let rejected: string | null = null
     try {
-      const response = await fetch(`/api/master-data/warehouses/${encodeURIComponent(String(deleteTarget.id))}`, { method: 'DELETE' })
+      const response = await fetch(`/api/master-data/godowns/${encodeURIComponent(String(deleteTarget.id))}`, { method: 'DELETE' })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({ error: 'ลบโกดังไม่ได้' })) as { error?: string }
         rejected = payload.error ?? 'ลบโกดังไม่ได้'
       } else {
         const nextItems = items.filter((item) => String(item.id) !== String(deleteTarget.id))
-        writeCompanyWarehouses(nextItems)
+        writeCompanyGodowns(nextItems)
         setItems(nextItems)
         setOfflineMode(false)
         setMessage(`ลบโกดัง ${deleteTarget.code} แล้ว`)
