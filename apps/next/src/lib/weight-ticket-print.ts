@@ -560,8 +560,16 @@ export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: 
       const remainingBudget = continuationBudget - estimateRowsHeight(items, isReceipt)
       const remainderChunks = splitRowIntoPageRemainder(normalizedPrintRows[nextRowIndex]!, isReceipt, remainingBudget)
       if (remainderChunks) {
+        const remainingSlots = WEIGHT_TICKET_MAX_ROWS_PER_PAGE - items.length
+        const fittingChunks = takeRowsForBudget(
+          remainderChunks,
+          0,
+          remainingBudget,
+          isReceipt,
+          remainingSlots,
+        )
         normalizedPrintRows.splice(nextRowIndex, 1, ...remainderChunks)
-        items = [...items, remainderChunks[0]!]
+        items = [...items, ...fittingChunks]
       }
     }
 
