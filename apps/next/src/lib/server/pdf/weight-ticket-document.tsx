@@ -374,8 +374,8 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: 700,
     color: DOC_TITLE_GREEN,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
   continuedDense: {
     fontSize: 8,

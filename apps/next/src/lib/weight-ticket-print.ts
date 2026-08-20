@@ -19,7 +19,8 @@ const CONTINUATION_PAGE_ITEM_ROWS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
 // expressed in text-line units rather than row counts. Keeping the final page
 // on the same 20-unit budget means up to twenty short rows (or fewer wrapped
 // rows) fit on one A4 form without pushing totals, panels or signatures off
-// the page; a row that does not fit moves to the next page as a whole row.
+// the page; a row that does not fit uses a detail continuation when there is
+// remaining space, otherwise it moves to the next page.
 const WTI_FINAL_PAGE_HEIGHT_UNITS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
 const WTO_FINAL_PAGE_HEIGHT_UNITS = WEIGHT_TICKET_MAX_ROWS_PER_PAGE
 const WTI_DETAIL_CHARS_PER_WRAP = 34
@@ -497,6 +498,25 @@ function takeRowsForBudget(
   return items
 }
 
+function splitRowIntoPageRemainder(
+  row: PrintWeightRow,
+  isReceipt: boolean,
+  remainingBudget: number,
+) {
+  if (!row.detail || remainingBudget < 1) return null
+  try {
+    const chunks = splitOversizedPrintRow(row, isReceipt, remainingBudget)
+    return chunks.length > 1 ? chunks : null
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unable to split WTI/WTO print row without losing detail') {
+      // A remaining fragment smaller than one printable detail line cannot be
+      // rendered safely. Keep the complete row for the next page instead.
+      return null
+    }
+    throw error
+  }
+}
+
 function largestFittingSuffix(
   items: readonly PrintWeightRow[],
   budget: number,
@@ -524,10 +544,20 @@ export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: 
   let cursor = 0
 
   while (cursor < normalizedPrintRows.length) {
-    const items = takeRowsForBudget(normalizedPrintRows, cursor, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
+    let items = takeRowsForBudget(normalizedPrintRows, cursor, continuationBudget, isReceipt, WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
     if (items.length === 0) {
       throw new Error('Unable to paginate WTI/WTO print rows without losing data')
     }
+    const nextRowIndex = cursor + items.length
+    if (nextRowIndex < normalizedPrintRows.length && items.length < WEIGHT_TICKET_MAX_ROWS_PER_PAGE) {
+      const remainingBudget = continuationBudget - estimateRowsHeight(items, isReceipt)
+      const remainderChunks = splitRowIntoPageRemainder(normalizedPrintRows[nextRowIndex]!, isReceipt, remainingBudget)
+      if (remainderChunks) {
+        normalizedPrintRows.splice(nextRowIndex, 1, ...remainderChunks)
+        items = [...items, remainderChunks[0]!]
+      }
+    }
+
     pages.push(makePrintPage(items, continuationBudget, isReceipt))
     cursor += items.length
   }
@@ -900,7 +930,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 28px; margin-bottom: 0; break-inside: avoid; page-break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 16px; font-weight: 700; color: #1e293b; }
-      .continued { min-height: 64px; margin-top: auto; display: flex; align-items: center; justify-content: center; padding-top: 8px; text-align: center; color: #14532d; font-weight: 700; }
+      .continued { min-height: 0; margin-top: auto; display: flex; align-items: center; justify-content: center; padding: 4px 0; text-align: center; color: #14532d; font-weight: 700; }
       @media print {
         /* WYSIWYG contract: print renders exactly like the on-screen preview.
          * The WTI/WTO builders measure their pages at the base (screen) CSS, so

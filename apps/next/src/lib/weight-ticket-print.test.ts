@@ -419,8 +419,8 @@ describe('weight ticket print HTML', () => {
     expect(pages[0]?.capacity).toBe(WEIGHT_TICKET_MAX_ROWS_PER_PAGE)
   })
 
-  it('moves a wrapped WTI row to the next page as a complete row', () => {
-    const shortRows = Array.from({ length: 18 }, (_, index) => ({
+  it('splits wrapped WTI detail into the remaining space before continuing on the next page', () => {
+    const shortRows = Array.from({ length: 17 }, (_, index) => ({
       containerDeductionWeight: 0,
       deductionWeight: 0,
       detail: '',
@@ -437,11 +437,22 @@ describe('weight ticket print HTML', () => {
     const pages = paginatePrintWeightRows([...shortRows, wrappedRow, { ...shortRows[0], productName: 'After wrapped' }], true)
 
     expect(estimatePrintWeightRowHeight(wrappedRow, true)).toBeGreaterThan(1)
-    expect(pages[0]?.items.map((row) => row.productName)).toEqual(shortRows.map((row) => row.productName))
+    expect(pages[0]?.items.map((row) => row.productName)).toEqual([
+      ...shortRows.map((row) => row.productName),
+      'Wrapped row',
+    ])
     expect(pages.slice(1).flatMap((page) => page.items).map((row) => row.productName)).toEqual([
+      'Wrapped row',
+      'Wrapped row',
+      'Wrapped row',
+      'Wrapped row',
       'Wrapped row',
       'After wrapped',
     ])
+    expect(pages[0]?.items.at(-1)?.continuation).toBeUndefined()
+    expect(pages[1]?.items[0]?.continuation).toBe(true)
+    expect(pages[1]?.items[0]?.grossWeight).toBe(0)
+    expect(pages[1]?.items[0]?.netWeight).toBe(0)
   })
 
   it('keeps twelve rows with wrapped detail on the single WTI form page', () => {
@@ -552,7 +563,7 @@ describe('weight ticket print HTML', () => {
     }
   }, 30_000)
 
-  it('keeps a fitting long WTI row intact within the rendered PDF page plan', async () => {
+  it('splits a long WTI row at a page boundary without duplicating its totals', async () => {
     await ensurePdfFontsRegistered()
     const longTicket = ticketWithPrintRowCount(20, 'WTI')
     const longLineIndex = 16
@@ -565,7 +576,19 @@ describe('weight ticket print HTML', () => {
     const pdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: longTicket }))
 
     expect(weightTicketPdfSource).toMatch(/function ItemRow[\s\S]*?<View style=\{\[styles\.tableRow, bgStyle\]\} wrap=\{false\}/)
-    expect(pages.flatMap((page) => page.items)).toEqual(rows)
+    const printedRows = pages.flatMap((page) => page.items)
+    expect(printedRows.map((row) => row.productName)).toEqual([
+      ...rows.slice(0, 16).map((row) => row.productName),
+      'Product 17',
+      'Product 17',
+      'Product 17',
+      'Product 17',
+      'Product 18',
+      'Product 19',
+      'Product 20',
+    ])
+    expect(printedRows.filter((row) => row.productName === 'Product 17')).toHaveLength(4)
+    expect(printedRows.filter((row) => row.productName === 'Product 17').slice(1).every((row) => row.grossWeight === 0 && row.netWeight === 0)).toBe(true)
     expect(countPdfPages(Buffer.from(pdf))).toBe(pages.length)
   }, 30_000)
 
@@ -758,6 +781,8 @@ describe('weight ticket print HTML', () => {
     expect(style).toContain('.items tbody > tr { height: calc(100% / var(--item-row-slots)); }')
     expect(style).not.toMatch(/\.items \.empty td\s*\{[^}]*height:/)
     expect(style).not.toMatch(/\.items \.final-empty td\s*\{[^}]*height:/)
+    expect(style).toMatch(/\.continued\s*\{[^}]*min-height:\s*0/)
+    expect(style).not.toMatch(/\.continued\s*\{[^}]*min-height:\s*64px/)
   })
 
   it('keeps WTI/WTO form pagination owned by the dedicated paginator', () => {
