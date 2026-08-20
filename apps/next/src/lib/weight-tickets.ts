@@ -127,7 +127,7 @@ export type WeightTicketRecord = {
   createdBy: string
   documentDate: string
   documentNo: string
-  enteredBy: string
+  enteredBy: string | null
   id: string
   imageCount: number
   imageNames: string[]
@@ -835,7 +835,7 @@ export const weightTicketRecordSchema = z.object({
   createdBy: z.string(),
   documentDate: z.string(),
   documentNo: z.string(),
-  enteredBy: z.string(),
+  enteredBy: z.string().nullable(),
   id: z.string(),
   imageCount: z.number().int().nonnegative(),
   imageNames: z.array(z.string()),
