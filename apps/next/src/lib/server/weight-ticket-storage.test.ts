@@ -24,7 +24,7 @@ vi.mock('@/lib/server/supabase-admin', () => ({
   }),
 }))
 
-import { assertWeightTicketImageAssetOwnership, attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageProcessingConfig } from './weight-ticket-storage'
+import { assertWeightTicketImageAssetOwnership, attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageProcessingConfig, resolveWeightTicketImageUploadConfig } from './weight-ticket-storage'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -72,6 +72,27 @@ function storedReference(overrides: Record<string, unknown> = {}) {
 }
 
 describe('WTI/WTO private image reference contract', () => {
+  it('accepts the Vercel-safe 4 MB upload boundary', async () => {
+    mocks.findSettings.mockImplementation(async () => [
+      { key: 'WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES', value: '4194304' },
+      { key: 'WEIGHT_TICKET_IMAGE_UPLOAD_CONCURRENCY', value: '6' },
+    ])
+
+    await expect(resolveWeightTicketImageUploadConfig()).resolves.toEqual({
+      maxUploadBytes: 4194304,
+      uploadConcurrency: 6,
+    })
+  })
+
+  it('rejects an upload setting above the Vercel-safe boundary', async () => {
+    mocks.findSettings.mockImplementation(async () => [
+      { key: 'WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES', value: '4194305' },
+      { key: 'WEIGHT_TICKET_IMAGE_UPLOAD_CONCURRENCY', value: '6' },
+    ])
+
+    await expect(resolveWeightTicketImageUploadConfig()).rejects.toThrow('WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES')
+  })
+
   it('requires explicit processing settings instead of using runtime fallbacks', async () => {
     mocks.findSettings.mockResolvedValue([])
 

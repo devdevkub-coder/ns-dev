@@ -51,7 +51,14 @@ export type WeightTicketAttachmentPreview = {
   fileName: string
   id: string
   rawValue: string
+  sizeBytes?: number
   url: string
+}
+
+function formatAttachmentFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function AttachmentImage({ file }: { file: WeightTicketAttachmentPreview }) {
@@ -273,6 +280,7 @@ export function WeightTicketAttachmentGrid({
             )}
           </button>
           <div className="mt-2 truncate text-xs text-slate-600" title={file.fileName}>{file.fileName}</div>
+          {file.sizeBytes != null && <div className="mt-0.5 text-xs text-slate-500">{formatAttachmentFileSize(file.sizeBytes)}</div>}
           <button className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline" disabled={disabled} type="button" onClick={() => requestRemove(file.id)}>
             <Trash2 className="h-3 w-3" />
             ลบ
