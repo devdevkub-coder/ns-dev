@@ -8,6 +8,10 @@ export const WEIGHT_TICKET_PDF_BUCKET_SETTING = 'WEIGHT_TICKET_PDF_BUCKET'
 export const WEIGHT_TICKET_IMAGE_STORAGE_PREFIX = 'attachments/'
 export const WEIGHT_TICKET_IMAGE_IMMUTABLE_CACHE_SECONDS = 31536000
 export const WEIGHT_TICKET_THUMBNAIL_WEBP_EFFORT = 5
+// Vercel Functions reject request bodies larger than 4.5 MB before the route
+// handler runs. Keep the file limit below that platform boundary to leave room
+// for multipart/form-data overhead.
+export const WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 
 const imageProcessingSettingKeys = [
   'WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES',
@@ -54,7 +58,7 @@ async function loadWeightTicketImageProcessingSettings() {
 export async function resolveWeightTicketImageUploadConfig() {
   const settings = await loadWeightTicketImageProcessingSettings()
   return {
-    maxUploadBytes: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES', 1, 50 * 1024 * 1024),
+    maxUploadBytes: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES', 1, WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES),
     uploadConcurrency: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_UPLOAD_CONCURRENCY', 1, 10),
   }
 }

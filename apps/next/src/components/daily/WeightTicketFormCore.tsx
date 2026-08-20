@@ -1234,7 +1234,7 @@ async function createAttachmentPreviewFromFile(file: File, maxUploadBytes: numbe
   }
   if (!response.ok || !payload.bucket || !payload.fileName || !payload.storageKey || !payload.thumbnailStorageKey || payload.thumbnailStatus !== 'queued') {
     const statusHint = response.status === 413
-      ? 'ไฟล์มีขนาดใหญ่เกินกว่าที่ระบบรับได้'
+      ? 'ไฟล์มีขนาดใหญ่เกินกว่าที่ระบบรับได้ กรุณาเลือกรูปไม่เกิน 4 MB แล้วลองใหม่'
       : `เซิร์ฟเวอร์ตอบกลับ ${response.status || 'ไม่ทราบสถานะ'}`
     throw new Error(payload.error || `อัปโหลดไฟล์ ${file.name} ไม่สำเร็จ (${statusHint})`)
   }

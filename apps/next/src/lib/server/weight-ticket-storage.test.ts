@@ -46,7 +46,7 @@ beforeEach(() => {
     }))
   ))
   mocks.findSettings.mockResolvedValue([
-    { key: 'WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES', value: '10485760' },
+    { key: 'WEIGHT_TICKET_IMAGE_MAX_UPLOAD_BYTES', value: '4194304' },
     { key: 'WEIGHT_TICKET_IMAGE_UPLOAD_CONCURRENCY', value: '6' },
     { key: 'WEIGHT_TICKET_THUMBNAIL_MAX_DIMENSION', value: '960' },
     { key: 'WEIGHT_TICKET_THUMBNAIL_WEBP_QUALITY', value: '90' },
