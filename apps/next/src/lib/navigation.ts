@@ -215,7 +215,7 @@ const masterDataPagePermissions: Record<string, string> = {
   '/master-data/salespersons': 'master.salespersons.view',
   '/master-data/suppliers': 'master.suppliers.view',
   '/master-data/warehouses': 'master.warehouses.view',
-  '/company-data/warehouse-names': 'master.reference.view',
+  '/company-data/godown-names': 'master.reference.view',
 }
 
 const prefixPathPermissions: Array<[string, string]> = [
@@ -439,7 +439,7 @@ export const navigationItems: NavigationItem[] = [
   // กลุ่มข้อมูลบริษัท
   { href: '/master-data/branches', icon: '🏢', label: 'สาขา', section: 'company-data' },
   { href: '/master-data/warehouses', icon: '🏬', label: 'คลัง', section: 'company-data' },
-  { href: '/company-data/warehouse-names', icon: '🗂️', label: 'ข้อมูลโกดัง', section: 'company-data' },
+  { href: '/company-data/godown-names', icon: '🗂️', label: 'ข้อมูลโกดัง', section: 'company-data' },
   { href: '/master-data/departments', icon: '🏢', label: 'ฝ่าย', section: 'company-data' },
   { href: '/master-data/salespersons', icon: '👨‍💼', label: 'พนักงานขาย (Sales)', section: 'company-data' },
   { href: '/master-data/directors', icon: '🧑‍💼', label: 'พนักงาน / กรรมการ', section: 'company-data' },

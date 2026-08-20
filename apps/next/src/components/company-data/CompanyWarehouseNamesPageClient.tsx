@@ -94,7 +94,7 @@ function MatchButton({ active, label, onClick, tone = 'slate' }: { active: boole
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }
 
-export function CompanyWarehouseNamesPageClient() {
+export function CompanyGodownsPageClient() {
   const [items, setItems] = useState<WarehouseItem[]>([])
   const [branches, setBranches] = useState<Array<{ code: string; name: string }>>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -123,7 +123,7 @@ export function CompanyWarehouseNamesPageClient() {
     { defaultWidth: 100, key: 'active', minWidth: 80, maxWidth: 140 },
     { defaultWidth: 80, key: '__action', minWidth: 64, maxWidth: 96 },
   ]), [])
-  const columnResize = useResizableColumns<TableColumnKey>('company-data.warehouse-names', resizableColumns)
+  const columnResize = useResizableColumns<TableColumnKey>('company-data.godown-names', resizableColumns)
 
   const loadData = useCallback(async () => {
     setError(null)
