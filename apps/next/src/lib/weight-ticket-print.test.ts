@@ -767,7 +767,7 @@ describe('weight ticket print HTML', () => {
     expect(weightTicketPrintSource).toContain('requireFinalPageRows: true')
   })
 
-  it('keeps empty summary boxes on non-final WTI pages and puts real data only on the final page', async () => {
+  it('uses continuation-marker space on non-final WTI pages and puts real data only on the final page', async () => {
     const dom = new JSDOM(buildReceiptPrintHtml(ticketWithPrintRowCount(12), profile), { url: 'https://print.test/' })
     const document = dom.window.document
     Object.defineProperty(document, 'fonts', {
@@ -812,9 +812,8 @@ describe('weight ticket print HTML', () => {
     expect(realRows(pages[1])).toBe(4)
     expect(pages[0]?.querySelector('[data-page-totals="placeholder"]')).not.toBeNull()
     expect(pages[0]?.querySelector('[data-signatures="final"]')).toBeNull()
-    expect(pages[0]?.querySelector('[data-continuation-panels="placeholder"]')).not.toBeNull()
-    expect(pages[0]?.querySelectorAll('.continuation-placeholder')).toHaveLength(3)
-    expect([...pages[0]!.querySelectorAll<HTMLElement>('.continuation-placeholder')].every((node) => node.textContent === '')).toBe(true)
+    expect(pages[0]?.querySelector('[data-continuation-panels="placeholder"]')).toBeNull()
+    expect(pages[0]?.querySelectorAll('.continuation-placeholder')).toHaveLength(0)
     expect(pages[0]?.querySelector('[data-continuation-signature="true"]')).not.toBeNull()
     expect(pages[1]?.querySelector('[data-page-totals="final"]')).not.toBeNull()
     expect(pages[1]?.querySelector('[data-signatures="final"]')).not.toBeNull()
@@ -822,17 +821,16 @@ describe('weight ticket print HTML', () => {
     expect(realRows(pages[1])).toBeGreaterThan(0)
   })
 
-  it('keeps empty WTI/WTO summary boxes on earlier pages and real summary data only on the last page', async () => {
+  it('keeps WTI/WTO summary data only on the last page and uses earlier-page space for rows', async () => {
     const multiPageTicket = ticketWithPrintRowCount(21)
     const html = buildReceiptPrintHtml(multiPageTicket, profile)
     const pages = [...html.matchAll(/<main class="page(?: dense-page)?" data-document-type="(?:WTI|WTO)" data-print-page="\d+"[\s\S]*?<\/main>/g)].map((match) => match[0])
 
     expect(pages).toHaveLength(2)
     expect(pages[0]).not.toContain('data-signatures="final"')
-    expect(pages[0]).toContain('data-continuation-panels="placeholder"')
-    expect(pages[0].match(/class="continuation-placeholder"/g)).toHaveLength(3)
-    expect(pages[0]).not.toContain('continuation-placeholder">-</div>')
-    expect(weightTicketPdfSource).not.toContain("styles.continuationPlaceholder}>{nt('-')}")
+    expect(pages[0]).not.toContain('data-continuation-panels="placeholder"')
+    expect(pages[0]).not.toContain('continuation-placeholder')
+    expect(weightTicketPdfSource).not.toContain('styles.continuationPanel')
     expect(pages[0]).toContain('Continued on Page 2')
     expect(pages[1]).toContain('data-signatures="final"')
     expect(pages[1]).toContain('Weight Info')
@@ -842,7 +840,7 @@ describe('weight ticket print HTML', () => {
     const pdfDocument = WeightTicketDocument({ profile, ticket: multiPageTicket })
     const pdfText = nodeText(pdfDocument)
     expect(pdfText).toContain('Continued on Page 2')
-    expect(pdfText.match(/Weight Info/g)).toHaveLength(2)
+    expect(pdfText.match(/Weight Info/g)).toHaveLength(1)
     expect(countPdfPages(Buffer.from(await renderToBuffer(pdfDocument)))).toBe(2)
   }, 30_000)
 

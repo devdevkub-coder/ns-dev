@@ -511,9 +511,9 @@ function largestFittingSuffix(
 }
 
 /**
- * Keep WTI/WTO rows ordered. Every non-final page keeps the three summary
- * boxes in-place as empty placeholders; only the final page contains real
- * totals/summary/signatures. A final page with no item rows is never emitted.
+ * Keep WTI/WTO rows ordered. Non-final pages reserve continuation-marker/footer
+ * space only; the final page contains real totals/summary/signatures. A final
+ * page with no item rows is never emitted.
  */
 export function paginatePrintWeightRows(printRows: PrintWeightRow[], isReceipt: boolean): WeightTicketPrintPage[] {
   const continuationBudget = CONTINUATION_PAGE_ITEM_ROWS
@@ -773,11 +773,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </section>
         ` : `
           <section class="bottom-zone">
-            <section class="bottom-grid" data-continuation-panels="placeholder" aria-label="Continuation page summary placeholders">
-              <div class="panel continuation-summary-panel"><div class="panel-title">สรุปตามหมวดสินค้า</div><div class="panel-body continuation-panel-body"><div class="continuation-placeholder"></div></div></div>
-              <div class="panel continuation-summary-panel"><div class="panel-title">หมายเหตุ</div><div class="panel-body continuation-panel-body"><div class="continuation-placeholder"></div></div></div>
-              <div class="panel continuation-summary-panel"><div class="panel-title">ข้อมูลน้ำหนัก / Weight Info</div><div class="panel-body continuation-panel-body"><div class="continuation-placeholder"></div></div></div>
-            </section>
             <div class="continued" data-continuation-signature="true">( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )</div>
           </section>
         `}
@@ -880,9 +875,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .c { text-align: center; }
       .strong { font-weight: 700; }
       .bottom-grid { display: grid; grid-template-columns: 1.15fr 0.8fr 1.05fr; gap: 8px; margin-top: 8px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
-      .continuation-summary-panel { min-height: 92px; background: #ffffff; }
-      .continuation-panel-body { min-height: 58px; }
-      .continuation-placeholder { color: #64748b; font-size: 10.5px; }
       .note { min-height: 28px; color: #334155; white-space: pre-wrap; }
       .summary-cards { display: grid; gap: 8px; }
       .summary-card { border: 1px solid #dbe3ea; border-radius: 6px; padding: 5px; background: #f8fafc; }

@@ -27,8 +27,9 @@ export function paginateMeasuredCorporateRows<T>(
 
   if (fillContinuationFirst) {
     // WTI/WTO contract: fill every earlier page as much as physically possible
-    // while keeping the three empty summary boxes fixed in place. Only the last
-    // page carries the real summary/signatures, and it must never be empty.
+    // while reserving only the continuation marker and preserved footer space.
+    // Only the last page carries the real summary/signatures, and it must never
+    // be empty.
     const pages: MeasuredCorporatePage<T>[] = []
     let cursor = 0
 
@@ -46,9 +47,9 @@ export function paginateMeasuredCorporateRows<T>(
         return pages
       }
 
-      // Fill the current placeholder-summary page greedily. Always reserve at
-      // least one trailing row for the real final page, otherwise an exact page
-      // boundary would create the blank-summary page the WTI/WTO contract bans.
+      // Fill the current continuation page greedily. Always reserve at least
+      // one trailing row for the real final page, otherwise an exact page
+      // boundary would create the empty final page the WTI/WTO contract bans.
       const rowsLeft = rows.length - cursor
       let continuationCount = Math.min(maxRowsPerPage, Math.max(0, rowsLeft - 1))
       while (
@@ -59,7 +60,7 @@ export function paginateMeasuredCorporateRows<T>(
       }
 
       if (continuationCount === 0) {
-        throw new Error(`Corporate print row ${cursor + 1} cannot fit before the fixed summary boxes`)
+        throw new Error(`Corporate print row ${cursor + 1} cannot fit before the final-page summary area`)
       }
 
       pages.push({
@@ -131,8 +132,9 @@ type CorporatePrintLayoutOptions = {
   /** Dedicated builders (WTI/WTO) already own their row capacities. */
   reflowRows?: boolean
   /**
-   * WTI/WTO: fill earlier pages greedily while their fixed summary boxes stay
-   * empty; render real summary/Weight Info/signatures only on the last page.
+   * WTI/WTO: fill earlier pages greedily while reserving only continuation
+   * marker/footer space; render real summary/Weight Info/signatures only on the
+   * last page.
    */
   fillContinuationFirst?: boolean
   /** WTI/WTO: never emit a summary-only final page with zero item rows. */
@@ -380,33 +382,31 @@ function createContinuationTemplate(finalTemplate: PrintPageElement) {
   marker.dataset.continuationSignature = 'true'
   marker.textContent = '( มีต่อหน้า 2 / Continued on Page 2 ➔ )'
 
-  const continuation = parent.ownerDocument.createElement('section')
-  continuation.className = Array.from(continuationClasses).join(' ')
-  continuation.dataset.continuationSummary = 'placeholder'
-  continuation.dataset.continuationPanels = 'placeholder'
-  continuation.setAttribute('aria-label', 'Continuation page summary placeholders')
-  const documentTitle = finalTemplate.querySelector<HTMLElement>('.doc-title, h1')?.textContent?.trim().toLowerCase() ?? ''
-  const title = /อนุมัติ|approval|cashier/.test(documentTitle)
-    ? 'สรุปการอนุมัติจ่าย'
-    : /ล่วงหน้า|มัดจำ|advance/.test(documentTitle)
-      ? 'สรุปการจัดสรร'
-      : documentType === 'RCP' || documentType === 'RV' || /รับเงิน|receipt/.test(documentTitle)
-        ? 'รายละเอียดการรับเงิน'
-        : documentType === 'PMT' || /จ่ายเงิน|payment/.test(documentTitle)
-          ? 'รายละเอียดการจ่ายเงิน'
-          : /ค่าใช้จ่าย|expense/.test(documentTitle)
-            ? 'สรุปค่าใช้จ่าย'
-            : 'สรุปตามหมวดสินค้า'
-  const panelTitles = [title, 'หมายเหตุ']
-  if (isWeightTicket) panelTitles.push('ข้อมูลน้ำหนัก / Weight Info')
-  continuation.append(...panelTitles.map((panelTitle) => continuationPanelTitle(parent.ownerDocument, panelTitle)))
-
   if (isWeightTicket) {
-    const bottomZone = parent.ownerDocument.createElement('section')
-    bottomZone.className = 'bottom-zone'
-    bottomZone.append(continuation, marker)
-    parent.append(bottomZone, ...preservedFooter)
+    // WTI/WTO continuation pages use the space formerly reserved for the
+    // summary panels to fit more item rows. The real summary, Weight Info and
+    // signatures belong only to the final page.
+    parent.append(marker, ...preservedFooter)
   } else {
+    const continuation = parent.ownerDocument.createElement('section')
+    continuation.className = Array.from(continuationClasses).join(' ')
+    continuation.dataset.continuationSummary = 'placeholder'
+    continuation.dataset.continuationPanels = 'placeholder'
+    continuation.setAttribute('aria-label', 'Continuation page summary placeholders')
+    const documentTitle = finalTemplate.querySelector<HTMLElement>('.doc-title, h1')?.textContent?.trim().toLowerCase() ?? ''
+    const title = /อนุมัติ|approval|cashier/.test(documentTitle)
+      ? 'สรุปการอนุมัติจ่าย'
+      : /ล่วงหน้า|มัดจำ|advance/.test(documentTitle)
+        ? 'สรุปการจัดสรร'
+        : documentType === 'RCP' || documentType === 'RV' || /รับเงิน|receipt/.test(documentTitle)
+          ? 'รายละเอียดการรับเงิน'
+          : documentType === 'PMT' || /จ่ายเงิน|payment/.test(documentTitle)
+            ? 'รายละเอียดการจ่ายเงิน'
+            : /ค่าใช้จ่าย|expense/.test(documentTitle)
+              ? 'สรุปค่าใช้จ่าย'
+              : 'สรุปตามหมวดสินค้า'
+    const panelTitles = [title, 'หมายเหตุ']
+    continuation.append(...panelTitles.map((panelTitle) => continuationPanelTitle(parent.ownerDocument, panelTitle)))
     parent.append(continuation, marker, ...preservedFooter)
   }
   return template

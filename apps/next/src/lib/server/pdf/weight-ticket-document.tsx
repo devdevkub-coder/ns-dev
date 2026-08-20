@@ -348,24 +348,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   noteText: { fontSize: 9, color: TEXT_DARK },
-  continuationPanel: {
-    minHeight: 70,
-    backgroundColor: '#ffffff',
-  },
-  continuationPanelDense: { minHeight: 48 },
-  continuationPanelBody: {
-    minHeight: 45,
-    padding: 4,
-  },
-  continuationPanelBodyDense: {
-    minHeight: 26,
-    padding: 3,
-  },
-  continuationPlaceholder: {
-    fontSize: 9,
-    color: TEXT_MUTED,
-  },
-
   // Signatures. The marginTop mirrors the HTML print contract (24px ≈ 18pt)
   // between the bottom grid and the signature lines.
   signatures: { flexDirection: 'row', gap: 12, marginTop: 18, marginBottom: 14 },
@@ -897,20 +879,6 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
               </View>
             ) : (
               <View style={styles.bottomZone}>
-                <View style={styles.bottomGrid} wrap={false}>
-                  <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 1.15 }]}>
-                    <Text style={styles.panelTitle}>{nt('สรุปตามหมวดสินค้า')}</Text>
-                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{' '}</Text></View>
-                  </View>
-                  <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 0.8 }]}>
-                    <Text style={styles.panelTitle}>{nt('หมายเหตุ')}</Text>
-                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{' '}</Text></View>
-                  </View>
-                  <View style={[styles.panel, styles.continuationPanel, denseTable ? styles.continuationPanelDense : {}, { flex: 1.05 }]}>
-                    <Text style={styles.panelTitle}>{nt('ข้อมูลน้ำหนัก / Weight Info')}</Text>
-                    <View style={[styles.continuationPanelBody, denseTable ? styles.continuationPanelBodyDense : {}]}><Text style={styles.continuationPlaceholder}>{' '}</Text></View>
-                  </View>
-                </View>
                 <Text style={[styles.continued, denseTable ? styles.continuedDense : {}]}>{nt(`( มีต่อหน้า ${pageIndex + 2} / Continued on Page ${pageIndex + 2} ➔ )`)}</Text>
               </View>
             )}
