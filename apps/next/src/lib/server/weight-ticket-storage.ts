@@ -283,6 +283,7 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
   const assetRows = storageKeys.length > 0
     ? await prisma.weight_ticket_image_assets.findMany({
         select: {
+          byte_size: true,
           original_storage_key: true,
           thumbnail_status: true,
           thumbnail_storage_key: true,
@@ -311,6 +312,7 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
       continue
     }
     const processingAsset = assetByStorageKey.get(storageKey)
+    const byteSize = processingAsset?.byte_size == null ? undefined : Number(processingAsset.byte_size)
     if (!processingAsset) continue
     // Legacy references stored without a thumbnailStorageKey field can still
     // resolve through the asset ledger, which knows the generated thumbnail.
@@ -371,18 +373,18 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
     }
     if (!processingAsset) {
       console.error('[weight_ticket_image_preview] missing asset ledger row', { bucket, storageKey })
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed')
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed', byteSize)
     }
     if (processingAsset.thumbnail_storage_key !== validatedThumbnailStorageKey) {
       throw new WeightTicketImageReferenceError(`thumbnail storage key ของรูปหลักฐาน ${asset.fileName} ไม่ตรงกับทะเบียนรูป`)
     }
     const thumbnailStatus = processingAsset.thumbnail_status as 'failed' | 'processing' | 'queued' | 'ready'
     if (thumbnailStatus !== 'ready') {
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, thumbnailStatus)
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, thumbnailStatus, byteSize)
     }
     const cacheKey = `${asset.bucket}:${validatedThumbnailStorageKey}`
     const cached = signedUrlByKey.get(cacheKey)
-    if (cached) return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, cached, 'ready')
+    if (cached) return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, cached, 'ready', byteSize)
 
     // Batch miss fallback (e.g. a path that failed inside createSignedUrls):
     // request the single signed URL so one bad key never blocks the rest.
@@ -393,10 +395,10 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
         error: error?.message ?? 'ไม่พบ signed URL',
         storageKey,
       })
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed')
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed', byteSize)
     }
     signedUrlByKey.set(cacheKey, data.signedUrl)
-    return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, data.signedUrl, 'ready')
+    return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, data.signedUrl, 'ready', byteSize)
   }
 
   const [imageNames, vehicleImageNames, lines] = await Promise.all([

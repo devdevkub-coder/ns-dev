@@ -292,6 +292,23 @@ describe('WTI/WTO private image reference contract', () => {
     expect(JSON.parse(result.imageNames[0] ?? '{}')).not.toHaveProperty('url')
   })
 
+  it('returns the durable original byte size for existing image references', async () => {
+    mocks.findAssets.mockResolvedValue([{
+      byte_size: 345678n,
+      original_storage_key: 'attachments/pending/evidence.jpg',
+      thumbnail_status: 'queued',
+      thumbnail_storage_key: 'attachments/pending/evidence.thumb.webp',
+    }])
+
+    const result = await attachWeightTicketImagePreviewUrls({
+      imageNames: [storedReference()],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')
+
+    expect(JSON.parse(result.imageNames[0] ?? '{}')).toEqual(expect.objectContaining({ byteSize: 345678 }))
+  })
+
   it('accepts a pending upload only for the user who uploaded it', async () => {
     mocks.findAssets.mockResolvedValue([{
       attached_ticket_id: null,

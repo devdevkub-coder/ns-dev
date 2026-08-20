@@ -1136,6 +1136,7 @@ function createAttachmentPreview(fileName: string): AttachmentPreview {
     fileName: parsed.fileName,
     id: makeFileId(),
     rawValue: toDurableImageReference(parsed),
+    sizeBytes: parsed.byteSize ?? undefined,
     url: parsed.thumbnailUrl ?? parsed.url ?? '',
   }
 }
@@ -1148,6 +1149,9 @@ function toDurableImageReference(asset: ReturnType<typeof decodeStoredImageAsset
     asset.storageKey,
     asset.bucket,
     asset.thumbnailStorageKey ?? undefined,
+    undefined,
+    undefined,
+    asset.byteSize ?? undefined,
   )
 }
 
@@ -1160,6 +1164,7 @@ function mergeAttachmentPreviewUrls(currentFiles: AttachmentPreview[], imageName
           ...currentFile,
           fileName: nextAsset.fileName,
           rawValue: toDurableImageReference(nextAsset),
+          sizeBytes: nextAsset.byteSize ?? currentFile.sizeBytes,
           url: nextAsset.thumbnailUrl ?? nextAsset.url ?? currentFile.url,
         }
       : createAttachmentPreview(imageName)

@@ -206,6 +206,7 @@ export type WeightTicketSortDir = 'asc' | 'desc'
 
 export type StoredImageAsset = {
   bucket?: string | null
+  byteSize?: number | null
   fileName: string
   rawValue: string
   storageKey?: string | null
@@ -1024,9 +1025,11 @@ export function encodeStoredImageReference(
   thumbnailStorageKey?: string,
   thumbnailUrl?: string,
   thumbnailStatus?: 'failed' | 'processing' | 'queued' | 'ready',
+  byteSize?: number,
 ) {
   const reference: {
     bucket?: string
+    byteSize?: number
     fileName: string
     storageKey: string
     thumbnailStorageKey?: string
@@ -1042,6 +1045,7 @@ export function encodeStoredImageReference(
   if (thumbnailStorageKey?.trim()) reference.thumbnailStorageKey = thumbnailStorageKey
   if (thumbnailUrl?.trim()) reference.thumbnailUrl = thumbnailUrl
   if (thumbnailStatus) reference.thumbnailStatus = thumbnailStatus
+  if (byteSize != null) reference.byteSize = byteSize
   return JSON.stringify(reference)
 }
 
@@ -1076,6 +1080,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
   try {
     const parsed = JSON.parse(trimmed) as {
       bucket?: unknown
+      byteSize?: unknown
       dataUrl?: unknown
       fileName?: unknown
       storageKey?: unknown
@@ -1106,6 +1111,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
         fileName: parsed.fileName,
         rawValue,
         bucket: parsed.bucket.trim(),
+        byteSize: typeof parsed.byteSize === 'number' && Number.isSafeInteger(parsed.byteSize) && parsed.byteSize >= 0 ? parsed.byteSize : null,
         storageKey: parsed.storageKey.trim(),
         thumbnailStorageKey: typeof parsed.thumbnailStorageKey === 'string' && parsed.thumbnailStorageKey.trim() ? parsed.thumbnailStorageKey.trim() : null,
         thumbnailStatus: parsed.thumbnailStatus === 'queued'
