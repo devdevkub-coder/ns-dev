@@ -20,7 +20,7 @@ export async function GET() {
     const branches = scopedBranchIds === null ? await listActiveBranches() : await listActiveBranchesByCodes(scopedBranchIds)
     const warehouseRows = await listWarehouseMasterRecords()
     const warehouses = warehouseRows
-      .filter((row) => row.active === true && /^WH-\d+$/i.test(row.code))
+      .filter((row) => row.active === true && /^(WH|KD)-\d+$/i.test(row.code))
       .map((row) => {
         const code = requireBusinessCode(row.code, `คลัง ${row.id.toString()}`)
         return {

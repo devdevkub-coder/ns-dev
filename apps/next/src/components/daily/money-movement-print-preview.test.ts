@@ -242,7 +242,11 @@ describe('money document print previews', () => {
   })
 
   it('loads the branch company profile before printing payment and receipt history', () => {
-    expect(source).toContain('async function printPaymentVoucher(row: MoneyRow, detail: PaymentHistoryDetail)')
+    expect(source).toContain('async function printPaymentRowDirect(row: MoneyRow)')
+    expect(source).toContain('const printWindow = window.open(\'\', \'_blank\', \'width=960,height=900,scrollbars=yes\')')
+    expect(source).toContain("if (detail.type !== 'payment')")
+    expect(source).toContain('await printPaymentVoucher(row, detail, printWindow)')
+    expect(source).toContain('async function printPaymentVoucher(row: MoneyRow, detail: PaymentHistoryDetail, existingWindow?: Window)')
     expect(source).toContain('buildPaymentVoucherPrintHtml(row, detail, profile)')
     expect(source).toContain('async function printCustomerReceipt(row: MoneyRow)')
     expect(source).toContain('buildCustomerReceiptPrintHtml(row, profile)')

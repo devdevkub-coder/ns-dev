@@ -540,7 +540,7 @@ export function WarehouseKpiPageClient() {
             label="โกดังที่ได้รับการประเมิน"
             value={`${stats.ratedCount} โกดัง`}
             tone="slate"
-            note="WH-01 ถึง WH-05 ครบถ้วน"
+            note="KD-0101 ถึง KD-0105 ครบถ้วน"
           />
           <KpiCard
             icon={<AlertTriangle className="size-5" />}

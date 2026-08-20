@@ -62,7 +62,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const kind = url.searchParams.get('kind')
     const rows = await listWarehouseMasterRecords()
-    const isWhCode = (code: string) => /^WH-\d+$/i.test(code)
+    const isWhCode = (code: string) => /^(WH|KD)-\d+$/i.test(code)
     const filtered = kind === 'godown'
       ? rows.filter((row) => isWhCode(row.code))
       : kind === 'stock'

@@ -1954,7 +1954,7 @@ export function LineSettingsPageClient() {
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">ตั้งเวลาส่งสรุปรายงานการผลิตประจำวัน (Daily Report Schedule)</h4>
                       <p className="text-xs text-slate-500">
-                        ระบบจะรวบรวมยอดใบชั่งและผลผลิตทุกโกดัง (WH-01 ถึง WH-05) ส่งเป็นการ์ด Carousel อัตโนมัติ
+                        ระบบจะรวบรวมยอดใบชั่งและผลผลิตทุกโกดัง (KD-0101 ถึง KD-0105) ส่งเป็นการ์ด Carousel อัตโนมัติ
                       </p>
                     </div>
                   </div>
@@ -3432,7 +3432,7 @@ export function LineSettingsPageClient() {
                       </div>
                     </div>
                     <p className="text-xs text-slate-500">
-                      ระบบจะรวบรวมยอดชั่งและผลผลิตของทุกโกดัง (WH-01 ถึง WH-05) ส่งเป็นการ์ด Carousel เข้ากลุ่มที่เลือกตามเวลานี้ทุกวัน
+                      ระบบจะรวบรวมยอดชั่งและผลผลิตของทุกโกดัง (KD-0101 ถึง KD-0105) ส่งเป็นการ์ด Carousel เข้ากลุ่มที่เลือกตามเวลานี้ทุกวัน
                     </p>
                   </div>
                 </section>

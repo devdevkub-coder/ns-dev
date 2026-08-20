@@ -123,7 +123,7 @@
   --ns-field-focus-ring: rgb(59 130 246 / 0.35);
   --ns-field-invalid-bg: rgb(127 29 29 / 0.28);
   --ns-field-invalid-border: #ef4444;
-  --ns-manual-entry-bg: rgb(234 179 8 / 0.18);
+  --ns-manual-entry-bg: #111a28;
   
   /* Redefine Tailwind's base theme variables */
   --color-white: #1e293b;

@@ -15,6 +15,7 @@ import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { formatDualCostingMatchId, getDualCostingMatchIdPrefix } from '@/lib/server/dual-costing-match-id'
 import { prisma } from '@/lib/server/prisma'
 import { listProductReferences } from '@/lib/server/reference-master-cache'
+import { DealMarginDataIntegrityError } from '@/lib/server/deal-margin-data-integrity'
 import { getCostPoolRowsData } from '../cost-pool/handler'
 export const runtime = 'nodejs'
 
@@ -778,6 +779,30 @@ export async function POST(request: Request) {
         throw new Error(`Allocation quantity must equal the latest target remaining quantity (${remainingTargetQty})`)
       }
 
+      if (salesBillId != null && salesLineNo != null) {
+        if (normalizedCandidates.length > 1) {
+          throw new DealMarginDataIntegrityError(
+            `ไม่สามารถจัดสรรหลาย Allocation ให้ Sales Bill ${salesDocNo ?? '-'}, Sales Line ${salesLineNo} ได้`,
+            { allocationNos: [], salesDocNo, salesLineNo },
+          )
+        }
+
+        const existingAllocations = await tx.trading_allocation_facts.findMany({
+          where: { sales_bill_id: salesBillId, sales_line_no: salesLineNo, status: 'active' },
+          select: { allocation_no: true },
+        })
+        if (existingAllocations.length > 0) {
+          throw new DealMarginDataIntegrityError(
+            `พบ Allocation ซ้ำใน Sales Bill ${salesDocNo ?? '-'}, Sales Line ${salesLineNo}`,
+            {
+              allocationNos: existingAllocations.map((allocation) => allocation.allocation_no),
+              salesDocNo,
+              salesLineNo,
+            },
+          )
+        }
+      }
+
       const allocationDate = new Date()
       const matchIdPrefix = getDualCostingMatchIdPrefix(allocationDate)
       const existingMatchRows = await tx.trading_deals.findMany({
@@ -969,6 +994,9 @@ export async function POST(request: Request) {
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof DealMarginDataIntegrityError) {
+      return NextResponse.json({ code: caught.code, details: caught.details, error: caught.message }, { status: 409 })
+    }
     if (
       caught instanceof Error
       && !('code' in caught && typeof (caught as { code?: unknown }).code === 'string' && (caught as { code: string }).code.startsWith('P'))
