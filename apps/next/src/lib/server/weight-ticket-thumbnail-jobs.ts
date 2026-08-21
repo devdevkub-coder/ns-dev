@@ -55,6 +55,35 @@ async function readExistingPrintDimensions(
   return validatePrintDimensions(metadata.width, metadata.height, maxDimension)
 }
 
+async function readExistingDownloadDimensions(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  bucket: string,
+  storageKey: string,
+  expectedBytes: Buffer,
+  maxDimension: number,
+) {
+  if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Supabase สำหรับตรวจสอบรูปดาวน์โหลดที่มีอยู่')
+  const { data, error } = await supabase.storage.from(bucket).download(storageKey)
+  if (error || !data) throw new Error(`ตรวจสอบรูปดาวน์โหลดที่มีอยู่ไม่สำเร็จ: ${error?.message ?? 'ไม่พบไฟล์'}`)
+  const existingBytes = Buffer.from(await data.arrayBuffer())
+  if (!existingBytes.equals(expectedBytes)) {
+    throw new Error('รูปดาวน์โหลดที่มีอยู่ไม่ตรงกับ derivative ที่สร้างจากรูปต้นฉบับปัจจุบัน')
+  }
+  const metadata = await sharp(existingBytes, { failOn: 'error' }).metadata()
+  if (metadata.format !== 'jpeg') throw new Error('รูปดาวน์โหลดที่มีอยู่ไม่ใช่ JPEG')
+  if (
+    typeof metadata.width !== 'number'
+    || typeof metadata.height !== 'number'
+    || metadata.width < 1
+    || metadata.height < 1
+    || metadata.width > maxDimension
+    || metadata.height > maxDimension
+  ) {
+    throw new Error(`รูปดาวน์โหลดที่มีอยู่เกินขนาดสูงสุด ${maxDimension} x ${maxDimension} px`)
+  }
+  return { width: metadata.width, height: metadata.height, byteSize: existingBytes.length }
+}
+
 export async function selectWeightTicketThumbnailJobs(scope: ThumbnailJobScope = {}) {
   const config = await resolveWeightTicketImageProcessingConfig()
   const now = new Date()
@@ -134,14 +163,58 @@ export async function drainWeightTicketPrintJobs(scope: ThumbnailJobScope = {}) 
   return { attempted: jobs.length, results }
 }
 
+export async function selectWeightTicketDownloadJobs(scope: ThumbnailJobScope = {}) {
+  const config = await resolveWeightTicketImageProcessingConfig()
+  const now = new Date()
+  const staleLock = new Date(now.getTime() - config.lockTimeoutSeconds * 1000)
+  return prisma.weight_ticket_image_assets.findMany({
+    orderBy: { created_at: 'asc' },
+    select: { id: true },
+    take: config.drainBatchSize,
+    where: {
+      ...(scope.bucket ? { bucket: scope.bucket } : {}),
+      ...(scope.attachedTicketId != null ? { attached_ticket_id: scope.attachedTicketId } : {}),
+      download_attempt_count: { lt: config.maxAttempts },
+      OR: [
+        {
+          download_status: 'queued',
+          download_next_retry_at: { lte: now },
+          OR: [
+            { download_locked_at: null },
+            { download_locked_at: { lt: staleLock } },
+          ],
+        },
+        { download_status: 'processing', download_locked_at: { lt: staleLock } },
+      ],
+    },
+  })
+}
+
+export async function drainWeightTicketDownloadJobs(scope: ThumbnailJobScope = {}) {
+  const jobs = await selectWeightTicketDownloadJobs(scope)
+  const results = await Promise.all(jobs.map(async ({ id }) => {
+    try {
+      return await processWeightTicketDownloadAsset(id)
+    } catch (error) {
+      console.error('[weight_ticket_download_image] drain job crashed', {
+        assetId: String(id),
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return { status: 'skipped' as const }
+    }
+  }))
+  return { attempted: jobs.length, results }
+}
+
 export async function drainWeightTicketImageJobs(scope: ThumbnailJobScope = {}) {
-  const [thumbnail, print] = await Promise.all([
+  const [thumbnail, print, download] = await Promise.all([
     drainWeightTicketThumbnailJobs(scope),
     drainWeightTicketPrintJobs(scope),
+    drainWeightTicketDownloadJobs(scope),
   ])
   return {
-    attempted: thumbnail.attempted + print.attempted,
-    results: [...thumbnail.results, ...print.results],
+    attempted: thumbnail.attempted + print.attempted + download.attempted,
+    results: [...thumbnail.results, ...print.results, ...download.results],
   }
 }
 
@@ -155,10 +228,11 @@ export async function cleanupWeightTicketImageAssets() {
       id: true,
       original_storage_key: true,
       print_storage_key: true,
+      download_storage_key: true,
       thumbnail_storage_key: true,
     },
     take: config.drainBatchSize,
-    where: { attached_ticket_id: null, created_at: { lt: cutoff }, locked_by: null, print_locked_by: null },
+    where: { attached_ticket_id: null, created_at: { lt: cutoff }, locked_by: null, print_locked_by: null, download_locked_by: null },
   })
   const results = [] as Array<{ id: bigint; status: 'deleted' | 'skipped' | 'failed'; error?: string }>
   for (const candidate of candidates) {
@@ -170,9 +244,11 @@ export async function cleanupWeightTicketImageAssets() {
         locked_by: cleanupLock,
         print_locked_at: cleanupNow,
         print_locked_by: cleanupLock,
+        download_locked_at: cleanupNow,
+        download_locked_by: cleanupLock,
         updated_at: cleanupNow,
       },
-      where: { attached_ticket_id: null, id: candidate.id, locked_by: null, print_locked_by: null },
+      where: { attached_ticket_id: null, id: candidate.id, locked_by: null, print_locked_by: null, download_locked_by: null },
     })
     if (claimed.count !== 1) {
       results.push({ id: candidate.id, status: 'skipped' })
@@ -185,10 +261,11 @@ export async function cleanupWeightTicketImageAssets() {
         candidate.original_storage_key,
         candidate.thumbnail_storage_key,
         candidate.print_storage_key,
+        candidate.download_storage_key,
       ])
       if (error) throw new Error(error.message)
       const deleted = await prisma.weight_ticket_image_assets.deleteMany({
-        where: { attached_ticket_id: null, id: candidate.id, locked_by: cleanupLock, print_locked_by: cleanupLock },
+        where: { attached_ticket_id: null, id: candidate.id, locked_by: cleanupLock, print_locked_by: cleanupLock, download_locked_by: cleanupLock },
       })
       results.push({ id: candidate.id, status: deleted.count === 1 ? 'deleted' : 'skipped' })
     } catch (error) {
@@ -199,9 +276,11 @@ export async function cleanupWeightTicketImageAssets() {
           locked_by: null,
           print_locked_at: null,
           print_locked_by: null,
+          download_locked_at: null,
+          download_locked_by: null,
           updated_at: new Date(),
         },
-        where: { id: candidate.id, locked_by: cleanupLock, print_locked_by: cleanupLock },
+        where: { id: candidate.id, locked_by: cleanupLock, print_locked_by: cleanupLock, download_locked_by: cleanupLock },
       })
       results.push({ id: candidate.id, status: 'failed', error: errorMessage(error) })
     }
@@ -450,6 +529,117 @@ export async function processWeightTicketPrintAsset(assetId: bigint): Promise<We
         updated_at: new Date(),
       },
       where: { id: assetId, print_locked_by: workerId },
+    })
+    if (released.count !== 1) return { status: 'skipped' }
+    return { status: terminal ? 'failed' : 'queued' }
+  }
+}
+
+export type WeightTicketDownloadJobResult = {
+  status: 'failed' | 'queued' | 'ready' | 'skipped'
+}
+
+export async function processWeightTicketDownloadAsset(assetId: bigint): Promise<WeightTicketDownloadJobResult> {
+  const config = await resolveWeightTicketImageProcessingConfig()
+  const now = new Date()
+  const staleLock = new Date(now.getTime() - config.lockTimeoutSeconds * 1000)
+  const workerId = `download-image-${process.pid}-${randomUUID()}`
+  const claimed = await prisma.weight_ticket_image_assets.updateMany({
+    data: {
+      download_attempt_count: { increment: 1 },
+      download_last_error: null,
+      download_locked_at: now,
+      download_locked_by: workerId,
+      download_status: 'processing',
+      updated_at: now,
+    },
+    where: {
+      id: assetId,
+      download_attempt_count: { lt: config.maxAttempts },
+      OR: [
+        {
+          download_status: 'queued',
+          download_next_retry_at: { lte: now },
+          OR: [
+            { download_locked_at: null },
+            { download_locked_at: { lt: staleLock } },
+          ],
+        },
+        { download_status: 'processing', download_locked_at: { lt: staleLock } },
+      ],
+    },
+  })
+  if (claimed.count === 0) return { status: 'skipped' }
+
+  const asset = await prisma.weight_ticket_image_assets.findUnique({ where: { id: assetId } })
+  if (!asset) return { status: 'skipped' }
+
+  try {
+    const supabase = getSupabaseAdminClient()
+    if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างรูปดาวน์โหลด')
+    const { data: originalBlob, error: downloadError } = await supabase.storage.from(asset.bucket).download(asset.original_storage_key)
+    if (downloadError || !originalBlob) throw new Error(`ดาวน์โหลดรูปต้นฉบับไม่สำเร็จ: ${downloadError?.message ?? 'ไม่พบไฟล์ต้นฉบับ'}`)
+    const originalBytes = Buffer.from(await originalBlob.arrayBuffer())
+    const source = sharp(originalBytes, { failOn: 'error' })
+    const metadata = await source.metadata()
+    const width = metadata.width
+    const height = metadata.height
+    const sourcePixels = width && height ? width * height : 0
+    if (!width || !height || !Number.isSafeInteger(sourcePixels) || sourcePixels > config.maxSourcePixels) {
+      throw new Error(`รูปมีความละเอียดสูงเกินกว่าที่ระบบรองรับ (สูงสุด ${(config.maxSourcePixels / 1_000_000).toLocaleString('th-TH')} ล้านพิกเซล)`)
+    }
+    const downloadImage = await sharp(originalBytes, { failOn: 'error' })
+      .rotate()
+      .resize({ fit: 'inside', height: config.downloadMaxDimension, kernel: 'lanczos3', withoutEnlargement: true, width: config.downloadMaxDimension })
+      .jpeg({ mozjpeg: true, quality: config.downloadJpegQuality })
+      .toBuffer({ resolveWithObject: true })
+    if (asset.download_attempt_count > 1) {
+      const { error: cleanupError } = await supabase.storage.from(asset.bucket).remove([asset.download_storage_key])
+      if (cleanupError) throw new Error(`เตรียมพื้นที่รูปดาวน์โหลดสำหรับ retry ไม่สำเร็จ: ${cleanupError.message}`)
+    }
+    let downloadDimensions = {
+      byteSize: downloadImage.data.length,
+      height: downloadImage.info.height,
+      width: downloadImage.info.width,
+    }
+    const { error: uploadError } = await supabase.storage.from(asset.bucket).upload(asset.download_storage_key, downloadImage.data, {
+      cacheControl: String(WEIGHT_TICKET_IMAGE_IMMUTABLE_CACHE_SECONDS),
+      contentType: 'image/jpeg',
+      upsert: false,
+    })
+    if (uploadError) {
+      if (!/already exists/i.test(uploadError.message)) throw new Error(`อัปโหลดรูปดาวน์โหลดไม่สำเร็จ: ${uploadError.message}`)
+      downloadDimensions = await readExistingDownloadDimensions(supabase, asset.bucket, asset.download_storage_key, downloadImage.data, config.downloadMaxDimension)
+    }
+    const markedReady = await prisma.weight_ticket_image_assets.updateMany({
+      data: {
+        download_byte_size: BigInt(downloadDimensions.byteSize),
+        download_height: downloadDimensions.height,
+        download_last_error: null,
+        download_locked_at: null,
+        download_locked_by: null,
+        download_status: 'ready',
+        download_width: downloadDimensions.width,
+        source_height: height,
+        source_width: width,
+        updated_at: new Date(),
+      },
+      where: { id: assetId, download_locked_by: workerId },
+    })
+    if (markedReady.count !== 1) return { status: 'skipped' }
+    return { status: 'ready' }
+  } catch (caught) {
+    const terminal = asset.download_attempt_count >= config.maxAttempts
+    const released = await prisma.weight_ticket_image_assets.updateMany({
+      data: {
+        download_last_error: errorMessage(caught).slice(0, 1000),
+        download_locked_at: null,
+        download_locked_by: null,
+        download_next_retry_at: new Date(Date.now() + config.retryDelaySeconds * 1000),
+        download_status: terminal ? 'failed' : 'queued',
+        updated_at: new Date(),
+      },
+      where: { id: assetId, download_locked_by: workerId },
     })
     if (released.count !== 1) return { status: 'skipped' }
     return { status: terminal ? 'failed' : 'queued' }

@@ -5,6 +5,7 @@ import { Download } from 'lucide-react'
 import { useState } from 'react'
 
 import { Card } from '@/components/ui/Card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { decodeStoredImageAsset, isThumbnailPreviewableStoredImageAsset } from '@/lib/weight-tickets'
 
 export const WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT = 3
@@ -20,6 +21,11 @@ export type WeightTicketGalleryOpenPayload = {
   activeIndex: number
   images: WeightTicketGalleryImage[]
   title: string
+}
+
+type DownloadArchive = {
+  fileName: string
+  url: string
 }
 
 export function WeightTicketImageGallery({
@@ -40,6 +46,7 @@ export function WeightTicketImageGallery({
   previewError?: string
 }) {
   const [downloadError, setDownloadError] = useState('')
+  const [downloadArchives, setDownloadArchives] = useState<DownloadArchive[]>([])
   const [isDownloading, setIsDownloading] = useState(false)
   const decodedImages = imageNames.map(decodeStoredImageAsset)
   const decodedDownloadImages = (downloadImageNames ?? imageNames).map(decodeStoredImageAsset)
@@ -57,6 +64,19 @@ export function WeightTicketImageGallery({
     !isThumbnailPreviewableStoredImageAsset(image) && !image.thumbnailStatus
   )).length
 
+  async function downloadArchive(file: DownloadArchive) {
+    const archiveResponse = await fetch(file.url)
+    if (!archiveResponse.ok) throw new Error('ดาวน์โหลดไฟล์ ZIP ไม่สำเร็จ')
+    const objectUrl = URL.createObjectURL(await archiveResponse.blob())
+    const anchor = document.createElement('a')
+    anchor.href = objectUrl
+    anchor.download = file.fileName || downloadFileName || 'weight-ticket-images.zip'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(objectUrl)
+  }
+
   async function handleDownloadAll() {
     if (!downloadUrl || downloadableImages.length === 0 || isDownloading) return
     setIsDownloading(true)
@@ -66,16 +86,44 @@ export function WeightTicketImageGallery({
       if (!response.ok) {
         throw new Error('ดาวน์โหลดรูปภาพไม่สำเร็จ')
       }
-      const objectUrl = URL.createObjectURL(await response.blob())
-      const anchor = document.createElement('a')
-      anchor.href = objectUrl
-      if (downloadFileName) anchor.download = downloadFileName
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      URL.revokeObjectURL(objectUrl)
+      const payload = await response.json() as { files?: Array<{ fileName: string; url: string }> }
+      if (!payload.files?.length) throw new Error('ไม่พบไฟล์ ZIP สำหรับดาวน์โหลด')
+      if (payload.files.length > 1) {
+        setDownloadArchives(payload.files)
+        return
+      }
+      await downloadArchive(payload.files[0])
     } catch (caught) {
       setDownloadError(caught instanceof Error ? caught.message : 'ดาวน์โหลดรูปภาพไม่สำเร็จ')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  async function handleDownloadArchive(file: DownloadArchive) {
+    setIsDownloading(true)
+    setDownloadError('')
+    try {
+      await downloadArchive(file)
+      setDownloadArchives([])
+    } catch (caught) {
+      setDownloadError(caught instanceof Error ? caught.message : 'ดาวน์โหลดไฟล์ ZIP ไม่สำเร็จ')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  async function handleDownloadAllArchives() {
+    if (downloadArchives.length === 0 || isDownloading) return
+    setIsDownloading(true)
+    setDownloadError('')
+    try {
+      for (const file of downloadArchives) {
+        await downloadArchive(file)
+      }
+      setDownloadArchives([])
+    } catch (caught) {
+      setDownloadError(caught instanceof Error ? caught.message : 'ดาวน์โหลดไฟล์ ZIP ไม่สำเร็จ')
     } finally {
       setIsDownloading(false)
     }
@@ -103,6 +151,41 @@ export function WeightTicketImageGallery({
           <span className="text-sm text-slate-500">{downloadImageNames ? `${downloadableImages.length} รูปทั้งหมด` : `${imageNames.length} รูป`}</span>
         </div>
       </div>
+      <Dialog open={downloadArchives.length > 0} onOpenChange={(open) => { if (!open && !isDownloading) setDownloadArchives([]) }}>
+        <DialogContent className="max-w-lg" fallbackTitle="เลือกไฟล์ ZIP สำหรับดาวน์โหลด">
+          <DialogHeader>
+            <DialogTitle>เลือกไฟล์ ZIP สำหรับดาวน์โหลด</DialogTitle>
+            <DialogDescription>รูปภาพมีหลายไฟล์ ZIP เลือกดาวน์โหลดรายไฟล์ หรือดาวน์โหลดทั้งหมดตามลำดับ</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 space-y-2 overflow-y-auto p-5">
+            {downloadError ? <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700" role="alert">{downloadError}</div> : null}
+            <button
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isDownloading}
+              type="button"
+              onClick={() => void handleDownloadAllArchives()}
+            >
+              <Download className="size-4" />
+              {isDownloading ? 'กำลังดาวน์โหลดทุกไฟล์...' : 'ดาวน์โหลดทุกไฟล์'}
+            </button>
+            {downloadArchives.map((file, index) => (
+              <button
+                className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isDownloading}
+                key={file.fileName}
+                type="button"
+                onClick={() => void handleDownloadArchive(file)}
+              >
+                <span className="truncate">{file.fileName}</span>
+                <span className="shrink-0 text-xs text-slate-500">ส่วนที่ {index + 1}</span>
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <button className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={() => setDownloadArchives([])}>ปิด</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="space-y-3 p-4 sm:p-5">
         {downloadError ? <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{downloadError}</div> : null}
         {previewError ? <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">{previewError}</div> : null}

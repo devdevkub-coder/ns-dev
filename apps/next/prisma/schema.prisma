@@ -3370,11 +3370,13 @@ model weight_ticket_image_assets {
   original_storage_key  String
   thumbnail_storage_key String
   print_storage_key     String
+  download_storage_key  String
   file_name             String
   mime_type             String?
   byte_size             BigInt?
   thumbnail_status      String          @default("queued")
   print_status          String          @default("queued")
+  download_status       String          @default("queued")
   attempt_count         Int             @default(0)
   next_retry_at         DateTime        @default(now()) @db.Timestamptz(6)
   locked_at             DateTime?       @db.Timestamptz(6)
@@ -3383,6 +3385,10 @@ model weight_ticket_image_assets {
   print_next_retry_at   DateTime        @default(now()) @db.Timestamptz(6)
   print_locked_at       DateTime?       @db.Timestamptz(6)
   print_locked_by       String?
+  download_attempt_count Int            @default(0)
+  download_next_retry_at DateTime       @default(now()) @db.Timestamptz(6)
+  download_locked_at     DateTime?      @db.Timestamptz(6)
+  download_locked_by     String?
   source_width          Int?
   source_height         Int?
   thumbnail_width       Int?
@@ -3391,6 +3397,10 @@ model weight_ticket_image_assets {
   print_height          Int?
   last_error            String?
   print_last_error      String?
+  download_width        Int?
+  download_height       Int?
+  download_byte_size    BigInt?
+  download_last_error   String?
   uploaded_by           String?
   attached_ticket_id    BigInt?
   attached_at           DateTime?       @db.Timestamptz(6)
@@ -3400,11 +3410,25 @@ model weight_ticket_image_assets {
 
   @@unique([bucket, original_storage_key], map: "weight_ticket_image_assets_original_key")
   @@unique([bucket, print_storage_key], map: "weight_ticket_image_assets_print_idx")
+  @@unique([bucket, download_storage_key], map: "weight_ticket_image_assets_download_idx")
   @@index([bucket, thumbnail_storage_key], map: "weight_ticket_image_assets_thumbnail_idx")
   @@index([attached_ticket_id], map: "weight_ticket_image_assets_ticket_idx")
   @@index([thumbnail_status, next_retry_at], map: "weight_ticket_image_assets_pending_idx")
   @@index([print_status, print_next_retry_at], map: "weight_ticket_image_assets_print_pending_idx")
+  @@index([download_status, download_next_retry_at], map: "weight_ticket_image_assets_download_pending_idx")
   @@index([uploaded_by, created_at], map: "weight_ticket_image_assets_owner_idx")
+  @@schema("public")
+}
+
+model weight_ticket_image_download_artifacts {
+  id         BigInt   @id @default(autoincrement())
+  bucket     String
+  storage_key String  @unique
+  expires_at DateTime @db.Timestamptz(6)
+  created_by String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([expires_at], map: "weight_ticket_image_download_artifacts_expiry_idx")
   @@schema("public")
 }
 

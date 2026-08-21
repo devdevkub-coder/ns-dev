@@ -1,17 +1,35 @@
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { zipSync } from 'fflate'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { withAuthNoStore } from '@/lib/server/auth-response'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
+import { prisma } from '@/lib/server/prisma'
 import { branchScopeIds, findScopedWeightTicket } from '@/lib/server/weight-tickets'
-import { assertWeightTicketImageStorageKey, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { assertWeightTicketImageStorageKey, resolveWeightTicketImageBucket, resolveWeightTicketImageProcessingConfig } from '@/lib/server/weight-ticket-storage'
+import { drainWeightTicketDownloadJobs } from '@/lib/server/weight-ticket-thumbnail-jobs'
 import { decodeStoredImageAsset, type StoredImageAsset } from '@/lib/weight-tickets'
 
 export const runtime = 'nodejs'
 
 // This is a server-safety guard for the complete archive, not a per-image
 // business limit. Per-image validation belongs to the upload contract.
-const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
+const MAX_ARCHIVE_PART_BYTES = 40 * 1024 * 1024
+
+async function cleanupExpiredDownloadArtifacts(supabase: ReturnType<typeof getSupabaseAdminClient>) {
+  if (!supabase) return
+  const expired = await prisma.weight_ticket_image_download_artifacts.findMany({
+    select: { bucket: true, id: true, storage_key: true },
+    take: 20,
+    where: { expires_at: { lt: new Date() } },
+  })
+  for (const artifact of expired) {
+    const { error } = await supabase.storage.from(artifact.bucket).remove([artifact.storage_key])
+    if (error) continue
+    await prisma.weight_ticket_image_download_artifacts.deleteMany({ where: { id: artifact.id } })
+  }
+}
 
 function safeFileName(value: string, fallback: string) {
   const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
@@ -19,7 +37,7 @@ function safeFileName(value: string, fallback: string) {
   return fileName.replace(/\.([A-Za-z0-9]+)$/, (_match, extension: string) => `.${extension.toLowerCase()}`)
 }
 
-async function loadImageBytes(asset: StoredImageAsset, bucket: string, supabase: ReturnType<typeof getSupabaseAdminClient>) {
+async function loadImageBytes(asset: StoredImageAsset, storageKey: string, bucket: string, supabase: ReturnType<typeof getSupabaseAdminClient>) {
   if (!asset.bucket || !asset.storageKey) {
     throw new Error(`รูป ${asset.fileName} ยังไม่อยู่ใน private image bucket กรุณารัน migration/backfill ก่อนดาวน์โหลด`)
   }
@@ -28,8 +46,8 @@ async function loadImageBytes(asset: StoredImageAsset, bucket: string, supabase:
   }
   if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับดาวน์โหลดรูปหลักฐาน')
 
-  const storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
-  const { data, error } = await supabase.storage.from(bucket).download(storageKey)
+  const validatedKey = assertWeightTicketImageStorageKey(storageKey)
+  const { data, error } = await supabase.storage.from(bucket).download(validatedKey)
   if (error || !data) throw new Error(error?.message ?? `ไม่พบไฟล์ ${asset.fileName}`)
   return Buffer.from(await data.arrayBuffer())
 }
@@ -45,6 +63,9 @@ function ticketImageAssets(ticket: Awaited<ReturnType<typeof findScopedWeightTic
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const createdArtifactKeys: string[] = []
+  let cleanupBucket: string | null = null
+  let cleanupSupabase: ReturnType<typeof getSupabaseAdminClient> = null
   try {
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'daily.weight_tickets.view')
@@ -60,17 +81,59 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const bucket = await resolveWeightTicketImageBucket()
     const supabase = getSupabaseAdminClient()
-    const files: Record<string, Uint8Array> = {}
+    cleanupBucket = bucket
+    cleanupSupabase = supabase
+    if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างไฟล์ดาวน์โหลดรูปภาพ')
+    const processingConfig = await resolveWeightTicketImageProcessingConfig()
+    await cleanupExpiredDownloadArtifacts(supabase)
+    const maxDrainBatches = Math.max(1, Math.ceil(assets.length / processingConfig.drainBatchSize) + 1)
+    for (let batch = 0; batch < maxDrainBatches; batch += 1) {
+      const drained = await drainWeightTicketDownloadJobs({ attachedTicketId: ticket.id, bucket })
+      if (drained.attempted === 0) break
+    }
+    const originalKeys = Array.from(new Set(assets.map((asset) => assertWeightTicketImageStorageKey(asset.storageKey ?? ''))))
+    const derivativeRows = await prisma.weight_ticket_image_assets.findMany({
+      select: { download_status: true, download_storage_key: true, original_storage_key: true },
+      where: { bucket, original_storage_key: { in: originalKeys } },
+    })
+    const derivativeByOriginal = new Map(derivativeRows.map((row) => [row.original_storage_key, row]))
+    const archiveBase = safeFileName(ticket.doc_no, 'weight-ticket')
+    const artifactPrefix = `attachments/downloads/${randomUUID()}`
+    const generatedFiles: Array<{ internalFileName: string; url: string; part: number }> = []
+    let currentFiles: Record<string, Uint8Array> = {}
     const usedNames = new Set<string>()
     let totalBytes = 0
+    let partNumber = 1
+
+    const uploadArchivePart = async (files: Record<string, Uint8Array>, currentPartNumber: number) => {
+      if (Object.keys(files).length === 0) return
+      const internalFileName = `${archiveBase}-images-part-${String(currentPartNumber).padStart(2, '0')}.zip`
+      const storageKey = `${artifactPrefix}/${internalFileName}`
+      const archive = zipSync(files, { level: 6 })
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(storageKey, archive, {
+        cacheControl: '600',
+        contentType: 'application/zip',
+        upsert: false,
+      })
+      if (uploadError) throw new Error(`อัปโหลดไฟล์ ZIP ไม่สำเร็จ: ${uploadError.message}`)
+      createdArtifactKeys.push(storageKey)
+      const expiresAt = new Date(Date.now() + processingConfig.previewTtlSeconds * 1000)
+      await prisma.weight_ticket_image_download_artifacts.create({
+        data: { bucket, created_by: auth.authUser.id, expires_at: expiresAt, storage_key: storageKey },
+      })
+      const { data: signed, error: signedError } = await supabase.storage.from(bucket).createSignedUrl(storageKey, processingConfig.previewTtlSeconds)
+      if (signedError || !signed?.signedUrl) throw new Error(`สร้างลิงก์ดาวน์โหลด ZIP ไม่สำเร็จ: ${signedError?.message ?? 'ไม่พบ signed URL'}`)
+      generatedFiles.push({ internalFileName, part: currentPartNumber, url: signed.signedUrl })
+    }
 
     for (const [index, asset] of assets.entries()) {
-      const bytes = await loadImageBytes(asset, bucket, supabase)
-      totalBytes += bytes.byteLength
-      if (totalBytes > MAX_ARCHIVE_BYTES) {
-        throw new Error('รูปภาพรวมมีขนาดใหญ่เกินกว่าที่ดาวน์โหลดเป็น ZIP ได้')
+      const originalKey = assertWeightTicketImageStorageKey(asset.storageKey ?? '')
+      const derivative = derivativeByOriginal.get(originalKey)
+      if (!derivative || derivative.download_status !== 'ready') {
+        throw new Error(`รูป ${asset.fileName} ยังสร้างรูปสำหรับดาวน์โหลดไม่เสร็จ`)
       }
-      const baseName = safeFileName(asset.fileName, `image-${index + 1}`)
+      const bytes = await loadImageBytes(asset, derivative.download_storage_key, bucket, supabase)
+      const baseName = safeFileName(asset.fileName.replace(/\.[^.]+$/, '.jpg'), `image-${index + 1}.jpg`)
       let fileName = baseName
       let suffix = 2
       while (usedNames.has(fileName)) {
@@ -78,19 +141,30 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         suffix += 1
       }
       usedNames.add(fileName)
-      files[fileName] = bytes
+      if (Object.keys(currentFiles).length > 0 && totalBytes + bytes.byteLength > MAX_ARCHIVE_PART_BYTES) {
+        await uploadArchivePart(currentFiles, partNumber)
+        currentFiles = {}
+        partNumber += 1
+        totalBytes = 0
+        usedNames.clear()
+      }
+      currentFiles[fileName] = bytes
+      totalBytes += bytes.byteLength
     }
-
-    const archive = zipSync(files, { level: 6 })
-    const archiveName = `${safeFileName(ticket.doc_no, 'weight-ticket')}-images.zip`
-    return new Response(archive, {
-      headers: {
-        'Cache-Control': 'private, no-store',
-        'Content-Disposition': `attachment; filename="${archiveName}"`,
-        'Content-Type': 'application/zip',
-      },
-    })
+    await uploadArchivePart(currentFiles, partNumber)
+    const totalParts = generatedFiles.length
+    const downloadedFiles = generatedFiles.map(({ internalFileName, part, url }) => ({
+      fileName: totalParts === 1 ? `${archiveBase}-images.zip` : internalFileName,
+      part,
+      totalParts,
+      url,
+    }))
+    return withAuthNoStore(NextResponse.json({ files: downloadedFiles, split: downloadedFiles.length > 1 }, { status: 200 }))
   } catch (caught) {
+    if (cleanupSupabase && cleanupBucket && createdArtifactKeys.length > 0) {
+      await cleanupSupabase.storage.from(cleanupBucket).remove(createdArtifactKeys).catch(() => undefined)
+      await prisma.weight_ticket_image_download_artifacts.deleteMany({ where: { storage_key: { in: createdArtifactKeys } } }).catch(() => undefined)
+    }
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'ดาวน์โหลดรูปภาพใบรับ-ส่งของไม่สำเร็จ', 500)
   }

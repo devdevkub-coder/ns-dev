@@ -8,6 +8,8 @@ Objective: แก้ไขปัญหา Login ช้า (500 Database Error) �
 
 ## Active WTI/WTO print derivative batch — 2026-08-20
 
+Download-image follow-up (2026-08-21): เพิ่ม download derivative plan/implementation แบบ immutable JPEG 1600px quality 88, artifact ZIP ใน private image Storage พร้อม signed URL, split ZIP และ request-driven expiry cleanup; Download API drain งานค้างหลาย batch ก่อนสร้าง ZIP, สร้าง/upload ZIP ทีละ part เพื่อลด peak memory และ UI ให้เลือก ZIP ทีละไฟล์หรือดาวน์โหลดทุกส่วนตามลำดับ. ยังไม่ apply migration, backfill, commit, push, deploy หรือ browser UAT; ต้องรัน full validation และ review ต่อก่อน delivery.
+
 Follow-up on-demand PDF download (2026-08-21): เพิ่ม endpoint สร้าง PDF ล่าสุดเมื่อกดดาวน์โหลด และเพิ่มปุ่มที่ detail กับเมนู `...` ในตารางทั้ง WTI/WTO. Direct download ใช้ strict print derivative, private no-store และไม่สร้าง album artifact; ปุ่มพิมพ์เปิด PDF จาก endpoint เดียวกันเพื่อใช้ layout/pagination เดียวกัน. ยังไม่ commit/push/deploy หรือทำ browser UAT.
 
 Review-fix follow-up: profile PDF ใช้ branch-specific row เท่านั้น, direct route ปิด cancelled ticket, เพิ่ม route/profile boundary tests และ LINE เปลี่ยนจาก Supabase public URL เป็น application-domain download route. ล่าสุดปุ่ม `พิมพ์` เปิด PDF จาก endpoint เดียวกับ Download PDF โดยตรง ทำให้ Print/Download/LINE ใช้ React-PDF artifact และ pagination ชุดเดียวกัน; ไม่ reflow HTML print แยกอีกชุด. แก้เพิ่มให้ click-time print ไม่ fetch ticket/signed images ซ้ำ และ retry เฉพาะ readiness error ใน PDF helper. ยังไม่ push/deploy หลังแก้ไขชุดนี้.

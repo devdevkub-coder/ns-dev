@@ -22,6 +22,7 @@
     "backfill:weight-ticket-image-assets": "node scripts/backfill-weight-ticket-image-assets.mjs",
     "backfill:weight-ticket-image-thumbnails": "node scripts/backfill-weight-ticket-image-thumbnails.mjs",
     "backfill:weight-ticket-image-print-derivatives": "node scripts/backfill-weight-ticket-image-print-derivatives.mjs",
+    "backfill:weight-ticket-image-download-derivatives": "node scripts/backfill-weight-ticket-image-download-derivatives.mjs",
     "migrate:weight-ticket-image-bucket": "node scripts/migrate-weight-ticket-image-bucket.mjs",
     "backfill:purchase-cost-pool": "node scripts/backfill-purchase-cost-pool.mjs",
     "backfill:profit-cost-report": "npx tsx scripts/backfill-profit-cost-report.ts",

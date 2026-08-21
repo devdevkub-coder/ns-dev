@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getCurrentAuthContext: vi.fn(),
   loadImage: vi.fn(),
   processPrint: vi.fn(),
+  processDownload: vi.fn(),
   processThumbnail: vi.fn(),
   resolveBucket: vi.fn(),
   resolveConfig: vi.fn(),
@@ -59,6 +60,7 @@ vi.mock('@/lib/server/weight-ticket-storage', () => ({
 }))
 vi.mock('sharp', () => ({ default: vi.fn(() => ({ metadata: mocks.sharpMetadata })) }))
 vi.mock('@/lib/server/weight-ticket-thumbnail-jobs', () => ({
+  processWeightTicketDownloadAsset: mocks.processDownload,
   processWeightTicketPrintAsset: mocks.processPrint,
   processWeightTicketThumbnailAsset: mocks.processThumbnail,
 }))

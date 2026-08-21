@@ -20,6 +20,8 @@ const imageProcessingSettingKeys = [
   'WEIGHT_TICKET_THUMBNAIL_WEBP_QUALITY',
   'WEIGHT_TICKET_PRINT_MAX_DIMENSION',
   'WEIGHT_TICKET_PRINT_JPEG_QUALITY',
+  'WEIGHT_TICKET_DOWNLOAD_MAX_DIMENSION',
+  'WEIGHT_TICKET_DOWNLOAD_JPEG_QUALITY',
   'WEIGHT_TICKET_THUMBNAIL_MAX_SOURCE_PIXELS',
   'WEIGHT_TICKET_THUMBNAIL_MAX_ATTEMPTS',
   'WEIGHT_TICKET_THUMBNAIL_RETRY_DELAY_SECONDS',
@@ -80,6 +82,8 @@ export async function resolveWeightTicketImageProcessingConfig() {
     orphanRetentionSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_ORPHAN_RETENTION_SECONDS', 60, 31 * 24 * 60 * 60),
     webpQuality: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_WEBP_QUALITY', 1, 100),
     printJpegQuality: requireIntegerSetting(settings, 'WEIGHT_TICKET_PRINT_JPEG_QUALITY', 1, 100),
+    downloadMaxDimension: requireIntegerSetting(settings, 'WEIGHT_TICKET_DOWNLOAD_MAX_DIMENSION', 320, 2048),
+    downloadJpegQuality: requireIntegerSetting(settings, 'WEIGHT_TICKET_DOWNLOAD_JPEG_QUALITY', 1, 100),
   }
 }
 

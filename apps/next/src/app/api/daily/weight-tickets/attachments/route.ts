@@ -12,7 +12,7 @@ import {
   resolveWeightTicketImageProcessingConfig,
   resolveWeightTicketImageUploadConfig,
 } from '@/lib/server/weight-ticket-storage'
-import { cleanupWeightTicketImageAssets, processWeightTicketPrintAsset, processWeightTicketThumbnailAsset } from '@/lib/server/weight-ticket-thumbnail-jobs'
+import { cleanupWeightTicketImageAssets, processWeightTicketDownloadAsset, processWeightTicketPrintAsset, processWeightTicketThumbnailAsset } from '@/lib/server/weight-ticket-thumbnail-jobs'
 
 export const runtime = 'nodejs'
 
@@ -110,6 +110,7 @@ export async function POST(request: Request) {
       const storageKey = `${storageBase}.jpg`
       const thumbnailStorageKey = `${storageBase}.thumb.webp`
       const printStorageKey = `${storageBase}.print.jpg`
+      const downloadStorageKey = `${storageBase}.download.jpg`
       const bucket = await resolveWeightTicketImageBucket()
       const supabase = getSupabaseAdminClient()
       if (!bucket || !supabase) {
@@ -124,7 +125,7 @@ export async function POST(request: Request) {
         await supabase.storage.from(bucket).remove([storageKey]).catch(() => undefined)
         throw new Error(`Storage upload failed: ${originalUpload.error.message}`)
       }
-      let asset: { id: bigint; print_status: string; thumbnail_status: string }
+      let asset: { id: bigint; print_status: string; thumbnail_status: string; download_status: string }
       try {
         asset = await prisma.weight_ticket_image_assets.create({
           data: {
@@ -139,9 +140,11 @@ export async function POST(request: Request) {
             thumbnail_storage_key: thumbnailStorageKey,
             print_status: 'queued',
             print_storage_key: printStorageKey,
+            download_status: 'queued',
+            download_storage_key: downloadStorageKey,
             uploaded_by: auth.authUser.id,
           },
-          select: { id: true, print_status: true, thumbnail_status: true },
+          select: { id: true, print_status: true, thumbnail_status: true, download_status: true },
         })
       } catch (caught) {
         await supabase.storage.from(bucket).remove([storageKey]).catch(() => undefined)
@@ -173,6 +176,18 @@ export async function POST(request: Request) {
           })
         }
         try {
+          const result = await processWeightTicketDownloadAsset(asset.id)
+          if (result.status === 'failed') {
+            console.error('[weight_ticket_download_image] job failed', { assetId: String(asset.id), storageKey })
+          }
+        } catch (caught) {
+          console.error('[weight_ticket_download_image] job crashed', {
+            assetId: String(asset.id),
+            error: caught instanceof Error ? caught.message : String(caught),
+            storageKey,
+          })
+        }
+        try {
           await cleanupWeightTicketImageAssets()
         } catch (caught) {
           console.error('[weight_ticket_image_cleanup] cleanup crashed', {
@@ -188,6 +203,8 @@ export async function POST(request: Request) {
         thumbnailStorageKey,
         printStatus: asset.print_status,
         printStorageKey,
+        downloadStatus: asset.download_status,
+        downloadStorageKey,
       }, { status: 201 }))
     }
 
@@ -211,6 +228,7 @@ export async function POST(request: Request) {
     const storageKey = `${storageBase}.${extension}`
     const thumbnailStorageKey = `${storageBase}.thumb.webp`
     const printStorageKey = `${storageBase}.print.jpg`
+    const downloadStorageKey = `${storageBase}.download.jpg`
     const originalUpload = await supabase.storage.from(bucket).upload(storageKey, fileBytes, {
       cacheControl: String(WEIGHT_TICKET_IMAGE_IMMUTABLE_CACHE_SECONDS),
       contentType: mimeType,
@@ -221,7 +239,7 @@ export async function POST(request: Request) {
       throw new Error(`Storage upload failed: ${originalUpload.error.message}`)
     }
 
-    let asset: { id: bigint; print_status: string; thumbnail_status: string }
+    let asset: { id: bigint; print_status: string; thumbnail_status: string; download_status: string }
     try {
       asset = await prisma.weight_ticket_image_assets.create({
         data: {
@@ -236,9 +254,11 @@ export async function POST(request: Request) {
           thumbnail_storage_key: thumbnailStorageKey,
           print_status: 'queued',
           print_storage_key: printStorageKey,
+          download_status: 'queued',
+          download_storage_key: downloadStorageKey,
           uploaded_by: auth.authUser.id,
         },
-        select: { id: true, print_status: true, thumbnail_status: true },
+        select: { id: true, print_status: true, thumbnail_status: true, download_status: true },
       })
     } catch (caught) {
       await supabase.storage.from(bucket).remove([storageKey]).catch(() => undefined)
@@ -271,6 +291,18 @@ export async function POST(request: Request) {
         })
       }
       try {
+        const result = await processWeightTicketDownloadAsset(asset.id)
+        if (result.status === 'failed') {
+          console.error('[weight_ticket_download_image] job failed', { assetId: String(asset.id), storageKey })
+        }
+      } catch (caught) {
+        console.error('[weight_ticket_download_image] job crashed', {
+          assetId: String(asset.id),
+          error: caught instanceof Error ? caught.message : String(caught),
+          storageKey,
+        })
+      }
+      try {
         await cleanupWeightTicketImageAssets()
       } catch (caught) {
         console.error('[weight_ticket_image_cleanup] cleanup crashed', {
@@ -287,6 +319,8 @@ export async function POST(request: Request) {
       thumbnailStorageKey,
       printStatus: asset.print_status,
       printStorageKey,
+      downloadStatus: asset.download_status,
+      downloadStorageKey,
     }, { status: 201 }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return withAuthNoStore(authContextErrorResponse(caught))

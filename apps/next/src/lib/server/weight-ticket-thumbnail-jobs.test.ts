@@ -44,7 +44,7 @@ vi.mock('@/lib/server/weight-ticket-storage', async (importOriginal) => ({
   resolveWeightTicketImageProcessingConfig: mocks.resolveConfig,
 }))
 
-import { processWeightTicketPrintAsset, processWeightTicketThumbnailAsset } from './weight-ticket-thumbnail-jobs'
+import { processWeightTicketDownloadAsset, processWeightTicketPrintAsset, processWeightTicketThumbnailAsset } from './weight-ticket-thumbnail-jobs'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -59,6 +59,8 @@ beforeEach(() => {
     retryDelaySeconds: 30,
     webpQuality: 90,
     printJpegQuality: 90,
+    downloadMaxDimension: 1600,
+    downloadJpegQuality: 88,
     previewTtlSeconds: 3600,
     orphanRetentionSeconds: 86400,
   })
@@ -75,6 +77,9 @@ beforeEach(() => {
     print_attempt_count: 1,
     print_status: 'queued',
     print_storage_key: 'attachments/pending/evidence.print.jpg',
+    download_attempt_count: 1,
+    download_status: 'queued',
+    download_storage_key: 'attachments/pending/evidence.download.jpg',
     thumbnail_storage_key: 'attachments/pending/evidence.thumb.webp',
   })
   mocks.download.mockResolvedValue({ data: new Blob([new Uint8Array([1, 2, 3])]), error: null })
@@ -383,6 +388,7 @@ describe('WTI/WTO thumbnail background worker', () => {
       id: 91n,
       original_storage_key: 'attachments/pending/old.jpg',
       print_storage_key: 'attachments/pending/old.print.jpg',
+      download_storage_key: 'attachments/pending/old.download.jpg',
       thumbnail_storage_key: 'attachments/pending/old.thumb.webp',
     }])
 
@@ -391,6 +397,7 @@ describe('WTI/WTO thumbnail background worker', () => {
       'attachments/pending/old.jpg',
       'attachments/pending/old.thumb.webp',
       'attachments/pending/old.print.jpg',
+      'attachments/pending/old.download.jpg',
     ])
     expect(mocks.deleteMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: 91n }) }))
 
@@ -422,9 +429,31 @@ describe('WTI/WTO thumbnail background worker', () => {
       results: [{ id: 93n, status: 'skipped' }],
     })
     expect(mocks.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { attached_ticket_id: null, id: 93n, locked_by: null, print_locked_by: null },
+      where: { attached_ticket_id: null, id: 93n, locked_by: null, print_locked_by: null, download_locked_by: null },
     }))
     expect(mocks.remove).not.toHaveBeenCalled()
     expect(mocks.deleteMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('WTI/WTO download derivative worker', () => {
+  it('creates a bounded 1600px JPEG without changing the original object', async () => {
+    const result = await processWeightTicketDownloadAsset(41n)
+
+    expect(result).toEqual({ status: 'ready' })
+    expect(mocks.resize).toHaveBeenCalledWith({
+      fit: 'inside',
+      height: 1600,
+      kernel: 'lanczos3',
+      withoutEnlargement: true,
+      width: 1600,
+    })
+    expect(mocks.jpeg).toHaveBeenCalledWith({ mozjpeg: true, quality: 88 })
+    expect(mocks.upload).toHaveBeenCalledWith(
+      'attachments/pending/evidence.download.jpg',
+      Buffer.from([7, 8, 9]),
+      expect.objectContaining({ contentType: 'image/jpeg', upsert: false }),
+    )
+    expect(mocks.remove).not.toHaveBeenCalledWith(['attachments/pending/evidence.jpg'])
   })
 })
