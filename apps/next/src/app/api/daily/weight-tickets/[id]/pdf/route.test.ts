@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  after: vi.fn(),
   attachWeightTicketImagePrintUrls: vi.fn(),
   branchScopeIds: vi.fn(),
   findScopedWeightTicket: vi.fn(),
@@ -11,9 +12,14 @@ const mocks = vi.hoisted(() => ({
   mapWeightTicketRow: vi.fn(),
   requirePermission: vi.fn(),
   resolveWeightTicketImageBucket: vi.fn(),
+  drainWeightTicketImageJobs: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
+vi.mock('next/server', async (importOriginal) => ({
+  ...await importOriginal<typeof import('next/server')>(),
+  after: mocks.after,
+}))
 vi.mock('@/lib/server/auth-context', () => ({
   AuthContextError: class AuthContextError extends Error { status = 403 },
   authContextErrorResponse: vi.fn((error: { message: string; status: number }) => Response.json({ error: error.message }, { status: error.status })),
@@ -36,6 +42,7 @@ vi.mock('@/lib/server/weight-ticket-storage', () => ({
   resolveWeightTicketImageBucket: mocks.resolveWeightTicketImageBucket,
 }))
 vi.mock('@/lib/server/weight-ticket-pdf-profile', () => ({ loadWeightTicketCompanyPrintProfile: mocks.loadWeightTicketCompanyPrintProfile }))
+vi.mock('@/lib/server/weight-ticket-thumbnail-jobs', () => ({ drainWeightTicketImageJobs: mocks.drainWeightTicketImageJobs }))
 vi.mock('@/lib/server/pdf/weight-ticket-pdf', () => ({ generateWeightTicketPdfBuffer: mocks.generateWeightTicketPdfBuffer }))
 vi.mock('@/lib/server/api-error', () => ({
   apiErrorResponse: vi.fn((_error: unknown, message: string, status: number) => Response.json({ error: message }, { status })),
@@ -55,6 +62,7 @@ beforeEach(() => {
   mocks.mapWeightTicketRow.mockReturnValue(mappedTicket)
   mocks.loadWeightTicketCompanyPrintProfile.mockResolvedValue({ name: 'NS', branchCode: '01' })
   mocks.resolveWeightTicketImageBucket.mockResolvedValue('weight-ticket-images')
+  mocks.after.mockImplementation((callback: () => Promise<unknown>) => void callback())
   mocks.attachWeightTicketImagePrintUrls.mockImplementation(async (value) => value)
   mocks.generateWeightTicketPdfBuffer.mockResolvedValue(Buffer.from('%PDF-test'))
 })
@@ -68,6 +76,10 @@ describe('WTI/WTO direct PDF route boundary', () => {
     expect(response.headers.get('Content-Disposition')).toContain('WTI012608-0383.pdf')
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mocks.findScopedWeightTicket).toHaveBeenCalledWith('WTI012608-0383', ['01'])
+    expect(mocks.drainWeightTicketImageJobs).toHaveBeenCalledWith({
+      attachedTicketId: 125n,
+      bucket: 'weight-ticket-images',
+    })
   })
 
   it('rejects cancelled tickets even when the caller has view permission', async () => {

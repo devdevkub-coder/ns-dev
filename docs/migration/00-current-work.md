@@ -388,6 +388,11 @@ Blocker/next: continue the remaining broad finance-route audit documented in `do
 
 # 00 Current Work
 
+## WTI/WTO PDF readiness follow-up — 2026-08-21
+
+- Fixed authenticated and LINE PDF routes to request-driven drain queued/stale image jobs before strict print-derivative readiness checks; no cron or fallback was added.
+- Focused route/download tests, type-check and targeted ESLint pass. Production build remains the next validation step before publication.
+
 ## Active nested impurity deduction batch — 2026-08-09
 
 - Scope: WTI/WTO form, calculation, deletion confirmation, detail table and print-row classification.
