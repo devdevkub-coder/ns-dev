@@ -26,11 +26,7 @@ export async function generateWeightTicketPdf(
     quality?: number
   }
 ): Promise<{ pdfBuffer: Buffer; albumImages: Array<{ pageIdx: number; buffer: Buffer }> }> {
-  // 1. Register fonts ครั้งเดียว (idempotent)
-  await ensurePdfFontsRegistered()
-
-  // 2. Render PDF ผ่าน react-pdf (แทน Playwright page.pdf())
-  const pdfBuffer = await renderToBuffer(<WeightTicketDocument ticket={ticket} profile={profile} />)
+  const pdfBuffer = await generateWeightTicketPdfBuffer(ticket, profile)
 
   // 3. Generate album images ผ่าน @napi-rs/canvas (แทน Playwright page.screenshot())
   const decodedImages: Array<{ asset: StoredImageAsset & { url: string }; url: string }> = buildResolvedWeightTicketAttachmentImages(ticket)
@@ -55,4 +51,14 @@ export async function generateWeightTicketPdf(
   }
 
   return { pdfBuffer: Buffer.from(pdfBuffer), albumImages }
+}
+
+/** Render only the downloadable PDF. Album artifacts are intentionally not generated here. */
+export async function generateWeightTicketPdfBuffer(
+  ticket: WeightTicketRecord,
+  profile: CompanyProfilePrintValues,
+): Promise<Buffer> {
+  await ensurePdfFontsRegistered()
+  const pdfBuffer = await renderToBuffer(<WeightTicketDocument ticket={ticket} profile={profile} />)
+  return Buffer.from(pdfBuffer)
 }

@@ -392,6 +392,13 @@ describe('weight ticket print HTML', () => {
     expect(rows[0]?.detail).toContain('ไม่มีหักสิ่งเจือปน')
   })
 
+  it('labels browser print separately from direct PDF download', () => {
+    const html = buildReceiptPrintHtml(ticketWithPrintRowCount(1, 'WTI'), profile)
+
+    expect(html).toContain('>พิมพ์</button>')
+    expect(html).not.toContain('พิมพ์ / Save as PDF')
+  })
+
   it('keeps the explicit no-impurity detail visible on every WTI form page at the shared font size', () => {
     const html = buildReceiptPrintHtml(ticketWithPrintRowCount(21, 'WTI'), profile)
 

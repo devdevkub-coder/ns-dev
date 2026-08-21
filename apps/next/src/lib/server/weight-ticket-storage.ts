@@ -379,12 +379,11 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
     const printStatus = (asset.printStatus ?? processingAsset?.print_status ?? undefined) as WeightTicketImageDerivativeStatus | undefined
     // Legacy references stored before the thumbnail pipeline may lack the
     // thumbnailStorageKey field. Resolve it through the asset ledger when
-    // possible; when neither the reference nor the ledger knows a thumbnail,
-    // keep the original reference so the UI can report it as an existing
-    // image without a preview instead of failing the whole document.
+    // possible, but never return the original reference as a runtime fallback.
+    // Missing derivative metadata must be repaired by migration/backfill.
     const thumbnailStorageKey = asset.thumbnailStorageKey ?? processingAsset?.thumbnail_storage_key
     if (!thumbnailStorageKey) {
-      return rawValue
+      throw new WeightTicketImageReferenceError(`รูปหลักฐาน ${asset.fileName} ยังไม่มี thumbnail กรุณารัน backfill ก่อนแสดง preview`)
     }
     let validatedThumbnailStorageKey: string
     try {

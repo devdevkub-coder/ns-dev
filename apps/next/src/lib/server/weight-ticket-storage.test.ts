@@ -238,10 +238,10 @@ describe('WTI/WTO private image reference contract', () => {
     expect(JSON.parse(result.imageNames[0] ?? '{}')).not.toHaveProperty('thumbnailUrl')
   })
 
-  it('keeps a legacy reference without a thumbnail key instead of failing the whole batch', async () => {
+  it('fails closed for a legacy reference without a thumbnail key', async () => {
     // Images uploaded before the thumbnail pipeline have no thumbnailStorageKey
-    // and no asset ledger row. The preview must not throw for the whole batch:
-    // the UI reports them as existing images without a preview instead.
+    // and no asset ledger row. Runtime preview must not return the original
+    // reference as a fallback; migration/backfill owns recovery.
     mocks.findAssets.mockResolvedValue([{
       original_storage_key: 'attachments/pending/evidence.jpg',
       thumbnail_status: 'ready',
@@ -254,16 +254,11 @@ describe('WTI/WTO private image reference contract', () => {
     })
     const healthy = storedReference()
 
-    const result = await attachWeightTicketImagePreviewUrls({
+    await expect(attachWeightTicketImagePreviewUrls({
       imageNames: [legacy, healthy],
       lines: [{ imageNames: [legacy] }],
       vehicleImageNames: [legacy],
-    }, 'weight-ticket-images')
-
-    expect(result.imageNames[0]).toBe(legacy)
-    expect(JSON.parse(result.imageNames[1] ?? '{}')).toEqual(expect.objectContaining({ thumbnailStatus: 'ready' }))
-    expect(result.vehicleImageNames[0]).toBe(legacy)
-    expect(result.lines[0].imageNames[0]).toBe(legacy)
+    }, 'weight-ticket-images')).rejects.toThrow('ยังไม่มี thumbnail')
   })
 
   it('resolves a legacy reference through the asset ledger thumbnail when the ledger knows it', async () => {

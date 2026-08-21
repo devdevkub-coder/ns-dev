@@ -995,7 +995,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     </style>
   </head><body>
     <div class="toolbar">
-      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
+      <button onclick="window.print()">พิมพ์</button>
       <button class="secondary" onclick="window.close()">ปิด</button>
       <span style="font-size: 12px;color:#cbd5e1">A4 portrait multi-page print</span>
     </div>

@@ -21,6 +21,7 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
+import { downloadWeightTicketPdf } from '@/lib/download-weight-ticket-pdf'
 import {
   getWeightTicketForPrint,
   invalidateWeightTicketForPrintCache,
@@ -240,6 +241,7 @@ export function WeightTicketListPageClient() {
   const [isCanceling, setIsCanceling] = useState(false)
   const [confirmingTicketId, setConfirmingTicketId] = useState<string | null>(null)
   const [printingTicketId, setPrintingTicketId] = useState<string | null>(null)
+  const [downloadingPdfTicketId, setDownloadingPdfTicketId] = useState<string | null>(null)
   const [shareTicket, setShareTicket] = useState<WeightTicketRecord | null>(null)
   const [shareError, setShareError] = useState('')
   const [isSendingLine, setIsSendingLine] = useState(false)
@@ -500,6 +502,18 @@ export function WeightTicketListPageClient() {
       window.alert(getErrorMessage(caught, 'เปิดใบพิมพ์ใบรับ-ส่งสินค้าไม่สำเร็จ'))
     } finally {
       setPrintingTicketId(null)
+    }
+  }
+
+  async function handleDownloadPdf(ticket: WeightTicketRecord) {
+    if (!canPrintWeightTicket(ticket.status)) return
+    setDownloadingPdfTicketId(ticket.id)
+    try {
+      await downloadWeightTicketPdf(ticket.documentNo)
+    } catch (caught) {
+      window.alert(getErrorMessage(caught, 'ดาวน์โหลด PDF ไม่สำเร็จ'))
+    } finally {
+      setDownloadingPdfTicketId(null)
     }
   }
 
@@ -821,7 +835,7 @@ export function WeightTicketListPageClient() {
               {!isCancelled ? <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100/50 pt-2.5" onClick={(e) => e.stopPropagation()}>
                 <TableActionButton
                   aria-label={`จัดการ ${ticket.documentNo}`}
-                  busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id}
+                  busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id || downloadingPdfTicketId === ticket.id}
                   mobileLabel
                   menu={(
                     <>
@@ -831,6 +845,7 @@ export function WeightTicketListPageClient() {
                       {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                       {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
                       {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => prefetchWeightTicketPrintAssets(ticket)} onFocus={() => prefetchWeightTicketPrintAssets(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                      {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={downloadingPdfTicketId === ticket.id} onSelect={() => void handleDownloadPdf(ticket)}>{downloadingPdfTicketId === ticket.id ? 'กำลังสร้าง PDF...' : 'ดาวน์โหลด PDF'}</TableActionMenuItem> : null}
                       {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                       {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                       {ticket.canCancel ? (
@@ -935,7 +950,7 @@ export function WeightTicketListPageClient() {
                     <td className="whitespace-nowrap px-3 py-3 text-center">
                       {isCancelled ? null : <TableActionButton
                         aria-label={`จัดการ ${ticket.documentNo}`}
-                        busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id}
+                        busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id || downloadingPdfTicketId === ticket.id}
                         menu={(
                           <>
                             <TableActionMenuItem onSelect={() => setActiveDetailId(ticket.id)}>รายละเอียด</TableActionMenuItem>
@@ -944,6 +959,7 @@ export function WeightTicketListPageClient() {
                             {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                             {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
                             {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => prefetchWeightTicketPrintAssets(ticket)} onFocus={() => prefetchWeightTicketPrintAssets(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                            {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={downloadingPdfTicketId === ticket.id} onSelect={() => void handleDownloadPdf(ticket)}>{downloadingPdfTicketId === ticket.id ? 'กำลังสร้าง PDF...' : 'ดาวน์โหลด PDF'}</TableActionMenuItem> : null}
                             {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                             {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                             {ticket.canCancel ? (
@@ -1062,6 +1078,7 @@ export function WeightTicketListPageClient() {
             setActiveDetailId(null)
             setActiveForm({ id, type })
           }}
+          onDownloadPdf={(documentNo) => downloadWeightTicketPdf(documentNo).catch((caught) => window.alert(getErrorMessage(caught, 'ดาวน์โหลด PDF ไม่สำเร็จ')))}
         />
       )}
 

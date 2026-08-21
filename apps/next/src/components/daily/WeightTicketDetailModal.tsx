@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import Image from 'next/image'
-import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, RotateCw, Scale, Share2, SquarePen, XCircle, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ClipboardList, Download, Package2, Printer, RotateCcw, RotateCw, Scale, Share2, SquarePen, XCircle, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -101,11 +101,13 @@ export function WeightTicketDetailModal({
   initialTicket,
   onClose,
   onEdit,
+  onDownloadPdf,
 }: {
   initialTicket?: WeightTicketRecord
   ticketId: string
   onClose: () => void
   onEdit?: (id: string, type: WeightTicketType) => void
+  onDownloadPdf?: (documentNo: string) => void | Promise<void>
 }) {
   const { requestConfirmation } = useActionConfirmation()
   const [ticket, setTicket] = useState<WeightTicketRecord | null>(() => initialTicket ?? null)
@@ -119,6 +121,7 @@ export function WeightTicketDetailModal({
   const [isCanceling, setIsCanceling] = useState(false)
   const { begin: beginSaveStage, end: endSaveStage, isSaving: isConfirming, stage: saveStage } = useWeightTicketSaveProgress()
   const [isPrinting, setIsPrinting] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [lineGallery, setLineGallery] = useState<{
     activeIndex: number
     images: Array<{ bucket: string; contextTitle?: string; fileName: string; originalStorageKey: string; originalUrl?: string; url: string }>
@@ -341,6 +344,16 @@ export function WeightTicketDetailModal({
     }
   }
 
+  async function handleDownloadPdf() {
+    if (!ticket || !onDownloadPdf || !canPrintWeightTicket(ticket.status)) return
+    setIsDownloadingPdf(true)
+    try {
+      await onDownloadPdf(ticket.documentNo)
+    } finally {
+      setIsDownloadingPdf(false)
+    }
+  }
+
   async function reloadTicket() {
     const nextTicket = await getWeightTicket(ticketId, { includeImagePreviews: false })
     setTicket(nextTicket)
@@ -542,6 +555,12 @@ export function WeightTicketDetailModal({
                   <Button aria-label={isPrinting ? 'กำลังเตรียมพิมพ์' : 'พิมพ์'} className="h-10 w-10 shrink-0 gap-0 border-emerald-600 bg-emerald-600 px-0 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" disabled={isPrinting} type="button" variant="outline" onMouseEnter={() => { void prefetchPrintAssets(ticket.branchId); void prefetchWeightTicketForPrint(ticket.id) }} onFocus={() => { void prefetchPrintAssets(ticket.branchId); void prefetchWeightTicketForPrint(ticket.id) }} onClick={() => void handlePrintReceipt()}>
                     <Printer className="size-4" />
                     <span className="sr-only sm:not-sr-only">{isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}</span>
+                  </Button>
+                ) : null}
+                {canPrintWeightTicket(ticket.status) && onDownloadPdf ? (
+                  <Button aria-label={isDownloadingPdf ? 'กำลังสร้าง PDF' : 'ดาวน์โหลด PDF'} disabled={isDownloadingPdf} className="h-10 w-10 shrink-0 gap-0 border-sky-600 bg-sky-600 px-0 font-normal text-white hover:border-sky-700 hover:bg-sky-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" type="button" variant="outline" onClick={() => void handleDownloadPdf()}>
+                    <Download className="size-4" />
+                    <span className="sr-only sm:not-sr-only">{isDownloadingPdf ? 'กำลังสร้าง PDF...' : 'ดาวน์โหลด PDF'}</span>
                   </Button>
                 ) : null}
                 </>
