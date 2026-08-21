@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, memo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react'
 import {
   AlertTriangle,
   Building2,
@@ -292,6 +292,7 @@ const LeaderboardCard = memo(function LeaderboardCard({
 export function WarehouseKpiPageClient() {
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [globalEvaluator, setGlobalEvaluator] = useState('MAY')
+  const globalEvaluatorRef = useRef('MAY')
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [godowns, setGodowns] = useState<Godown[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -321,6 +322,7 @@ export function WarehouseKpiPageClient() {
       // If existing records have evaluator name, pick the first one
       const existingEvaluator = dbEvaluations.find((e) => e.evaluated_by)?.evaluated_by
       if (existingEvaluator) {
+        globalEvaluatorRef.current = existingEvaluator
         setGlobalEvaluator(existingEvaluator)
       }
 
@@ -352,7 +354,7 @@ export function WarehouseKpiPageClient() {
           target_hit: 3,
           problems: '',
           solutions: '',
-          evaluated_by: existingEvaluator || globalEvaluator || 'MAY',
+          evaluated_by: existingEvaluator || globalEvaluatorRef.current || 'MAY',
         }
       })
       setEvaluations(initialEvals)
@@ -369,6 +371,7 @@ export function WarehouseKpiPageClient() {
   }, [loadData])
 
   const handleGlobalEvaluatorChange = (name: string) => {
+    globalEvaluatorRef.current = name
     setGlobalEvaluator(name)
     setEvaluations((prev) => prev.map((ev) => ({ ...ev, evaluated_by: name })))
   }

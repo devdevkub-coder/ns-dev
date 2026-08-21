@@ -52,6 +52,7 @@ export function WeightTicketImageGallery({
   const [downloadError, setDownloadError] = useState('')
   const [downloadParts, setDownloadParts] = useState<DownloadPart[]>([])
   const [downloadPartCount, setDownloadPartCount] = useState<number | null>(null)
+  const [downloadPartitionSignature, setDownloadPartitionSignature] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isPreparingParts, setIsPreparingParts] = useState(false)
   const decodedImages = imageNames.map(decodeStoredImageAsset)
@@ -64,6 +65,7 @@ export function WeightTicketImageGallery({
   const downloadableImages = decodedDownloadImages.filter((image) => Boolean(
     image.bucket && image.storageKey,
   ))
+  const readyPartsCount = downloadParts.filter((part) => part.status === 'ready' && part.url).length
   const processingImageCount = decodedImages.filter((image) => image.thumbnailStatus === 'queued' || image.thumbnailStatus === 'processing').length
   const failedImageCount = decodedImages.filter((image) => image.thumbnailStatus === 'failed').length
   const legacyImageCount = isLoadingPreview || previewError ? 0 : decodedImages.filter((image) => (
@@ -73,25 +75,43 @@ export function WeightTicketImageGallery({
   useEffect(() => {
     if (!downloadUrl || downloadableImages.length === 0) {
       setDownloadPartCount(null)
+      setDownloadPartitionSignature(null)
+      setDownloadParts([])
+      setDownloadError('')
       return
     }
     setDownloadPartCount(null)
+    setDownloadPartitionSignature(null)
+    setDownloadParts([])
+    setDownloadError('')
     const controller = new AbortController()
     void fetch(`${downloadUrl}${downloadUrl.includes('?') ? '&' : '?'}estimate=true`, { cache: 'no-store', signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) return null
-        return await response.json() as { partCount?: number | null }
+        return await response.json() as { partCount?: number | null; partitionSignature?: string | null }
       })
       .then((payload) => {
-        if (payload?.partCount && payload.partCount > 0) setDownloadPartCount(payload.partCount)
+        if (payload?.partCount && payload.partCount > 0) {
+          setDownloadPartCount(payload.partCount)
+          setDownloadPartitionSignature(payload.partitionSignature ?? null)
+        }
       })
       .catch(() => undefined)
     return () => controller.abort()
   }, [downloadUrl, downloadableImages.length])
 
-  async function downloadArchive(file: Pick<DownloadPart, 'fileName' | 'url'>) {
+  async function downloadArchive(file: Pick<DownloadPart, 'fileName' | 'url'> & Partial<Pick<DownloadPart, 'part' | 'totalParts'>>) {
     if (!file.url) throw new Error('ไฟล์ ZIP ยังไม่พร้อมดาวน์โหลด')
-    const archiveResponse = await fetch(file.url)
+    let archiveUrl = file.url
+    if (file.part && file.totalParts && file.totalParts > 1 && downloadUrl && downloadPartitionSignature) {
+      const separator = downloadUrl.includes('?') ? '&' : '?'
+      const response = await fetch(`${downloadUrl}${separator}part=${file.part}&partitionSignature=${encodeURIComponent(downloadPartitionSignature)}&resign=true`, { cache: 'no-store' })
+      if (!response.ok) throw new Error('สร้างลิงก์ดาวน์โหลด ZIP ใหม่ไม่สำเร็จ')
+      const payload = await response.json() as { files?: Array<{ url?: string }> }
+      if (!payload.files?.[0]?.url) throw new Error('ไม่พบไฟล์ ZIP สำหรับดาวน์โหลด')
+      archiveUrl = payload.files[0].url
+    }
+    const archiveResponse = await fetch(archiveUrl)
     if (!archiveResponse.ok) throw new Error('ดาวน์โหลดไฟล์ ZIP ไม่สำเร็จ')
     const objectUrl = URL.createObjectURL(await archiveResponse.blob())
     const anchor = document.createElement('a')
@@ -115,7 +135,8 @@ export function WeightTicketImageGallery({
     setPartStatus(part.part, { status: 'preparing', error: undefined })
     try {
       const separator = downloadUrl.includes('?') ? '&' : '?'
-      const response = await fetch(`${downloadUrl}${separator}part=${part.part}`, { cache: 'no-store' })
+      const signature = downloadPartitionSignature ? `&partitionSignature=${encodeURIComponent(downloadPartitionSignature)}` : ''
+      const response = await fetch(`${downloadUrl}${separator}part=${part.part}${signature}`, { cache: 'no-store' })
       if (!response.ok) throw new Error('เตรียมไฟล์ ZIP ไม่สำเร็จ')
       const payload = await response.json() as { files?: Array<{ fileName: string; url: string }> }
       const file = payload.files?.[0]
@@ -243,7 +264,7 @@ export function WeightTicketImageGallery({
               onClick={() => void handleDownloadAllArchives()}
             >
               <Download className="size-4" />
-              {isDownloading ? 'กำลังดาวน์โหลดทุกไฟล์...' : 'ดาวน์โหลดทุกไฟล์'}
+              {isDownloading ? 'กำลังดาวน์โหลด...' : readyPartsCount === downloadParts.length ? 'ดาวน์โหลดทุกไฟล์' : 'ดาวน์โหลดไฟล์ที่พร้อม'}
             </button>
             {downloadParts.map((file) => (
               <div className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2 text-left text-sm text-slate-700" key={file.part}>
@@ -255,6 +276,7 @@ export function WeightTicketImageGallery({
                 ) : (
                   <span className="shrink-0 text-xs text-slate-500">กำลังเตรียม...</span>
                 )}
+                {file.error ? <span className="basis-full text-xs text-rose-600">{file.error}</span> : null}
               </div>
             ))}
           </div>

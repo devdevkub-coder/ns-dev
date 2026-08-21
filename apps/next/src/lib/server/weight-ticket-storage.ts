@@ -29,6 +29,7 @@ const imageProcessingSettingKeys = [
   'WEIGHT_TICKET_THUMBNAIL_PREVIEW_POLL_SECONDS',
   'WEIGHT_TICKET_THUMBNAIL_DRAIN_BATCH_SIZE',
   'WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS',
+  'WEIGHT_TICKET_IMAGE_DOWNLOAD_ARTIFACT_RETENTION_SECONDS',
   'WEIGHT_TICKET_IMAGE_ORPHAN_RETENTION_SECONDS',
 ] as const
 
@@ -79,6 +80,7 @@ export async function resolveWeightTicketImageProcessingConfig() {
     previewPollSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_PREVIEW_POLL_SECONDS', 1, 30),
     retryDelaySeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_RETRY_DELAY_SECONDS', 1, 3600),
     previewTtlSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS', 60, 3600),
+    downloadArtifactRetentionSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_DOWNLOAD_ARTIFACT_RETENTION_SECONDS', 60, 31 * 24 * 60 * 60),
     orphanRetentionSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_ORPHAN_RETENTION_SECONDS', 60, 31 * 24 * 60 * 60),
     webpQuality: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_WEBP_QUALITY', 1, 100),
     printJpegQuality: requireIntegerSetting(settings, 'WEIGHT_TICKET_PRINT_JPEG_QUALITY', 1, 100),

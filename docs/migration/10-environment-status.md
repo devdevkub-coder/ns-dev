@@ -1,5 +1,10 @@
 # 10 Environment Status
 
+### WTI/WTO Download Artifact Retention — 2026-08-21
+
+- Applied and recorded `20260821170000_add_weight_ticket_download_artifact_retention.sql` on SIT project `vbjlkxbytccklhqvxjuu` through the verified non-pooling PostgreSQL connection.
+- Postflight confirms `WEIGHT_TICKET_IMAGE_DOWNLOAD_ARTIFACT_RETENTION_SECONDS=86400`; the existing ZIP artifact retention contract remains separate from signed URL lifetime. Production was not modified.
+
 ### WTI/WTO Download Derivative Schema — 2026-08-21
 
 - Applied and recorded `20260821120000_add_weight_ticket_download_derivatives.sql` on SIT project `vbjlkxbytccklhqvxjuu` through the verified non-pooling PostgreSQL connection. The migration added download-derivative ledger fields, `weight_ticket_image_download_artifacts`, the required indexes/RLS, and system settings `WEIGHT_TICKET_DOWNLOAD_MAX_DIMENSION=1600` and `WEIGHT_TICKET_DOWNLOAD_JPEG_QUALITY=88`.
