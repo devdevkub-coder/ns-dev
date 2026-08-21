@@ -19,6 +19,14 @@ export const runtime = 'nodejs'
 // The 45 MiB raw-byte threshold leaves room for ZIP headers and compression
 // overhead while reducing the number of parts for larger documents.
 const MAX_ARCHIVE_PART_BYTES = 45 * 1024 * 1024
+const MAX_STORAGE_UPLOAD_BYTES = 50 * 1024 * 1024
+
+type DownloadDerivativeRow = {
+  download_byte_size: bigint | null
+  download_status: string
+  download_storage_key: string
+  original_storage_key: string
+}
 
 async function cleanupExpiredDownloadArtifacts(supabase: ReturnType<typeof getSupabaseAdminClient>) {
   if (!supabase) return
@@ -75,10 +83,11 @@ function uniqueTicketImageAssets(assets: StoredImageAsset[]) {
   })
 }
 
-function estimateArchivePartCount(assets: StoredImageAsset[], derivativeRows: Array<{ download_byte_size: bigint | null; download_status: string; original_storage_key: string }>) {
+function partitionArchiveAssets(assets: StoredImageAsset[], derivativeRows: Array<{ download_byte_size: bigint | null; download_status: string; original_storage_key: string }>) {
   const derivativeByOriginal = new Map(derivativeRows.map((row) => [row.original_storage_key, row]))
   const seen = new Set<string>()
-  let partCount = 1
+  const parts: StoredImageAsset[][] = []
+  let currentPart: StoredImageAsset[] = []
   let totalBytes = 0
   for (const asset of assets) {
     if (!asset.storageKey || seen.has(asset.storageKey)) continue
@@ -87,13 +96,27 @@ function estimateArchivePartCount(assets: StoredImageAsset[], derivativeRows: Ar
     if (!derivative || derivative.download_status !== 'ready' || derivative.download_byte_size == null) return null
     const byteSize = Number(derivative.download_byte_size)
     if (!Number.isSafeInteger(byteSize) || byteSize < 0) return null
-    if (totalBytes > 0 && totalBytes + byteSize > MAX_ARCHIVE_PART_BYTES) {
-      partCount += 1
+    if (currentPart.length > 0 && totalBytes + byteSize > MAX_ARCHIVE_PART_BYTES) {
+      parts.push(currentPart)
+      currentPart = []
       totalBytes = 0
     }
+    currentPart.push(asset)
     totalBytes += byteSize
   }
-  return seen.size > 0 ? partCount : 0
+  if (currentPart.length > 0) parts.push(currentPart)
+  return seen.size > 0 ? parts : []
+}
+
+function estimateArchivePartCount(assets: StoredImageAsset[], derivativeRows: Array<{ download_byte_size: bigint | null; download_status: string; original_storage_key: string }>) {
+  return partitionArchiveAssets(assets, derivativeRows)?.length ?? null
+}
+
+async function loadDownloadDerivativeRows(bucket: string, originalKeys: string[]): Promise<DownloadDerivativeRow[]> {
+  return prisma.weight_ticket_image_assets.findMany({
+    select: { download_byte_size: true, download_status: true, download_storage_key: true, original_storage_key: true },
+    where: { bucket, original_storage_key: { in: originalKeys } },
+  })
 }
 
 function requestTraceId(request: Request) {
@@ -128,10 +151,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างไฟล์ดาวน์โหลดรูปภาพ')
     const processingConfig = await resolveWeightTicketImageProcessingConfig()
     const originalKeys = Array.from(new Set(assets.map((asset) => assertWeightTicketImageStorageKey(asset.storageKey ?? ''))))
-    const derivativeRows = await prisma.weight_ticket_image_assets.findMany({
-      select: { download_byte_size: true, download_status: true, download_storage_key: true, original_storage_key: true },
-      where: { bucket, original_storage_key: { in: originalKeys } },
-    })
+    let derivativeRows = await loadDownloadDerivativeRows(bucket, originalKeys)
     if (new URL(request.url).searchParams.get('estimate') === 'true') {
       return withAuthNoStore(NextResponse.json({
         partCount: estimateArchivePartCount(assets, derivativeRows),
@@ -147,6 +167,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       if (drained.attempted === 0) break
     }
     stage = 'load-derivative-metadata'
+    derivativeRows = await loadDownloadDerivativeRows(bucket, originalKeys)
+    const requestedPartValue = new URL(request.url).searchParams.get('part')
+    const requestedPart = requestedPartValue == null ? null : Number(requestedPartValue)
+    const plannedParts = requestedPart === null ? null : partitionArchiveAssets(assets, derivativeRows)
+    if (requestedPart !== null && !plannedParts) throw new Error('รูปภาพบางรายการยังสร้างรูปสำหรับดาวน์โหลดไม่เสร็จ')
+    const plannedPartCount = plannedParts?.length ?? 0
+    if (requestedPart !== null && (!Number.isInteger(requestedPart) || requestedPart < 1 || requestedPart > plannedPartCount)) {
+      throw new Error(`ไม่พบ ZIP ส่วนที่ ${requestedPartValue}`)
+    }
+    const assetsToDownload = requestedPart === null ? assets : plannedParts?.[requestedPart - 1] ?? []
+    const expectedTotalParts = plannedPartCount
     const derivativeByOriginal = new Map(derivativeRows.map((row) => [row.original_storage_key, row]))
     const archiveBase = safeFileName(ticket.doc_no, 'weight-ticket')
     const artifactPrefix = `attachments/downloads/${randomUUID()}`
@@ -161,6 +192,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       const internalFileName = `${archiveBase}-images-part-${String(currentPartNumber).padStart(2, '0')}.zip`
       const storageKey = `${artifactPrefix}/${internalFileName}`
       const archive = zipSync(files, { level: 6 })
+      if (archive.byteLength > MAX_STORAGE_UPLOAD_BYTES) {
+        throw new Error(`ไฟล์ ZIP ส่วนที่ ${currentPartNumber} มีขนาดเกิน 50MiB กรุณาลดจำนวนรูปต่อการดาวน์โหลด`)
+      }
       const { error: uploadError } = await supabase.storage.from(bucket).upload(storageKey, archive, {
         cacheControl: '600',
         contentType: 'application/zip',
@@ -178,13 +212,16 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     }
 
     stage = 'download-derivatives-and-build-zip'
-    for (const [index, asset] of assets.entries()) {
+    for (const [index, asset] of assetsToDownload.entries()) {
       const originalKey = assertWeightTicketImageStorageKey(asset.storageKey ?? '')
       const derivative = derivativeByOriginal.get(originalKey)
       if (!derivative || derivative.download_status !== 'ready') {
         throw new Error(`รูป ${asset.fileName} ยังสร้างรูปสำหรับดาวน์โหลดไม่เสร็จ`)
       }
       const bytes = await loadImageBytes(asset, derivative.download_storage_key, bucket, supabase)
+      if (bytes.byteLength > MAX_ARCHIVE_PART_BYTES) {
+        throw new Error(`รูป ${asset.fileName} มีขนาดเกิน 45MiB ไม่สามารถรวมในไฟล์ ZIP ตามเพดาน Storage 50MiB ได้`)
+      }
       const baseName = safeFileName(asset.fileName.replace(/\.[^.]+$/, '.jpg'), `image-${index + 1}.jpg`)
       let fileName = baseName
       let suffix = 2
@@ -204,15 +241,15 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       totalBytes += bytes.byteLength
     }
     stage = 'upload-zip-artifacts'
-    await uploadArchivePart(currentFiles, partNumber)
-    const totalParts = generatedFiles.length
+    await uploadArchivePart(currentFiles, requestedPart ?? partNumber)
+    const totalParts = requestedPart === null ? generatedFiles.length : expectedTotalParts
     const downloadedFiles = generatedFiles.map(({ internalFileName, part, url }) => ({
       fileName: totalParts === 1 ? `${archiveBase}-images.zip` : internalFileName,
       part,
       totalParts,
       url,
     }))
-    return withAuthNoStore(NextResponse.json({ files: downloadedFiles, split: downloadedFiles.length > 1 }, { status: 200 }))
+    return withAuthNoStore(NextResponse.json({ files: downloadedFiles, split: requestedPart === null ? downloadedFiles.length > 1 : expectedTotalParts > 1 }, { status: 200 }))
   } catch (caught) {
     console.error('[weight-ticket-image-download]', {
       stage,

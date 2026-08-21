@@ -129,6 +129,7 @@ describe('WeightTicketImageGallery', () => {
         onOpen={onOpen}
       />,
     ))
+    await act(async () => { await Promise.resolve() })
 
     const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('ดาวน์โหลดรูปทั้งหมด'))
     expect(downloadButton).not.toBeUndefined()
@@ -151,10 +152,8 @@ describe('WeightTicketImageGallery', () => {
     const onOpen = vi.fn()
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ partCount: 2, ready: true }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ files: [
-        { fileName: 'WTI-001-images-part-01.zip', url: 'https://storage.example/signed-01.zip' },
-        { fileName: 'WTI-001-images-part-02.zip', url: 'https://storage.example/signed-02.zip' },
-      ] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ files: [{ fileName: 'WTI-001-images-part-01.zip', url: 'https://storage.example/signed-01.zip' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ files: [{ fileName: 'WTI-001-images-part-02.zip', url: 'https://storage.example/signed-02.zip' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:weight-ticket-images') })
@@ -168,23 +167,25 @@ describe('WeightTicketImageGallery', () => {
         onOpen={onOpen}
       />,
     ))
+    await act(async () => { await Promise.resolve() })
 
     const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('ดาวน์โหลดรูปทั้งหมด'))
     await act(async () => { downloadButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
 
     expect(document.body.textContent).toContain('เลือกไฟล์ ZIP สำหรับดาวน์โหลด')
     expect(document.body.textContent).toContain('ดาวน์โหลดรูปทั้งหมด (2 ไฟล์ ZIP)')
     expect(document.body.textContent).toContain('WTI-001-images-part-01.zip')
     expect(document.body.textContent).toContain('WTI-001-images-part-02.zip')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
 
     fetchMock.mockResolvedValueOnce(new Response(new Blob(['zip-01']), { status: 200 }))
       .mockResolvedValueOnce(new Response(new Blob(['zip-02']), { status: 200 }))
     const allButton = Array.from(document.body.querySelectorAll('button')).find((button) => button.textContent?.includes('ดาวน์โหลดทุกไฟล์'))
     await act(async () => { allButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
 
-    expect(fetchMock).toHaveBeenNthCalledWith(3, 'https://storage.example/signed-01.zip')
-    expect(fetchMock).toHaveBeenNthCalledWith(4, 'https://storage.example/signed-02.zip')
+    expect(fetchMock).toHaveBeenNthCalledWith(4, 'https://storage.example/signed-01.zip')
+    expect(fetchMock).toHaveBeenNthCalledWith(5, 'https://storage.example/signed-02.zip')
   })
 
   it('keeps the download button enabled when only vehicle images are downloadable', () => {

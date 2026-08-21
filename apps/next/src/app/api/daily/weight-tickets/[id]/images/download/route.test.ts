@@ -116,4 +116,42 @@ describe('WTI/WTO image download route', () => {
     expect(mocks.download).not.toHaveBeenCalled()
     expect(mocks.upload).not.toHaveBeenCalled()
   })
+
+  it('reloads derivative metadata after draining jobs before building the ZIP', async () => {
+    mocks.findMany
+      .mockResolvedValueOnce([{ original_storage_key: 'attachments/pending/evidence.png', download_storage_key: 'attachments/pending/evidence.download.jpg', download_status: 'queued' }])
+      .mockResolvedValueOnce([{ original_storage_key: 'attachments/pending/evidence.png', download_storage_key: 'attachments/pending/evidence.download.jpg', download_status: 'ready' }])
+
+    const response = await GET(new Request('https://sit.example/api/daily/weight-tickets/WTI012608-0351/images/download'), { params: Promise.resolve({ id: 'WTI012608-0351' }) })
+
+    expect(response.status).toBe(200)
+    expect(mocks.findMany).toHaveBeenCalledTimes(2)
+    expect(mocks.download).toHaveBeenCalledWith('attachments/pending/evidence.download.jpg')
+  })
+
+  it('builds only the requested ZIP part while preserving the estimated total', async () => {
+    const secondReference = JSON.stringify({ fileName: 'second.png', storageKey: 'attachments/pending/second.png', bucket: 'weight-ticket-images' })
+    mocks.findScopedWeightTicket.mockResolvedValue({ id: 77n, doc_no: 'WTI012608-0351', vehicle_image_names: [reference, secondReference], weight_ticket_lines: [] })
+    mocks.findMany.mockResolvedValue([
+      { original_storage_key: 'attachments/pending/evidence.png', download_storage_key: 'attachments/pending/evidence.download.jpg', download_status: 'ready', download_byte_size: 30n * 1024n * 1024n },
+      { original_storage_key: 'attachments/pending/second.png', download_storage_key: 'attachments/pending/second.download.jpg', download_status: 'ready', download_byte_size: 30n * 1024n * 1024n },
+    ])
+
+    const response = await GET(new Request('https://sit.example/api/daily/weight-tickets/WTI012608-0351/images/download?part=2'), { params: Promise.resolve({ id: 'WTI012608-0351' }) })
+    const payload = await response.json() as { files: Array<{ fileName: string; part: number; totalParts: number }>; split: boolean }
+
+    expect(response.status).toBe(200)
+    expect(payload).toEqual({ files: [{ fileName: 'WTI012608-0351-images-part-02.zip', part: 2, totalParts: 2, url: 'https://storage.example/signed.zip' }], split: true })
+    expect(mocks.download).toHaveBeenCalledTimes(1)
+    expect(mocks.download).toHaveBeenCalledWith('attachments/pending/second.download.jpg')
+  })
+
+  it('fails before upload when an individual derivative exceeds the raw part limit', async () => {
+    mocks.download.mockResolvedValue({ data: new Blob([Buffer.alloc(46 * 1024 * 1024)]), error: null })
+
+    const response = await GET(new Request('https://sit.example/api/daily/weight-tickets/WTI012608-0351/images/download'), { params: Promise.resolve({ id: 'WTI012608-0351' }) })
+
+    expect(response.status).toBe(500)
+    expect(mocks.upload).not.toHaveBeenCalled()
+  })
 })

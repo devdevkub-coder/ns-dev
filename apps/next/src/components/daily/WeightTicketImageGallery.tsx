@@ -23,9 +23,13 @@ export type WeightTicketGalleryOpenPayload = {
   title: string
 }
 
-type DownloadArchive = {
+type DownloadPart = {
+  part: number
+  totalParts: number
   fileName: string
-  url: string
+  url?: string
+  status: 'preparing' | 'ready' | 'failed'
+  error?: string
 }
 
 export function WeightTicketImageGallery({
@@ -46,9 +50,10 @@ export function WeightTicketImageGallery({
   previewError?: string
 }) {
   const [downloadError, setDownloadError] = useState('')
-  const [downloadArchives, setDownloadArchives] = useState<DownloadArchive[]>([])
+  const [downloadParts, setDownloadParts] = useState<DownloadPart[]>([])
   const [downloadPartCount, setDownloadPartCount] = useState<number | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isPreparingParts, setIsPreparingParts] = useState(false)
   const decodedImages = imageNames.map(decodeStoredImageAsset)
   const decodedDownloadImages = (downloadImageNames ?? imageNames).map(decodeStoredImageAsset)
   const images = decodedImages
@@ -78,13 +83,14 @@ export function WeightTicketImageGallery({
         return await response.json() as { partCount?: number | null }
       })
       .then((payload) => {
-        if (payload?.partCount && payload.partCount > 1) setDownloadPartCount(payload.partCount)
+        if (payload?.partCount && payload.partCount > 0) setDownloadPartCount(payload.partCount)
       })
       .catch(() => undefined)
     return () => controller.abort()
   }, [downloadUrl, downloadableImages.length])
 
-  async function downloadArchive(file: DownloadArchive) {
+  async function downloadArchive(file: Pick<DownloadPart, 'fileName' | 'url'>) {
+    if (!file.url) throw new Error('ไฟล์ ZIP ยังไม่พร้อมดาวน์โหลด')
     const archiveResponse = await fetch(file.url)
     if (!archiveResponse.ok) throw new Error('ดาวน์โหลดไฟล์ ZIP ไม่สำเร็จ')
     const objectUrl = URL.createObjectURL(await archiveResponse.blob())
@@ -100,8 +106,49 @@ export function WeightTicketImageGallery({
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   }
 
+  function setPartStatus(part: number, update: Partial<DownloadPart>) {
+    setDownloadParts((current) => current.map((item) => item.part === part ? { ...item, ...update } : item))
+  }
+
+  async function prepareDownloadPart(part: DownloadPart) {
+    if (!downloadUrl) return
+    setPartStatus(part.part, { status: 'preparing', error: undefined })
+    try {
+      const separator = downloadUrl.includes('?') ? '&' : '?'
+      const response = await fetch(`${downloadUrl}${separator}part=${part.part}`, { cache: 'no-store' })
+      if (!response.ok) throw new Error('เตรียมไฟล์ ZIP ไม่สำเร็จ')
+      const payload = await response.json() as { files?: Array<{ fileName: string; url: string }> }
+      const file = payload.files?.[0]
+      if (!file?.url) throw new Error('ไม่พบไฟล์ ZIP สำหรับดาวน์โหลด')
+      setPartStatus(part.part, { fileName: file.fileName, url: file.url, status: 'ready' })
+    } catch (caught) {
+      setPartStatus(part.part, { status: 'failed', error: caught instanceof Error ? caught.message : 'เตรียมไฟล์ ZIP ไม่สำเร็จ' })
+    }
+  }
+
+  async function prepareAllDownloadParts(parts: DownloadPart[]) {
+    setIsPreparingParts(true)
+    setDownloadError('')
+    for (const part of parts) {
+      await prepareDownloadPart(part)
+    }
+    setIsPreparingParts(false)
+  }
+
   async function handleDownloadAll() {
-    if (!downloadUrl || downloadableImages.length === 0 || isDownloading) return
+    if (!downloadUrl || downloadableImages.length === 0 || isDownloading || isPreparingParts) return
+    const totalParts = downloadPartCount ?? 1
+    if (totalParts > 1) {
+      const parts = Array.from({ length: totalParts }, (_, index) => ({
+        part: index + 1,
+        totalParts,
+        fileName: `${downloadFileName ?? 'weight-ticket-images'}-part-${String(index + 1).padStart(2, '0')}.zip`,
+        status: 'preparing' as const,
+      }))
+      setDownloadParts(parts)
+      void prepareAllDownloadParts(parts)
+      return
+    }
     setIsDownloading(true)
     setDownloadError('')
     try {
@@ -112,7 +159,12 @@ export function WeightTicketImageGallery({
       const payload = await response.json() as { files?: Array<{ fileName: string; url: string }> }
       if (!payload.files?.length) throw new Error('ไม่พบไฟล์ ZIP สำหรับดาวน์โหลด')
       if (payload.files.length > 1) {
-        setDownloadArchives(payload.files)
+        setDownloadParts(payload.files.map((file, index) => ({
+          ...file,
+          part: index + 1,
+          totalParts: payload.files?.length ?? 0,
+          status: 'ready' as const,
+        })))
         return
       }
       await downloadArchive(payload.files[0])
@@ -123,12 +175,13 @@ export function WeightTicketImageGallery({
     }
   }
 
-  async function handleDownloadArchive(file: DownloadArchive) {
+  async function handleDownloadArchive(file: DownloadPart) {
+    if (file.status !== 'ready' || !file.url) return
     setIsDownloading(true)
     setDownloadError('')
     try {
       await downloadArchive(file)
-      setDownloadArchives([])
+      setDownloadParts([])
     } catch (caught) {
       setDownloadError(caught instanceof Error ? caught.message : 'ดาวน์โหลดไฟล์ ZIP ไม่สำเร็จ')
     } finally {
@@ -137,14 +190,15 @@ export function WeightTicketImageGallery({
   }
 
   async function handleDownloadAllArchives() {
-    if (downloadArchives.length === 0 || isDownloading) return
+    const readyParts = downloadParts.filter((part) => part.status === 'ready' && part.url)
+    if (readyParts.length === 0 || isDownloading) return
     setIsDownloading(true)
     setDownloadError('')
     try {
-      for (const file of downloadArchives) {
+      for (const file of readyParts) {
         await downloadArchive(file)
       }
-      setDownloadArchives([])
+      setDownloadParts([])
     } catch (caught) {
       setDownloadError(caught instanceof Error ? caught.message : 'ดาวน์โหลดไฟล์ ZIP ไม่สำเร็จ')
     } finally {
@@ -163,18 +217,18 @@ export function WeightTicketImageGallery({
             <button
               aria-label="ดาวน์โหลดรูปภาพประกอบทั้งหมด"
               className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={downloadableImages.length === 0 || isDownloading}
+              disabled={downloadableImages.length === 0 || isDownloading || isPreparingParts}
               type="button"
               onClick={() => void handleDownloadAll()}
             >
               <Download className="size-4" />
-              {isDownloading ? 'กำลังดาวน์โหลด...' : `ดาวน์โหลดรูปทั้งหมด${downloadPartCount ? ` (${downloadPartCount} ไฟล์ ZIP)` : ''}`}
+              {isDownloading ? 'กำลังดาวน์โหลด...' : isPreparingParts ? 'กำลังเตรียม ZIP...' : `ดาวน์โหลดรูปทั้งหมด${downloadPartCount ? ` (${downloadPartCount} ไฟล์ ZIP)` : ''}`}
             </button>
           ) : null}
           <span className="text-sm text-slate-500">{downloadImageNames ? `${downloadableImages.length} รูปทั้งหมด` : `${imageNames.length} รูป`}</span>
         </div>
       </div>
-      <Dialog open={downloadArchives.length > 0} onOpenChange={(open) => { if (!open && !isDownloading) setDownloadArchives([]) }}>
+      <Dialog open={downloadParts.length > 0} onOpenChange={(open) => { if (!open && !isDownloading) setDownloadParts([]) }}>
         <DialogContent className="max-w-lg" fallbackTitle="เลือกไฟล์ ZIP สำหรับดาวน์โหลด">
           <DialogHeader>
             <DialogTitle>เลือกไฟล์ ZIP สำหรับดาวน์โหลด</DialogTitle>
@@ -184,28 +238,28 @@ export function WeightTicketImageGallery({
             {downloadError ? <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700" role="alert">{downloadError}</div> : null}
             <button
               className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isDownloading}
+              disabled={isDownloading || !downloadParts.some((part) => part.status === 'ready')}
               type="button"
               onClick={() => void handleDownloadAllArchives()}
             >
               <Download className="size-4" />
               {isDownloading ? 'กำลังดาวน์โหลดทุกไฟล์...' : 'ดาวน์โหลดทุกไฟล์'}
             </button>
-            {downloadArchives.map((file, index) => (
-              <button
-                className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isDownloading}
-                key={file.fileName}
-                type="button"
-                onClick={() => void handleDownloadArchive(file)}
-              >
-                <span className="truncate">{file.fileName}</span>
-                <span className="shrink-0 text-xs text-slate-500">ส่วนที่ {index + 1}</span>
-              </button>
+            {downloadParts.map((file) => (
+              <div className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2 text-left text-sm text-slate-700" key={file.part}>
+                <span className="min-w-0 truncate">ส่วนที่ {file.part}: {file.fileName}</span>
+                {file.status === 'ready' && file.url ? (
+                  <button className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50" disabled={isDownloading} type="button" onClick={() => void handleDownloadArchive(file)}>ดาวน์โหลด</button>
+                ) : file.status === 'failed' ? (
+                  <button className="shrink-0 rounded-md border border-rose-300 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={isDownloading || isPreparingParts} type="button" onClick={() => void prepareDownloadPart(file)}>ลองใหม่</button>
+                ) : (
+                  <span className="shrink-0 text-xs text-slate-500">กำลังเตรียม...</span>
+                )}
+              </div>
             ))}
           </div>
           <DialogFooter>
-            <button className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={() => setDownloadArchives([])}>ปิด</button>
+            <button className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={() => setDownloadParts([])}>ปิด</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
