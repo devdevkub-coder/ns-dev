@@ -1,5 +1,10 @@
 # 10 Environment Status
 
+### WTI/WTO Download Derivative Schema — 2026-08-21
+
+- Applied and recorded `20260821120000_add_weight_ticket_download_derivatives.sql` on SIT project `vbjlkxbytccklhqvxjuu` through the verified non-pooling PostgreSQL connection. The migration added download-derivative ledger fields, `weight_ticket_image_download_artifacts`, the required indexes/RLS, and system settings `WEIGHT_TICKET_DOWNLOAD_MAX_DIMENSION=1600` and `WEIGHT_TICKET_DOWNLOAD_JPEG_QUALITY=88`.
+- Postflight: `510/510` existing image assets have deterministic `download_storage_key` values and remain `download_status=queued`; no derivative binary was generated and no original object was changed. Backfill, deployment, and browser UAT remain pending. Production was not modified.
+
 ### WTI/WTO Realtime Branch Policy Repair — 2026-08-14
 
 - SIT (`vbjlkxbytccklhqvxjuu`) had the private-channel policy from `20260806150000`, but it compared the topic branch code (`01`/`02`) directly with `app_user_branch_access.branch_id` (`1`/`2`) and evaluated RLS-protected access tables inline. Browser subscriptions therefore returned `CHANNEL_ERROR` while the server publisher still returned `ok`.
