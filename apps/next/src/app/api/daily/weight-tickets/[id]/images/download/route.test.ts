@@ -62,6 +62,17 @@ describe('WTI/WTO image download route', () => {
     expect(await response.json()).toEqual({ files: [{ fileName: 'WTI012608-0351-images.zip', part: 1, totalParts: 1, url: 'https://storage.example/signed.zip' }], split: false })
   })
 
+  it('downloads a duplicated image reference only once', async () => {
+    const duplicateReference = JSON.stringify({ bucket: 'weight-ticket-images', fileName: 'evidence-copy.png', storageKey: 'attachments/pending/evidence.png' })
+    mocks.findScopedWeightTicket.mockResolvedValue({ id: 77n, doc_no: 'WTI012608-0351', vehicle_image_names: [reference, duplicateReference], weight_ticket_lines: [] })
+
+    const response = await GET(new Request('https://sit.example/api/daily/weight-tickets/WTI012608-0351/images/download', { headers: { 'x-vercel-id': 'test-trace' } }), { params: Promise.resolve({ id: 'WTI012608-0351' }) })
+
+    expect(response.status).toBe(200)
+    expect(mocks.download).toHaveBeenCalledTimes(1)
+    expect(mocks.upload).toHaveBeenCalledTimes(1)
+  })
+
   it('fails closed when the download derivative is not ready', async () => {
     mocks.findMany.mockResolvedValue([{ original_storage_key: 'attachments/pending/evidence.png', download_storage_key: 'attachments/pending/evidence.download.jpg', download_status: 'queued' }])
     const response = await GET(new Request('https://sit.example/api/daily/weight-tickets/WTI012608-0351/images/download'), { params: Promise.resolve({ id: 'WTI012608-0351' }) })

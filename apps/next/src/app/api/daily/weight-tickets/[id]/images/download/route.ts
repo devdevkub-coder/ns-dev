@@ -15,7 +15,10 @@ export const runtime = 'nodejs'
 
 // This is a server-safety guard for the complete archive, not a per-image
 // business limit. Per-image validation belongs to the upload contract.
-const MAX_ARCHIVE_PART_BYTES = 40 * 1024 * 1024
+// Keep each in-memory ZIP part bounded. The route still splits large downloads,
+// but a smaller raw-byte threshold limits the peak of source buffers plus the
+// compressed archive while the part is uploaded.
+const MAX_ARCHIVE_PART_BYTES = 16 * 1024 * 1024
 
 async function cleanupExpiredDownloadArtifacts(supabase: ReturnType<typeof getSupabaseAdminClient>) {
   if (!supabase) return
@@ -62,10 +65,26 @@ function ticketImageAssets(ticket: Awaited<ReturnType<typeof findScopedWeightTic
     .filter((asset) => asset.rawValue.trim().length > 0)
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+function uniqueTicketImageAssets(assets: StoredImageAsset[]) {
+  const seenStorageKeys = new Set<string>()
+  return assets.filter((asset) => {
+    if (!asset.storageKey) return true
+    if (seenStorageKeys.has(asset.storageKey)) return false
+    seenStorageKeys.add(asset.storageKey)
+    return true
+  })
+}
+
+function requestTraceId(request: Request) {
+  return request.headers.get('x-vercel-id')
+}
+
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const createdArtifactKeys: string[] = []
   let cleanupBucket: string | null = null
   let cleanupSupabase: ReturnType<typeof getSupabaseAdminClient> = null
+  let stage = 'auth'
+  const traceId = requestTraceId(request)
   try {
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'daily.weight_tickets.view')
@@ -74,7 +93,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const ticket = await findScopedWeightTicket(id, branchScopeIds(auth))
     if (!ticket) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 })
 
-    const assets = ticketImageAssets(ticket)
+    stage = 'collect-assets'
+    const referencedAssets = ticketImageAssets(ticket)
+    const assets = uniqueTicketImageAssets(referencedAssets)
     if (assets.length === 0) {
       return NextResponse.json({ code: 'NO_IMAGES', error: 'เอกสารนี้ยังไม่มีรูปภาพที่ดาวน์โหลดได้' }, { status: 404 })
     }
@@ -85,12 +106,15 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     cleanupSupabase = supabase
     if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างไฟล์ดาวน์โหลดรูปภาพ')
     const processingConfig = await resolveWeightTicketImageProcessingConfig()
+    stage = 'cleanup-expired-artifacts'
     await cleanupExpiredDownloadArtifacts(supabase)
     const maxDrainBatches = Math.max(1, Math.ceil(assets.length / processingConfig.drainBatchSize) + 1)
+    stage = 'drain-download-jobs'
     for (let batch = 0; batch < maxDrainBatches; batch += 1) {
       const drained = await drainWeightTicketDownloadJobs({ attachedTicketId: ticket.id, bucket })
       if (drained.attempted === 0) break
     }
+    stage = 'load-derivative-metadata'
     const originalKeys = Array.from(new Set(assets.map((asset) => assertWeightTicketImageStorageKey(asset.storageKey ?? ''))))
     const derivativeRows = await prisma.weight_ticket_image_assets.findMany({
       select: { download_status: true, download_storage_key: true, original_storage_key: true },
@@ -126,6 +150,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       generatedFiles.push({ internalFileName, part: currentPartNumber, url: signed.signedUrl })
     }
 
+    stage = 'download-derivatives-and-build-zip'
     for (const [index, asset] of assets.entries()) {
       const originalKey = assertWeightTicketImageStorageKey(asset.storageKey ?? '')
       const derivative = derivativeByOriginal.get(originalKey)
@@ -151,6 +176,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       currentFiles[fileName] = bytes
       totalBytes += bytes.byteLength
     }
+    stage = 'upload-zip-artifacts'
     await uploadArchivePart(currentFiles, partNumber)
     const totalParts = generatedFiles.length
     const downloadedFiles = generatedFiles.map(({ internalFileName, part, url }) => ({
@@ -161,6 +187,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     }))
     return withAuthNoStore(NextResponse.json({ files: downloadedFiles, split: downloadedFiles.length > 1 }, { status: 200 }))
   } catch (caught) {
+    console.error('[weight-ticket-image-download]', {
+      stage,
+      traceId,
+      error: caught instanceof Error ? caught.message : String(caught),
+    })
     if (cleanupSupabase && cleanupBucket && createdArtifactKeys.length > 0) {
       await cleanupSupabase.storage.from(cleanupBucket).remove(createdArtifactKeys).catch(() => undefined)
       await prisma.weight_ticket_image_download_artifacts.deleteMany({ where: { storage_key: { in: createdArtifactKeys } } }).catch(() => undefined)
