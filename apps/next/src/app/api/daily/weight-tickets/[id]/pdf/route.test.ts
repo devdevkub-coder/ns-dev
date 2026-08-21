@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  after: vi.fn(),
   attachWeightTicketImagePrintUrls: vi.fn(),
   branchScopeIds: vi.fn(),
   findScopedWeightTicket: vi.fn(),
@@ -16,10 +15,6 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('server-only', () => ({}))
-vi.mock('next/server', async (importOriginal) => ({
-  ...await importOriginal<typeof import('next/server')>(),
-  after: mocks.after,
-}))
 vi.mock('@/lib/server/auth-context', () => ({
   AuthContextError: class AuthContextError extends Error { status = 403 },
   authContextErrorResponse: vi.fn((error: { message: string; status: number }) => Response.json({ error: error.message }, { status: error.status })),
@@ -62,7 +57,7 @@ beforeEach(() => {
   mocks.mapWeightTicketRow.mockReturnValue(mappedTicket)
   mocks.loadWeightTicketCompanyPrintProfile.mockResolvedValue({ name: 'NS', branchCode: '01' })
   mocks.resolveWeightTicketImageBucket.mockResolvedValue('weight-ticket-images')
-  mocks.after.mockImplementation((callback: () => Promise<unknown>) => void callback())
+  mocks.drainWeightTicketImageJobs.mockResolvedValue({ attempted: 0, results: [] })
   mocks.attachWeightTicketImagePrintUrls.mockImplementation(async (value) => value)
   mocks.generateWeightTicketPdfBuffer.mockResolvedValue(Buffer.from('%PDF-test'))
 })

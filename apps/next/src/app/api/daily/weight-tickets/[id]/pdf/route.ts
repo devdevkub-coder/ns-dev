@@ -1,4 +1,4 @@
-import { after, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { withAuthNoStore } from '@/lib/server/auth-response'
@@ -29,7 +29,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!profile) return withAuthNoStore(NextResponse.json({ code: 'PRINT_PROFILE_NOT_READY', error: 'ยังไม่มีข้อมูลบริษัทสำหรับสร้าง PDF' }, { status: 503 }))
 
     const imageBucket = await resolveWeightTicketImageBucket()
-    after(() => drainWeightTicketImageJobs({ attachedTicketId: ticket.id, bucket: imageBucket }))
+    await drainWeightTicketImageJobs({ attachedTicketId: ticket.id, bucket: imageBucket })
     const printableTicket = await attachWeightTicketImagePrintUrls(mapped, imageBucket)
     const pdfBuffer = await generateWeightTicketPdfBuffer(printableTicket, profile)
     const filename = `${mapped.documentNo.replace(/[^A-Za-z0-9._-]+/g, '-')}.pdf`

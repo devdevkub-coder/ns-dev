@@ -1,4 +1,4 @@
-import { after, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { canPrintWeightTicket } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { generateWeightTicketPdfBuffer } from '@/lib/server/pdf/weight-ticket-pdf'
@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const profile = await loadWeightTicketCompanyPrintProfile(mapped.branchId)
     if (!profile) return NextResponse.json({ code: 'PRINT_PROFILE_NOT_READY', error: 'ยังไม่มีข้อมูลบริษัทสำหรับสร้าง PDF' }, { status: 503 })
     const imageBucket = await resolveWeightTicketImageBucket()
-    after(() => drainWeightTicketImageJobs({ attachedTicketId: ticket.id, bucket: imageBucket }))
+    await drainWeightTicketImageJobs({ attachedTicketId: ticket.id, bucket: imageBucket })
     const printableTicket = await attachWeightTicketImagePrintUrls(mapped, imageBucket)
     const pdfBuffer = await generateWeightTicketPdfBuffer(printableTicket, profile)
     const filename = `${mapped.documentNo.replace(/[^A-Za-z0-9._-]+/g, '-')}.pdf`

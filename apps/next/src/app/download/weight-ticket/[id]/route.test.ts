@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  after: vi.fn(),
   attachWeightTicketImagePrintUrls: vi.fn(),
   findScopedWeightTicket: vi.fn(),
   generateWeightTicketPdfBuffer: vi.fn(),
@@ -12,10 +11,6 @@ const mocks = vi.hoisted(() => ({
   drainWeightTicketImageJobs: vi.fn(),
 }))
 
-vi.mock('next/server', async (importOriginal) => ({
-  ...await importOriginal<typeof import('next/server')>(),
-  after: mocks.after,
-}))
 vi.mock('@/lib/server/api-error', () => ({
   apiErrorResponse: vi.fn((_error: unknown, message: string, status: number) => Response.json({ error: message }, { status })),
 }))
@@ -46,9 +41,9 @@ beforeEach(() => {
   mocks.mapWeightTicketRow.mockReturnValue({ branchId: '01', documentNo: 'WTO012608-0383', status: 'received', type: 'WTO' })
   mocks.loadWeightTicketCompanyPrintProfile.mockResolvedValue({ name: 'NS', branchCode: '01' })
   mocks.resolveWeightTicketImageBucket.mockResolvedValue('weight-ticket-images')
+  mocks.drainWeightTicketImageJobs.mockResolvedValue({ attempted: 0, results: [] })
   mocks.attachWeightTicketImagePrintUrls.mockImplementation(async (value) => value)
   mocks.generateWeightTicketPdfBuffer.mockResolvedValue(Buffer.from('%PDF-test'))
-  mocks.after.mockImplementation((callback: () => Promise<unknown>) => void callback())
 })
 
 describe('public WTI/WTO PDF route boundary', () => {
@@ -63,5 +58,6 @@ describe('public WTI/WTO PDF route boundary', () => {
       attachedTicketId: 125n,
       bucket: 'weight-ticket-images',
     })
+    expect(mocks.drainWeightTicketImageJobs.mock.invocationCallOrder[0]).toBeLessThan(mocks.attachWeightTicketImagePrintUrls.mock.invocationCallOrder[0])
   })
 })
