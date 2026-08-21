@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { Download } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -47,6 +47,7 @@ export function WeightTicketImageGallery({
 }) {
   const [downloadError, setDownloadError] = useState('')
   const [downloadArchives, setDownloadArchives] = useState<DownloadArchive[]>([])
+  const [downloadPartCount, setDownloadPartCount] = useState<number | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const decodedImages = imageNames.map(decodeStoredImageAsset)
   const decodedDownloadImages = (downloadImageNames ?? imageNames).map(decodeStoredImageAsset)
@@ -63,6 +64,25 @@ export function WeightTicketImageGallery({
   const legacyImageCount = isLoadingPreview || previewError ? 0 : decodedImages.filter((image) => (
     !isThumbnailPreviewableStoredImageAsset(image) && !image.thumbnailStatus
   )).length
+
+  useEffect(() => {
+    if (!downloadUrl || downloadableImages.length === 0) {
+      setDownloadPartCount(null)
+      return
+    }
+    setDownloadPartCount(null)
+    const controller = new AbortController()
+    void fetch(`${downloadUrl}${downloadUrl.includes('?') ? '&' : '?'}estimate=true`, { cache: 'no-store', signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return null
+        return await response.json() as { partCount?: number | null }
+      })
+      .then((payload) => {
+        if (payload?.partCount && payload.partCount > 1) setDownloadPartCount(payload.partCount)
+      })
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [downloadUrl, downloadableImages.length])
 
   async function downloadArchive(file: DownloadArchive) {
     const archiveResponse = await fetch(file.url)
@@ -148,7 +168,7 @@ export function WeightTicketImageGallery({
               onClick={() => void handleDownloadAll()}
             >
               <Download className="size-4" />
-              {isDownloading ? 'กำลังดาวน์โหลด...' : 'ดาวน์โหลดรูปทั้งหมด'}
+              {isDownloading ? 'กำลังดาวน์โหลด...' : `ดาวน์โหลดรูปทั้งหมด${downloadPartCount ? ` (${downloadPartCount} ไฟล์ ZIP)` : ''}`}
             </button>
           ) : null}
           <span className="text-sm text-slate-500">{downloadImageNames ? `${downloadableImages.length} รูปทั้งหมด` : `${imageNames.length} รูป`}</span>

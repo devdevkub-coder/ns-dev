@@ -89,7 +89,7 @@ describe('WTI/WTO image download route', () => {
       { original_storage_key: 'attachments/pending/evidence.png', download_storage_key: 'attachments/pending/evidence.download.jpg', download_status: 'ready' },
       { original_storage_key: 'attachments/pending/second.png', download_storage_key: 'attachments/pending/second.download.jpg', download_status: 'ready' },
     ])
-    mocks.download.mockImplementation(async (key: string) => ({ data: new Blob([Buffer.alloc(25 * 1024 * 1024, key.includes('second') ? 2 : 1)]), error: null }))
+    mocks.download.mockImplementation(async (key: string) => ({ data: new Blob([Buffer.alloc(30 * 1024 * 1024, key.includes('second') ? 2 : 1)]), error: null }))
 
     const response = await GET(new Request('https://sit.example/api/daily/weight-tickets/WTI012608-0351/images/download'), { params: Promise.resolve({ id: 'WTI012608-0351' }) })
     const payload = await response.json() as { files: Array<{ fileName: string }>; split: boolean }
@@ -99,5 +99,21 @@ describe('WTI/WTO image download route', () => {
     expect(payload.files).toHaveLength(2)
     expect(payload.files[0]?.fileName).toContain('part-01')
     expect(payload.files[1]?.fileName).toContain('part-02')
+  })
+
+  it('estimates the ZIP part count from derivative metadata without downloading images', async () => {
+    const secondReference = JSON.stringify({ fileName: 'second.png', storageKey: 'attachments/pending/second.png', bucket: 'weight-ticket-images' })
+    mocks.findScopedWeightTicket.mockResolvedValue({ id: 77n, doc_no: 'WTI012608-0351', vehicle_image_names: [reference, secondReference], weight_ticket_lines: [] })
+    mocks.findMany.mockResolvedValue([
+      { original_storage_key: 'attachments/pending/evidence.png', download_storage_key: 'attachments/pending/evidence.download.jpg', download_status: 'ready', download_byte_size: 30n * 1024n * 1024n },
+      { original_storage_key: 'attachments/pending/second.png', download_storage_key: 'attachments/pending/second.download.jpg', download_status: 'ready', download_byte_size: 30n * 1024n * 1024n },
+    ])
+
+    const response = await GET(new Request('https://sit.example/api/daily/weight-tickets/WTI012608-0351/images/download?estimate=true'), { params: Promise.resolve({ id: 'WTI012608-0351' }) })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ partCount: 2, ready: true })
+    expect(mocks.download).not.toHaveBeenCalled()
+    expect(mocks.upload).not.toHaveBeenCalled()
   })
 })

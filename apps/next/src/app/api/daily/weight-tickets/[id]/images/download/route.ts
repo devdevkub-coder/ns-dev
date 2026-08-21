@@ -15,10 +15,10 @@ export const runtime = 'nodejs'
 
 // This is a server-safety guard for the complete archive, not a per-image
 // business limit. Per-image validation belongs to the upload contract.
-// Keep each in-memory ZIP part bounded. The route still splits large downloads,
-// but a smaller raw-byte threshold limits the peak of source buffers plus the
-// compressed archive while the part is uploaded.
-const MAX_ARCHIVE_PART_BYTES = 16 * 1024 * 1024
+// Keep each ZIP part below the private Storage bucket's 50 MiB upload limit.
+// The 45 MiB raw-byte threshold leaves room for ZIP headers and compression
+// overhead while reducing the number of parts for larger documents.
+const MAX_ARCHIVE_PART_BYTES = 45 * 1024 * 1024
 
 async function cleanupExpiredDownloadArtifacts(supabase: ReturnType<typeof getSupabaseAdminClient>) {
   if (!supabase) return
@@ -75,6 +75,27 @@ function uniqueTicketImageAssets(assets: StoredImageAsset[]) {
   })
 }
 
+function estimateArchivePartCount(assets: StoredImageAsset[], derivativeRows: Array<{ download_byte_size: bigint | null; download_status: string; original_storage_key: string }>) {
+  const derivativeByOriginal = new Map(derivativeRows.map((row) => [row.original_storage_key, row]))
+  const seen = new Set<string>()
+  let partCount = 1
+  let totalBytes = 0
+  for (const asset of assets) {
+    if (!asset.storageKey || seen.has(asset.storageKey)) continue
+    seen.add(asset.storageKey)
+    const derivative = derivativeByOriginal.get(asset.storageKey)
+    if (!derivative || derivative.download_status !== 'ready' || derivative.download_byte_size == null) return null
+    const byteSize = Number(derivative.download_byte_size)
+    if (!Number.isSafeInteger(byteSize) || byteSize < 0) return null
+    if (totalBytes > 0 && totalBytes + byteSize > MAX_ARCHIVE_PART_BYTES) {
+      partCount += 1
+      totalBytes = 0
+    }
+    totalBytes += byteSize
+  }
+  return seen.size > 0 ? partCount : 0
+}
+
 function requestTraceId(request: Request) {
   return request.headers.get('x-vercel-id')
 }
@@ -106,6 +127,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     cleanupSupabase = supabase
     if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างไฟล์ดาวน์โหลดรูปภาพ')
     const processingConfig = await resolveWeightTicketImageProcessingConfig()
+    const originalKeys = Array.from(new Set(assets.map((asset) => assertWeightTicketImageStorageKey(asset.storageKey ?? ''))))
+    const derivativeRows = await prisma.weight_ticket_image_assets.findMany({
+      select: { download_byte_size: true, download_status: true, download_storage_key: true, original_storage_key: true },
+      where: { bucket, original_storage_key: { in: originalKeys } },
+    })
+    if (new URL(request.url).searchParams.get('estimate') === 'true') {
+      return withAuthNoStore(NextResponse.json({
+        partCount: estimateArchivePartCount(assets, derivativeRows),
+        ready: derivativeRows.length === originalKeys.length && derivativeRows.every((row) => row.download_status === 'ready' && row.download_byte_size != null),
+      }, { status: 200 }))
+    }
     stage = 'cleanup-expired-artifacts'
     await cleanupExpiredDownloadArtifacts(supabase)
     const maxDrainBatches = Math.max(1, Math.ceil(assets.length / processingConfig.drainBatchSize) + 1)
@@ -115,11 +147,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       if (drained.attempted === 0) break
     }
     stage = 'load-derivative-metadata'
-    const originalKeys = Array.from(new Set(assets.map((asset) => assertWeightTicketImageStorageKey(asset.storageKey ?? ''))))
-    const derivativeRows = await prisma.weight_ticket_image_assets.findMany({
-      select: { download_status: true, download_storage_key: true, original_storage_key: true },
-      where: { bucket, original_storage_key: { in: originalKeys } },
-    })
     const derivativeByOriginal = new Map(derivativeRows.map((row) => [row.original_storage_key, row]))
     const archiveBase = safeFileName(ticket.doc_no, 'weight-ticket')
     const artifactPrefix = `attachments/downloads/${randomUUID()}`
