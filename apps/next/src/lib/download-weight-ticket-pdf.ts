@@ -1,20 +1,32 @@
 import { getErrorMessage } from '@/lib/api-client'
 
+const PRINT_READY_RETRY_DELAYS_MS = [500, 1_000, 2_000] as const
+
 async function fetchWeightTicketPdf(documentNo: string): Promise<Blob> {
-  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/pdf`, {
-    credentials: 'same-origin',
-  })
-  if (!response.ok) {
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/pdf`, {
+      credentials: 'same-origin',
+    })
+    if (response.ok) return response.blob()
+
+    let body: unknown
     let message = 'ดาวน์โหลด PDF ไม่สำเร็จ'
     try {
-      const body: unknown = await response.json()
+      body = await response.json()
       message = getErrorMessage(body, message)
     } catch {
       // Keep the stable user-facing error when the server did not return JSON.
     }
-    throw new Error(message)
+
+    const code = body && typeof body === 'object' && 'code' in body && typeof body.code === 'string'
+      ? body.code
+      : undefined
+    const delayMs = code === 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY'
+      ? PRINT_READY_RETRY_DELAYS_MS[attempt]
+      : undefined
+    if (delayMs == null) throw new Error(message)
+    await new Promise<void>((resolve) => globalThis.setTimeout(resolve, delayMs))
   }
-  return response.blob()
 }
 
 export async function downloadWeightTicketPdf(documentNo: string) {

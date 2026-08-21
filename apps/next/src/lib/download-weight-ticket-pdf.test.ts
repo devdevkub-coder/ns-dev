@@ -30,4 +30,22 @@ describe('openWeightTicketPdfPrint', () => {
     })
     expect(replace).toHaveBeenCalledWith('blob:https://sit.example/pdf')
   })
+
+  it('retries only when the print derivative is not ready', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.mocked(fetch)
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ code: 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY', error: 'ยังไม่พร้อม' }), { status: 409 }))
+      .mockResolvedValueOnce(new Response('%PDF-test', { status: 200 }))
+    const replace = vi.fn()
+    const targetWindow = { location: { replace } } as unknown as Window
+
+    const pending = openWeightTicketPdfPrint('WTO012608-0383', targetWindow)
+    await vi.advanceTimersByTimeAsync(500)
+    await pending
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(replace).toHaveBeenCalledWith('blob:https://sit.example/pdf')
+    vi.useRealTimers()
+  })
 })

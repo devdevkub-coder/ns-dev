@@ -17,7 +17,7 @@ import {
 } from '@/components/daily/WeightTicketProductBreakdownTable'
 import { WeightTicketImageGallery, WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT } from '@/components/daily/WeightTicketImageGallery'
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
-import { getWeightTicketForPrint, invalidateWeightTicketForPrintCache, prefetchPrintAssets, prefetchWeightTicketForPrint } from '@/lib/print-asset-prefetch'
+import { invalidateWeightTicketForPrintCache, prefetchPrintAssets, prefetchWeightTicketForPrint } from '@/lib/print-asset-prefetch'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
 import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImageOriginal, getWeightTicketImagePreviews, isThumbnailPreviewableStoredImageAsset, mergeWeightTicketImagePreviews, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
@@ -330,12 +330,8 @@ export function WeightTicketDetailModal({
     setIsPrinting(true)
     let printWindow: Window | null = null
     try {
-      // Start the company profile fetch now so the builder reuses it instead
-      // of waiting for a ~1s API round trip after the popup opens.
-      void prefetchPrintAssets(ticket.branchId)
-      const printableTicket = await getWeightTicketForPrint(ticketId)
-      printWindow = openWeightTicketPrintWindow(printableTicket)
-      await openWeightTicketReceiptPrint(printableTicket, printWindow)
+      printWindow = openWeightTicketPrintWindow(ticket)
+      await openWeightTicketReceiptPrint(ticket, printWindow)
     } catch (caught) {
       printWindow?.close()
       window.alert(getErrorMessage(caught, 'เปิดใบพิมพ์ใบรับ-ส่งสินค้าไม่สำเร็จ'))

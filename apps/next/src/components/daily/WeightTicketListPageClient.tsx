@@ -23,7 +23,6 @@ import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { downloadWeightTicketPdf } from '@/lib/download-weight-ticket-pdf'
 import {
-  getWeightTicketForPrint,
   invalidateWeightTicketForPrintCache,
   prefetchPrintAssets,
   prefetchPrintFonts,
@@ -490,13 +489,7 @@ export function WeightTicketListPageClient() {
     let printWindow: Window | null = null
     try {
       printWindow = openWeightTicketPrintWindow(ticket)
-      // Open the popup and warm the company profile cache while the click-time
-      // fetch reads the latest print-ready ticket. That fetch reuses a hover
-      // request when one is already in flight, but never performs a serial
-      // best-effort fetch immediately before the real fetch.
-      void prefetchPrintAssets(ticket.branchId)
-      const detailTicket: WeightTicketRecord = await getWeightTicketForPrint(ticket.id)
-      await openWeightTicketReceiptPrint(detailTicket, printWindow)
+      await openWeightTicketReceiptPrint(ticket, printWindow)
     } catch (caught) {
       printWindow?.close()
       window.alert(getErrorMessage(caught, 'เปิดใบพิมพ์ใบรับ-ส่งสินค้าไม่สำเร็จ'))
