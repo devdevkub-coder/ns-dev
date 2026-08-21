@@ -137,6 +137,11 @@ describe('WeightTicketImageGallery', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/daily/weight-tickets/WTI-001/images/download', { cache: 'no-store' })
     expect(createObjectUrl).toHaveBeenCalled()
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 1100))
+    })
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:weight-ticket-images')
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: undefined })
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: undefined })
   })

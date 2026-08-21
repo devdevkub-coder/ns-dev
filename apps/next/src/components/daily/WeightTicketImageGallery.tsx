@@ -74,7 +74,10 @@ export function WeightTicketImageGallery({
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
-    URL.revokeObjectURL(objectUrl)
+    // Keep the object URL alive long enough for Chromium/Safari to start the
+    // native download. Revoking it in the same task can silently cancel a
+    // larger ZIP part before the browser has consumed the blob.
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   }
 
   async function handleDownloadAll() {

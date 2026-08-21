@@ -1,5 +1,6 @@
 // Backfill the immutable 1600px JPEG download derivative for existing WTI/WTO images.
 // Dry-run is the default. --apply requires --expected-project-ref=<ref>.
+// --force regenerates ready derivatives after a quality/config change.
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const sharp = require('sharp')
@@ -16,6 +17,7 @@ for (const envPath of [path.resolve(scriptDir, '..', '.env.local'), path.resolve
   if (fs.existsSync(envPath)) { loadEnv({ path: envPath, override: false }); break }
 }
 const APPLY = process.argv.includes('--apply')
+const FORCE = process.argv.includes('--force')
 const SETTING_KEYS = ['WEIGHT_TICKET_IMAGE_BUCKET', 'WEIGHT_TICKET_DOWNLOAD_MAX_DIMENSION', 'WEIGHT_TICKET_DOWNLOAD_JPEG_QUALITY', 'WEIGHT_TICKET_THUMBNAIL_MAX_SOURCE_PIXELS', 'WEIGHT_TICKET_THUMBNAIL_LOCK_TIMEOUT_SECONDS']
 
 function requiredEnv(name) { const value = process.env[name]?.trim(); if (!value) throw new Error('Missing required env: ' + name); return value }
@@ -65,8 +67,11 @@ async function main() {
     const quality = integerSetting(settings, 'WEIGHT_TICKET_DOWNLOAD_JPEG_QUALITY', 1, 100)
     const maxSourcePixels = integerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_MAX_SOURCE_PIXELS', 1_000_000, 300_000_000)
     const lockTimeoutSeconds = integerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_LOCK_TIMEOUT_SECONDS', 30, 3600)
-    const assets = await pool.query("select id, bucket, original_storage_key, download_storage_key, download_status, download_locked_by from public.weight_ticket_image_assets where download_status <> 'ready' order by id asc")
-    const report = { apply: APPLY, bucket, projectRef, maxDimension, quality, selected: assets.rows.length, generated: 0, skipped: 0, skippedClaim: 0, nonReadyRemaining: 0, errors: [] }
+    const assets = await pool.query(`select id, bucket, original_storage_key, download_storage_key, download_status, download_locked_by
+      from public.weight_ticket_image_assets
+      ${FORCE ? '' : "where download_status <> 'ready'"}
+      order by id asc`)
+    const report = { apply: APPLY, force: FORCE, bucket, projectRef, maxDimension, quality, selected: assets.rows.length, generated: 0, skipped: 0, skippedClaim: 0, nonReadyRemaining: 0, errors: [] }
     for (const asset of assets.rows) {
       const lockToken = `download-backfill-${process.pid}-${asset.id}-${Date.now()}`
       let claimed = false
@@ -76,7 +81,13 @@ async function main() {
         const downloadKey = assertImageStorageKey(asset.download_storage_key)
         if (originalKey === downloadKey) throw new Error('download derivative key must differ from original key')
         if (!APPLY) { report.skipped += 1; continue }
-        const claim = await pool.query("update public.weight_ticket_image_assets set download_status='processing', download_locked_at=now(), download_locked_by=$2, download_attempt_count=download_attempt_count+1, download_last_error=null, updated_at=now() where id=$1 and download_status <> 'ready' and (download_locked_by is null or download_locked_at < now() - ($3 * interval '1 second'))", [asset.id, lockToken, lockTimeoutSeconds])
+        const claim = await pool.query(`update public.weight_ticket_image_assets
+          set download_status='processing', download_locked_at=now(), download_locked_by=$2,
+              download_attempt_count=download_attempt_count+1, download_last_error=null, updated_at=now()
+          where id=$1
+            and ${FORCE
+              ? "((download_status = 'ready' and download_locked_by is null) or (download_status <> 'ready' and (download_locked_by is null or download_locked_at < now() - ($3 * interval '1 second'))))"
+              : "download_status <> 'ready' and (download_locked_by is null or download_locked_at < now() - ($3 * interval '1 second'))"}`, [asset.id, lockToken, lockTimeoutSeconds])
         if (claim.rowCount !== 1) { report.skippedClaim += 1; continue }
         claimed = true
         const { data: originalBlob, error: downloadError } = await supabase.storage.from(bucket).download(originalKey)
@@ -87,6 +98,10 @@ async function main() {
         if (!metadata.width || !metadata.height || !Number.isSafeInteger(sourcePixels) || sourcePixels > maxSourcePixels) throw new Error('source image exceeds configured pixel limit')
         const image = await sharp(originalBytes, { failOn: 'error' }).rotate().resize({ fit: 'inside', height: maxDimension, kernel: 'lanczos3', withoutEnlargement: true, width: maxDimension }).jpeg({ mozjpeg: true, quality }).toBuffer({ resolveWithObject: true })
         let dimensions = { width: image.info.width, height: image.info.height, byteSize: image.data.length }
+        if (FORCE && asset.download_status === 'ready') {
+          const { error: removeError } = await supabase.storage.from(bucket).remove([downloadKey])
+          if (removeError) throw new Error('existing download derivative removal failed: ' + removeError.message)
+        }
         const { error: uploadError } = await supabase.storage.from(bucket).upload(downloadKey, image.data, { cacheControl: '31536000', contentType: 'image/jpeg', upsert: false })
         if (uploadError) {
           if (!/already exists/i.test(uploadError.message)) throw new Error('download derivative upload failed: ' + uploadError.message)
