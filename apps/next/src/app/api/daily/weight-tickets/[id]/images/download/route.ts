@@ -226,6 +226,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างไฟล์ดาวน์โหลดรูปภาพ')
     const processingConfig = await resolveWeightTicketImageProcessingConfig()
     const searchParams = new URL(request.url).searchParams
+    const requestedPartValue = searchParams.get('part')
+    const requestedPart = requestedPartValue == null ? null : Number(requestedPartValue)
     const originalKeys = Array.from(new Set(assets.map((asset) => assertWeightTicketImageStorageKey(asset.storageKey ?? ''))))
     let derivativeRows = await loadDownloadDerivativeRows(bucket, originalKeys)
     if (new URL(request.url).searchParams.get('estimate') === 'true') {
@@ -236,9 +238,13 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       }, { status: 200 }))
     }
     const isResignRequest = searchParams.get('resign') === 'true'
-    if (!isResignRequest) {
+    const derivativesReady = derivativeRows.length === originalKeys.length
+      && derivativeRows.every((row) => row.download_status === 'ready' && row.download_byte_size != null)
+    if (!isResignRequest && requestedPart === null) {
       stage = 'cleanup-expired-artifacts'
       await cleanupExpiredDownloadArtifacts(supabase)
+    }
+    if (!isResignRequest && !derivativesReady) {
       const maxDrainBatches = Math.max(1, Math.ceil(assets.length / processingConfig.drainBatchSize) + 1)
       stage = 'drain-download-jobs'
       for (let batch = 0; batch < maxDrainBatches; batch += 1) {
@@ -248,8 +254,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     }
     stage = 'load-derivative-metadata'
     derivativeRows = await loadDownloadDerivativeRows(bucket, originalKeys)
-    const requestedPartValue = searchParams.get('part')
-    const requestedPart = requestedPartValue == null ? null : Number(requestedPartValue)
     const plannedParts = partitionArchiveAssets(assets, derivativeRows)
     if (!plannedParts) throw new Error('รูปภาพบางรายการยังสร้างรูปสำหรับดาวน์โหลดไม่เสร็จ')
     if (requestedPart !== null) {

@@ -63,6 +63,7 @@ describe('WTI/WTO image download route', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mocks.download).toHaveBeenCalledWith('attachments/pending/evidence.download.jpg')
     expect(mocks.download).not.toHaveBeenCalledWith('attachments/pending/evidence.png')
+    expect(mocks.drain).not.toHaveBeenCalled()
     expect(mocks.upload).toHaveBeenCalledWith(expect.stringContaining('attachments/downloads/'), expect.any(ReadableStream), expect.objectContaining({ contentType: 'application/zip' }))
     expect(await response.json()).toEqual({ files: [{ fileName: 'WTI012608-0351-images.zip', part: 1, totalParts: 1, url: 'https://storage.example/signed.zip' }], split: false })
   })
@@ -151,6 +152,7 @@ describe('WTI/WTO image download route', () => {
     expect(payload).toEqual({ files: [{ fileName: 'WTI012608-0351-images-part-02.zip', part: 2, totalParts: 2, url: 'https://storage.example/signed.zip' }], split: true })
     expect(mocks.download).toHaveBeenCalledTimes(1)
     expect(mocks.download).toHaveBeenCalledWith('attachments/pending/second.download.jpg')
+    expect(mocks.drain).not.toHaveBeenCalled()
   })
 
   it('rejects a requested part when the partition signature is stale', async () => {

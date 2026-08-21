@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { decodeStoredImageAsset, isThumbnailPreviewableStoredImageAsset } from '@/lib/weight-tickets'
 
 export const WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT = 3
+const DOWNLOAD_PREPARATION_CONCURRENCY = 2
 
 export type WeightTicketGalleryImage = {
   fileName: string
@@ -150,9 +151,14 @@ export function WeightTicketImageGallery({
   async function prepareAllDownloadParts(parts: DownloadPart[]) {
     setIsPreparingParts(true)
     setDownloadError('')
-    for (const part of parts) {
-      await prepareDownloadPart(part)
-    }
+    let nextIndex = 0
+    await Promise.all(Array.from({ length: Math.min(DOWNLOAD_PREPARATION_CONCURRENCY, parts.length) }, async () => {
+      while (nextIndex < parts.length) {
+        const part = parts[nextIndex]
+        nextIndex += 1
+        if (part) await prepareDownloadPart(part)
+      }
+    }))
     setIsPreparingParts(false)
   }
 
