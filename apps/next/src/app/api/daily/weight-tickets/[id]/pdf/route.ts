@@ -7,6 +7,7 @@ import { prisma } from '@/lib/server/prisma'
 import { findScopedWeightTicket, getWeightTicketUsageCounts, mapWeightTicketRow, branchScopeIds, type WeightTicketRow } from '@/lib/server/weight-tickets'
 import { attachWeightTicketImagePrintUrls, resolveWeightTicketImageBucket, WeightTicketPrintReadinessError } from '@/lib/server/weight-ticket-storage'
 import { loadWeightTicketCompanyPrintProfile } from '@/lib/server/weight-ticket-pdf-profile'
+import { canPrintWeightTicket } from '@/lib/weight-tickets'
 
 export const runtime = 'nodejs'
 
@@ -20,6 +21,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
+    if (!canPrintWeightTicket(mapped.status)) {
+      return withAuthNoStore(NextResponse.json({ code: 'NOT_PRINTABLE', error: 'เอกสารสถานะนี้ไม่สามารถสร้าง PDF ได้' }, { status: 409 }))
+    }
     const profile = await loadWeightTicketCompanyPrintProfile(mapped.branchId)
     if (!profile) return withAuthNoStore(NextResponse.json({ code: 'PRINT_PROFILE_NOT_READY', error: 'ยังไม่มีข้อมูลบริษัทสำหรับสร้าง PDF' }, { status: 503 }))
 

@@ -13,6 +13,7 @@ vi.mock('@/lib/server/supabase-admin', () => ({
 
 import {
   buildFlexMessage,
+  buildPublicPdfUrl,
   buildWeightTicketPdfActions,
   cleanupWeightTicketLineArtifacts,
   getWeightTicketNotificationLogStatus,
@@ -115,6 +116,11 @@ describe('LINE outbound artifact lifecycle', () => {
 })
 
 describe('WTI/WTO PDF LINE actions', () => {
+  it('uses the application domain for public PDF links', () => {
+    expect(buildPublicPdfUrl('https://ns-erp-sit.vercel.app', 'WTI012608-0383'))
+      .toBe('https://ns-erp-sit.vercel.app/download/weight-ticket/WTI012608-0383')
+  })
+
   it('provides anonymous view and download actions when signed URLs are available', () => {
     expect(buildWeightTicketPdfActions(
       'https://storage.example/view.pdf',

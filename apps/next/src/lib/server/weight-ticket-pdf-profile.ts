@@ -4,9 +4,9 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/reference-mast
 
 export async function loadWeightTicketCompanyPrintProfile(branchId: string): Promise<CompanyProfilePrintValues | null> {
   const branch = await findActiveBranchReferenceByCodeOrId(branchId)
+  if (!branch?.id) return null
   const profile = await prisma.company_profiles.findFirst({
-    orderBy: { id: 'desc' },
-    where: branch?.id ? { OR: [{ branch_id: branch.id }, { branch_id: null }] } : { branch_id: null },
+    where: { branch_id: branch.id },
   })
   if (!profile) return null
   return {

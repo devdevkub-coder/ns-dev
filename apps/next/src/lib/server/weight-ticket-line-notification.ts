@@ -5,7 +5,7 @@ import {
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import { formatDateDisplay, formatWeight, type WeightTicketRecord, typeLabels } from '@/lib/weight-tickets'
 import { prisma } from '@/lib/server/prisma'
-import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/reference-master-cache'
+import { loadWeightTicketCompanyPrintProfile } from '@/lib/server/weight-ticket-pdf-profile'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
 import { attachWeightTicketImagePrintUrls, WeightTicketPrintReadinessError } from '@/lib/server/weight-ticket-storage'
 import {
@@ -106,29 +106,6 @@ function sanitizeNotificationError(value: unknown) {
   return message
     .replace(/https?:\/\/\S+/gi, '[url]')
     .slice(0, 500)
-}
-
-async function loadCompanyPrintProfile(branchId: string): Promise<CompanyProfilePrintValues | null> {
-  const branch = await findActiveBranchReferenceByCodeOrId(branchId)
-  const profile = await prisma.company_profiles.findFirst({
-    orderBy: { id: 'desc' },
-    where: branch?.id ? { OR: [{ branch_id: branch.id }, { branch_id: null }] } : { branch_id: null },
-  })
-  if (!profile) return null
-  return {
-    address: profile.address,
-    bankInfo: profile.bank_info,
-    branchCode: profile.branch_code ?? '00000',
-    email: profile.email,
-    fax: profile.fax,
-    footerNote: profile.footer_note,
-    logoUrl: profile.logo_url,
-    name: profile.name,
-    nameEn: profile.name_en,
-    phone: profile.phone,
-    taxId: profile.tax_id,
-    website: profile.website,
-  }
 }
 
 async function loadWeightTicketRecord(documentNo: string, scopedBranchIds: string[] | null) {
@@ -304,6 +281,10 @@ export async function cleanupWeightTicketLineArtifacts(
 
 function buildDetailUrl(origin: string, documentNo: string, type: 'WTI' | 'WTO') {
   return new URL(`/daily/weight-ticket-list?detail=${encodeURIComponent(documentNo)}&type=${encodeURIComponent(type)}`, origin).toString()
+}
+
+export function buildPublicPdfUrl(origin: string, documentNo: string) {
+  return new URL(`/download/weight-ticket/${encodeURIComponent(documentNo)}`, origin).toString()
 }
 
 function buildProductDetailRows(ticket: WeightTicketRecord) {
@@ -1130,7 +1111,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
   let outboundArtifacts: UploadedOutboundArtifact[] = []
 
   try {
-    const profile = await loadCompanyPrintProfile(loaded.record.branchId)
+    const profile = await loadWeightTicketCompanyPrintProfile(loaded.record.branchId)
     const detailUrl = buildDetailUrl(options.origin || configs.appUrl, loaded.record.documentNo, loaded.record.type)
 
     // PDF, outbound album artifacts, and Flex evidence use the private,
@@ -1151,8 +1132,9 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
         quality: configs.albumQuality,
       })
       const uploaded = await uploadPdf(loaded.record, pdfBuffer, configs.pdfBucket)
-      pdfUrl = uploaded.pdfUrl
-      pdfDownloadUrl = uploaded.pdfDownloadUrl
+      const publicPdfUrl = buildPublicPdfUrl(options.origin || configs.appUrl, loaded.record.documentNo)
+      pdfUrl = publicPdfUrl
+      pdfDownloadUrl = publicPdfUrl
       pdfStorageKey = uploaded.storageKey
       outboundArtifacts.push(uploaded)
 
