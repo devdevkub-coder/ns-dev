@@ -48,7 +48,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ code: 'NO_TARGETS_ROUTED', error: enqueueResult.message }, { status: 400 })
     }
 
-    const results = []
+    const results: Array<{
+      code?: string
+      error?: string
+      httpStatus?: number
+      lineRequestId?: string | null
+      pdfUrl?: string
+      status: string
+    }> = []
     for (const job of enqueueResult.jobs) {
       const result = await executeNotificationJob(job.id, { force: true })
       results.push(result)
@@ -64,6 +71,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       })
     } else {
       const firstFail = results.find(r => r.status === 'failed')
+      const printReadinessFailure = results.find(r => r.code === 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY')
+      if (printReadinessFailure) {
+        return NextResponse.json({
+          code: printReadinessFailure.code,
+          error: printReadinessFailure.error || 'รูปสำหรับพิมพ์ยังไม่พร้อม',
+        }, { status: printReadinessFailure.httpStatus === 503 ? 503 : 409 })
+      }
       return NextResponse.json({
         code: 'LINE_PUSH_FAILED',
         error: firstFail?.error || 'ส่ง LINE ไม่สำเร็จ'

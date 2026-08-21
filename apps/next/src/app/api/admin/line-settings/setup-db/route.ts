@@ -163,6 +163,7 @@ export async function GET(request: Request) {
         status text NOT NULL,
         pdf_storage_bucket text,
         pdf_storage_key text,
+        artifact_storage_keys jsonb,
         pdf_url text,
         line_request_id text,
         custom_message text,
@@ -173,6 +174,10 @@ export async function GET(request: Request) {
         CONSTRAINT weight_ticket_notification_logs_channel_check CHECK (delivery_channel IN ('line')),
         CONSTRAINT weight_ticket_notification_logs_status_check CHECK (status IN ('sent', 'failed'))
       );
+    `)
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE public.weight_ticket_notification_logs
+        ADD COLUMN IF NOT EXISTS artifact_storage_keys jsonb;
     `)
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS idx_weight_ticket_notification_logs_ticket

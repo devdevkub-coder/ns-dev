@@ -8,6 +8,7 @@ import {
 } from './weight-ticket-image-assets.mjs'
 
 const { Pool } = pg
+const REQUIRE_PRINT_READY = process.argv.includes('--require-print-ready')
 
 function requiredEnv(name) {
   const value = process.env[name]?.trim()
@@ -76,7 +77,7 @@ async function main() {
       pool.query(`select public, file_size_limit, allowed_mime_types from storage.buckets where id = $1`, [bucket.name]),
       pool.query(`select id, vehicle_image_names from public.weight_tickets order by id asc`),
       pool.query(`select id, image_names from public.weight_ticket_lines order by id asc`),
-      pool.query(`select id, bucket, original_storage_key, thumbnail_storage_key, thumbnail_status, attached_ticket_id from public.weight_ticket_image_assets order by id asc`),
+      pool.query(`select id, bucket, original_storage_key, thumbnail_storage_key, thumbnail_status, print_storage_key, print_status, print_width, print_height, attached_ticket_id from public.weight_ticket_image_assets order by id asc`),
       listObjectsRecursively(supabase, bucket.name),
     ])
 
@@ -113,6 +114,7 @@ async function main() {
       storage: {
         duplicateReferenceCount: 0,
         migratedOrphanCount: 0,
+        migratedPrintOrphanCount: 0,
         missingStorageKeyCount: 0,
         objectCount: objects.length,
       },
@@ -120,7 +122,14 @@ async function main() {
         attachedWithoutReferenceCount: 0,
         missingOriginalObjectCount: 0,
         missingThumbnailObjectCount: 0,
+        missingPrintObjectCount: 0,
+        bucketMismatchCount: 0,
+        printKeyCollisionCount: 0,
+        duplicatePrintKeyCount: 0,
+        readyWithInvalidPrintDimensionsCount: 0,
         readyWithoutThumbnailCount: 0,
+        readyWithoutPrintCount: 0,
+        queuedPrintCount: 0,
         rowCount: assetResult.rows.length,
       },
       errorSamples: [],
@@ -164,17 +173,45 @@ async function main() {
       }
     }
 
+    const printKeyCounts = new Map()
+    const ledgerPrintKeys = new Set(assetResult.rows
+      .filter((asset) => asset.bucket === bucket.name)
+      .map((asset) => `${asset.bucket}:${asset.print_storage_key}`))
     for (const asset of assetResult.rows) {
+      if (asset.bucket !== bucket.name) {
+        report.ledger.bucketMismatchCount += 1
+        if (report.errorSamples.length < 25) {
+          report.errorSamples.push({ code: 'assetBucketMismatch', owner: sanitizedOwnerToken(`asset:${asset.id}`) })
+        }
+        continue
+      }
       const originalExists = objectSet.has(asset.original_storage_key)
       const thumbnailExists = objectSet.has(asset.thumbnail_storage_key)
+      const printExists = objectSet.has(asset.print_storage_key)
+      if (asset.print_storage_key === asset.original_storage_key) report.ledger.printKeyCollisionCount += 1
+      const printKey = `${asset.bucket}:${asset.print_storage_key}`
+      const printKeyCount = (printKeyCounts.get(printKey) ?? 0) + 1
+      printKeyCounts.set(printKey, printKeyCount)
+      if (printKeyCount === 2) report.ledger.duplicatePrintKeyCount += 1
       if (!originalExists) report.ledger.missingOriginalObjectCount += 1
       if (!thumbnailExists) report.ledger.missingThumbnailObjectCount += 1
+      if (!printExists) report.ledger.missingPrintObjectCount += 1
       if (asset.thumbnail_status === 'ready' && !thumbnailExists) report.ledger.readyWithoutThumbnailCount += 1
+      if (asset.print_status === 'ready' && !printExists) report.ledger.readyWithoutPrintCount += 1
+      if (
+        asset.print_status === 'ready'
+        && (!Number.isInteger(asset.print_width) || !Number.isInteger(asset.print_height)
+          || asset.print_width < 1 || asset.print_height < 1
+          || asset.print_width > 400 || asset.print_height > 400)
+      ) report.ledger.readyWithInvalidPrintDimensionsCount += 1
+      if (asset.print_status !== 'ready') report.ledger.queuedPrintCount += 1
       if (asset.attached_ticket_id && !referencedStorageKeys.has(asset.original_storage_key)) report.ledger.attachedWithoutReferenceCount += 1
     }
 
     report.storage.migratedOrphanCount = objects.filter((key) =>
       key.startsWith('attachments/migrated/') && !referencedStorageKeys.has(key)).length
+    report.storage.migratedPrintOrphanCount = objects.filter((key) =>
+      key.startsWith('attachments/migrated-print/') && !ledgerPrintKeys.has(`${bucket.name}:${key}`)).length
 
     console.log(JSON.stringify(report, null, 2))
     if (
@@ -184,9 +221,16 @@ async function main() {
       || report.references.invalid
       || report.storage.missingStorageKeyCount
       || report.storage.migratedOrphanCount
+      || report.storage.migratedPrintOrphanCount
       || report.storage.duplicateReferenceCount
       || report.ledger.missingOriginalObjectCount
+      || report.ledger.bucketMismatchCount
+      || report.ledger.printKeyCollisionCount
+      || report.ledger.duplicatePrintKeyCount
       || report.ledger.readyWithoutThumbnailCount
+      || report.ledger.readyWithoutPrintCount
+      || report.ledger.readyWithInvalidPrintDimensionsCount
+      || (REQUIRE_PRINT_READY && report.ledger.queuedPrintCount)
       || report.ledger.attachedWithoutReferenceCount
     ) process.exitCode = 2
   } finally {

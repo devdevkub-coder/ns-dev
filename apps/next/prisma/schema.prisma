@@ -3369,19 +3369,28 @@ model weight_ticket_image_assets {
   bucket                String
   original_storage_key  String
   thumbnail_storage_key String
+  print_storage_key     String
   file_name             String
   mime_type             String?
   byte_size             BigInt?
   thumbnail_status      String          @default("queued")
+  print_status          String          @default("queued")
   attempt_count         Int             @default(0)
   next_retry_at         DateTime        @default(now()) @db.Timestamptz(6)
   locked_at             DateTime?       @db.Timestamptz(6)
   locked_by             String?
+  print_attempt_count   Int             @default(0)
+  print_next_retry_at   DateTime        @default(now()) @db.Timestamptz(6)
+  print_locked_at       DateTime?       @db.Timestamptz(6)
+  print_locked_by       String?
   source_width          Int?
   source_height         Int?
   thumbnail_width       Int?
   thumbnail_height      Int?
+  print_width           Int?
+  print_height          Int?
   last_error            String?
+  print_last_error      String?
   uploaded_by           String?
   attached_ticket_id    BigInt?
   attached_at           DateTime?       @db.Timestamptz(6)
@@ -3390,9 +3399,11 @@ model weight_ticket_image_assets {
   weight_tickets        weight_tickets? @relation(fields: [attached_ticket_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([bucket, original_storage_key], map: "weight_ticket_image_assets_original_key")
+  @@unique([bucket, print_storage_key], map: "weight_ticket_image_assets_print_idx")
   @@index([bucket, thumbnail_storage_key], map: "weight_ticket_image_assets_thumbnail_idx")
   @@index([attached_ticket_id], map: "weight_ticket_image_assets_ticket_idx")
   @@index([thumbnail_status, next_retry_at], map: "weight_ticket_image_assets_pending_idx")
+  @@index([print_status, print_next_retry_at], map: "weight_ticket_image_assets_print_pending_idx")
   @@index([uploaded_by, created_at], map: "weight_ticket_image_assets_owner_idx")
   @@schema("public")
 }
@@ -4936,6 +4947,7 @@ model weight_ticket_notification_logs {
   status             String
   pdf_storage_bucket String?
   pdf_storage_key    String?
+  artifact_storage_keys Json?
   pdf_url            String?
   line_request_id    String?
   custom_message     String?

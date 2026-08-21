@@ -24,7 +24,7 @@ vi.mock('@/lib/server/supabase-admin', () => ({
   }),
 }))
 
-import { assertWeightTicketImageAssetOwnership, attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageProcessingConfig, resolveWeightTicketImageUploadConfig } from './weight-ticket-storage'
+import { assertWeightTicketImageAssetOwnership, attachWeightTicketImagePreviewUrls, attachWeightTicketImagePrintUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageProcessingConfig, resolveWeightTicketImageUploadConfig } from './weight-ticket-storage'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -40,7 +40,12 @@ beforeEach(() => {
   }))
   mocks.findAssets.mockImplementation(async ({ where }: { where: { original_storage_key: { in: string[] } } }) => (
     where.original_storage_key.in.map((storageKey) => ({
+      byte_size: 345678n,
       original_storage_key: storageKey,
+      print_height: 300,
+      print_status: 'ready',
+      print_storage_key: storageKey.replace(/\.(jpg|png|webp)$/i, '.print.jpg'),
+      print_width: 400,
       thumbnail_status: 'ready',
       thumbnail_storage_key: storageKey.replace(/\.(jpg|png|webp)$/i, '.thumb.webp'),
     }))
@@ -50,6 +55,8 @@ beforeEach(() => {
     { key: 'WEIGHT_TICKET_IMAGE_UPLOAD_CONCURRENCY', value: '6' },
     { key: 'WEIGHT_TICKET_THUMBNAIL_MAX_DIMENSION', value: '960' },
     { key: 'WEIGHT_TICKET_THUMBNAIL_WEBP_QUALITY', value: '90' },
+    { key: 'WEIGHT_TICKET_PRINT_MAX_DIMENSION', value: '400' },
+    { key: 'WEIGHT_TICKET_PRINT_JPEG_QUALITY', value: '90' },
     { key: 'WEIGHT_TICKET_THUMBNAIL_MAX_SOURCE_PIXELS', value: '40000000' },
     { key: 'WEIGHT_TICKET_THUMBNAIL_MAX_ATTEMPTS', value: '3' },
     { key: 'WEIGHT_TICKET_THUMBNAIL_RETRY_DELAY_SECONDS', value: '30' },
@@ -97,6 +104,19 @@ describe('WTI/WTO private image reference contract', () => {
     mocks.findSettings.mockResolvedValue([])
 
     await expect(resolveWeightTicketImageProcessingConfig()).rejects.toThrow('WEIGHT_TICKET_THUMBNAIL_LOCK_TIMEOUT_SECONDS')
+  })
+
+  it('returns a typed 503 when formal print settings are unavailable', async () => {
+    mocks.findSettings.mockResolvedValue([])
+
+    await expect(attachWeightTicketImagePrintUrls({
+      imageNames: [],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')).rejects.toMatchObject({
+      code: 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY',
+      status: 503,
+    })
   })
 
   it('strips a preview-only signed URL before persistence', () => {
@@ -290,6 +310,122 @@ describe('WTI/WTO private image reference contract', () => {
 
     expect(JSON.parse(result.imageNames[0] ?? '{}')).toEqual(expect.objectContaining({ thumbnailStatus: 'failed' }))
     expect(JSON.parse(result.imageNames[0] ?? '{}')).not.toHaveProperty('url')
+  })
+
+  it('signs only the bounded print derivative for WTI/WTO evidence across vehicle, product and line images', async () => {
+    const wti = storedReference({
+      fileName: 'wti-product.jpg',
+      storageKey: 'attachments/wti/product.jpg',
+      thumbnailStorageKey: 'attachments/wti/product.thumb.webp',
+    })
+    const wto = storedReference({
+      fileName: 'wto-vehicle.jpg',
+      storageKey: 'attachments/wto/vehicle.jpg',
+      thumbnailStorageKey: 'attachments/wto/vehicle.thumb.webp',
+    })
+
+    const result = await attachWeightTicketImagePrintUrls({
+      imageNames: [wti],
+      lines: [{ imageNames: [wto, wti] }],
+      vehicleImageNames: [wto],
+    }, 'weight-ticket-images')
+
+    expect(mocks.createSignedUrls).toHaveBeenCalledWith([
+      'attachments/wti/product.print.jpg',
+      'attachments/wto/vehicle.print.jpg',
+    ], 3600)
+    expect(mocks.createSignedUrl).not.toHaveBeenCalled()
+    const references = [
+      ...result.imageNames,
+      ...result.vehicleImageNames,
+      ...result.lines.flatMap((line) => line.imageNames),
+    ].map((value) => JSON.parse(value))
+    expect(references).toHaveLength(4)
+    expect(references).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        fileName: 'wti-product.jpg',
+        printStatus: 'ready',
+        printStorageKey: 'attachments/wti/product.print.jpg',
+        printUrl: 'https://signed.example/attachments/wti/product.print.jpg?token=short-lived',
+      }),
+      expect.objectContaining({
+        fileName: 'wto-vehicle.jpg',
+        printStatus: 'ready',
+        printStorageKey: 'attachments/wto/vehicle.print.jpg',
+        printUrl: 'https://signed.example/attachments/wto/vehicle.print.jpg?token=short-lived',
+      }),
+    ]))
+    expect(references.every((reference) => !reference.url)).toBe(true)
+  })
+
+  it('fails closed for queued, missing and broken print derivatives without signing the original', async () => {
+    const queued = storedReference({
+      printStorageKey: 'attachments/pending/evidence.print.jpg',
+      printStatus: 'queued',
+    })
+    mocks.findAssets.mockResolvedValue([{
+      original_storage_key: 'attachments/pending/evidence.jpg',
+      print_status: 'queued',
+      print_storage_key: 'attachments/pending/evidence.print.jpg',
+      thumbnail_status: 'ready',
+      thumbnail_storage_key: 'attachments/pending/evidence.thumb.webp',
+    }])
+
+    await expect(attachWeightTicketImagePrintUrls({
+      imageNames: [queued],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')).rejects.toMatchObject({
+      code: 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY',
+      status: 409,
+    })
+    await expect(attachWeightTicketImagePrintUrls({
+      imageNames: [queued],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')).rejects.toThrow('ยังสร้างรูปสำหรับพิมพ์ไม่เสร็จ')
+    expect(mocks.createSignedUrls).not.toHaveBeenCalled()
+
+    mocks.findAssets.mockResolvedValue([])
+    await expect(attachWeightTicketImagePrintUrls({
+      imageNames: [storedReference()],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')).rejects.toThrow('ไม่พบทะเบียน print derivative')
+    expect(mocks.createSignedUrl).not.toHaveBeenCalled()
+    expect(mocks.createSignedUrls).not.toHaveBeenCalled()
+
+    await expect(attachWeightTicketImagePrintUrls({
+      imageNames: [JSON.stringify({
+        bucket: 'weight-ticket-images',
+        fileName: 'broken.jpg',
+        storageKey: 'attachments/../broken.jpg',
+    })],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')).rejects.toThrow('storage key')
+  })
+
+  it('rejects a ready print derivative whose stored dimensions exceed the hard 400px bound', async () => {
+    mocks.findAssets.mockResolvedValue([{
+      original_storage_key: 'attachments/pending/evidence.jpg',
+      print_height: 300,
+      print_status: 'ready',
+      print_storage_key: 'attachments/pending/evidence.print.jpg',
+      print_width: 401,
+      thumbnail_status: 'ready',
+      thumbnail_storage_key: 'attachments/pending/evidence.thumb.webp',
+    }])
+
+    await expect(attachWeightTicketImagePrintUrls({
+      imageNames: [storedReference({
+        printStatus: 'ready',
+        printStorageKey: 'attachments/pending/evidence.print.jpg',
+      })],
+      lines: [],
+      vehicleImageNames: [],
+    }, 'weight-ticket-images')).rejects.toThrow('400 x 400')
+    expect(mocks.createSignedUrls).not.toHaveBeenCalled()
   })
 
   it('returns the durable original byte size for existing image references', async () => {

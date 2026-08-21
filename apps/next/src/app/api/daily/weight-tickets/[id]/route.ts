@@ -52,7 +52,8 @@ import {
   type WeightTicketRow,
   weightTicketAuditSnapshot,
 } from '@/lib/server/weight-tickets'
-import { assertWeightTicketImageAssetOwnership, attachWeightTicketImageAssets, attachWeightTicketImagePreviewUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket } from '@/lib/server/weight-ticket-storage'
+import { assertWeightTicketImageAssetOwnership, attachWeightTicketImageAssets, attachWeightTicketImagePreviewUrls, attachWeightTicketImagePrintUrls, normalizeWeightTicketImageReferences, resolveWeightTicketImageBucket, WeightTicketPrintReadinessError } from '@/lib/server/weight-ticket-storage'
+import { drainWeightTicketImageJobs } from '@/lib/server/weight-ticket-thumbnail-jobs'
 import { publishWeightTicketChange } from '@/lib/server/weight-ticket-realtime'
 import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
 import { readWeightTicketInTransaction } from '@/lib/server/weight-ticket-transaction-read'
@@ -399,6 +400,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     if (!ticket) return withAuthNoStore(NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 }))
 
     const searchParams = new URL(request.url).searchParams
+    const includePrintImages = searchParams.get('includePrintImages') === 'true'
     const includeImagePreviews = searchParams.get('includeImagePreviews') !== 'false'
     const includeHistory = searchParams.get('includeHistory') !== 'false'
     const historyPromise = includeHistory
@@ -414,9 +416,29 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       historyPromise,
     ])
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
-    const responseMapped = includeImagePreviews
-      ? await attachWeightTicketImagePreviewUrls(mapped, await resolveWeightTicketImageBucket())
+    let imageBucket: string | null = null
+    if (includeImagePreviews || includePrintImages) {
+      try {
+        imageBucket = await resolveWeightTicketImageBucket()
+      } catch (caught) {
+        if (includePrintImages) {
+          throw new WeightTicketPrintReadinessError(
+            `โหลด Storage Bucket สำหรับรูปสำหรับพิมพ์ไม่สำเร็จ: ${caught instanceof Error ? caught.message : String(caught)}`,
+            503,
+          )
+        }
+        throw caught
+      }
+    }
+    // Formal output needs only the purpose-specific print URL. Do not sign or
+    // attach thumbnail preview URLs to the same formal-print response.
+    let responseMapped = imageBucket && includeImagePreviews && !includePrintImages
+      ? await attachWeightTicketImagePreviewUrls(mapped, imageBucket)
       : mapped
+    if (includePrintImages && imageBucket) {
+      after(() => drainWeightTicketImageJobs({ attachedTicketId: ticket.id, bucket: imageBucket }))
+      responseMapped = await attachWeightTicketImagePrintUrls(responseMapped, imageBucket)
+    }
     const actorDisplayNames = includeHistory
       ? await resolveWeightTicketActorDisplayNames([
         responseMapped.createdBy,
@@ -440,6 +462,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return withAuthNoStore(authContextErrorResponse(caught))
+    if (caught instanceof WeightTicketPrintReadinessError) {
+      return withAuthNoStore(NextResponse.json({ code: caught.code, error: caught.message }, { status: caught.status }))
+    }
     if (caught instanceof WeightTicketDataContractError) return withAuthNoStore(apiErrorResponse(caught, 'ข้อมูลประวัติใบรับ-ส่งของไม่ครบ กรุณาแจ้งผู้ดูแลระบบ', caught.status))
     return withAuthNoStore(apiErrorResponse(caught, 'โหลดใบรับ-ส่งของไม่ได้', 500))
   }

@@ -4,7 +4,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { withAuthNoStore } from '@/lib/server/auth-response'
 import { prisma } from '@/lib/server/prisma'
 import { attachWeightTicketImagePreviewUrls, resolveWeightTicketImageBucket, resolveWeightTicketImageProcessingConfig } from '@/lib/server/weight-ticket-storage'
-import { drainWeightTicketThumbnailJobs } from '@/lib/server/weight-ticket-thumbnail-jobs'
+import { drainWeightTicketImageJobs } from '@/lib/server/weight-ticket-thumbnail-jobs'
 import { branchScopeIds } from '@/lib/server/weight-tickets'
 import { decodeStoredImageAsset } from '@/lib/weight-tickets'
 
@@ -53,9 +53,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     }, bucket)
     const unfinishedImages = signed.imageNames
       .map(decodeStoredImageAsset)
-      .filter((image) => (image.thumbnailStatus === 'queued' || image.thumbnailStatus === 'processing') && image.storageKey)
+      .filter((image) => (
+        image.thumbnailStatus === 'queued'
+        || image.thumbnailStatus === 'processing'
+        || image.printStatus === 'queued'
+        || image.printStatus === 'processing'
+      ) && image.storageKey)
     if (unfinishedImages.length > 0) {
-      after(() => drainWeightTicketThumbnailJobs({
+      after(() => drainWeightTicketImageJobs({
         attachedTicketId: ticket.id,
         bucket,
       }))

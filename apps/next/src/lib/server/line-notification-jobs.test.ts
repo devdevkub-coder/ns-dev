@@ -282,6 +282,38 @@ describe('financial LINE notification jobs', () => {
     })
   })
 
+  it('preserves print-readiness code and status for a retryable WTI/WTO job', async () => {
+    const weightJob = job({
+      document_no: 'WTI012608-0021',
+      document_type: 'WTI',
+      source_type: 'weight_ticket',
+      target_id: 'C-WEIGHT',
+    })
+    db.findJob.mockResolvedValue(weightJob)
+    db.updateJob.mockResolvedValue({ ...weightJob, attempt_count: 1 })
+    weightLine.notify.mockResolvedValue({
+      code: 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY',
+      error: 'รูปหลักฐานยังสร้างรูปสำหรับพิมพ์ไม่เสร็จ',
+      status: 409,
+    })
+
+    const result = await executeNotificationJob(String(weightJob.id))
+
+    expect(result).toMatchObject({
+      code: 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY',
+      error: 'รูปหลักฐานยังสร้างรูปสำหรับพิมพ์ไม่เสร็จ',
+      httpStatus: 409,
+      status: 'pending',
+    })
+    expect(db.createAttempt).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        error_code: 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY',
+        http_status: 409,
+        status: 'pending',
+      }),
+    })
+  })
+
   it.each([200, 409])('does not accept LINE %s without a verifiable request ID', async (httpStatus) => {
     const weightJob = job({
       document_no: 'WTI012608-0021',

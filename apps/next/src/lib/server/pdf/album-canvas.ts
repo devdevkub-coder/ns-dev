@@ -26,6 +26,7 @@ const TILE_GAP = 12
 const TILE_BORDER_RADIUS = 8
 const BADGE_PADDING_X = 8
 const BADGE_PADDING_Y = 3
+export const WEIGHT_TICKET_LINE_ALBUM_IMAGES_PER_PAGE = 8
 
 let fontsRegistered = false
 
@@ -84,7 +85,7 @@ export async function renderAlbumImages(input: AlbumImageInput): Promise<Buffer[
     ? Math.min(100, Math.max(10, requestedQuality))
     : 90
 
-  const chunkSize = 8
+  const chunkSize = WEIGHT_TICKET_LINE_ALBUM_IMAGES_PER_PAGE
   const chunks: Array<Array<{ url: string; fileName: string }>> = []
   for (let i = 0; i < input.images.length; i += chunkSize) {
     chunks.push(input.images.slice(i, i + chunkSize))
@@ -177,7 +178,7 @@ async function renderSingleAlbumCard(params: {
     const row = Math.floor(i / 2)
     const x = CARD_PADDING + col * (tileWidth + TILE_GAP)
     const y = HEADER_HEIGHT + CARD_PADDING + row * (tileHeight + TILE_GAP)
-    const displayIndex = pageIdx * 8 + i + 1
+    const displayIndex = pageIdx * WEIGHT_TICKET_LINE_ALBUM_IMAGES_PER_PAGE + i + 1
 
     await drawTile(ctx, img, x, y, tileWidth, tileHeight, displayIndex, isWti, showBadges, showTimestamps, params.ticketCreatedAt)
   }
@@ -198,44 +199,42 @@ async function drawTile(
   showTimestamps: boolean,
   ticketCreatedAt: string
 ) {
-  // Tile background (fallback)
+  // Tile background. A missing formal image must fail the album render rather
+  // than silently producing an incomplete PDF/LINE artifact.
   ctx.fillStyle = '#1e293b'
   roundRect(ctx, x, y, w, h, TILE_BORDER_RADIUS)
   ctx.fill()
 
   // Load and draw image without stretching or cropping. The 4:3 tile is a
   // presentation frame; the source image keeps its own aspect ratio inside it.
+  let image: Awaited<ReturnType<typeof loadImage>>
   try {
-    const image = await loadImage(img.url)
-    const footerHeight = 26
-    const imageHeight = Math.max(1, h - footerHeight)
-    const imgRatio = image.width / image.height
-    const tileRatio = w / imageHeight
-    let drawWidth = w
-    let drawHeight = imageHeight
-    if (imgRatio > tileRatio) {
-      drawHeight = w / imgRatio
-    } else {
-      drawWidth = h * imgRatio
-    }
-    const drawX = x + (w - drawWidth) / 2
-    const drawY = y + (imageHeight - drawHeight) / 2
-    // Clip to rounded rect then draw
-    ctx.save()
-    roundRect(ctx, x, y, w, h, TILE_BORDER_RADIUS)
-    ctx.clip()
-    ctx.fillStyle = '#f8fafc'
-    ctx.fillRect(x, y, w, h)
-    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight)
-    ctx.restore()
-  } catch (err) {
-    // image load fail — draw placeholder text
-    ctx.fillStyle = '#64748b'
-    ctx.font = '12px "NotoSansThai"'
-    ctx.textAlign = 'center'
-    ctx.fillText(normalizeThai('ไม่สามารถโหลดรูปได้'), x + w / 2, y + h / 2)
-    ctx.textAlign = 'left'
+    image = await loadImage(img.url)
+  } catch (caught) {
+    const reason = caught instanceof Error ? caught.message : String(caught)
+    throw new Error(`โหลดรูปสำหรับสร้างอัลบั้มไม่สำเร็จ (${img.fileName}): ${reason}`)
   }
+  const footerHeight = 26
+  const imageHeight = Math.max(1, h - footerHeight)
+  const imgRatio = image.width / image.height
+  const tileRatio = w / imageHeight
+  let drawWidth = w
+  let drawHeight = imageHeight
+  if (imgRatio > tileRatio) {
+    drawHeight = w / imgRatio
+  } else {
+    drawWidth = imageHeight * imgRatio
+  }
+  const drawX = x + (w - drawWidth) / 2
+  const drawY = y + (imageHeight - drawHeight) / 2
+  // Clip to rounded rect then draw
+  ctx.save()
+  roundRect(ctx, x, y, w, h, TILE_BORDER_RADIUS)
+  ctx.clip()
+  ctx.fillStyle = '#f8fafc'
+  ctx.fillRect(x, y, w, h)
+  ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight)
+  ctx.restore()
 
   // Badge (top-left)
   if (showBadges) {
@@ -262,7 +261,6 @@ async function drawTile(
   }
 
   // Footer is a separate metadata area, not an overlay over the source image.
-  const footerHeight = 26
   const footerY = y + h - footerHeight
   ctx.save()
   roundRect(ctx, x, footerY, w, footerHeight, 0)

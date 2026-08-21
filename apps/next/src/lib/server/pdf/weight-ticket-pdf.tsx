@@ -2,7 +2,7 @@ import 'server-only'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { type WeightTicketRecord } from '@/lib/weight-tickets'
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
-import { buildWeightTicketAttachmentImages } from '@/lib/weight-ticket-print'
+import { buildResolvedWeightTicketAttachmentImages } from '@/lib/weight-ticket-print'
 import { ensurePdfFontsRegistered } from './fonts'
 import { WeightTicketDocument } from './weight-ticket-document'
 import type { StoredImageAsset } from '@/lib/weight-tickets'
@@ -33,7 +33,7 @@ export async function generateWeightTicketPdf(
   const pdfBuffer = await renderToBuffer(<WeightTicketDocument ticket={ticket} profile={profile} />)
 
   // 3. Generate album images ผ่าน @napi-rs/canvas (แทน Playwright page.screenshot())
-  const decodedImages: Array<{ asset: StoredImageAsset & { url: string }; url: string }> = buildWeightTicketAttachmentImages(ticket)
+  const decodedImages: Array<{ asset: StoredImageAsset & { url: string }; url: string }> = buildResolvedWeightTicketAttachmentImages(ticket)
     .map((asset) => ({ asset, url: asset.url }))
 
   const albumImages: Array<{ pageIdx: number; buffer: Buffer }> = []

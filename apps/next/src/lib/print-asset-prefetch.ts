@@ -29,7 +29,7 @@
  */
 
 import { z } from 'zod'
-import { readJsonResponse } from '@/lib/api-client'
+import { ApiError, readJsonResponse } from '@/lib/api-client'
 import { companyProfileResponseSchema } from '@/lib/company-profile'
 
 /**
@@ -202,90 +202,101 @@ export function invalidateCompanyProfileForPrintCache(): void {
 // served from the browser HTTP cache.
 //
 // Design notes (per AGENTS.md cache rules):
-// - Ticket detail is a read-only snapshot of an already-completed (or
-//   printable) document. Source of truth remains the API. We cache only the
-//   most recently prefetched ticket per id, with a short TTL, so a ticket that
-//   was just edited and re-opened for print always re-reads fresh data after
-//   the TTL. No write/side-effect is ever performed by the prefetch.
-// - Attachment image preload is L0 asset warming only. The signed URL is the
-//   exact same URL the popup would request anyway; we never mint a new URL,
-//   never store bytes in JS memory, and never bypass the storage privacy
-//   contract. Only `url` (the full-size signed URL the popup album renders)
-//   is preloaded — thumbnails already have their own preview path.
+// - Ticket detail is a read-only snapshot used only while the hover request is
+//   in flight. Source of truth remains the API. We do not retain the ticket in
+//   browser memory because it contains scoped transaction facts and signed
+//   image URLs; only the browser's normal HTTP cache is warmed for the print
+//   derivative.
+// - Attachment image preload is L0 asset warming only. The signed print URL
+//   is the exact same URL the popup would request anyway; we never mint a new
+//   URL, never store bytes in JS memory, and never bypass the storage privacy
+//   contract. Only the print derivative is preloaded — thumbnails already have
+//   their own preview path and are never a formal print fallback.
 // - Failures are swallowed by the prefetch path; the print flow always
 //   refetches and surfaces the real error.
 
 import { type WeightTicketRecord, getWeightTicket, decodeStoredImageAsset } from '@/lib/weight-tickets'
 
-const WEIGHT_TICKET_CACHE_TTL_MS = 20_000
-
-type TicketCacheEntry = {
-  ticket: WeightTicketRecord
-  expiresAt: number
-}
-
-const ticketCacheById = new Map<string, TicketCacheEntry>()
-const inFlightTicketById = new Map<string, Promise<WeightTicketRecord | null>>()
+const inFlightTicketById = new Map<string, {
+  promise: Promise<WeightTicketRecord | null>
+  token: symbol
+}>()
+let weightTicketPrintCacheGeneration = 0
 
 /**
- * Prefetch the full ticket detail (including signed image preview URLs) and
- * preload every attachment image into the browser HTTP cache. Intended for
- * hover/focus on a WTI/WTO row. Never throws — failures are swallowed and the
- * print flow will refetch on click.
- *
- * The prefetched ticket is available via `peekCachedWeightTicketForPrint(id)`
- * for a short window so `handlePrintTicket` can skip its own fetch.
+ * Prefetch the ticket's signed print derivative URLs and preload every
+ * attachment image into the browser HTTP cache. Intended for hover/focus on a
+ * WTI/WTO row. Never throws — failures are swallowed and the print flow will
+ * fetch a fresh ticket on click.
  */
 export async function prefetchWeightTicketForPrint(ticketId: string): Promise<void> {
-  // Already cached and fresh — just (re-)warm images in case the browser
-  // evicted them.
-  const cached = peekCachedWeightTicketForPrint(ticketId)
-  if (cached) {
-    preloadWeightTicketAttachmentImages(cached)
-    return
-  }
   // Dedupe concurrent prefetches for the same id.
   const existing = inFlightTicketById.get(ticketId)
   if (existing) {
-    void existing.then((ticket) => {
-      if (ticket) preloadWeightTicketAttachmentImages(ticket)
-    })
+    await existing.promise
     return
   }
+  const generationAtStart = weightTicketPrintCacheGeneration
+  const token = Symbol(ticketId)
   const request = (async () => {
     try {
-      // Try with image previews first; the print album needs the signed URLs.
-      const ticket = await getWeightTicket(ticketId)
-      ticketCacheById.set(ticketId, { ticket, expiresAt: Date.now() + WEIGHT_TICKET_CACHE_TTL_MS })
-      preloadWeightTicketAttachmentImages(ticket)
+      // Preload the purpose-specific print derivative. A queued/missing print
+      // derivative is allowed to fail this best-effort hover prefetch; the
+      // click-time request will report the strict readiness error.
+      const ticket = await getWeightTicket(ticketId, { includeHistory: false, includePrintImages: true })
+      // A save/realtime invalidation may have happened while this request was
+      // in flight. Do not warm signed URLs from a stale response.
+      if (weightTicketPrintCacheGeneration === generationAtStart) {
+        preloadWeightTicketAttachmentImages(ticket)
+      }
       return ticket
     } catch {
-      // Tickets whose photos were never thumbnail-processed cannot build
-      // preview URLs (the API throws). This is expected for such tickets and
-      // happens on every hover, so stay silent here — the click-time print
-      // flow already warns when it falls back to `includeImagePreviews=false`.
+      // A queued/missing print derivative is expected to fail this best-effort
+      // hover prefetch; the click-time print request reports the strict
+      // readiness error after the background worker has had a chance to drain.
       return null
     } finally {
-      inFlightTicketById.delete(ticketId)
+      // An invalidated request must not delete a newer request that replaced
+      // it after the invalidation.
+      if (inFlightTicketById.get(ticketId)?.token === token) {
+        inFlightTicketById.delete(ticketId)
+      }
     }
   })()
-  inFlightTicketById.set(ticketId, request)
+  inFlightTicketById.set(ticketId, { promise: request, token })
   await request
 }
 
+const WEIGHT_TICKET_PRINT_READY_RETRY_DELAYS_MS = [500, 1_000, 2_000] as const
+
 /**
- * Synchronously return a fresh prefetched ticket, or null. The print handler
- * uses this to skip its own `getWeightTicket` fetch when the user hovered
- * first.
+ * Fetch the current ticket for formal print. A click may reuse only a
+ * concurrent hover/focus request; completed ticket snapshots are never kept
+ * in browser memory, and an invalidation during the await forces a fresh
+ * request. The worker is kicked by the request that reports a queued
+ * derivative, so retry only that typed readiness error for a bounded period;
+ * all other errors remain immediately visible.
  */
-export function peekCachedWeightTicketForPrint(ticketId: string): WeightTicketRecord | null {
-  const entry = ticketCacheById.get(ticketId)
-  if (!entry) return null
-  if (entry.expiresAt < Date.now()) {
-    ticketCacheById.delete(ticketId)
-    return null
+export async function getWeightTicketForPrint(ticketId: string): Promise<WeightTicketRecord> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const generationAtStart = weightTicketPrintCacheGeneration
+      const inFlight = inFlightTicketById.get(ticketId)
+      if (inFlight) {
+        const prefetchedTicket = await inFlight.promise
+        if (prefetchedTicket && weightTicketPrintCacheGeneration === generationAtStart) {
+          return prefetchedTicket
+        }
+      }
+      return await getWeightTicket(ticketId, { includePrintImages: true })
+    } catch (caught) {
+      const delayMs = caught instanceof ApiError && caught.code === 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY'
+        ? WEIGHT_TICKET_PRINT_READY_RETRY_DELAYS_MS[attempt]
+        : undefined
+      if (delayMs == null) throw caught
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
+    }
   }
-  return entry.ticket
 }
 
 /**
@@ -298,15 +309,13 @@ export function preloadWeightTicketAttachmentImages(ticket: WeightTicketRecord):
   if (typeof window === 'undefined' || typeof Image === 'undefined') return
   try {
     // Decode every stored image reference and preload the signed URL of each
-    // previewable asset. Production only issues thumbnail signed URLs (on
-    // thumbnailUrl) while legacy/dev records may carry a real url, so resolve
-    // either one. Different raw values can resolve to the same signed URL, so
-    // dedupe by URL before warming the HTTP cache.
+    // printable asset. Different raw values can resolve to the same signed URL,
+    // so dedupe by URL before warming the HTTP cache.
     const rawValues = [...ticket.vehicleImageNames, ...ticket.imageNames]
     const seen = new Set<string>()
     for (const rawValue of rawValues) {
       const asset = decodeStoredImageAsset(rawValue)
-      const url = asset.url ?? asset.thumbnailUrl ?? null
+      const url = asset.printUrl ?? null
       if (!url) continue
       try {
         const parsed = new URL(url)
@@ -327,16 +336,17 @@ export function preloadWeightTicketAttachmentImages(ticket: WeightTicketRecord):
 }
 
 /**
- * Invalidate the prefetched ticket cache for a single id, or all tickets when
+ * Invalidate an in-flight ticket prefetch for a single id, or all tickets when
  * no id is given. Call after the user edits/cancels a ticket on the host page
- * so the next print re-reads fresh data instead of using the stale prefetch.
+ * so a stale in-flight response cannot warm the browser HTTP cache.
  */
 export function invalidateWeightTicketForPrintCache(ticketId?: string): void {
+  weightTicketPrintCacheGeneration += 1
   if (ticketId) {
-    ticketCacheById.delete(ticketId)
+    inFlightTicketById.delete(ticketId)
     return
   }
-  ticketCacheById.clear()
+  inFlightTicketById.clear()
 }
 
 // ---------------------------------------------------------------------------

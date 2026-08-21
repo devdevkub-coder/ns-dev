@@ -17,7 +17,7 @@ import {
 } from '@/components/daily/WeightTicketProductBreakdownTable'
 import { WeightTicketImageGallery, WEIGHT_TICKET_IMAGE_PREVIEW_LIMIT } from '@/components/daily/WeightTicketImageGallery'
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
-import { invalidateWeightTicketForPrintCache, prefetchPrintAssets } from '@/lib/print-asset-prefetch'
+import { getWeightTicketForPrint, invalidateWeightTicketForPrintCache, prefetchPrintAssets, prefetchWeightTicketForPrint } from '@/lib/print-asset-prefetch'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
 import { cancelWeightTicket, canConfirmWeightTicket, canPrintWeightTicket, canShareWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, getWeightTicketImageOriginal, getWeightTicketImagePreviews, isThumbnailPreviewableStoredImageAsset, mergeWeightTicketImagePreviews, notifyWeightTicketLine, type StoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
@@ -330,9 +330,7 @@ export function WeightTicketDetailModal({
       // Start the company profile fetch now so the builder reuses it instead
       // of waiting for a ~1s API round trip after the popup opens.
       void prefetchPrintAssets(ticket.branchId)
-      const printableTicket = ticket.imageNames.some((imageName) => !isThumbnailPreviewableStoredImageAsset(decodeStoredImageAsset(imageName)))
-        ? await getWeightTicket(ticketId)
-        : ticket
+      const printableTicket = await getWeightTicketForPrint(ticketId)
       printWindow = openWeightTicketPrintWindow(printableTicket)
       await openWeightTicketReceiptPrint(printableTicket, printWindow)
     } catch (caught) {
@@ -368,6 +366,7 @@ export function WeightTicketDetailModal({
 
   useWeightTicketRealtime((event) => {
     if (event.documentNo !== ticketId) return
+    invalidateWeightTicketForPrintCache(ticketId)
     void reloadTicket().catch((caught) => {
       setLoadError(getErrorMessage(caught, 'โหลดข้อมูลใบรับ-ส่งของล่าสุดไม่ได้'))
     })
@@ -540,7 +539,7 @@ export function WeightTicketDetailModal({
                   <span className="sr-only sm:not-sr-only">แชร์</span>
                 </Button> : null}
                 {canPrintWeightTicket(ticket.status) ? (
-                  <Button aria-label={isPrinting ? 'กำลังเตรียมพิมพ์' : 'พิมพ์'} className="h-10 w-10 shrink-0 gap-0 border-emerald-600 bg-emerald-600 px-0 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" disabled={isPrinting} type="button" variant="outline" onMouseEnter={() => void prefetchPrintAssets(ticket.branchId)} onFocus={() => void prefetchPrintAssets(ticket.branchId)} onClick={() => void handlePrintReceipt()}>
+                  <Button aria-label={isPrinting ? 'กำลังเตรียมพิมพ์' : 'พิมพ์'} className="h-10 w-10 shrink-0 gap-0 border-emerald-600 bg-emerald-600 px-0 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4" disabled={isPrinting} type="button" variant="outline" onMouseEnter={() => { void prefetchPrintAssets(ticket.branchId); void prefetchWeightTicketForPrint(ticket.id) }} onFocus={() => { void prefetchPrintAssets(ticket.branchId); void prefetchWeightTicketForPrint(ticket.id) }} onClick={() => void handlePrintReceipt()}>
                     <Printer className="size-4" />
                     <span className="sr-only sm:not-sr-only">{isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}</span>
                   </Button>

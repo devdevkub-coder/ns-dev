@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   createSignedUrl: vi.fn(),
   getCurrentAuthContext: vi.fn(),
   loadImage: vi.fn(),
+  processPrint: vi.fn(),
   processThumbnail: vi.fn(),
   resolveBucket: vi.fn(),
   resolveConfig: vi.fn(),
@@ -58,6 +59,7 @@ vi.mock('@/lib/server/weight-ticket-storage', () => ({
 }))
 vi.mock('sharp', () => ({ default: vi.fn(() => ({ metadata: mocks.sharpMetadata })) }))
 vi.mock('@/lib/server/weight-ticket-thumbnail-jobs', () => ({
+  processWeightTicketPrintAsset: mocks.processPrint,
   processWeightTicketThumbnailAsset: mocks.processThumbnail,
 }))
 
@@ -74,7 +76,7 @@ beforeEach(() => {
   mocks.resolveProcessingConfig.mockResolvedValue({ maxSourcePixels: 40_000_000 })
   mocks.sharpMetadata.mockResolvedValue({ height: 1200, width: 1600 })
   mocks.upload.mockResolvedValue({ error: null })
-  mocks.createAsset.mockResolvedValue({ id: 41n, thumbnail_status: 'queued' })
+  mocks.createAsset.mockResolvedValue({ id: 41n, print_status: 'queued', thumbnail_status: 'queued' })
 })
 
 describe('WTI/WTO attachment upload boundary', () => {
@@ -96,6 +98,8 @@ describe('WTI/WTO attachment upload boundary', () => {
     expect(mocks.createAsset).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         original_storage_key: expect.stringMatching(/^attachments\/pending\//),
+        print_status: 'queued',
+        print_storage_key: expect.stringMatching(/\.print\.jpg$/),
         thumbnail_status: 'queued',
         uploaded_by: 'auth-user-19',
       }),
@@ -106,6 +110,8 @@ describe('WTI/WTO attachment upload boundary', () => {
       storageKey: expect.stringMatching(/^attachments\/pending\//),
       thumbnailStatus: 'queued',
       thumbnailStorageKey: expect.stringMatching(/\.thumb\.webp$/),
+      printStatus: 'queued',
+      printStorageKey: expect.stringMatching(/\.print\.jpg$/),
     }))
     expect(payload).not.toHaveProperty('thumbnailUrl')
     expect(mocks.after).toHaveBeenCalledTimes(1)

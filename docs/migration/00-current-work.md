@@ -6,6 +6,14 @@ Objective: แก้ไขปัญหา Login ช้า (500 Database Error) �
 - รัน migration `20260818120000_add_warehouse_management_fields.sql` ใน SIT Supabase ครบถ้วน
 - Validation: `prisma generate`, `type-check`, `lint`, auth tests `15/15` ผ่าน 100%, commit `6f543f48` push ขึ้น `sit-origin/main` แล้ว Vercel deploy `HTTP 200` สำเร็จ
 
+## Active WTI/WTO print derivative batch — 2026-08-20
+
+Objective: ลดขนาดรูปแนบใน browser print, React-PDF และ LINE โดยไม่แตะ pagination และไม่แก้ original. Upload ใหม่สร้าง immutable `.print.jpg` แยกจาก thumbnail; worker ใช้ `rotate` + `fit: inside` ในกรอบสูงสุด `400 × 400 px`, JPEG quality `90`, จึงรักษา ratio ทั้งแนวตั้ง/แนวนอน และตรงกับ React-PDF image contract.
+
+Current write set: `weight_ticket_image_assets` print ledger/migration, upload/job/backfill, strict print URL resolver, typed readiness response, WTI/WTO print consumers, LINE outbound artifact cleanup/traceability, repair-script target guard, focused tests และ flow/cache notes. Formal output ไม่ fallback ไป original/legacy/base64; missing/queued/broken print derivative fail-closed รวมถึง LINE album ที่หยุดทั้ง artifact เมื่อโหลดรูปไม่ได้. Print worker แยก lease จาก thumbnail worker และ cleanup ถือทั้งสอง lease ก่อนลบ asset; prefetch WTI/WTO ถูกต่อกับ hover/focus, ใช้ generation guard กันผลลัพธ์ in-flight เก่า และ invalidate เมื่อมีการแก้ไขหรือ realtime change. ตอนกดพิมพ์จะ fetch ticket ล่าสุดเสมอ และ retry เฉพาะ readiness error แบบมีขอบเขต. LINE PDF/album เก็บ bucket/key ของ artifact ใน notification log และลบ artifact แบบ request-scoped เมื่อไม่มี target ใดยืนยัน; ถ้าลบไม่ได้จะ fail closed พร้อม key สำหรับ manual recovery. ไม่มี cron ใหม่สำหรับ print derivative. Existing immutable print objects ต้องตรง bytes กับ derivative ที่ generate ใหม่ก่อน mark ready; thumbnail/print worker update ใช้ lease CAS. Pagination contract เดิม 6 รูปต่อหน้าและรูปที่ 7 ขึ้นหน้าถัดไปยังไม่ถูกแก้.
+
+Validation follow-up (2026-08-21): focused Vitest `110/110`, type-check, production build `345` static pages, `node --check` scripts และ `git diff --check` ผ่าน. Lint ผ่าน 0 errors และคง pre-existing warning 1 จุดที่ `WarehouseKpiPageClient.tsx:365`. Final independent code/architecture review ไม่พบ code defect ค้างใน artifact cleanup/traceability path. SIT ใช้ `apps/next/.env.sit.local` จาก working checkout หลักที่ชี้ `vbjlkxbytccklhqvxjuu`; apply และ postflight ผ่านแล้วสำหรับ migration `20260820130000_add_weight_ticket_print_derivatives` และ `20260821100000_add_weight_ticket_notification_artifacts` (510/510 assets ได้ print key, queued, key distinct; settings 400/90; history ครบ). ยังไม่ push/deploy. Release gate ที่เหลือใน SIT คือ backfill `--apply --expected-project-ref=vbjlkxbytccklhqvxjuu` -> audit `--require-print-ready`; `--apply` scripts ตรวจ project ref ก่อน mutation.
+
 ## Active Purchase Bill Supplier Change batch — 2026-08-19
 
 Objective: เปลี่ยน Supplier ของบิลรับซื้อที่สร้างแล้วโดย PATCH `purchase_bills` row เดิม คง `purchase_bills.id`, เลข PB, WTI/source และสถานะ active; อัปเดต Supplier header/snapshot และ rebuild allocation/ledger facts ใน transaction เดียว โดยไม่ void หรือสร้าง PB ใหม่
@@ -57,8 +65,8 @@ Immediate next: code review, ตรวจ browser network timing แล้ว co
 Active objective: prefetch ticket detail + preload attachment images ตอน hover ที่ `พิมพ์` menu item ของ WTI/WTO เพื่อให้คลิกแล้ว popup render ทันทีโดยไม่ต้องรอ fetch ticket + download รูป
 
 Active batch:
-- `print-asset-prefetch.ts` เพิ่ม `prefetchWeightTicketForPrint`, `peekCachedWeightTicketForPrint`, `preloadWeightTicketAttachmentImages`, `invalidateWeightTicketForPrintCache` (TTL 20s, in-flight dedup)
-- `WeightTicketListPageClient.tsx` เพิ่ม `onMouseEnter`/`onFocus` prefetch ที่ menu item พิมพ์ (desktop + mobile), และ `handlePrintTicket` ใช้ cache ก่อน ถ้ามี cache hit ข้าม `getWeightTicket` fetch
+- `print-asset-prefetch.ts` ใช้ `prefetchWeightTicketForPrint`, `preloadWeightTicketAttachmentImages`, `getWeightTicketForPrint`, `invalidateWeightTicketForPrintCache` (in-flight dedup เท่านั้น; ไม่เก็บ `WeightTicketRecord` ใน browser memory และ retry readiness แบบ bounded)
+- `WeightTicketListPageClient.tsx` เพิ่ม `onMouseEnter`/`onFocus` prefetch ที่ menu item พิมพ์ (desktop + mobile); ตอนกดพิมพ์ยัง fetch ticket ล่าสุดเสมอ
 - ข้าม C (document.write → innerHTML) เพราะ risk ไม่คุ้มผล — font-face/CSP edge cases
 
 Validation: type-check, lint, 105/105 related tests ผ่าน

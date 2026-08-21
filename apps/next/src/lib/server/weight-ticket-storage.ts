@@ -18,6 +18,8 @@ const imageProcessingSettingKeys = [
   'WEIGHT_TICKET_IMAGE_UPLOAD_CONCURRENCY',
   'WEIGHT_TICKET_THUMBNAIL_MAX_DIMENSION',
   'WEIGHT_TICKET_THUMBNAIL_WEBP_QUALITY',
+  'WEIGHT_TICKET_PRINT_MAX_DIMENSION',
+  'WEIGHT_TICKET_PRINT_JPEG_QUALITY',
   'WEIGHT_TICKET_THUMBNAIL_MAX_SOURCE_PIXELS',
   'WEIGHT_TICKET_THUMBNAIL_MAX_ATTEMPTS',
   'WEIGHT_TICKET_THUMBNAIL_RETRY_DELAY_SECONDS',
@@ -70,12 +72,14 @@ export async function resolveWeightTicketImageProcessingConfig() {
     maxAttempts: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_MAX_ATTEMPTS', 1, 10),
     drainBatchSize: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_DRAIN_BATCH_SIZE', 1, 100),
     maxDimension: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_MAX_DIMENSION', 320, 2048),
+    printMaxDimension: requireIntegerSetting(settings, 'WEIGHT_TICKET_PRINT_MAX_DIMENSION', 1, 400),
     maxSourcePixels: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_MAX_SOURCE_PIXELS', 1_000_000, 300_000_000),
     previewPollSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_PREVIEW_POLL_SECONDS', 1, 30),
     retryDelaySeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_RETRY_DELAY_SECONDS', 1, 3600),
     previewTtlSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_PREVIEW_TTL_SECONDS', 60, 3600),
     orphanRetentionSeconds: requireIntegerSetting(settings, 'WEIGHT_TICKET_IMAGE_ORPHAN_RETENTION_SECONDS', 60, 31 * 24 * 60 * 60),
     webpQuality: requireIntegerSetting(settings, 'WEIGHT_TICKET_THUMBNAIL_WEBP_QUALITY', 1, 100),
+    printJpegQuality: requireIntegerSetting(settings, 'WEIGHT_TICKET_PRINT_JPEG_QUALITY', 1, 100),
   }
 }
 
@@ -83,6 +87,17 @@ export class WeightTicketImageReferenceError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'WeightTicketImageReferenceError'
+  }
+}
+
+export class WeightTicketPrintReadinessError extends Error {
+  readonly code = 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY'
+  readonly status: 409 | 503
+
+  constructor(message: string, status: 409 | 503 = 409) {
+    super(message)
+    this.name = 'WeightTicketPrintReadinessError'
+    this.status = status
   }
 }
 
@@ -262,6 +277,8 @@ type WeightTicketImagePreviewRecord = {
   vehicleImageNames: string[]
 }
 
+type WeightTicketImageDerivativeStatus = 'failed' | 'processing' | 'queued' | 'ready'
+
 export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketImagePreviewRecord>(record: T, bucket: string): Promise<T> {
   const adminClient = getSupabaseAdminClient()
   if (!adminClient) throw new Error('ยังไม่ได้ตั้งค่า Supabase สำหรับสร้างลิงก์ preview รูปหลักฐาน')
@@ -287,6 +304,8 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
           original_storage_key: true,
           thumbnail_status: true,
           thumbnail_storage_key: true,
+          print_status: true,
+          print_storage_key: true,
         },
         where: {
           bucket,
@@ -356,6 +375,8 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
     }
     const processingAsset = assetByStorageKey.get(storageKey)
     const byteSize = processingAsset?.byte_size == null ? undefined : Number(processingAsset.byte_size)
+    const printStorageKey = asset.printStorageKey ?? processingAsset?.print_storage_key ?? undefined
+    const printStatus = (asset.printStatus ?? processingAsset?.print_status ?? undefined) as WeightTicketImageDerivativeStatus | undefined
     // Legacy references stored before the thumbnail pipeline may lack the
     // thumbnailStorageKey field. Resolve it through the asset ledger when
     // possible; when neither the reference nor the ledger knows a thumbnail,
@@ -373,18 +394,18 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
     }
     if (!processingAsset) {
       console.error('[weight_ticket_image_preview] missing asset ledger row', { bucket, storageKey })
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed', byteSize)
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed', byteSize, printStorageKey, printStatus)
     }
     if (processingAsset.thumbnail_storage_key !== validatedThumbnailStorageKey) {
       throw new WeightTicketImageReferenceError(`thumbnail storage key ของรูปหลักฐาน ${asset.fileName} ไม่ตรงกับทะเบียนรูป`)
     }
     const thumbnailStatus = processingAsset.thumbnail_status as 'failed' | 'processing' | 'queued' | 'ready'
     if (thumbnailStatus !== 'ready') {
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, thumbnailStatus, byteSize)
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, thumbnailStatus, byteSize, processingAsset.print_storage_key, processingAsset.print_status as WeightTicketImageDerivativeStatus)
     }
     const cacheKey = `${asset.bucket}:${validatedThumbnailStorageKey}`
     const cached = signedUrlByKey.get(cacheKey)
-    if (cached) return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, cached, 'ready', byteSize)
+    if (cached) return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, cached, 'ready', byteSize, processingAsset.print_storage_key, processingAsset.print_status as WeightTicketImageDerivativeStatus)
 
     // Batch miss fallback (e.g. a path that failed inside createSignedUrls):
     // request the single signed URL so one bad key never blocks the rest.
@@ -395,10 +416,10 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
         error: error?.message ?? 'ไม่พบ signed URL',
         storageKey,
       })
-      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed', byteSize)
+      return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, undefined, 'failed', byteSize, processingAsset.print_storage_key, processingAsset.print_status as WeightTicketImageDerivativeStatus)
     }
     signedUrlByKey.set(cacheKey, data.signedUrl)
-    return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, data.signedUrl, 'ready', byteSize)
+    return encodeStoredImageReference(asset.fileName, undefined, storageKey, bucket, validatedThumbnailStorageKey, data.signedUrl, 'ready', byteSize, processingAsset.print_storage_key, processingAsset.print_status as WeightTicketImageDerivativeStatus)
   }
 
   const [imageNames, vehicleImageNames, lines] = await Promise.all([
@@ -411,4 +432,157 @@ export async function attachWeightTicketImagePreviewUrls<T extends WeightTicketI
   ])
 
   return { ...record, imageNames, lines, vehicleImageNames }
+}
+
+/**
+ * Resolve the purpose-specific, bounded image used by formal PDF/LINE output.
+ * This resolver is intentionally strict: a missing or non-ready print asset
+ * must stop document generation instead of silently dropping evidence or
+ * falling back to the original image.
+ */
+export async function attachWeightTicketImagePrintUrls<T extends WeightTicketImagePreviewRecord>(record: T, bucket: string): Promise<T> {
+  const adminClient = getSupabaseAdminClient()
+  if (!adminClient) throw new WeightTicketPrintReadinessError('ยังไม่ได้ตั้งค่า Supabase สำหรับสร้างลิงก์รูปสำหรับพิมพ์', 503)
+  let processingConfig: Awaited<ReturnType<typeof resolveWeightTicketImageProcessingConfig>>
+  try {
+    processingConfig = await resolveWeightTicketImageProcessingConfig()
+  } catch (caught) {
+    throw new WeightTicketPrintReadinessError(
+      `โหลดการตั้งค่ารูปสำหรับพิมพ์ไม่สำเร็จ: ${caught instanceof Error ? caught.message : String(caught)}`,
+      503,
+    )
+  }
+  const rawValues = [
+    ...record.imageNames,
+    ...record.vehicleImageNames,
+    ...record.lines.flatMap((line) => line.imageNames),
+  ]
+  const storageKeys = Array.from(new Set(rawValues.map((rawValue) => {
+    const asset = decodeStoredImageAsset(rawValue)
+    if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) {
+      throw new WeightTicketPrintReadinessError(`รูปหลักฐาน ${asset.fileName} ไม่มี bucket หรือ storage key ที่ถูกต้อง`)
+    }
+    try {
+      return assertWeightTicketImageStorageKey(asset.storageKey)
+    } catch {
+      throw new WeightTicketPrintReadinessError(`storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
+    }
+  })))
+  const assetRows = storageKeys.length > 0
+    ? await prisma.weight_ticket_image_assets.findMany({
+        select: {
+          byte_size: true,
+          original_storage_key: true,
+          print_height: true,
+          print_status: true,
+          print_storage_key: true,
+          print_width: true,
+          thumbnail_status: true,
+          thumbnail_storage_key: true,
+        },
+        where: { bucket, original_storage_key: { in: storageKeys } },
+      })
+    : []
+  const assetByStorageKey = new Map(assetRows.map((asset) => [asset.original_storage_key, asset]))
+  const printStorageKeys = new Set<string>()
+
+  for (const rawValue of rawValues) {
+    const asset = decodeStoredImageAsset(rawValue)
+    let storageKey: string
+    try {
+      storageKey = assertWeightTicketImageStorageKey(asset.storageKey ?? '')
+    } catch {
+      throw new WeightTicketPrintReadinessError(`storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
+    }
+    const processingAsset = assetByStorageKey.get(storageKey)
+    if (!processingAsset) {
+      throw new WeightTicketPrintReadinessError(`ไม่พบทะเบียน print derivative ของรูปหลักฐาน ${asset.fileName}`)
+    }
+    const printStorageKey = asset.printStorageKey ?? processingAsset.print_storage_key
+    if (!printStorageKey || processingAsset.print_storage_key !== printStorageKey) {
+      throw new WeightTicketPrintReadinessError(`print storage key ของรูปหลักฐาน ${asset.fileName} ไม่ตรงกับทะเบียนรูป`)
+    }
+    const printStatus = processingAsset.print_status as WeightTicketImageDerivativeStatus
+    if (printStatus !== 'ready') {
+      throw new WeightTicketPrintReadinessError(`รูปหลักฐาน ${asset.fileName} ยังสร้างรูปสำหรับพิมพ์ไม่เสร็จ (สถานะ ${printStatus})`)
+    }
+    const printWidth = processingAsset.print_width
+    const printHeight = processingAsset.print_height
+    if (
+      typeof printWidth !== 'number'
+      || typeof printHeight !== 'number'
+      || !Number.isInteger(printWidth)
+      || !Number.isInteger(printHeight)
+      || printWidth < 1
+      || printHeight < 1
+      || printWidth > 400
+      || printHeight > 400
+    ) {
+      throw new WeightTicketPrintReadinessError(`ขนาด print derivative ของรูปหลักฐาน ${asset.fileName} ไม่อยู่ในกรอบ 400 x 400 px`)
+    }
+    try {
+      printStorageKeys.add(assertWeightTicketImageStorageKey(printStorageKey))
+    } catch {
+      throw new WeightTicketPrintReadinessError(`print storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
+    }
+  }
+
+  const signedUrlByKey = new Map<string, string>()
+  if (printStorageKeys.size > 0) {
+    const { data, error } = await adminClient.storage
+      .from(bucket)
+      .createSignedUrls(Array.from(printStorageKeys), processingConfig.previewTtlSeconds)
+    if (error || !data) {
+      throw new WeightTicketPrintReadinessError(`สร้าง signed URL รูปสำหรับพิมพ์ไม่สำเร็จ: ${error?.message ?? 'ไม่พบ signed URLs'}`, 503)
+    }
+    for (const entry of data) {
+      if (!entry?.path || !entry.signedUrl) continue
+      signedUrlByKey.set(`${bucket}:${entry.path}`, entry.signedUrl)
+    }
+  }
+
+  const resolve = (rawValue: string) => {
+    const asset = decodeStoredImageAsset(rawValue)
+    if (!asset.bucket || !asset.storageKey || asset.bucket !== bucket) {
+      throw new WeightTicketPrintReadinessError(`รูปหลักฐาน ${asset.fileName} ไม่มี bucket หรือ storage key ที่ถูกต้อง`)
+    }
+    let storageKey: string
+    try {
+      storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
+    } catch {
+      throw new WeightTicketPrintReadinessError(`storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
+    }
+    const processingAsset = assetByStorageKey.get(storageKey)
+    if (!processingAsset) throw new WeightTicketPrintReadinessError(`ไม่พบทะเบียน print derivative ของรูปหลักฐาน ${asset.fileName}`)
+    let printStorageKey: string
+    try {
+      printStorageKey = assertWeightTicketImageStorageKey(processingAsset.print_storage_key)
+    } catch {
+      throw new WeightTicketPrintReadinessError(`print storage key ของรูปหลักฐาน ${asset.fileName} ไม่ถูกต้อง`)
+    }
+    const signedUrl = signedUrlByKey.get(`${bucket}:${printStorageKey}`)
+    if (!signedUrl) {
+      throw new WeightTicketPrintReadinessError(`สร้าง signed URL รูปสำหรับพิมพ์ ${asset.fileName} ไม่สำเร็จ`, 503)
+    }
+    return encodeStoredImageReference(
+      asset.fileName,
+      undefined,
+      storageKey,
+      bucket,
+      asset.thumbnailStorageKey ?? processingAsset.thumbnail_storage_key,
+      asset.thumbnailUrl ?? undefined,
+      (asset.thumbnailStatus ?? processingAsset.thumbnail_status) as WeightTicketImageDerivativeStatus,
+      asset.byteSize ?? (processingAsset.byte_size == null ? undefined : Number(processingAsset.byte_size)),
+      printStorageKey,
+      'ready',
+      signedUrl,
+    )
+  }
+
+  return {
+    ...record,
+    imageNames: record.imageNames.map(resolve),
+    vehicleImageNames: record.vehicleImageNames.map(resolve),
+    lines: record.lines.map((line) => ({ ...line, imageNames: line.imageNames.map(resolve) })),
+  }
 }

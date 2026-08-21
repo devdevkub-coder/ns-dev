@@ -233,6 +233,7 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
   const startTime = Date.now()
   const jobBigInt = BigInt(jobId)
   let failureHttpStatus: number | null = null
+  let failureCode: string | null = null
 
   const job = await prisma.line_notification_jobs.findUnique({
     where: { id: jobBigInt }
@@ -278,6 +279,7 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
     if (!appUrl) throw new Error('ยังไม่ได้ตั้งค่า NEXT_PUBLIC_APP_URL สำหรับสร้างลิงก์แจ้งเตือน')
 
     type NotificationDispatchResult = {
+      code?: string
       error?: string
       lineRequestId?: string | null
       pdfUrl?: string
@@ -329,7 +331,13 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
 
     if (result.status !== 200 && result.status !== 201 && result.status !== 409) {
       failureHttpStatus = result.status
+      failureCode = result.code ?? null
       throw new Error(result.error || 'ส่ง LINE Notification ไม่สำเร็จ')
+    }
+    if (result.code === 'WEIGHT_TICKET_PRINT_IMAGE_NOT_READY') {
+      failureHttpStatus = result.status
+      failureCode = result.code
+      throw new Error(result.error || 'รูปสำหรับพิมพ์ยังไม่พร้อม')
     }
 
     const isConflict = result.status === 409
@@ -382,6 +390,7 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
       && ![408, 409, 429].includes(httpStatus)
     const hasReachedMax = attemptNo >= job.max_attempts
     const finalStatus = (isPermanent || hasReachedMax) ? 'failed' : 'pending'
+    const errorCode = failureCode ?? (isPermanent ? 'PERMANENT_ERROR' : 'TRANSIENT_ERROR')
 
     // Calculate next retry time with exponential backoff (30s, 5m, 15m, 1h)
     const backoffSeconds = attemptNo === 1 ? 30 : attemptNo === 2 ? 300 : attemptNo === 3 ? 900 : 3600
@@ -393,7 +402,7 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
         status: finalStatus,
         locked_at: null,
         locked_by: null,
-        last_error_code: isPermanent ? 'PERMANENT_ERROR' : 'TRANSIENT_ERROR',
+        last_error_code: errorCode,
         last_error_message: errorMsg.slice(0, 500),
         next_retry_at: finalStatus === 'pending' ? nextRetry : job.next_retry_at
       }
@@ -406,13 +415,18 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
         attempt_no: attemptNo,
         status: finalStatus,
         http_status: httpStatus,
-        error_code: isPermanent ? 'PERMANENT_ERROR' : 'TRANSIENT_ERROR',
+        error_code: errorCode,
         error_message: errorMsg.slice(0, 500),
         duration_ms: Date.now() - startTime
       }
     })
 
-    return { status: finalStatus as any, error: errorMsg }
+    return {
+      code: failureCode ?? undefined,
+      httpStatus: httpStatus ?? undefined,
+      status: finalStatus as any,
+      error: errorMsg,
+    }
   }
 }
 

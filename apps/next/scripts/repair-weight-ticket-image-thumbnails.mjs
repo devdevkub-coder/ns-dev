@@ -3,7 +3,7 @@
 // (webp quality 90, max dimension 960), upload it, create the asset ledger row,
 // and update the stored reference to include thumbnailStorageKey.
 //
-// Usage: node scripts/repair-weight-ticket-image-thumbnails.mjs [--apply]
+// Usage: node scripts/repair-weight-ticket-image-thumbnails.mjs [--apply --expected-project-ref=<ref>]
 // Default is dry-run (reports what would change, changes nothing).
 
 import { createRequire } from 'node:module'
@@ -14,13 +14,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
+import { identifySupabaseProjectRef } from './weight-ticket-image-assets.mjs'
 const envCandidates = [
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.env.local'),
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.env'),
 ]
 for (const envPath of envCandidates) {
   if (fs.existsSync(envPath)) {
-    loadEnv({ path: envPath, override: true })
+    // An explicit operator environment must win over a local file. This is
+    // especially important for --apply because this script mutates DB/Storage.
+    loadEnv({ path: envPath, override: false })
     break
   }
 }
@@ -40,6 +43,22 @@ function requiredEnv(name) {
   return value
 }
 
+function expectedProjectRef() {
+  const argument = process.argv.find((value) => value.startsWith('--expected-project-ref='))
+  return argument?.slice('--expected-project-ref='.length).trim() || null
+}
+
+function assertApplyTarget(projectRef) {
+  if (!APPLY) return
+  const expected = expectedProjectRef()
+  if (!expected || !/^[a-z0-9]+$/i.test(expected)) {
+    throw new Error('--apply requires --expected-project-ref=<Supabase project ref>')
+  }
+  if (expected !== projectRef) {
+    throw new Error(`refusing --apply: expected project ${expected}, resolved project ${projectRef}`)
+  }
+}
+
 function decodeReference(rawValue) {
   if (typeof rawValue !== 'string' || !rawValue.trim().startsWith('{')) return null
   try {
@@ -52,6 +71,11 @@ function decodeReference(rawValue) {
   }
 }
 
+function printKeyFor(storageKey) {
+  const base = storageKey.replace(/\.[^./]+$/, '')
+  return base + '.print.jpg'
+}
+
 // Matches the attachments route: attachments/pending/YYYY-MM-DD/{uuid}.ext
 // thumbnail key = original key with extension replaced by .thumb.webp
 function thumbnailKeyFor(storageKey) {
@@ -60,14 +84,18 @@ function thumbnailKeyFor(storageKey) {
 }
 
 async function main() {
+  const databaseUrl = requiredEnv('DATABASE_URL')
+  const supabaseUrl = requiredEnv('NEXT_PUBLIC_SUPABASE_URL')
+  const projectRef = identifySupabaseProjectRef(supabaseUrl, databaseUrl)
+  assertApplyTarget(projectRef)
   const pool = new Pool({
-    connectionString: requiredEnv('DATABASE_URL'),
+    connectionString: databaseUrl,
     connectionTimeoutMillis: 5000,
     max: 1,
     idleTimeoutMillis: 10000,
   })
   const supabase = createClient(
-    requiredEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    supabaseUrl,
     requiredEnv('SUPABASE_SERVICE_ROLE_KEY'),
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
@@ -129,6 +157,7 @@ async function main() {
     console.log(JSON.stringify({
       apply: APPLY,
       bucket,
+      projectRef,
       legacyReferences: candidates.length,
     }, null, 2))
 
@@ -185,10 +214,10 @@ async function main() {
             }
             await pool.query(
               `insert into public.weight_ticket_image_assets (
-                 bucket, original_storage_key, thumbnail_storage_key, file_name, mime_type,
+                 bucket, original_storage_key, thumbnail_storage_key, print_storage_key, file_name, mime_type,
                  byte_size, thumbnail_status, attempt_count, source_width, source_height,
                  thumbnail_width, thumbnail_height, uploaded_by, created_at, updated_at
-               ) values ($1, $2, $3, $4, $5, $6, 'ready', 0, $7, $8, $9, $10, $11, now(), now())
+               ) values ($1, $2, $3, $4, $5, $6, $7, 'ready', 0, $8, $9, $10, $11, $12, now(), now())
                on conflict (bucket, original_storage_key) do update set
                  thumbnail_storage_key = excluded.thumbnail_storage_key,
                  thumbnail_status = 'ready',
@@ -199,6 +228,7 @@ async function main() {
                 bucket,
                 storageKey,
                 thumbnailKey,
+                printKeyFor(storageKey),
                 candidate.parsed.fileName,
                 metadata.format === 'jpeg' ? 'image/jpeg' : metadata.format === 'png' ? 'image/png' : 'image/webp',
                 BigInt(bytes.length),

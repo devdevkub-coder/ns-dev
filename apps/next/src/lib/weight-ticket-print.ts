@@ -99,12 +99,31 @@ export function buildWeightTicketAttachmentImages(
 ): Array<StoredImageAsset & { url: string }> {
   return getWeightTicketAttachmentReferences(ticket)
     .map(decodeStoredImageAsset)
-    // Production only ever issues thumbnail signed URLs (stored on
-    // thumbnailUrl); the full-size `url` field is always null there, while
-    // legacy/dev records may carry a real url. Resolve either one so print,
-    // PDF and LINE all show the attachment images.
-    .map((image) => ({ ...image, url: image.url ?? image.thumbnailUrl ?? null }))
+    // Formal print/PDF/LINE output must use the purpose-specific print
+    // derivative. The strict server resolver fails before this helper when
+    // the derivative is not ready; this map also prevents a thumbnail-only
+    // reference from becoming a formal document artifact.
+    .map((image) => ({ ...image, url: image.printUrl ?? null }))
     .filter(isPreviewableStoredImageAsset)
+}
+
+/**
+ * Formal output must fail closed when any stored attachment is not resolved to
+ * its purpose-specific print derivative. The non-throwing helper above stays
+ * useful for defensive callers and fixtures; PDF/HTML/LINE entry points use
+ * this strict variant so a missing image cannot silently disappear.
+ */
+export function buildResolvedWeightTicketAttachmentImages(
+  ticket: Pick<WeightTicketRecord, 'imageNames' | 'vehicleImageNames'>,
+): Array<StoredImageAsset & { url: string }> {
+  return getWeightTicketAttachmentReferences(ticket).map((rawValue) => {
+    const image = decodeStoredImageAsset(rawValue)
+    const resolved = { ...image, url: image.printUrl ?? null }
+    if (!isPreviewableStoredImageAsset(resolved)) {
+      throw new Error(`รูปหลักฐาน ${image.fileName} ยังไม่มี print derivative ที่พร้อมใช้งาน`)
+    }
+    return resolved
+  })
 }
 
 /**
@@ -631,7 +650,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     ${profile.website ? `<br>Website: ${escapeHtml(profile.website)}` : ''}
   `
 
-  const attachmentImages = buildWeightTicketAttachmentImages(ticket)
+  const attachmentImages = buildResolvedWeightTicketAttachmentImages(ticket)
   const attachmentChunks: Array<typeof attachmentImages> = []
   for (let index = 0; index < attachmentImages.length; index += attachmentImagesPerPage) {
     attachmentChunks.push(attachmentImages.slice(index, index + attachmentImagesPerPage))

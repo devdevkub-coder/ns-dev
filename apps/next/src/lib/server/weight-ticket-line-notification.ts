@@ -1,19 +1,13 @@
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import {
-  buildReceiptPrintHtml,
-  buildWeightTicketAttachmentImages,
-  getWeightTicketAttachmentIdentity,
-  getWeightTicketAttachmentReferences,
+  buildResolvedWeightTicketAttachmentImages,
 } from '@/lib/weight-ticket-print'
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
-import type { Prisma } from '../../../generated/prisma/client'
-import { decodeStoredImageAsset, encodeStoredImageReference, formatDateDisplay, formatWeight, type WeightTicketRecord, typeLabels, type StoredImageAsset } from '@/lib/weight-tickets'
+import { formatDateDisplay, formatWeight, type WeightTicketRecord, typeLabels } from '@/lib/weight-tickets'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/reference-master-cache'
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
-import { assertWeightTicketImageStorageKey } from '@/lib/server/weight-ticket-storage'
+import { attachWeightTicketImagePrintUrls, WeightTicketPrintReadinessError } from '@/lib/server/weight-ticket-storage'
 import {
   findScopedWeightTicket,
   getWeightTicketUsageCounts,
@@ -23,6 +17,7 @@ import {
 // module ใหม่ที่ใช้ react-pdf + @napi-rs/canvas แทน Playwright
 // (import เป็น alias เพื่อไม่ให้ชนกับชื่อ function legacy ในไฟล์นี้)
 import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
+import { WEIGHT_TICKET_LINE_ALBUM_IMAGES_PER_PAGE } from '@/lib/server/pdf/album-canvas'
 import { generateWeightTicketPdf as generateWeightTicketPdfReactPdf } from '@/lib/server/pdf/weight-ticket-pdf'
 
 type NotifyOptions = {
@@ -37,7 +32,14 @@ type NotifyOptions = {
 
 type NotificationLogStatus = 'failed' | 'sent'
 
-const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7
+type UploadedOutboundArtifact = {
+  bucket: string
+  kind: 'album' | 'pdf'
+  publicUrl: string
+  storageKey: string
+}
+
+type NotificationArtifactStorageKey = Pick<UploadedOutboundArtifact, 'bucket' | 'kind' | 'storageKey'>
 
 async function resolveNotificationConfigs() {
   const dbSettings = await prisma.system_settings.findMany({
@@ -194,8 +196,11 @@ function formatTime(date: Date): string {
 async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketName: string) {
   if (process.env.NODE_ENV === 'test' && process.env.MOCK_PDF_UPLOAD === 'true') {
     return {
+      bucket: bucketName,
+      kind: 'pdf' as const,
       pdfUrl: `https://test.invalid/storage/${bucketName}/dummy-test-ticket.pdf`,
       pdfDownloadUrl: `https://test.invalid/storage/${bucketName}/dummy-test-ticket.pdf?download=1`,
+      publicUrl: `https://test.invalid/storage/${bucketName}/dummy-test-ticket.pdf`,
       storageKey: 'dummy-test-ticket.pdf'
     }
   }
@@ -215,15 +220,23 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
   }
   const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
   return {
+    bucket: bucketName,
+    kind: 'pdf' as const,
     pdfDownloadUrl: `${data.publicUrl}?download=${encodeURIComponent(`${safeStorageSegment(ticket.documentNo)}.pdf`)}`,
     pdfUrl: data.publicUrl,
+    publicUrl: data.publicUrl,
     storageKey,
   }
 }
 
 async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, pageIdx: number, bucketName: string) {
   if (process.env.NODE_ENV === 'test' && process.env.MOCK_PDF_UPLOAD === 'true') {
-    return `https://test.invalid/storage/${bucketName}/dummy-album-${pageIdx + 1}.jpg`
+    return {
+      bucket: bucketName,
+      kind: 'album' as const,
+      publicUrl: `https://test.invalid/storage/${bucketName}/dummy-album-${pageIdx + 1}.jpg`,
+      storageKey: `dummy-album-${pageIdx + 1}.jpg`,
+    }
   }
   const supabase = getSupabaseAdminClient()
   if (!supabase) {
@@ -240,31 +253,57 @@ async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, page
     throw new Error(`อัปโหลดรูปภาพอัลบั้มไป Supabase Storage ไม่สำเร็จ: ${error.message}`)
   }
   const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
-  return data.publicUrl
+  return {
+    bucket: bucketName,
+    kind: 'album' as const,
+    publicUrl: data.publicUrl,
+    storageKey,
+  }
+}
+
+function toNotificationArtifactStorageKeys(artifacts: UploadedOutboundArtifact[]): NotificationArtifactStorageKey[] {
+  return artifacts.map(({ bucket, kind, storageKey }) => ({ bucket, kind, storageKey }))
+}
+
+/**
+ * Remove only outbound artifacts created by this notification request.
+ * Private WTI/WTO source evidence is never passed to this function.
+ */
+export async function cleanupWeightTicketLineArtifacts(
+  artifacts: ReadonlyArray<Pick<UploadedOutboundArtifact, 'bucket' | 'storageKey'>>,
+): Promise<{ cleaned: boolean; error?: string }> {
+  const keysByBucket = new Map<string, Set<string>>()
+  for (const artifact of artifacts) {
+    if (!artifact.bucket || !artifact.storageKey) continue
+    const keys = keysByBucket.get(artifact.bucket) ?? new Set<string>()
+    keys.add(artifact.storageKey)
+    keysByBucket.set(artifact.bucket, keys)
+  }
+  if (keysByBucket.size === 0) return { cleaned: true }
+
+  const supabase = getSupabaseAdminClient()
+  if (!supabase) {
+    return { cleaned: false, error: 'ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY สำหรับลบไฟล์ artifact ของ LINE' }
+  }
+
+  try {
+    for (const [bucket, keys] of keysByBucket) {
+      const { error } = await supabase.storage.from(bucket).remove([...keys])
+      if (error) {
+        return { cleaned: false, error: `ลบไฟล์ artifact ของ LINE ไม่สำเร็จ: ${error.message}` }
+      }
+    }
+  } catch (error) {
+    return {
+      cleaned: false,
+      error: `ลบไฟล์ artifact ของ LINE ไม่สำเร็จ: ${sanitizeNotificationError(error)}`,
+    }
+  }
+  return { cleaned: true }
 }
 
 function buildDetailUrl(origin: string, documentNo: string, type: 'WTI' | 'WTO') {
   return new URL(`/daily/weight-ticket-list?detail=${encodeURIComponent(documentNo)}&type=${encodeURIComponent(type)}`, origin).toString()
-}
-
-function withResolvedImageUrls(ticket: WeightTicketRecord, imageUrls: string[]): WeightTicketRecord {
-  const references = getWeightTicketAttachmentReferences(ticket)
-  const urlsByIdentity = new Map(
-    references.map((rawValue, index) => [getWeightTicketAttachmentIdentity(rawValue), imageUrls[index]]),
-  )
-  const resolve = (rawValue: string) => {
-    const asset = decodeStoredImageAsset(rawValue)
-    const url = urlsByIdentity.get(getWeightTicketAttachmentIdentity(rawValue))
-    return asset.bucket && asset.storageKey && url
-      ? encodeStoredImageReference(asset.fileName, url, asset.storageKey, asset.bucket)
-      : rawValue
-  }
-
-  return {
-    ...ticket,
-    imageNames: ticket.imageNames.map(resolve),
-    vehicleImageNames: ticket.vehicleImageNames.map(resolve),
-  }
 }
 
 function buildProductDetailRows(ticket: WeightTicketRecord) {
@@ -381,7 +420,12 @@ export function buildWeightTicketPdfActions(pdfUrl: string, pdfDownloadUrl: stri
   ]
 }
 
-function buildFlexMessage(
+/**
+ * LINE outbound album/Flex pages intentionally use eight images. This is a
+ * separate artifact contract from the six-image A4 browser/React-PDF page;
+ * both the renderer and this payload builder use the same constant.
+ */
+export function buildFlexMessage(
   ticket: WeightTicketRecord,
   pdfUrl: string,
   pdfDownloadUrl: string,
@@ -646,44 +690,26 @@ function buildFlexMessage(
   const decodedImages = attachmentImages.filter((asset) => asset.url)
 
   if (decodedImages.length > 0) {
-    const chunkSize = 8
+    const chunkSize = WEIGHT_TICKET_LINE_ALBUM_IMAGES_PER_PAGE
     const totalPages = Math.ceil(decodedImages.length / chunkSize)
 
     for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
       const chunk = decodedImages.slice(pageIdx * chunkSize, (pageIdx + 1) * chunkSize)
-      const gridRows: any[] = []
-      const rowCount = Math.ceil(chunk.length / 2)
-      const albumUrl = albumImageUrls[pageIdx] || pdfUrl || detailUrl
-
-      for (let r = 0; r < rowCount; r++) {
-        const img1 = chunk[r * 2]
-        const img2 = chunk[r * 2 + 1]
-        const rowContents: any[] = []
-
-        // Column 1
-        const idx1 = pageIdx * chunkSize + r * 2 + 1
-        rowContents.push(buildPhotoTile(img1, idx1, ticket.createdAt, albumUrl))
-
-        // Column 2
-        if (img2) {
-          const idx2 = pageIdx * chunkSize + r * 2 + 2
-          rowContents.push(buildPhotoTile(img2, idx2, ticket.createdAt, albumUrl))
-        } else {
-          rowContents.push({
-            type: 'box' as const,
-            layout: 'vertical' as const,
-            flex: 1,
-            contents: []
-          })
-        }
-
-        gridRows.push({
-          type: 'box' as const,
-          layout: 'horizontal' as const,
-          spacing: 'md' as const,
-          contents: rowContents
-        })
+      const albumImageUrl = albumImageUrls[pageIdx]
+      if (!albumImageUrl) {
+        throw new Error(`ไม่พบรูปอัลบั้มสำหรับหน้า ${pageIdx + 1} ของ ${ticket.documentNo}`)
       }
+      // LINE messages outlive the short-lived private print signed URLs. Use
+      // one uploaded outbound album artifact as the durable image for this
+      // page. The private print URLs are used only while generating the album.
+      const albumUrl = albumImageUrl
+      const photoLabels = chunk.map((asset, imageIdx) => ({
+        type: 'text' as const,
+        text: `#${pageIdx * chunkSize + imageIdx + 1} · ${getPhotoTimestamp(asset.fileName, ticket.createdAt)} · ${asset.fileName}`,
+        color: '#64748b',
+        size: 'xxs' as const,
+        wrap: true,
+      }))
 
       const photoBubble = {
         type: 'bubble' as const,
@@ -741,7 +767,26 @@ function buildFlexMessage(
           layout: 'vertical' as const,
           paddingAll: '12px',
           spacing: 'md' as const,
-          contents: gridRows
+          contents: [
+            {
+              type: 'image' as const,
+              url: albumUrl,
+              aspectMode: 'fit' as const,
+              aspectRatio: '4:3' as const,
+              size: 'full' as const,
+              action: {
+                type: 'uri' as const,
+                label: 'ดูรูปทั้งหมด',
+                uri: albumUrl,
+              },
+            },
+            {
+              type: 'box' as const,
+              layout: 'vertical' as const,
+              spacing: 'xs' as const,
+              contents: photoLabels,
+            },
+          ],
         },
         footer: {
           type: 'box' as const,
@@ -811,62 +856,6 @@ function buildFlexMessage(
       type: 'carousel' as const,
       contents: bubbles
     }
-  }
-}
-
-function buildPhotoTile(
-  asset: { fileName: string; url: string },
-  index: number,
-  ticketCreatedAt: string,
-  albumUrl: string
-) {
-  const photoTime = getPhotoTimestamp(asset.fileName, ticketCreatedAt)
-
-  return {
-    type: 'box' as const,
-    layout: 'vertical' as const,
-    flex: 1,
-    contents: [
-      {
-        type: 'box' as const,
-        layout: 'vertical' as const,
-        cornerRadius: 'md' as const,
-        contents: [
-          {
-            type: 'image' as const,
-            url: asset.url || '',
-            aspectMode: 'cover' as const,
-            aspectRatio: '4:3' as const,
-            size: 'full' as const,
-            action: {
-              type: 'uri' as const,
-              label: `ดูรูป`,
-              uri: albumUrl
-            }
-          },
-        ]
-      },
-      {
-        type: 'box' as const,
-        layout: 'horizontal' as const,
-        margin: 'xs' as const,
-        contents: [
-          {
-            type: 'text' as const,
-            text: `🕒 ${photoTime}`,
-            color: '#64748b',
-            size: 'xxs' as const
-          },
-          {
-            type: 'text' as const,
-            text: `#${index}`,
-            color: '#64748b',
-            size: 'xxs' as const,
-            align: 'end' as const
-          }
-        ]
-      }
-    ]
   }
 }
 
@@ -1019,7 +1008,21 @@ export async function sendLinePush(targetId: string, messages: any[], token: str
   }
 }
 
+export function getWeightTicketNotificationLogStatus(isRetryConflict: boolean): {
+  errorMessage?: string
+  status: NotificationLogStatus
+} {
+  if (isRetryConflict) {
+    return {
+      errorMessage: 'LINE retry key conflict: original request was already accepted; this attempt did not send a new artifact',
+      status: 'failed',
+    }
+  }
+  return { status: 'sent' }
+}
+
 async function recordNotificationLog(values: {
+  artifactStorageKeys?: NotificationArtifactStorageKey[]
   customMessage?: string
   errorMessage?: string
   lineRequestId?: string | null
@@ -1040,6 +1043,7 @@ async function recordNotificationLog(values: {
         status,
         pdf_storage_bucket,
         pdf_storage_key,
+        artifact_storage_keys,
         pdf_url,
         line_request_id,
         custom_message,
@@ -1053,6 +1057,7 @@ async function recordNotificationLog(values: {
         ${values.status},
         ${values.pdfStorageBucket},
         ${values.pdfStorageKey ?? null},
+        ${JSON.stringify(values.artifactStorageKeys ?? [])}::jsonb,
         ${values.pdfUrl ?? null},
         ${values.lineRequestId ?? null},
         ${values.customMessage ?? null},
@@ -1061,34 +1066,15 @@ async function recordNotificationLog(values: {
         ${values.status === 'sent' ? new Date() : null}
       )
     `
-  } catch {
-    // Notification logging should not hide the send result from the operator.
+  } catch (caught) {
+    const warning = sanitizeNotificationError(caught)
+    console.error('[line-notification] notification audit log write failed', {
+      artifactStorageKeys: values.artifactStorageKeys ?? [],
+      error: warning,
+      status: values.status,
+      ticketId: String(values.ticketId),
+    })
   }
-}
-
-async function resolveImagePublicUrls(ticket: WeightTicketRecord, bucketName: string): Promise<string[]> {
-  const images = getWeightTicketAttachmentReferences(ticket)
-  const supabase = getSupabaseAdminClient()
-  if (!supabase) throw new Error('ยังไม่ได้ตั้งค่า Storage สำหรับสร้างลิงก์รูปหลักฐาน')
-  const publicUrls: string[] = []
-
-  for (const img of images) {
-    const asset = decodeStoredImageAsset(img)
-    if (!asset.bucket || !asset.storageKey) {
-      throw new Error(`พบรูปหลักฐาน ${asset.fileName} ที่ยังไม่ถูกย้ายเข้า private image bucket กรุณารัน migration/backfill ก่อนส่ง LINE`)
-    }
-    if (asset.bucket !== bucketName) {
-      throw new Error(`รูปหลักฐาน ${asset.fileName} อ้างอิง bucket ไม่ตรงกับ private image bucket`)
-    }
-    const storageKey = assertWeightTicketImageStorageKey(asset.storageKey)
-    const { data, error } = await supabase.storage.from(bucketName).createSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS)
-    if (error || !data?.signedUrl) {
-      throw new Error(`สร้าง signed URL รูปหลักฐาน ${asset.fileName} ไม่สำเร็จ: ${error?.message ?? 'ไม่พบ signed URL'}`)
-    }
-    publicUrls.push(data.signedUrl)
-  }
-
-  return publicUrls
 }
 
 export async function notifyWeightTicketLine(documentNo: string, options: NotifyOptions) {
@@ -1136,22 +1122,25 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     }
   }
 
+  let pdfUrl = ''
+  let pdfDownloadUrl = ''
+  const pdfStorageBucket = configs.pdfBucket
+  let pdfStorageKey: string | undefined
+  let albumImageUrls: string[] = []
+  let outboundArtifacts: UploadedOutboundArtifact[] = []
+
   try {
     const profile = await loadCompanyPrintProfile(loaded.record.branchId)
     const detailUrl = buildDetailUrl(options.origin || configs.appUrl, loaded.record.documentNo, loaded.record.type)
 
-    const imagePublicUrls = await resolveImagePublicUrls(loaded.record, configs.imageBucket)
-    const pdfRecord = withResolvedImageUrls(loaded.record, imagePublicUrls)
+    // PDF, outbound album artifacts, and Flex evidence use the private,
+    // purpose-specific print derivative. The original evidence key is never
+    // signed for this flow.
+    const pdfRecord = await attachWeightTicketImagePrintUrls(loaded.record, configs.imageBucket)
 
     // PDF, public album artifacts, and private source-image resolution are one
     // evidence boundary. If any part fails, do not send a misleading message
     // that omits the document evidence.
-    let pdfUrl = ''
-    let albumImageUrls: string[] = []
-    let pdfStorageBucket = configs.pdfBucket
-    let pdfStorageKey: string | undefined
-    let pdfDownloadUrl = ''
-
     try {
       // ใช้ module ใหม่ react-pdf + @napi-rs/canvas (แทน Playwright)
       // กำจัด dependency Chromium binary ออกจาก Docker image ทั้งหมด
@@ -1165,18 +1154,30 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       pdfUrl = uploaded.pdfUrl
       pdfDownloadUrl = uploaded.pdfDownloadUrl
       pdfStorageKey = uploaded.storageKey
+      outboundArtifacts.push(uploaded)
 
       // Upload album images
       for (const albumImg of albumImages) {
-        const url = await uploadAlbumImage(loaded.record, albumImg.buffer, albumImg.pageIdx, configs.pdfBucket)
-        albumImageUrls.push(url)
+        const uploadedAlbum = await uploadAlbumImage(loaded.record, albumImg.buffer, albumImg.pageIdx, configs.pdfBucket)
+        outboundArtifacts.push(uploadedAlbum)
+        albumImageUrls.push(uploadedAlbum.publicUrl)
       }
     } catch (pdfErr) {
       const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr)
-      throw new Error(`เตรียม PDF/รูปหลักฐานสำหรับส่ง LINE ไม่สำเร็จ: ${errMsg}`)
+      const cleanup = await cleanupWeightTicketLineArtifacts(outboundArtifacts)
+      if (cleanup.cleaned) {
+        outboundArtifacts = []
+        pdfUrl = ''
+        pdfDownloadUrl = ''
+        pdfStorageKey = undefined
+      } else {
+        console.error('[line-notification] failed to clean partial outbound artifacts', cleanup.error)
+      }
+      const cleanupSuffix = cleanup.cleaned ? '' : `; ${cleanup.error}`
+      throw new Error(`เตรียม PDF/รูปหลักฐานสำหรับส่ง LINE ไม่สำเร็จ: ${errMsg}${cleanupSuffix}`)
     }
 
-    const attachmentImages = buildWeightTicketAttachmentImages(pdfRecord)
+    const attachmentImages = buildResolvedWeightTicketAttachmentImages(pdfRecord)
     const flexMessage = buildFlexMessage(pdfRecord, pdfUrl, pdfDownloadUrl, detailUrl, attachmentImages, albumImageUrls, options.customMessage)
     const customTemplate = pdfRecord.type === 'WTI' ? configs.wtiTemplate : configs.wtoTemplate
     const textMessage = {
@@ -1209,14 +1210,17 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
         const pushResult = await sendLinePush(target, [textMessage, flexMessage], configs.lineChannelAccessToken, options.retryKey)
         const lineRequestId = pushResult.lineRequestId
         lastSentRequestId = lineRequestId || null
+        const logStatus = getWeightTicketNotificationLogStatus(pushResult.isConflict)
         await recordNotificationLog({
+          artifactStorageKeys: pushResult.isConflict ? undefined : toNotificationArtifactStorageKeys(outboundArtifacts),
           customMessage: options.customMessage,
+          errorMessage: logStatus.errorMessage,
           lineRequestId,
           pdfStorageBucket,
-          pdfStorageKey,
-          pdfUrl,
+          pdfStorageKey: pushResult.isConflict ? undefined : pdfStorageKey,
+          pdfUrl: pushResult.isConflict ? undefined : pdfUrl,
           requestedBy: options.requestedBy,
-          status: 'sent',
+          status: logStatus.status,
           targetId: target,
           ticketId: loaded.id,
         })
@@ -1244,6 +1248,44 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     const skippedCount = sentResults.filter((r) => r.status === 'skipped').length
     const failedResults = sentResults.filter((r) => r.status === 'failed')
 
+    let artifactCleanupError: string | null = null
+    if (sentCount === 0 && outboundArtifacts.length > 0) {
+      const cleanup = await cleanupWeightTicketLineArtifacts(outboundArtifacts)
+      if (cleanup.cleaned) {
+        outboundArtifacts = []
+        pdfUrl = ''
+        pdfDownloadUrl = ''
+        pdfStorageKey = undefined
+      } else {
+        artifactCleanupError = cleanup.error ?? 'ลบไฟล์ artifact ของ LINE ไม่สำเร็จ'
+        console.error('[line-notification] failed to clean unsent outbound artifacts', artifactCleanupError)
+      }
+    }
+
+    if (artifactCleanupError) {
+      await recordNotificationLog({
+        artifactStorageKeys: toNotificationArtifactStorageKeys(outboundArtifacts),
+        customMessage: options.customMessage,
+        errorMessage: artifactCleanupError,
+        pdfStorageBucket,
+        pdfStorageKey,
+        pdfUrl,
+        requestedBy: options.requestedBy,
+        status: 'failed',
+        targetId: options.targetId && options.targetId !== 'routing' ? options.targetId : undefined,
+        ticketId: loaded.id,
+      })
+      return {
+        code: 'LINE_ARTIFACT_CLEANUP_FAILED' as const,
+        detailUrl,
+        error: artifactCleanupError,
+        lineRequestId: null,
+        pdfUrl,
+        sentResults,
+        status: 500,
+      }
+    }
+
     if (sentCount > 0) {
       await syncWeightTicketToGoogleSheets('update', {
         ...loaded.record,
@@ -1257,7 +1299,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       return {
         code: 'ALREADY_SENT' as const,
         detailUrl,
-        error: 'เอกสารนี้เคยส่งเข้า LINE แล้ว จึงไม่ได้ส่งซ้ำอัตโนมัติ',
+      error: 'เอกสารนี้เคยส่งเข้า LINE แล้ว จึงไม่ได้ส่งซ้ำอัตโนมัติ',
         lineRequestId: null,
         pdfUrl,
         sentResults,
@@ -1286,15 +1328,33 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       sentResults
     }
   } catch (caught) {
-    const errorMessage = caught instanceof Error ? caught.message : 'สร้างเอกสารหรืออัปโหลด PDF ไม่สำเร็จ'
+    let errorMessage = caught instanceof Error ? caught.message : 'สร้างเอกสารหรืออัปโหลด PDF ไม่สำเร็จ'
+    if (outboundArtifacts.length > 0) {
+      const cleanup = await cleanupWeightTicketLineArtifacts(outboundArtifacts)
+      if (cleanup.cleaned) {
+        outboundArtifacts = []
+        pdfUrl = ''
+        pdfDownloadUrl = ''
+        pdfStorageKey = undefined
+      } else {
+        console.error('[line-notification] failed to clean outbound artifacts after unexpected failure', cleanup.error)
+        errorMessage = `${errorMessage}; ${cleanup.error}`
+      }
+    }
     await recordNotificationLog({
-      errorMessage: sanitizeNotificationError(caught),
-      pdfStorageBucket: configs.pdfBucket,
+      artifactStorageKeys: toNotificationArtifactStorageKeys(outboundArtifacts),
+      errorMessage: sanitizeNotificationError(errorMessage),
+      pdfStorageBucket,
+      pdfStorageKey,
+      pdfUrl: pdfUrl || undefined,
       requestedBy: options.requestedBy,
       status: 'failed',
       targetId: options.targetId && options.targetId !== 'routing' ? options.targetId : undefined,
       ticketId: loaded.id,
     })
+    if (caught instanceof WeightTicketPrintReadinessError) {
+      return { code: caught.code, status: caught.status, error: errorMessage }
+    }
     return { code: 'SEND_FAILED' as const, status: 500, error: errorMessage }
   }
 }

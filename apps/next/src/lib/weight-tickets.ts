@@ -208,6 +208,9 @@ export type StoredImageAsset = {
   bucket?: string | null
   byteSize?: number | null
   fileName: string
+  printStorageKey?: string | null
+  printStatus?: 'failed' | 'processing' | 'queued' | 'ready' | null
+  printUrl?: string | null
   rawValue: string
   storageKey?: string | null
   thumbnailStorageKey?: string | null
@@ -1026,11 +1029,17 @@ export function encodeStoredImageReference(
   thumbnailUrl?: string,
   thumbnailStatus?: 'failed' | 'processing' | 'queued' | 'ready',
   byteSize?: number,
+  printStorageKey?: string,
+  printStatus?: 'failed' | 'processing' | 'queued' | 'ready',
+  printUrl?: string,
 ) {
   const reference: {
     bucket?: string
     byteSize?: number
     fileName: string
+    printStorageKey?: string
+    printStatus?: 'failed' | 'processing' | 'queued' | 'ready'
+    printUrl?: string
     storageKey: string
     thumbnailStorageKey?: string
     thumbnailUrl?: string
@@ -1046,6 +1055,9 @@ export function encodeStoredImageReference(
   if (thumbnailUrl?.trim()) reference.thumbnailUrl = thumbnailUrl
   if (thumbnailStatus) reference.thumbnailStatus = thumbnailStatus
   if (byteSize != null) reference.byteSize = byteSize
+  if (printStorageKey?.trim()) reference.printStorageKey = printStorageKey
+  if (printStatus) reference.printStatus = printStatus
+  if (printUrl?.trim()) reference.printUrl = printUrl
   return JSON.stringify(reference)
 }
 
@@ -1083,6 +1095,9 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
       byteSize?: unknown
       dataUrl?: unknown
       fileName?: unknown
+      printStorageKey?: unknown
+      printStatus?: unknown
+      printUrl?: unknown
       storageKey?: unknown
       thumbnailStorageKey?: unknown
       thumbnailUrl?: unknown
@@ -1113,6 +1128,14 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
         bucket: parsed.bucket.trim(),
         byteSize: typeof parsed.byteSize === 'number' && Number.isSafeInteger(parsed.byteSize) && parsed.byteSize >= 0 ? parsed.byteSize : null,
         storageKey: parsed.storageKey.trim(),
+        printStorageKey: typeof parsed.printStorageKey === 'string' && parsed.printStorageKey.trim() ? parsed.printStorageKey.trim() : null,
+        printStatus: parsed.printStatus === 'queued'
+          || parsed.printStatus === 'processing'
+          || parsed.printStatus === 'ready'
+          || parsed.printStatus === 'failed'
+          ? parsed.printStatus
+          : null,
+        printUrl: typeof parsed.printUrl === 'string' ? parsed.printUrl : null,
         thumbnailStorageKey: typeof parsed.thumbnailStorageKey === 'string' && parsed.thumbnailStorageKey.trim() ? parsed.thumbnailStorageKey.trim() : null,
         thumbnailStatus: parsed.thumbnailStatus === 'queued'
           || parsed.thumbnailStatus === 'processing'
@@ -1478,9 +1501,10 @@ export async function listWeightTickets(params: {
   return readJsonResponse(response, weightTicketListResultSchema, 'โหลดรายการใบรับ-ส่งของไม่ได้')
 }
 
-export async function getWeightTicket(id: string, options: { includeHistory?: boolean; includeImagePreviews?: boolean; signal?: AbortSignal } = {}) {
+export async function getWeightTicket(id: string, options: { includeHistory?: boolean; includeImagePreviews?: boolean; includePrintImages?: boolean; signal?: AbortSignal } = {}) {
   const queryParams = new URLSearchParams()
   if (options.includeImagePreviews === false) queryParams.set('includeImagePreviews', 'false')
+  if (options.includePrintImages === true) queryParams.set('includePrintImages', 'true')
   if (options.includeHistory === false) queryParams.set('includeHistory', 'false')
   const query = queryParams.toString() ? `?${queryParams.toString()}` : ''
   const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(id)}${query}`, { cache: 'no-store', signal: options.signal })

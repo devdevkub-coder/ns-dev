@@ -22,9 +22,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import {
+  getWeightTicketForPrint,
   invalidateWeightTicketForPrintCache,
   prefetchPrintAssets,
   prefetchPrintFonts,
+  prefetchWeightTicketForPrint,
 } from '@/lib/print-asset-prefetch'
 import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
@@ -63,6 +65,11 @@ type TypeFilter = WeightTicketType
 type StatusFilter = WeightTicketStatus
 
 const pageSizeOptions = [10, 25, 50, 100] as const
+
+function prefetchWeightTicketPrintAssets(ticket: Pick<WeightTicketRecord, 'branchId' | 'id'>): void {
+  void prefetchPrintAssets(ticket.branchId)
+  void prefetchWeightTicketForPrint(ticket.id)
+}
 
 const statusOptionsByType: Record<WeightTicketType, Array<{ label: string; values: StatusFilter[] }>> = {
   WTI: [
@@ -349,6 +356,7 @@ export function WeightTicketListPageClient() {
     const eventKey = `${event.documentNo}:${event.updatedAt ?? ''}:${event.changeType}`
     if (realtimeRefreshEventRef.current === eventKey) return
     realtimeRefreshEventRef.current = eventKey
+    invalidateWeightTicketForPrintCache()
     if (realtimeRefreshTimeoutRef.current !== null) return
     realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
       realtimeRefreshTimeoutRef.current = null
@@ -480,16 +488,12 @@ export function WeightTicketListPageClient() {
     let printWindow: Window | null = null
     try {
       printWindow = openWeightTicketPrintWindow(ticket)
-      // Open the popup, fetch the ticket detail, and warm the company profile
-      // cache in parallel so the print builder can skip its own profile fetch.
-      // The prefetch is best-effort: a failure here only means the builder
-      // refetches (it always fetches when the cache is empty).
+      // Open the popup and warm the company profile cache while the click-time
+      // fetch reads the latest print-ready ticket. That fetch reuses a hover
+      // request when one is already in flight, but never performs a serial
+      // best-effort fetch immediately before the real fetch.
       void prefetchPrintAssets(ticket.branchId)
-      // The list/prefetch cache can contain an older line snapshot after an
-      // edit. Printing is a document fact, so always re-read the ticket at the
-      // moment the user clicks Print; the prefetch above only warms assets.
-      invalidateWeightTicketForPrintCache(ticket.id)
-      const detailTicket: WeightTicketRecord = await getWeightTicket(ticket.id)
+      const detailTicket: WeightTicketRecord = await getWeightTicketForPrint(ticket.id)
       await openWeightTicketReceiptPrint(detailTicket, printWindow)
     } catch (caught) {
       printWindow?.close()
@@ -826,7 +830,7 @@ export function WeightTicketListPageClient() {
                       {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
                       {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                       {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
-                      {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => { void prefetchPrintAssets(ticket.branchId) }} onFocus={() => { void prefetchPrintAssets(ticket.branchId) }}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                      {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => prefetchWeightTicketPrintAssets(ticket)} onFocus={() => prefetchWeightTicketPrintAssets(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
                       {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                       {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                       {ticket.canCancel ? (
@@ -939,7 +943,7 @@ export function WeightTicketListPageClient() {
                             {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
                             {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
                             {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
-                            {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => { void prefetchPrintAssets(ticket.branchId) }} onFocus={() => { void prefetchPrintAssets(ticket.branchId) }}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
+                            {canPrintWeightTicket(ticket.status) ? <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)} onMouseEnter={() => prefetchWeightTicketPrintAssets(ticket)} onFocus={() => prefetchWeightTicketPrintAssets(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem> : null}
                             {canShareWeightTicket(ticket.status) ? <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem> : null}
                             {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
                             {ticket.canCancel ? (

@@ -18,6 +18,7 @@ export async function GET(request: Request) {
         l.target_id,
         l.status,
         l.error_message,
+        l.artifact_storage_keys,
         l.sent_at,
         l.requested_by,
         l.pdf_url,

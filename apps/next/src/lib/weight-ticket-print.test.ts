@@ -15,6 +15,7 @@ import { prepareCorporatePrintLayout } from './corporate-print-layout'
 import {
   buildPrintWeightRows,
   buildReceiptPrintHtml,
+  buildResolvedWeightTicketAttachmentImages,
   buildWeightTicketAttachmentImages,
   estimatePrintWeightRowHeight,
   NO_IMPURITY_SUMMARY_DETAIL,
@@ -237,8 +238,12 @@ function countPdfPages(buffer: Buffer) {
   return buffer.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length ?? 0
 }
 
-const TEST_PNG_BYTES = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+function countPdfImages(buffer: Buffer) {
+  return buffer.toString('latin1').match(/\/Subtype\s*\/Image\b/g)?.length ?? 0
+}
+
+const TEST_JPEG_BYTES = Buffer.from(
+  '/9j/2wBDAAMDAwMDAwQEBAQFBQUFBQcHBgYHBwsICQgJCAsRCwwLCwwLEQ8SDw4PEg8bFRMTFRsfGhkaHyYiIiYwLTA+PlT/2wBDAQMDAwMDAwQEBAQFBQUFBQcHBgYHBwsICQgJCAsRCwwLCwwLEQ8SDw4PEg8bFRMTFRsfGhkaHyYiIiYwLTA+PlT/wgARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUAQEAAAAAAAAAAAAAAAAAAAAH/9oADAMBAAIQAxAAAACfA8Cn/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPwB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwB//9k=',
   'base64',
 )
 
@@ -265,12 +270,35 @@ function ticketWithAttachmentCount(count: number): WeightTicketRecord {
     imageNames: Array.from({ length: count }, (_, index) => (
       encodeStoredImageReference(
         `attachment-${index + 1}.jpg`,
-        `https://storage.example/attachment-${index + 1}.jpg?token=short`,
+        undefined,
         `tickets/attachment-${index + 1}.jpg`,
         'weight-ticket-images',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        `tickets/attachment-${index + 1}.print.jpg`,
+        'ready',
+        `https://storage.example/attachment-${index + 1}.print.jpg?token=short`,
       )
     )),
   }
+}
+
+function printReference(fileName: string, url: string, storageKey: string) {
+  return encodeStoredImageReference(
+    fileName,
+    undefined,
+    storageKey,
+    'weight-ticket-images',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    storageKey.replace(/\.[^./]+$/, '.print.jpg'),
+    'ready',
+    url,
+  )
 }
 
 function ticketWithPrintRowCount(count: number, type: 'WTI' | 'WTO' = 'WTI'): WeightTicketRecord {
@@ -904,19 +932,24 @@ describe('weight ticket print HTML', () => {
     const html = buildReceiptPrintHtml({
       ...ticket,
       vehicleImageNames: [
-        encodeStoredImageReference('vehicle.jpg', signedUrl, 'tickets/vehicle.jpg', 'weight-ticket-images'),
-        'legacy.jpg|data:image/jpeg;base64,AAAA',
+        printReference('vehicle.jpg', signedUrl, 'tickets/vehicle.jpg'),
       ],
     }, profile)
 
     expect(html).toContain(signedUrl)
-    expect(html).not.toContain('data:image/jpeg;base64,AAAA')
   })
 
-  it('resolves thumbnail-only references (production shape) for print, PDF and LINE', () => {
-    // Production previews only ever carry a thumbnail signed URL on
-    // thumbnailUrl — the full-size url is null. Print/PDF/LINE must still
-    // render the attachment images.
+  it('rejects legacy/base64 references in formal output', () => {
+    expect(() => buildReceiptPrintHtml({
+      ...ticket,
+      imageNames: ['legacy.jpg|data:image/jpeg;base64,AAAA'],
+    }, profile)).toThrow(/print derivative/)
+  })
+
+  it('fails closed when a formal print reference has only a thumbnail URL', () => {
+    // Production previews can carry only a thumbnail signed URL. Formal
+    // print/PDF/LINE output must wait for the strict print derivative instead
+    // of silently rendering a lower-resolution preview.
     const thumbnailUrl = 'https://storage.example/thumb-product.jpg?token=short'
     const thumbnailOnly = encodeStoredImageReference(
       'product-photo.jpg',
@@ -930,15 +963,13 @@ describe('weight ticket print HTML', () => {
     const ticketWithThumbnails = { ...ticket, imageNames: [thumbnailOnly] }
 
     const images = buildWeightTicketAttachmentImages(ticketWithThumbnails)
-    expect(images.map((image) => image.fileName)).toEqual(['product-photo.jpg'])
-    expect(images[0].url).toBe(thumbnailUrl)
+    expect(images).toEqual([])
 
-    const html = buildReceiptPrintHtml(ticketWithThumbnails, profile)
-    expect(html).toContain(thumbnailUrl)
-    expect(html).toContain('ใบรับสินค้า (รูปถ่ายแนบ)')
+    expect(() => buildReceiptPrintHtml(ticketWithThumbnails, profile)).toThrow(/print derivative/)
 
-    // Legacy/dev records carrying a real url keep taking precedence.
-    const withRealUrl = encodeStoredImageReference(
+    // A print derivative wins over both the preview thumbnail and any legacy
+    // URL that may still be present in a development fixture.
+    const withPrintUrl = encodeStoredImageReference(
       'product-photo.jpg',
       'https://storage.example/full-product.jpg?token=full',
       'tickets/product-photo.jpg',
@@ -946,15 +977,35 @@ describe('weight ticket print HTML', () => {
       'thumbs/product-photo.jpg',
       thumbnailUrl,
       'ready',
+      undefined,
+      'tickets/product-photo.print.jpg',
+      'ready',
+      'https://storage.example/print-product.jpg?token=print',
     )
-    expect(buildWeightTicketAttachmentImages({ ...ticket, imageNames: [withRealUrl] })[0].url).toBe(
-      'https://storage.example/full-product.jpg?token=full',
-    )
+   expect(buildWeightTicketAttachmentImages({ ...ticket, imageNames: [withPrintUrl] })[0].url).toBe(
+     'https://storage.example/print-product.jpg?token=print',
+   )
+   expect(buildResolvedWeightTicketAttachmentImages({ ...ticket, imageNames: [withPrintUrl] })[0].url).toBe(
+     'https://storage.example/print-product.jpg?token=print',
+   )
+ })
+
+  it('uses the bounded print URL for both WTI and WTO formal attachment albums', () => {
+    for (const type of ['WTI', 'WTO'] as const) {
+      const printUrl = `https://storage.example/${type.toLowerCase()}.print.jpg?token=short`
+      const printable = {
+        ...emptyDraftTicket(type),
+        imageNames: [printReference(`${type.toLowerCase()}.jpg`, printUrl, `tickets/${type.toLowerCase()}.jpg`)],
+      }
+
+      expect(buildWeightTicketAttachmentImages(printable)[0]?.url).toBe(printUrl)
+      expect(buildReceiptPrintHtml(printable, profile)).toContain(printUrl)
+    }
   })
 
   it('puts vehicle images before product evidence in the shared print/PDF attachment album', () => {
-    const vehicle = encodeStoredImageReference('vehicle-first.jpg', 'https://storage.example/vehicle-first.jpg?token=short', 'tickets/vehicle-first.jpg', 'weight-ticket-images')
-    const product = encodeStoredImageReference('product-second.jpg', 'https://storage.example/product-second.jpg?token=short', 'tickets/product-second.jpg', 'weight-ticket-images')
+    const vehicle = printReference('vehicle-first.jpg', 'https://storage.example/vehicle-first.print.jpg?token=short', 'tickets/vehicle-first.jpg')
+    const product = printReference('product-second.jpg', 'https://storage.example/product-second.print.jpg?token=short', 'tickets/product-second.jpg')
     const ticketWithAttachments = { ...ticket, imageNames: [product], vehicleImageNames: [vehicle] }
 
     expect(buildWeightTicketAttachmentImages(ticketWithAttachments).map((image) => image.fileName)).toEqual([
@@ -970,8 +1021,8 @@ describe('weight ticket print HTML', () => {
       'product-second.jpg',
     ])
 
-    const refreshedVehicleReference = encodeStoredImageReference('vehicle-renamed.jpg', 'https://storage.example/refreshed-url.jpg?token=new', 'tickets/vehicle-first.jpg', 'weight-ticket-images')
-    const sameNameDifferentStorage = encodeStoredImageReference('vehicle-first.jpg', 'https://storage.example/other-vehicle.jpg?token=other', 'tickets/other-vehicle.jpg', 'weight-ticket-images')
+    const refreshedVehicleReference = printReference('vehicle-renamed.jpg', 'https://storage.example/refreshed-url.print.jpg?token=new', 'tickets/vehicle-first.jpg')
+    const sameNameDifferentStorage = printReference('vehicle-first.jpg', 'https://storage.example/other-vehicle.print.jpg?token=other', 'tickets/other-vehicle.jpg')
     expect(buildWeightTicketAttachmentImages({
       ...ticketWithAttachments,
       imageNames: [refreshedVehicleReference, sameNameDifferentStorage],
@@ -993,11 +1044,10 @@ describe('weight ticket print HTML', () => {
     const ticketWithAttachments = {
       ...ticket,
       imageNames: [
-        encodeStoredImageReference(
+        printReference(
           'product-photo.jpg',
           'https://storage.example/product-photo.jpg?token=short',
           'tickets/product-photo.jpg',
-          'weight-ticket-images',
         ),
       ],
     }
@@ -1042,7 +1092,7 @@ describe('weight ticket print HTML', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       if (url.includes('storage.example')) {
-        return new Response(TEST_PNG_BYTES, { headers: { 'content-type': 'image/png' } })
+        return new Response(TEST_JPEG_BYTES, { headers: { 'content-type': 'image/jpeg' } })
       }
       return originalFetch(input, init)
     }))
@@ -1052,9 +1102,11 @@ describe('weight ticket print HTML', () => {
 
       const sixImagePdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithAttachmentCount(6) }))
       expect(countPdfPages(Buffer.from(sixImagePdf))).toBe(2)
+      expect(countPdfImages(Buffer.from(sixImagePdf))).toBeGreaterThan(0)
 
       const sevenImagePdf = await renderToBuffer(WeightTicketDocument({ profile, ticket: ticketWithAttachmentCount(7) }))
       expect(countPdfPages(Buffer.from(sevenImagePdf))).toBe(3)
+      expect(countPdfImages(Buffer.from(sevenImagePdf))).toBeGreaterThan(0)
     } finally {
       vi.unstubAllGlobals()
     }

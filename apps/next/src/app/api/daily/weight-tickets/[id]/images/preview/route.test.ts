@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   requirePermission: vi.fn(),
   resolveWeightTicketImageBucket: vi.fn(),
   resolveWeightTicketImageProcessingConfig: vi.fn(),
-  drainWeightTicketThumbnailJobs: vi.fn(),
+  drainWeightTicketImageJobs: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
@@ -34,7 +34,7 @@ vi.mock('@/lib/server/weight-ticket-storage', () => ({
   resolveWeightTicketImageBucket: mocks.resolveWeightTicketImageBucket,
   resolveWeightTicketImageProcessingConfig: mocks.resolveWeightTicketImageProcessingConfig,
 }))
-vi.mock('@/lib/server/weight-ticket-thumbnail-jobs', () => ({ drainWeightTicketThumbnailJobs: mocks.drainWeightTicketThumbnailJobs }))
+vi.mock('@/lib/server/weight-ticket-thumbnail-jobs', () => ({ drainWeightTicketImageJobs: mocks.drainWeightTicketImageJobs }))
 vi.mock('@/lib/server/weight-tickets', () => ({ branchScopeIds: mocks.branchScopeIds }))
 
 import { GET } from './route'
@@ -95,7 +95,7 @@ describe('WTI/WTO image preview route boundary', () => {
       params: Promise.resolve({ id: 'WTO-1' }),
     })
 
-    expect(mocks.drainWeightTicketThumbnailJobs).toHaveBeenCalledWith({
+    expect(mocks.drainWeightTicketImageJobs).toHaveBeenCalledWith({
       attachedTicketId: 77n,
       bucket: 'weight-ticket-images',
     })

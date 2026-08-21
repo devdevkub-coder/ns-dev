@@ -6,7 +6,7 @@ import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import {
   buildPrintWeightRows,
   paginatePrintWeightRows,
-  buildWeightTicketAttachmentImages,
+  buildResolvedWeightTicketAttachmentImages,
   formatPrintableNumber,
   NO_IMPURITY_SUMMARY_DETAIL,
   WEIGHT_TICKET_A4_ATTACHMENT_IMAGES_PER_PAGE,
@@ -688,7 +688,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
   const lotLines = ticket.lines.filter(isLotLine)
   const lotCount = lotLines.length
 
-  const decodedImages = buildWeightTicketAttachmentImages(ticket)
+  const decodedImages = buildResolvedWeightTicketAttachmentImages(ticket)
 
   const albumChunks: Array<StoredImageAsset[]> = []
   // Six 4:3 cards fit on an A4 portrait page as a 2-column x 3-row grid
