@@ -8,9 +8,9 @@ Objective: แก้ไขปัญหา Login ช้า (500 Database Error) �
 
 ## Active WTI/WTO print derivative batch — 2026-08-20
 
-Follow-up on-demand PDF download (2026-08-21): เพิ่ม endpoint สร้าง PDF ล่าสุดเมื่อกดดาวน์โหลด และเพิ่มปุ่มที่ detail กับเมนู `...` ในตารางทั้ง WTI/WTO. Direct download ใช้ strict print derivative, private no-store และไม่สร้าง album artifact; browser print ยังคงเป็น flow แยก. ยังไม่ commit/push/deploy หรือทำ browser UAT.
+Follow-up on-demand PDF download (2026-08-21): เพิ่ม endpoint สร้าง PDF ล่าสุดเมื่อกดดาวน์โหลด และเพิ่มปุ่มที่ detail กับเมนู `...` ในตารางทั้ง WTI/WTO. Direct download ใช้ strict print derivative, private no-store และไม่สร้าง album artifact; ปุ่มพิมพ์เปิด PDF จาก endpoint เดียวกันเพื่อใช้ layout/pagination เดียวกัน. ยังไม่ commit/push/deploy หรือทำ browser UAT.
 
-Review-fix follow-up: profile PDF ใช้ branch-specific row เท่านั้น, direct route ปิด cancelled ticket, เพิ่ม route/profile boundary tests และ LINE เปลี่ยนจาก Supabase public URL เป็น application-domain download route. ยังไม่ push/deploy หลังแก้ไขชุดนี้.
+Review-fix follow-up: profile PDF ใช้ branch-specific row เท่านั้น, direct route ปิด cancelled ticket, เพิ่ม route/profile boundary tests และ LINE เปลี่ยนจาก Supabase public URL เป็น application-domain download route. ล่าสุดปุ่ม `พิมพ์` เปิด PDF จาก endpoint เดียวกับ Download PDF โดยตรง ทำให้ Print/Download/LINE ใช้ React-PDF artifact และ pagination ชุดเดียวกัน; ไม่ reflow HTML print แยกอีกชุด. ยังไม่ push/deploy หลังแก้ไขชุดนี้.
 
 Objective: ลดขนาดรูปแนบใน browser print, React-PDF และ LINE โดยไม่แตะ pagination และไม่แก้ original. Upload ใหม่สร้าง immutable `.print.jpg` แยกจาก thumbnail; worker ใช้ `rotate` + `fit: inside` ในกรอบสูงสุด `400 × 400 px`, JPEG quality `90`, จึงรักษา ratio ทั้งแนวตั้ง/แนวนอน และตรงกับ React-PDF image contract.
 

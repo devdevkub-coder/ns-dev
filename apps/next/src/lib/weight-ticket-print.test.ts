@@ -833,11 +833,10 @@ describe('weight ticket print HTML', () => {
     expect(style).not.toMatch(/\.continued\s*\{[^}]*min-height:\s*64px/)
   })
 
-  it('keeps WTI/WTO form pagination owned by the dedicated paginator', () => {
-    expect(weightTicketPrintSource).toContain('maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE')
-    expect(weightTicketPrintSource).toContain('reflowRows: true')
-    expect(weightTicketPrintSource).toContain('fillContinuationFirst: true')
-    expect(weightTicketPrintSource).toContain('requireFinalPageRows: true')
+  it('opens the same generated PDF for Print instead of reflowing a separate HTML layout', () => {
+    expect(weightTicketPrintSource).toContain("import { openWeightTicketPdfPrint } from '@/lib/download-weight-ticket-pdf'")
+    expect(weightTicketPrintSource).toContain('await openWeightTicketPdfPrint(ticket.documentNo, printWindow)')
+    expect(weightTicketPrintSource).not.toContain('reflowRows: true')
   })
 
   it('uses continuation-marker space on non-final WTI pages and puts real data only on the final page', async () => {

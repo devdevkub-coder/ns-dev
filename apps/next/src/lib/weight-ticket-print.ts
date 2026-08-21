@@ -1,6 +1,5 @@
 import { companyProfileForPrint, type CompanyProfilePrintValues } from '@/lib/company-profile'
-import { prepareCorporatePrintLayout } from '@/lib/corporate-print-layout'
-import { fetchCompanyProfileForPrint } from '@/lib/print-asset-prefetch'
+import { openWeightTicketPdfPrint } from '@/lib/download-weight-ticket-pdf'
 import { decodeStoredImageAsset, displayWeightTicketStatus, isPreviewableStoredImageAsset, stripImpurityProductMeta, type StoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
 /**
@@ -1021,22 +1020,6 @@ export function openWeightTicketPrintWindow(ticket: WeightTicketRecord) {
 
 export async function openWeightTicketReceiptPrint(ticket: WeightTicketRecord, targetWindow?: Window) {
   const printWindow = targetWindow ?? openWeightTicketPrintWindow(ticket)
-  // Reads from the short-lived in-memory cache warmed on hover when available,
-  // otherwise fetches fresh. Either way the payload shape is identical.
-  const payload = await fetchCompanyProfileForPrint(ticket.branchId)
-  const profile = companyProfileForPrint(payload)
-  printWindow.document.open()
-  printWindow.document.write(buildReceiptPrintHtml(ticket, profile))
-  printWindow.document.close()
-  // The pure paginator gives PDF/LINE a deterministic 20-row ceiling. For the
-  // browser print window, re-run the same pages through the shared DOM fitter
-  // so loaded fonts, logo dimensions, wrapped remarks, summary panels and
-  // signatures decide the final row boundary without splitting a row.
-  await prepareCorporatePrintLayout(printWindow.document, {
-    maxRowsPerPage: WEIGHT_TICKET_MAX_ROWS_PER_PAGE,
-    reflowRows: true,
-    fillContinuationFirst: true,
-    requireFinalPageRows: true,
-  })
+  await openWeightTicketPdfPrint(ticket.documentNo, printWindow)
   printWindow.focus()
 }

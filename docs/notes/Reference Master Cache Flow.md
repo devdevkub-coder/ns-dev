@@ -817,6 +817,6 @@ WTI/WTO เป็นข้อมูลภายในระดับ L5 แล�
 
 - WTI/WTO มีจุดเริ่มดาวน์โหลด PDF สองจุด: ปุ่มในรายละเอียดเอกสารและรายการ `...` ในตาราง. ทั้งสองจุดเรียก endpoint เดียวกันและโหลดเอกสารล่าสุดทุกครั้ง; ไม่มี cron และไม่เก็บ PDF ล่วงหน้า.
 - Endpoint ตรวจ permission/branch scope, resolve company print profile และ strict print derivative ก่อนสร้าง PDF. ใช้ server PDF renderer ที่ใช้ข้อมูล/กรอบ A4 และ print derivative ชุดเดียวกับ formal print contract; response เป็น `application/pdf`, `Content-Disposition: attachment` และ `private, no-store`.
-- Browser Print ยังคงเป็น flow แยกสำหรับการพิมพ์หรือ Save as PDF ผ่าน browser. ปุ่มใน print preview ใช้คำว่า `พิมพ์` เท่านั้น เพื่อไม่รวมความหมายกับ direct download.
+- ปุ่ม `พิมพ์` ของ WTI/WTO เปิด PDF ที่สร้างจาก endpoint เดียวกับ direct download ในหน้าต่างใหม่ เพื่อให้ browser PDF viewer พิมพ์ไฟล์เดียวกันและไม่เกิด DOM pagination คนละชุด. ปุ่มยังใช้คำว่า `พิมพ์` เท่านั้น; HTML print builder เดิมยังคงเป็นชุดทดสอบ/แหล่งอ้างอิงจนกว่าจะมีการลบอย่างปลอดภัย.
 - Download ห้าม fallback ไป original, thumbnail, legacy URL หรือ base64. ถ้า profile, Storage หรือ print derivative ไม่พร้อม ให้คืน error ที่ตรวจสอบได้และไม่สร้างเอกสารบางส่วน.
 - LINE PDF links use the application domain `/download/weight-ticket/{documentNo}`; Supabase bucket/public storage URLs and storage keys are never sent to LINE. This is an intentional anonymous document-number link contract, so the document number remains discoverable in the URL and must not be used for documents that require per-recipient confidentiality without a separate authorization mechanism.
