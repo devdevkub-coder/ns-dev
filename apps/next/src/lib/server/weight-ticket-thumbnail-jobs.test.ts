@@ -60,7 +60,7 @@ beforeEach(() => {
     webpQuality: 90,
     printJpegQuality: 90,
     downloadMaxDimension: 1600,
-    downloadJpegQuality: 92,
+    downloadJpegQuality: 100,
     previewTtlSeconds: 3600,
     orphanRetentionSeconds: 86400,
   })
@@ -448,7 +448,7 @@ describe('WTI/WTO download derivative worker', () => {
       withoutEnlargement: true,
       width: 1600,
     })
-    expect(mocks.jpeg).toHaveBeenCalledWith({ mozjpeg: true, quality: 92 })
+    expect(mocks.jpeg).toHaveBeenCalledWith({ mozjpeg: true, quality: 100 })
     expect(mocks.upload).toHaveBeenCalledWith(
       'attachments/pending/evidence.download.jpg',
       Buffer.from([7, 8, 9]),
