@@ -190,9 +190,14 @@ function expenseStatusDotClass(status: ExpenseFormValues['status']) {
 
 function expenseRowTone(status: ExpenseFormValues['status']) {
   if (status === 'approved') return 'bg-blue-50/30'
-  if (status === 'cancelled') return 'bg-slate-50 text-slate-500'
+  if (status === 'cancelled') return 'bg-red-50/80 text-slate-500'
   if (status === 'pending_approval') return 'bg-amber-50/30'
   return ''
+}
+
+function expenseTableCellTone(status: ExpenseFormValues['status'], _edge: 'first' | 'middle' | 'last') {
+  if (status !== 'cancelled') return ''
+  return '!bg-red-50'
 }
 
 function canMutateExpense(status: ExpenseFormValues['status']) {
@@ -2048,7 +2053,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   return (
                     <tr
                       key={row.id}
-                      className={`cursor-pointer hover:bg-slate-50 ${expenseRowTone(row.status)}`}
+                      className={`cursor-pointer ${row.status === 'cancelled' ? 'hover:!bg-red-100' : 'hover:bg-slate-50'} ${expenseRowTone(row.status)}`}
                       tabIndex={0}
                       onClick={() => setDetailRow(row)}
                       onKeyDown={(event) => {
@@ -2058,21 +2063,21 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         }
                       }}
                     >
-                      <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</td>
-                      <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
-                      <td className="whitespace-nowrap p-2 text-center text-xs font-semibold">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs font-normal text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
-                      <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.refDocNo || ''}>{row.refDocNo || '-'}</div></td>
-                      <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.payee || ''}>{row.payee}</div></td>
-                      <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.categoryName || ''}>{row.categoryName}</div></td>
-                      <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.accountName || ''}>{row.accountName}</div></td>
-                      <td className="p-2 text-center text-xs"><span className={`inline-flex items-center gap-1.5 font-semibold ${expenseStatusTextClass(row.status)}`}><span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />{expenseStatusLabel(row.status)}</span></td>
-                      <td className={`bg-red-50/60 p-2 pl-4 pr-4 text-right text-xs font-semibold tabular-nums whitespace-nowrap ${row.status === 'paid' ? 'text-emerald-700' : row.status === 'approved' ? 'text-blue-700' : row.status === 'cancelled' ? 'text-slate-500' : 'text-amber-700'}`}>{formatMoney(row.netAmount)}</td>
-                      <td className="whitespace-nowrap p-2 pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">
+                      <td className={`whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700 ${expenseTableCellTone(row.status, 'first')}`}>{row.docNo}</td>
+                      <td className={`whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700 ${expenseTableCellTone(row.status, 'middle')}`}>{formatDateDisplay(row.date)}</td>
+                      <td className={`whitespace-nowrap p-2 text-center text-xs font-semibold ${expenseTableCellTone(row.status, 'middle')}`}>{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs font-normal text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
+                      <td className={`whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700 min-w-0 overflow-hidden ${expenseTableCellTone(row.status, 'middle')}`}><div className="truncate" title={row.refDocNo || ''}>{row.refDocNo || '-'}</div></td>
+                      <td className={`ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden ${expenseTableCellTone(row.status, 'middle')}`}><div className="truncate" title={row.payee || ''}>{row.payee}</div></td>
+                      <td className={`ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden ${expenseTableCellTone(row.status, 'middle')}`}><div className="truncate" title={row.categoryName || ''}>{row.categoryName}</div></td>
+                      <td className={`ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700 min-w-0 overflow-hidden ${expenseTableCellTone(row.status, 'middle')}`}><div className="truncate" title={row.accountName || ''}>{row.accountName}</div></td>
+                      <td className={`p-2 text-center text-xs ${expenseTableCellTone(row.status, 'middle')}`}><span className={`inline-flex items-center gap-1.5 font-semibold ${expenseStatusTextClass(row.status)}`}><span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />{expenseStatusLabel(row.status)}</span></td>
+                      <td className={`bg-red-50/60 p-2 pl-4 pr-4 text-right text-xs font-semibold tabular-nums whitespace-nowrap ${row.status === 'paid' ? 'text-emerald-700' : row.status === 'approved' ? 'text-blue-700' : row.status === 'cancelled' ? 'text-slate-500' : 'text-amber-700'} ${expenseTableCellTone(row.status, 'middle')}`}>{formatMoney(row.netAmount)}</td>
+                      <td className={`whitespace-nowrap p-2 pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums ${expenseTableCellTone(row.status, 'middle')}`}>
                         <div>ยอด: <b>{formatMoney(row.amount)}</b></div>
                         {row.vat > 0 ? <div className="text-emerald-700">+VAT: {formatMoney(row.vat)}</div> : null}
                         {row.wht > 0 ? <div className="text-amber-700">-WHT: {formatMoney(row.wht)}</div> : null}
                       </td>
-                      <td className="p-2 text-center">
+                      <td className={`p-2 text-center ${expenseTableCellTone(row.status, 'last')}`}>
                         {canMutateExpense(row.status) ? (
                           <TableActionButton menu={(
                             <>
