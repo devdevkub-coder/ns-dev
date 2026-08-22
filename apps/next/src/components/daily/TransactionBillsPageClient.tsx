@@ -179,6 +179,7 @@ type DeliveryOption = {
   branchId: string
   branchName: string
   customerId: string
+  createdAt?: string
   documentDate: string
   documentNo: string
   id: string
@@ -246,7 +247,7 @@ type TransactionBillsPageClientProps = {
   mode: 'purchase' | 'sales'
 }
 
-type TransactionBillColumnKey = 'action' | 'date' | 'docNo' | 'gp' | 'itemCount' | 'outstanding' | 'paidAmount' | 'partyName' | 'paymentDocs' | 'receiptDocs' | 'refNo' | 'status' | 'totalAmount' | 'transactionMode' | 'updatedBy' | 'vat' | 'warehouse'
+type TransactionBillColumnKey = 'action' | 'date' | 'docNo' | 'gp' | 'itemCount' | 'outstanding' | 'paidAmount' | 'partyName' | 'paymentDocs' | 'receiptDocs' | 'refNo' | 'status' | 'totalAmount' | 'transactionMode' | 'updatedBy' | 'vat' | 'warehouse' | 'wtoDocumentDate'
 
 type MultiSegmentOption = {
   label: string
@@ -518,7 +519,7 @@ const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumn
 const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'refNo', defaultWidth: 150, minWidth: 120 },
-  { key: 'date', defaultWidth: 175, minWidth: 145 },
+  { key: 'wtoDocumentDate', defaultWidth: 175, minWidth: 145 },
   { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'warehouse', defaultWidth: 160, minWidth: 120 },
   { key: 'transactionMode', defaultWidth: 120, minWidth: 100 },
@@ -2024,6 +2025,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       branchId: detail.branchId,
       branchName: detail.branchName,
       customerId: detail.customerCode,
+      createdAt: detail.deliveryCreatedAtByDocNo?.[documentNo],
       documentDate: detail.date,
       documentNo,
       id: documentNo,
@@ -3446,7 +3448,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="whitespace-nowrap font-bold text-slate-800 text-sm">{row.docNo}</span>
-                <span className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+                <span className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(mode === 'purchase' ? row.date : row.wtoDocumentDate)}</span>
               </div>
               
               <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -3523,7 +3525,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่บิลขาย'} resizeProps={columnResize.getResizeHandleProps('docNo', mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่บิลขาย')} sortKey="docNo" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead align="center" label="เลขที่ใบรับของ" resizeProps={columnResize.getResizeHandleProps('receiptDocs', 'เลขที่ใบรับของ')} /> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่อ้างอิง')} sortKey="refNo" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'วันที่รับของตาม WTI' : 'วันที่ส่งของตาม WTO'} resizeProps={columnResize.getResizeHandleProps('date', mode === 'purchase' ? 'วันที่รับของตาม WTI' : 'วันที่ส่งของตาม WTO')} sortKey="date" onSort={changeSort} />
+              {mode === 'purchase' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่รับของตาม WTI" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่รับของตาม WTI')} sortKey="date" onSort={changeSort} /> : null}
+              {mode === 'sales' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่ส่งของตาม WTO" resizeProps={columnResize.getResizeHandleProps('wtoDocumentDate', 'วันที่ส่งของตาม WTO')} sortKey="wtoDocumentDate" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="left" className="ns-table-textual-column" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="left" className="ns-table-textual-column" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
@@ -3550,7 +3553,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   </td>
                 ) : null}
                 {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
-                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
+                {mode === 'purchase' ? <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td> : null}
+                {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.wtoDocumentDate)}</td> : null}
                 <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
                 {mode !== 'purchase' ? <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
                 <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{transactionModeLabel(row.transactionMode)}</span></td>
@@ -4265,10 +4269,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     onChange={(value) => requestSalesFormSourceChange('deliveryTicketId', value || null)}
                   />
                   {selectedDelivery ? (
-                    <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs md:grid-cols-4">
+                    <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs md:grid-cols-5">
                       <div><div className="font-semibold text-slate-500">เลขที่ใบส่งของ</div><div className="text-slate-900">{selectedDelivery.documentNo}</div></div>
                       <div><div className="font-semibold text-slate-500">ลูกค้า</div><div className="text-slate-900">{selectedDelivery.partyName}</div></div>
                       <div><div className="font-semibold text-slate-500">สาขา</div><div className="text-slate-900">{selectedDelivery.branchName}</div></div>
+                      <div><div className="font-semibold text-slate-500">วันที่ส่งของตาม WTO</div><div className="text-slate-900">{formatDateDisplay(selectedDelivery.createdAt)}</div></div>
                       <div><div className="font-semibold text-slate-500">วันที่</div><div className="text-slate-900">{formatDateDisplay(selectedDelivery.documentDate)}</div></div>
                     </div>
                   ) : null}
@@ -4349,10 +4354,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         onChange={(value) => requestSalesFormSourceChange('deliveryTicketId', value || null)}
                       />
                       {selectedDelivery ? (
-                        <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs md:grid-cols-4">
+                        <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs md:grid-cols-5">
                           <div><div className="font-semibold text-slate-500">เลขที่ใบส่งของ</div><div className="text-slate-900">{selectedDelivery.documentNo}</div></div>
                           <div><div className="font-semibold text-slate-500">ลูกค้า</div><div className="text-slate-900">{selectedDelivery.partyName}</div></div>
                           <div><div className="font-semibold text-slate-500">สาขา</div><div className="text-slate-900">{selectedDelivery.branchName}</div></div>
+                          <div><div className="font-semibold text-slate-500">วันที่ส่งของตาม WTO</div><div className="text-slate-900">{formatDateDisplay(selectedDelivery.createdAt)}</div></div>
                           <div><div className="font-semibold text-slate-500">วันที่</div><div className="text-slate-900">{formatDateDisplay(selectedDelivery.documentDate)}</div></div>
                         </div>
                       ) : null}
