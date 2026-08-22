@@ -85,6 +85,7 @@ type DeliveryTicketOptionRow = {
   branch_id: bigint
   branches: { code: string | null; name: string | null } | null
   cancelled_at: Date | null
+  created_at: Date
   customer_id: bigint | null
   customers: { code: string | null } | null
   doc_no: string
@@ -131,6 +132,7 @@ const deliveryTicketOptionSelect = {
   branch_id: true,
   branches: true,
   cancelled_at: true,
+  created_at: true,
   customer_id: true,
   customers: true,
   doc_no: true,
@@ -234,6 +236,41 @@ async function salesBillLineCountByBillId(billIds: bigint[]) {
     },
   })
   return new Map(rows.map((row) => [row.sales_bill_id, row._count.id] as const))
+}
+
+async function salesBillWtoDocumentDateByBillId(billIds: bigint[]) {
+  const dateByBillId = new Map<bigint, string>()
+  if (billIds.length === 0) return dateByBillId
+
+  const allocations = await prisma.sales_bill_source_allocations.findMany({
+    orderBy: { id: 'asc' },
+    select: {
+      sales_bill_id: true,
+      source_doc_no: true,
+    },
+    where: {
+      sales_bill_id: { in: billIds },
+      source_type: 'WTO',
+      status: { in: ['active', 'cancelled'] },
+    },
+  })
+  const deliveryDocNos = [...new Set(allocations.map((allocation) => allocation.source_doc_no).filter(Boolean))]
+  if (deliveryDocNos.length === 0) return dateByBillId
+
+  const tickets = await prisma.weight_tickets.findMany({
+    select: {
+      doc_no: true,
+      document_date: true,
+    },
+    where: { doc_no: { in: deliveryDocNos } },
+  })
+  const documentDateByDocNo = new Map(tickets.map((ticket) => [ticket.doc_no, toDateOnly(ticket.document_date)]))
+  allocations.forEach((allocation) => {
+    if (dateByBillId.has(allocation.sales_bill_id)) return
+    const documentDate = documentDateByDocNo.get(allocation.source_doc_no)
+    if (documentDate) dateByBillId.set(allocation.sales_bill_id, documentDate)
+  })
+  return dateByBillId
 }
 
 export async function salesBranchScope(context: AppAuthContext, requestedBranchCode?: string | null) {
@@ -971,6 +1008,7 @@ function deliveryTicketOptionJson(
     branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',
     customerId: row.customers?.code ?? '',
+    createdAt: row.created_at.toISOString(),
     documentDate: toDateOnly(row.document_date),
     documentNo: row.doc_no,
     id: row.doc_no,
@@ -1708,6 +1746,7 @@ async function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[
     'เลขที่': row.docNo,
     'อ้างอิง': row.refNo || '-',
     'วันที่': row.date,
+    'วันที่ส่งของตาม WTO': row.wtoDocumentDate || '',
     'ลูกค้า': row.customerName,
     'ประเภท': row.transactionMode,
     'สถานะ': salesBillStatusText(row.status),
@@ -1743,11 +1782,11 @@ async function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[
   const workbook = XLSX.utils.book_new()
   const sheet1 = XLSX.utils.json_to_sheet(summaryData)
   sheet1['!cols'] = [
-    { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 12 },
+    { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 18 }, { wch: 28 }, { wch: 12 }, { wch: 12 },
     { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 },
-    { wch: 16 }, { wch: 16 }, { wch: 22 },
+    { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 22 },
   ]
-  applyWorksheetTableLayout(sheet1, 15, summaryData.length + 1)
+  applyWorksheetTableLayout(sheet1, 17, summaryData.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet1, 'บิลขาย')
 
   const sheet2 = XLSX.utils.json_to_sheet(detailData)
@@ -1771,8 +1810,9 @@ export async function GET(request: Request) {
     const query = parseBillQuery(url, includePaging)
     const branchScope = await salesBranchScope(context, query.branchId)
     const where = billWhere(query, branchScope.ids)
+    const sortByWtoDocumentDate = query.sortKey === 'wtoDocumentDate'
 
-    const [rows, totalRows, totals] = await Promise.all([
+    const [loadedRows, totalRows, totals] = await Promise.all([
       prisma.sales_bills.findMany({
         include: {
           branches: true,
@@ -1784,23 +1824,41 @@ export async function GET(request: Request) {
           warehouses: true,
         },
         orderBy: billOrderBy(query),
-        skip: includePaging ? (query.page - 1) * query.pageSize : 0,
-        take: query.pageSize,
+        skip: sortByWtoDocumentDate ? 0 : includePaging ? (query.page - 1) * query.pageSize : 0,
+        take: sortByWtoDocumentDate ? undefined : query.pageSize,
         where,
       }),
       prisma.sales_bills.count({ where }),
       prisma.sales_bills.aggregate({ _sum: { total_amount: true }, where }),
     ])
+    let rows = loadedRows
+    let wtoDocumentDateByBillId = new Map<bigint, string>()
+    if (sortByWtoDocumentDate) {
+      wtoDocumentDateByBillId = await salesBillWtoDocumentDateByBillId(loadedRows.map((row) => row.id))
+      rows = [...loadedRows].sort((left, right) => {
+        const leftDate = wtoDocumentDateByBillId.get(left.id) ?? ''
+        const rightDate = wtoDocumentDateByBillId.get(right.id) ?? ''
+        if (!leftDate && !rightDate) return left.doc_no.localeCompare(right.doc_no)
+        if (!leftDate) return 1
+        if (!rightDate) return -1
+        const dateComparison = leftDate.localeCompare(rightDate)
+        return query.sortDirection === 'asc' ? dateComparison : -dateComparison
+      })
+      if (includePaging) rows = rows.slice((query.page - 1) * query.pageSize, query.page * query.pageSize)
+    }
     const billIds = rows.map((row) => row.id)
-    const [activeReceiptCountByBillId, lineCountByBillId] = await Promise.all([
+    const [activeReceiptCountByBillId, lineCountByBillId, pageWtoDocumentDateByBillId] = await Promise.all([
       activeSalesReceiptCountByBillId(prisma, billIds),
       salesBillLineCountByBillId(billIds),
+      sortByWtoDocumentDate ? Promise.resolve(wtoDocumentDateByBillId) : salesBillWtoDocumentDateByBillId(billIds),
     ])
     const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0, lineCountByBillId.get(row.id)))
     const actorDisplayNames = await resolveActorDisplayNames(jsonRows.flatMap((row) => [row.createdBy, row.updatedBy]))
-    const displayRows = jsonRows.map((row) => ({
+    const displayRows = jsonRows.map((row, index) => ({
       ...row,
       createdBy: actorDisplayName(row.createdBy, actorDisplayNames),
+      date: row.date,
+      wtoDocumentDate: pageWtoDocumentDateByBillId.get(rows[index]?.id) ?? '',
       updatedBy: actorDisplayName(row.updatedBy, actorDisplayNames),
     }))
 

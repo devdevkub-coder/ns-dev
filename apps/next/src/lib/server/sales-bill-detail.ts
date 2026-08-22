@@ -19,6 +19,7 @@ export type SalesBillDetail = {
   customerTaxId: string
   date: string
   deliveryDocNos: string[]
+  deliveryCreatedAtByDocNo?: Record<string, string>
   discount: number
   docNo: string
   dueDate: string
@@ -533,6 +534,7 @@ export async function getSalesBillDetail(
     deliveryDocNos.length
       ? prisma.weight_tickets.findMany({
           select: {
+            created_at: true,
             doc_no: true,
             vehicle_no: true,
             weight_ticket_product_summaries: {
@@ -588,6 +590,9 @@ export async function getSalesBillDetail(
     : []
 
   const vehicleByDeliveryDocNo = new Map(deliveryTickets.map((ticket) => [ticket.doc_no, ticket.vehicle_no ?? '']))
+  const deliveryCreatedAtByDocNo = Object.fromEntries(
+    deliveryTickets.map((ticket) => [ticket.doc_no, ticket.created_at.toISOString()]),
+  )
   const deliverySummaryById = new Map<string, {
     deductWeight: number
     grossWeight: number
@@ -778,6 +783,7 @@ export async function getSalesBillDetail(
     customerName: bill.customers?.name ?? '-',
     customerTaxId: bill.customers?.tax_id ?? '-',
     date: bill.date ? toDateOnly(bill.date) : '-',
+    deliveryCreatedAtByDocNo,
     deliveryDocNos,
     discount: toNumber(bill.discount_total ?? bill.discount),
     docNo: bill.doc_no,

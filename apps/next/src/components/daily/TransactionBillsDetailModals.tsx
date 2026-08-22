@@ -77,6 +77,7 @@ type BillRow = {
   vatRatePercent?: number
   warehouseId?: string
   warehouseName?: string
+  wtoDocumentDate?: string
 }
 
 
@@ -230,7 +231,7 @@ type Option = {
   vatType?: string | null
 }
 
-type SortKey = 'date' | 'docNo' | 'itemCount' | 'name' | 'outstanding' | 'refNo' | 'status' | 'totalAmount' | 'transactionMode' | 'updatedBy' | 'warehouse'
+type SortKey = 'date' | 'docNo' | 'itemCount' | 'name' | 'outstanding' | 'refNo' | 'status' | 'totalAmount' | 'transactionMode' | 'updatedBy' | 'warehouse' | 'wtoDocumentDate'
 type SortDirection = 'asc' | 'desc'
 
 function PurchaseBillDetailModal({
